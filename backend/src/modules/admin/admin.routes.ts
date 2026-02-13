@@ -1,0 +1,297 @@
+// ============================================
+// MasterUz — Admin Routes
+// Агент 9 (Админ-панель разработчик)
+// ============================================
+
+import { Router, Request, Response, NextFunction } from 'express';
+import { adminService } from './admin.service.js';
+import { authenticate, authorize } from '../../middleware/auth.js';
+import { prisma } from '../../config/database.js';
+
+const router = Router();
+
+// Все маршруты только для админов/менеджеров
+router.use(authenticate, authorize('ADMIN', 'MANAGER'));
+
+// Дашборд
+router.get('/dashboard', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const dashboard = await adminService.getDashboard();
+    res.json({ success: true, data: dashboard });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Пользователи
+router.get('/users', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const result = await adminService.getUsers({
+      page: parseInt(req.query.page as string) || 1,
+      limit: parseInt(req.query.limit as string) || 20,
+      role: req.query.role as string,
+      search: req.query.search as string,
+      isActive: req.query.isActive ? req.query.isActive === 'true' : undefined,
+    });
+    res.json({ success: true, ...result });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Блокировка
+router.put('/users/:id/block', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const result = await adminService.toggleUserBlock(
+      req.user!.userId,
+      req.params.id,
+      req.body.reason
+    );
+    res.json({ success: true, data: result });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Верификация
+router.put('/users/:id/verify', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const result = await adminService.verifyUser(req.params.id);
+    res.json({ success: true, data: result });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Заказы
+router.get('/orders', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const result = await adminService.getAllOrders({
+      page: parseInt(req.query.page as string) || 1,
+      limit: parseInt(req.query.limit as string) || 20,
+      status: req.query.status as string,
+      dateFrom: req.query.dateFrom as string,
+      dateTo: req.query.dateTo as string,
+    });
+    res.json({ success: true, ...result });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Платежи
+router.get('/payments', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const result = await adminService.getAllPayments({
+      page: parseInt(req.query.page as string) || 1,
+      limit: parseInt(req.query.limit as string) || 20,
+      status: req.query.status as string,
+      provider: req.query.provider as string,
+    });
+    res.json({ success: true, ...result });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Конфигурация
+router.get('/config', async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const config = await adminService.getConfig();
+    res.json({ success: true, data: config });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.put('/config', authorize('ADMIN'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { key, value, description } = req.body;
+    const config = await adminService.updateConfig(req.user!.userId, key, value, description);
+    res.json({ success: true, data: config });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Чёрный список
+router.get('/blacklist', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const result = await adminService.getBlacklist(
+      parseInt(req.query.page as string) || 1,
+      parseInt(req.query.limit as string) || 20
+    );
+    res.json({ success: true, ...result });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ─── Сертификаты мастеров ───────────────────
+
+// GET /admin/certificates — список сертификатов (с фильтром по статусу верификации)
+router.get('/certificates', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+    const verified = req.query.verified as string | undefined;
+    const skip = (page - 1) * limit;
+
+    const where: any = {};
+    if (verified === 'true') where.verified = true;
+    if (verified === 'false') where.verified = false;
+
+    const [certificates, total] = await Promise.all([
+      prisma.certificate.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          user: {
+            include: {
+              profile: { select: { firstName: true, lastName: true, avatarUrl: true } },
+              masterProfile: { select: { id: true, rating: true, completedOrders: true } },
+            },
+          },
+        },
+      }),
+      prisma.certificate.count({ where }),
+    ]);
+
+    res.json({
+      success: true,
+      data: certificates,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+        hasNext: page * limit < total,
+        hasPrev: page > 1,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// PUT /admin/certificates/:id/verify — верифицировать сертификат
+router.put('/certificates/:id/verify', authorize('ADMIN'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const certificate = await prisma.certificate.findUnique({ where: { id: req.params.id } });
+    if (!certificate) {
+      res.status(404).json({ success: false, error: { message: 'Сертификат не найден' } });
+      return;
+    }
+
+    const updated = await prisma.certificate.update({
+      where: { id: req.params.id },
+      data: {
+        verified: true,
+        verifiedAt: new Date(),
+      },
+    });
+
+    res.json({ success: true, data: updated });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// PUT /admin/certificates/:id/reject — отклонить сертификат
+router.put('/certificates/:id/reject', authorize('ADMIN'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const certificate = await prisma.certificate.findUnique({ where: { id: req.params.id } });
+    if (!certificate) {
+      res.status(404).json({ success: false, error: { message: 'Сертификат не найден' } });
+      return;
+    }
+
+    const updated = await prisma.certificate.update({
+      where: { id: req.params.id },
+      data: {
+        verified: false,
+        verifiedAt: null,
+      },
+    });
+
+    res.json({ success: true, data: updated });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ─── Категории мастеров ────────────────────
+
+// GET /admin/master/:masterId/categories — категории конкретного мастера
+router.get('/master/:masterId/categories', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const masterProfile = await prisma.masterProfile.findFirst({
+      where: { userId: req.params.masterId },
+      include: {
+        masterCategories: {
+          include: {
+            category: {
+              select: { id: true, name: true, nameUz: true, nameEn: true, slug: true, icon: true },
+            },
+          },
+        },
+      },
+    });
+    const categories = masterProfile?.masterCategories.map((mc) => mc.category) || [];
+    res.json({ success: true, data: categories });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// PUT /admin/master/:masterId/categories — обновить категории мастера (админ)
+router.put('/master/:masterId/categories', authorize('ADMIN'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { categoryIds } = req.body;
+    if (!Array.isArray(categoryIds) || categoryIds.length === 0) {
+      res.status(400).json({ success: false, error: { message: 'Укажите хотя бы одну категорию' } });
+      return;
+    }
+
+    const masterProfile = await prisma.masterProfile.findFirst({
+      where: { userId: req.params.masterId },
+    });
+
+    if (!masterProfile) {
+      res.status(404).json({ success: false, error: { message: 'Профиль мастера не найден' } });
+      return;
+    }
+
+    await prisma.$transaction([
+      prisma.masterCategory.deleteMany({ where: { masterProfileId: masterProfile.id } }),
+      prisma.masterCategory.createMany({
+        data: categoryIds.map((categoryId: string) => ({
+          masterProfileId: masterProfile.id,
+          categoryId,
+        })),
+        skipDuplicates: true,
+      }),
+    ]);
+
+    const updated = await prisma.masterProfile.findUnique({
+      where: { id: masterProfile.id },
+      include: {
+        masterCategories: {
+          include: {
+            category: {
+              select: { id: true, name: true, nameUz: true, nameEn: true, slug: true, icon: true },
+            },
+          },
+        },
+      },
+    });
+
+    res.json({ success: true, data: updated });
+  } catch (error) {
+    next(error);
+  }
+});
+
+export default router;

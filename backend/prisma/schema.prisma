@@ -1,0 +1,908 @@
+// ============================================
+// MasterUz — Prisma Schema (PostgreSQL)
+// Агент 1 (Архитектор) + Агент 3 (Бэкенд)
+// ============================================
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-1.0.x", "rhel-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Роли пользователей ───────────────────────
+enum UserRole {
+  CLIENT
+  MASTER
+  ADMIN
+  MANAGER
+}
+
+// ─── Статусы заказа ───────────────────────────
+enum OrderStatus {
+  DRAFT
+  PUBLISHED
+  ACCEPTED
+  IN_TRANSIT
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  DISPUTED
+}
+
+// ─── Статусы платежа ──────────────────────────
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+// ─── Типы платежей ────────────────────────────
+enum PaymentType {
+  ORDER_COMMISSION
+  ORDER_PAYMENT
+  REFERRAL_BONUS
+  SUBSCRIPTION
+  REGISTRATION_FEE
+  ESCROW_HOLD
+  ESCROW_RELEASE
+  PENALTY
+  BALANCE_TOPUP
+  VISIT_FEE
+}
+
+// ─── Провайдеры платежей ──────────────────────
+enum PaymentProvider {
+  CLICK
+  PAYME
+  TELEGRAM_STARS
+  INTERNAL
+}
+
+// ─── Статусы рефералов ────────────────────────
+enum ReferralStatus {
+  PENDING
+  ACTIVE
+  PAID
+}
+
+// ─── Типы рефералов ──────────────────────────
+enum ReferralType {
+  MASTER_TO_MASTER
+  CLIENT_TO_CLIENT
+}
+
+// ─── Статусы откликов ─────────────────────────
+enum ResponseStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+}
+
+// ════════════════════════════════════════════════
+// ПОЛЬЗОВАТЕЛИ
+// ════════════════════════════════════════════════
+
+model User {
+  id          String   @id @default(uuid())
+  telegramId  BigInt   @unique @map("telegram_id")
+  username    String?
+  phone       String?
+  email       String?
+  role        UserRole @default(CLIENT)
+  isActive    Boolean  @default(true) @map("is_active")
+  isVerified  Boolean  @default(false) @map("is_verified")
+  balance     Float    @default(0)
+  referralCode String  @unique @map("referral_code")
+  referredById String? @map("referred_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Связи
+  referredBy     User?          @relation("UserReferrals", fields: [referredById], references: [id])
+  referrals      User[]         @relation("UserReferrals")
+  profile        UserProfile?
+  masterProfile  MasterProfile?
+  clientOrders   Order[]        @relation("ClientOrders")
+  masterOrders   Order[]        @relation("MasterOrders")
+  responses      OrderResponse[]
+  reviewsGiven   Review[]       @relation("ReviewerReviews")
+  reviewsReceived Review[]      @relation("RevieweeReviews")
+  payments       Payment[]
+  referralsGiven Referral[]     @relation("ReferrerReferrals")
+  referralsReceived Referral[]  @relation("ReferredReferrals")
+  certificates   Certificate[]
+  courseProgress  CourseProgress[]
+  notifications  Notification[]
+  blacklistEntries Blacklist[]  @relation("BlockedUser")
+  blacklistActions Blacklist[]  @relation("BlockedByUser")
+  configUpdates  PlatformConfig[] @relation("ConfigUpdater")
+  chatMessages   ChatMessage[]
+  favoriteMasters FavoriteMaster[] @relation("ClientFavorites")
+  favoritedBy    FavoriteMaster[] @relation("MasterFavorites")
+  usedPromoCodes PromoCodeUsage[]
+  portfolioItems PortfolioItem[] @relation("MasterPortfolio")
+  balanceTransactions BalanceTransaction[]
+  storeReviews   StoreReview[]
+  turnkeyProjects TurnkeyProject[]
+
+  @@map("users")
+}
+
+model UserProfile {
+  id        String  @id @default(uuid())
+  userId    String  @unique @map("user_id")
+  firstName String  @map("first_name")
+  lastName  String? @map("last_name")
+  avatarUrl String? @map("avatar_url")
+  bio       String?
+  latitude  Float?
+  longitude Float?
+  address   String?
+  city      String?
+  district  String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_profiles")
+}
+
+model MasterProfile {
+  id              String    @id @default(uuid())
+  userId          String    @unique @map("user_id")
+  specializations String[]  @default([])
+  experienceYears Int       @default(0) @map("experience_years")
+  rating          Float     @default(0)
+  completedOrders Int       @default(0) @map("completed_orders")
+  isAvailable     Boolean   @default(true) @map("is_available")
+  isOnline        Boolean   @default(false) @map("is_online")
+  lastSeenAt      DateTime? @map("last_seen_at")
+  maxDistanceKm   Int       @default(10) @map("max_distance_km")
+  hourlyRate      Float?    @map("hourly_rate")
+  schoolCompleted  Boolean   @default(false) @map("school_completed")
+  registrationPaid Boolean   @default(false) @map("registration_paid")
+  registrationPaidAt DateTime? @map("registration_paid_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  masterCategories MasterCategory[]
+
+  @@map("master_profiles")
+}
+
+model Certificate {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  title      String
+  fileUrl    String   @map("file_url")
+  verified   Boolean  @default(false)
+  verifiedAt DateTime? @map("verified_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("certificates")
+}
+
+// ════════════════════════════════════════════════
+// КАТЕГОРИИ УСЛУГ
+// ════════════════════════════════════════════════
+
+model Category {
+  id        String    @id @default(uuid())
+  name      String
+  nameUz    String?   @map("name_uz")
+  nameEn    String?   @map("name_en")
+  slug      String    @unique
+  icon      String?
+  parentId  String?   @map("parent_id")
+  sortOrder Int       @default(0) @map("sort_order")
+  isActive  Boolean   @default(true) @map("is_active")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  parent        Category?      @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children      Category[]     @relation("CategoryHierarchy")
+  orders        Order[]
+  courses       SchoolCourse[]
+  subcategories Subcategory[]
+  portfolioItems PortfolioItem[] @relation("PortfolioCategory")
+  masterCategories MasterCategory[]
+
+  @@map("categories")
+}
+
+// ════════════════════════════════════════════════
+// СВЯЗЬ МАСТЕРОВ С КАТЕГОРИЯМИ (M:N)
+// ════════════════════════════════════════════════
+
+model MasterCategory {
+  id              String   @id @default(uuid())
+  masterProfileId String   @map("master_profile_id")
+  categoryId      String   @map("category_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  masterProfile MasterProfile @relation(fields: [masterProfileId], references: [id], onDelete: Cascade)
+  category      Category      @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([masterProfileId, categoryId])
+  @@index([categoryId])
+  @@map("master_categories")
+}
+
+// ════════════════════════════════════════════════
+// ПОДКАТЕГОРИИ УСЛУГ
+// ════════════════════════════════════════════════
+
+model Subcategory {
+  id         String   @id @default(uuid())
+  categoryId String   @map("category_id")
+  name       String
+  nameUz     String?  @map("name_uz")
+  nameEn     String?  @map("name_en")
+  slug       String   @unique
+  icon       String?
+  sortOrder  Int      @default(0) @map("sort_order")
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  tasks    Task[]
+
+  @@index([categoryId])
+  @@map("subcategories")
+}
+
+// ════════════════════════════════════════════════
+// ЗАДАЧИ (КОНКРЕТНЫЕ ВИДЫ РАБОТ)
+// ════════════════════════════════════════════════
+
+model Task {
+  id             String   @id @default(uuid())
+  subcategoryId  String   @map("subcategory_id")
+  name           String
+  nameUz         String?  @map("name_uz")
+  nameEn         String?  @map("name_en")
+  description    String?
+  descriptionUz  String?  @map("description_uz")
+  descriptionEn  String?  @map("description_en")
+  estimatedTime  String?  @map("estimated_time")          // e.g. "30-60 мин"
+  estimatedTimeUz String? @map("estimated_time_uz")
+  estimatedTimeEn String? @map("estimated_time_en")
+  minPrice       Float?   @map("min_price")               // Минимальная цена (сум), e.g. 150000
+  slug           String   @unique
+  sortOrder      Int      @default(0) @map("sort_order")
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  subcategory Subcategory  @relation(fields: [subcategoryId], references: [id], onDelete: Cascade)
+  orderTasks  OrderTask[]
+
+  @@index([subcategoryId])
+  @@map("tasks")
+}
+
+// ════════════════════════════════════════════════
+// СВЯЗЬ ЗАКАЗОВ С ЗАДАЧАМИ (M:N)
+// ════════════════════════════════════════════════
+
+model OrderTask {
+  id      String @id @default(uuid())
+  orderId String @map("order_id")
+  taskId  String @map("task_id")
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  task  Task  @relation(fields: [taskId], references: [id])
+
+  @@unique([orderId, taskId])
+  @@map("order_tasks")
+}
+
+// ════════════════════════════════════════════════
+// ЗАКАЗЫ (ЛОТЫ)
+// ════════════════════════════════════════════════
+
+model Order {
+  id               String      @id @default(uuid())
+  clientId         String      @map("client_id")
+  masterId         String?     @map("master_id")
+  categoryId       String      @map("category_id")
+  title            String
+  description      String
+  price            Float
+  priceMax         Float?      @map("price_max")
+  commissionRate   Float       @map("commission_rate")
+  commissionAmount Float       @map("commission_amount")
+  status           OrderStatus @default(DRAFT)
+  isUrgent         Boolean     @default(false) @map("is_urgent")
+  urgentMultiplier Float       @default(1.0) @map("urgent_multiplier")
+  commissionPaid   Boolean     @default(false) @map("commission_paid")
+  // Anti-fraud: Escrow / подтверждения / штрафы
+  visitFee         Float?      @map("visit_fee")
+  escrowAmount     Float       @default(0) @map("escrow_amount")
+  offerAccepted    Boolean     @default(false) @map("offer_accepted")
+  masterConfirmedAt DateTime?  @map("master_confirmed_at")
+  clientConfirmedAt DateTime?  @map("client_confirmed_at")
+  acceptedAt       DateTime?   @map("accepted_at")
+  inTransitAt      DateTime?   @map("in_transit_at")
+  penaltyAmount    Float       @default(0) @map("penalty_amount")
+  cancelReason     String?     @map("cancel_reason")
+  cancelledBy      String?     @map("cancelled_by")
+  disputeReason    String?     @map("dispute_reason")
+  // Geo / адрес
+  latitude         Float?
+  longitude        Float?
+  address          String?
+  street           String?
+  city             String?
+  district         String?
+  region           String?
+  deadline         DateTime?
+  images           String[]    @default([])
+  createdAt        DateTime    @default(now()) @map("created_at")
+  updatedAt        DateTime    @updatedAt @map("updated_at")
+  completedAt      DateTime?   @map("completed_at")
+  cancelledAt      DateTime?   @map("cancelled_at")
+
+  client     User            @relation("ClientOrders", fields: [clientId], references: [id])
+  master     User?           @relation("MasterOrders", fields: [masterId], references: [id])
+  category   Category        @relation(fields: [categoryId], references: [id])
+  responses  OrderResponse[]
+  reviews    Review[]
+  payments   Payment[]
+  orderTasks OrderTask[]
+  chatMessages ChatMessage[]
+  photos     OrderPhoto[]
+  guarantee  Guarantee?
+
+  @@index([status, createdAt])
+  @@index([latitude, longitude])
+  @@index([categoryId])
+  @@index([clientId])
+  @@index([masterId])
+  @@map("orders")
+}
+
+model OrderResponse {
+  id         String         @id @default(uuid())
+  orderId    String         @map("order_id")
+  masterId   String         @map("master_id")
+  priceOffer Float?         @map("price_offer")
+  message    String?
+  status     ResponseStatus @default(PENDING)
+  createdAt  DateTime       @default(now()) @map("created_at")
+
+  order  Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  master User  @relation(fields: [masterId], references: [id])
+
+  @@unique([orderId, masterId])
+  @@map("order_responses")
+}
+
+// ════════════════════════════════════════════════
+// ОТЗЫВЫ И РЕЙТИНГИ
+// ════════════════════════════════════════════════
+
+model Review {
+  id         String   @id @default(uuid())
+  orderId    String   @map("order_id")
+  reviewerId String   @map("reviewer_id")
+  revieweeId String   @map("reviewee_id")
+  rating     Int      // 1-5
+  comment    String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  order    Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  reviewer User  @relation("ReviewerReviews", fields: [reviewerId], references: [id])
+  reviewee User  @relation("RevieweeReviews", fields: [revieweeId], references: [id])
+
+  @@unique([orderId, reviewerId])
+  @@index([revieweeId])
+  @@map("reviews")
+}
+
+// ════════════════════════════════════════════════
+// ПЛАТЕЖИ
+// ════════════════════════════════════════════════
+
+model Payment {
+  id            String          @id @default(uuid())
+  orderId       String?         @map("order_id")
+  userId        String          @map("user_id")
+  amount        Float
+  type          PaymentType
+  provider      PaymentProvider
+  providerTxId  String?         @unique @map("provider_tx_id")
+  status        PaymentStatus   @default(PENDING)
+  metadata      Json?
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
+
+  order Order? @relation(fields: [orderId], references: [id])
+  user  User   @relation(fields: [userId], references: [id])
+
+  @@index([status])
+  @@index([provider, providerTxId])
+  @@map("payments")
+}
+
+// ════════════════════════════════════════════════
+// РЕФЕРАЛЬНАЯ СИСТЕМА
+// ════════════════════════════════════════════════
+
+model Referral {
+  id          String         @id @default(uuid())
+  referrerId  String         @map("referrer_id")
+  referredId  String         @map("referred_id")
+  type        ReferralType
+  bonusAmount Float?         @map("bonus_amount")
+  bonusRate   Float          @map("bonus_rate")
+  status      ReferralStatus @default(PENDING)
+  createdAt   DateTime       @default(now()) @map("created_at")
+
+  referrer User @relation("ReferrerReferrals", fields: [referrerId], references: [id])
+  referred User @relation("ReferredReferrals", fields: [referredId], references: [id])
+
+  @@unique([referrerId, referredId])
+  @@map("referrals")
+}
+
+// ════════════════════════════════════════════════
+// ШКОЛА МАСТЕРОВ
+// ════════════════════════════════════════════════
+
+model SchoolCourse {
+  id              String   @id @default(uuid())
+  categoryId      String?  @map("category_id")
+  title           String
+  titleUz         String?  @map("title_uz")
+  titleEn         String?  @map("title_en")
+  description     String?
+  descriptionUz   String?  @map("description_uz")
+  descriptionEn   String?  @map("description_en")
+  content         String?
+  videoUrl        String?  @map("video_url")
+  thumbnailUrl    String?  @map("thumbnail_url")
+  durationMinutes Int?     @map("duration_minutes")
+  sortOrder       Int      @default(0) @map("sort_order")
+  isRequired      Boolean  @default(false) @map("is_required")
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  category Category? @relation(fields: [categoryId], references: [id])
+  progress CourseProgress[]
+
+  @@map("school_courses")
+}
+
+model CourseProgress {
+  id          String    @id @default(uuid())
+  userId      String    @map("user_id")
+  courseId     String    @map("course_id")
+  completed   Boolean   @default(false)
+  completedAt DateTime? @map("completed_at")
+
+  user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course SchoolCourse @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, courseId])
+  @@map("course_progress")
+}
+
+// ════════════════════════════════════════════════
+// УВЕДОМЛЕНИЯ
+// ════════════════════════════════════════════════
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  type      String
+  title     String
+  message   String
+  data      Json?
+  isRead    Boolean  @default(false) @map("is_read")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@map("notifications")
+}
+
+// ════════════════════════════════════════════════
+// ЧЁРНЫЙ СПИСОК
+// ════════════════════════════════════════════════
+
+model Blacklist {
+  id         String    @id @default(uuid())
+  userId     String    @map("user_id")
+  reason     String
+  blockedById String   @map("blocked_by_id")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  expiresAt  DateTime? @map("expires_at")
+
+  user      User @relation("BlockedUser", fields: [userId], references: [id])
+  blockedBy User @relation("BlockedByUser", fields: [blockedById], references: [id])
+
+  @@map("blacklist")
+}
+
+// ════════════════════════════════════════════════
+// КОНФИГУРАЦИЯ ПЛАТФОРМЫ
+// ════════════════════════════════════════════════
+
+model PlatformConfig {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       String
+  description String?
+  updatedById String?  @map("updated_by_id")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  updatedBy User? @relation("ConfigUpdater", fields: [updatedById], references: [id])
+
+  @@map("platform_config")
+}
+
+// ════════════════════════════════════════════════
+// ЧАТ ЗАКАЗА (переписка клиент ↔ мастер)
+// ════════════════════════════════════════════════
+
+model ChatMessage {
+  id        String   @id @default(uuid())
+  orderId   String   @map("order_id")
+  senderId  String   @map("sender_id")
+  text      String?
+  imageUrl  String?  @map("image_url")
+  isSystem  Boolean  @default(false) @map("is_system")
+  isRead    Boolean  @default(false) @map("is_read")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  order  Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  sender User  @relation(fields: [senderId], references: [id])
+
+  @@index([orderId, createdAt])
+  @@index([senderId])
+  @@map("chat_messages")
+}
+
+// ════════════════════════════════════════════════
+// ФОТО ДО / ПОСЛЕ РАБОТЫ
+// ════════════════════════════════════════════════
+
+model OrderPhoto {
+  id        String   @id @default(uuid())
+  orderId   String   @map("order_id")
+  url       String
+  type      String   // 'before' | 'after'
+  caption   String?
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, type])
+  @@map("order_photos")
+}
+
+// ════════════════════════════════════════════════
+// ИЗБРАННЫЕ МАСТЕРА
+// ════════════════════════════════════════════════
+
+model FavoriteMaster {
+  id        String   @id @default(uuid())
+  clientId  String   @map("client_id")
+  masterId  String   @map("master_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  client User @relation("ClientFavorites", fields: [clientId], references: [id], onDelete: Cascade)
+  master User @relation("MasterFavorites", fields: [masterId], references: [id], onDelete: Cascade)
+
+  @@unique([clientId, masterId])
+  @@map("favorite_masters")
+}
+
+// ════════════════════════════════════════════════
+// ПРОМОКОДЫ
+// ════════════════════════════════════════════════
+
+model PromoCode {
+  id           String    @id @default(uuid())
+  code         String    @unique
+  discountType String    @map("discount_type") // 'percentage' | 'fixed'
+  discountValue Float    @map("discount_value")
+  maxUses      Int?      @map("max_uses")
+  usedCount    Int       @default(0) @map("used_count")
+  minOrderPrice Float?   @map("min_order_price")
+  isActive     Boolean   @default(true) @map("is_active")
+  expiresAt    DateTime? @map("expires_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  usages PromoCodeUsage[]
+
+  @@map("promo_codes")
+}
+
+model PromoCodeUsage {
+  id          String   @id @default(uuid())
+  promoCodeId String   @map("promo_code_id")
+  userId      String   @map("user_id")
+  orderId     String?  @map("order_id")
+  discount    Float
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  promoCode PromoCode @relation(fields: [promoCodeId], references: [id])
+  user      User      @relation(fields: [userId], references: [id])
+
+  @@unique([promoCodeId, userId])
+  @@map("promo_code_usages")
+}
+
+// ════════════════════════════════════════════════
+// ПОРТФОЛИО МАСТЕРА (галерея работ)
+// ════════════════════════════════════════════════
+
+model PortfolioItem {
+  id          String   @id @default(uuid())
+  masterId    String   @map("master_id")
+  title       String
+  description String?
+  imageUrl    String   @map("image_url")
+  categoryId  String?  @map("category_id")
+  sortOrder   Int      @default(0) @map("sort_order")
+  likesCount  Int      @default(0) @map("likes_count")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  master   User      @relation("MasterPortfolio", fields: [masterId], references: [id], onDelete: Cascade)
+  category Category? @relation("PortfolioCategory", fields: [categoryId], references: [id])
+
+  @@index([masterId, sortOrder])
+  @@map("portfolio_items")
+}
+
+// ════════════════════════════════════════════════
+// ГАРАНТИЯ НА РАБОТУ
+// ════════════════════════════════════════════════
+
+model Guarantee {
+  id           String    @id @default(uuid())
+  orderId      String    @unique @map("order_id")
+  durationDays Int       @map("duration_days")  // Срок гарантии в днях
+  description  String?
+  isActive     Boolean   @default(true) @map("is_active")
+  claimedAt    DateTime? @map("claimed_at")
+  resolvedAt   DateTime? @map("resolved_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  expiresAt    DateTime  @map("expires_at")
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+  @@map("guarantees")
+}
+
+// ════════════════════════════════════════════════
+// ПАРТНЁРСКИЕ МАГАЗИНЫ (СТРОЙМАТЕРИАЛЫ)
+// ════════════════════════════════════════════════
+
+enum StoreStatus {
+  PENDING
+  ACTIVE
+  REJECTED
+  SUSPENDED
+}
+
+enum PartnerRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model PartnerStore {
+  id              String      @id @default(uuid())
+  name            String
+  nameUz          String?     @map("name_uz")
+  nameEn          String?     @map("name_en")
+  slug            String      @unique
+  description     String?
+  descriptionUz   String?     @map("description_uz")
+  descriptionEn   String?     @map("description_en")
+  logoUrl         String?     @map("logo_url")
+  coverUrl        String?     @map("cover_url")
+  phone           String
+  email           String?
+  website         String?
+  telegramUsername String?    @map("telegram_username")
+  contactPerson   String      @map("contact_person")
+  address         String?
+  city            String?
+  district        String?
+  latitude        Float?
+  longitude       Float?
+  storeCategory   String      @map("store_category") // building-materials, tools, paints, plumbing, electrical, finishing, furniture-materials
+  rating          Float       @default(0)
+  reviewCount     Int         @default(0) @map("review_count")
+  status          StoreStatus @default(PENDING)
+  isVerified      Boolean     @default(false) @map("is_verified")
+  workingHours    String?     @map("working_hours")
+  deliveryAvailable Boolean   @default(false) @map("delivery_available")
+  discountForMasters Float?   @map("discount_for_masters") // Скидка для мастеров платформы (%)
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+
+  products        StoreProduct[]
+  reviews         StoreReview[]
+
+  @@index([storeCategory])
+  @@index([status])
+  @@index([city])
+  @@map("partner_stores")
+}
+
+model StoreProduct {
+  id           String   @id @default(uuid())
+  storeId      String   @map("store_id")
+  name         String
+  nameUz       String?  @map("name_uz")
+  nameEn       String?  @map("name_en")
+  description  String?
+  descriptionUz String? @map("description_uz")
+  descriptionEn String? @map("description_en")
+  price        Float
+  unit         String?  // шт, м², кг, литр, рулон
+  imageUrl     String?  @map("image_url")
+  category     String   // category of product
+  inStock      Boolean  @default(true) @map("in_stock")
+  sortOrder    Int      @default(0) @map("sort_order")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  store PartnerStore @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId, category])
+  @@map("store_products")
+}
+
+model StoreReview {
+  id        String   @id @default(uuid())
+  storeId   String   @map("store_id")
+  userId    String   @map("user_id")
+  rating    Int      // 1-5
+  comment   String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  store PartnerStore @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  user  User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, userId])
+  @@index([storeId])
+  @@map("store_reviews")
+}
+
+model PartnerRequest {
+  id            String               @id @default(uuid())
+  storeName     String               @map("store_name")
+  contactPerson String               @map("contact_person")
+  phone         String
+  email         String?
+  address       String?
+  city          String?
+  storeCategory String               @map("store_category")
+  message       String?
+  status        PartnerRequestStatus @default(PENDING)
+  adminNote     String?              @map("admin_note")
+  createdAt     DateTime             @default(now()) @map("created_at")
+  reviewedAt    DateTime?            @map("reviewed_at")
+
+  @@map("partner_requests")
+}
+
+// ════════════════════════════════════════════════
+// РЕМОНТ ПОД КЛЮЧ (TURNKEY RENOVATION)
+// ════════════════════════════════════════════════
+
+enum TurnkeyStatus {
+  INQUIRY       // Заявка
+  CONSULTATION  // Консультация/замер
+  DESIGNING     // Разработка дизайн-проекта
+  APPROVED      // Утвержден
+  IN_PROGRESS   // В работе
+  COMPLETED     // Завершён
+  CANCELLED     // Отменён
+}
+
+model TurnkeyProject {
+  id              String        @id @default(uuid())
+  clientId        String        @map("client_id")
+  title           String
+  description     String?
+  propertyType    String        @map("property_type")  // apartment, house, office, commercial
+  area            Float?        // Площадь в м²
+  rooms           Int?          // Количество комнат
+  budgetMin       Float?        @map("budget_min")
+  budgetMax       Float?        @map("budget_max")
+  address         String?
+  city            String?
+  district        String?
+  latitude        Float?
+  longitude       Float?
+  status          TurnkeyStatus @default(INQUIRY)
+  designIncluded  Boolean       @default(false) @map("design_included")
+  furnitureIncluded Boolean     @default(false) @map("furniture_included")
+  estimatedDays   Int?          @map("estimated_days")
+  actualStartDate DateTime?     @map("actual_start_date")
+  actualEndDate   DateTime?     @map("actual_end_date")
+  totalPrice      Float?        @map("total_price")
+  images          String[]      @default([])
+  floorPlanUrl    String?       @map("floor_plan_url")
+  designProjectUrl String?      @map("design_project_url")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  stages TurnkeyStage[]
+  client User           @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@index([status])
+  @@map("turnkey_projects")
+}
+
+model TurnkeyStage {
+  id          String   @id @default(uuid())
+  projectId   String   @map("project_id")
+  name        String
+  nameUz      String?  @map("name_uz")
+  nameEn      String?  @map("name_en")
+  description String?
+  sortOrder   Int      @default(0) @map("sort_order")
+  status      String   @default("pending") // pending, in_progress, completed
+  progress    Int      @default(0) // 0-100 (процент выполнения)
+  startDate   DateTime? @map("start_date")
+  endDate     DateTime? @map("end_date")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  project TurnkeyProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, sortOrder])
+  @@map("turnkey_stages")
+}
+
+// ════════════════════════════════════════════════
+// ТРАНЗАКЦИИ БАЛАНСА (аудит-лог движения средств)
+// ════════════════════════════════════════════════
+
+enum BalanceTransactionType {
+  TOPUP           // Пополнение баланса
+  ESCROW_HOLD     // Блокировка средств при создании заказа
+  ESCROW_RELEASE  // Разблокировка / перевод мастеру
+  PENALTY         // Штраф за отмену
+  REFUND          // Возврат средств
+  COMMISSION      // Оплата комиссии
+  PAYOUT          // Выплата мастеру
+}
+
+model BalanceTransaction {
+  id            String                @id @default(uuid())
+  userId        String                @map("user_id")
+  type          BalanceTransactionType
+  amount        Float                 // Сумма (положительная — приход, отрицательная — расход)
+  balanceBefore Float                 @map("balance_before")
+  balanceAfter  Float                 @map("balance_after")
+  orderId       String?               @map("order_id")
+  description   String?
+  metadata      Json?
+  createdAt     DateTime              @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([orderId])
+  @@map("balance_transactions")
+}

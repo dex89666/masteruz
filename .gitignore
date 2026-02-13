@@ -1,0 +1,23 @@
+# MasterUz ignores
+node_modules/
+dist/
+dist-vercel/
+build/
+.env
+.env.local
+.env.production
+.env.vercel
+*.log
+uploads/*
+!uploads/.gitkeep
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.vscode/
+.idea/
+coverage/
+certbot/
+backups/
+.vercel/
+.vite/

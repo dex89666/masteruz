@@ -1,0 +1,246 @@
+// ============================================
+// MasterUz — Главная точка входа (Express App)
+// Агент 10 (Интегратор)
+// ============================================
+
+// BigInt сериализация для JSON (telegramId в Prisma = BigInt)
+(BigInt.prototype as any).toJSON = function () {
+  return Number(this);
+};
+
+import express from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+import compression from 'compression';
+import rateLimit from 'express-rate-limit';
+import path from 'path';
+
+import { config } from './config/index.js';
+import { prisma } from './config/database.js';
+import { logger } from './utils/logger.js';
+import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
+
+// Импорт маршрутов модулей
+import authRoutes from './modules/auth/auth.routes.js';
+import usersRoutes from './modules/users/users.routes.js';
+import ordersRoutes from './modules/orders/orders.routes.js';
+import paymentsRoutes from './modules/payments/payments.routes.js';
+import referralsRoutes from './modules/referrals/referrals.routes.js';
+import ratingsRoutes from './modules/ratings/ratings.routes.js';
+import geoRoutes from './modules/geo/geo.routes.js';
+import schoolRoutes from './modules/school/school.routes.js';
+import adminRoutes from './modules/admin/admin.routes.js';
+import catalogRoutes from './modules/catalog/catalog.routes.js';
+import chatRoutes from './modules/chat/chat.routes.js';
+import notificationsRoutes from './modules/notifications/notifications.routes.js';
+import photosRoutes from './modules/photos/photos.routes.js';
+import favoritesRoutes from './modules/favorites/favorites.routes.js';
+import promoRoutes from './modules/promo/promo.routes.js';
+import guaranteesRoutes from './modules/guarantees/guarantees.routes.js';
+import portfolioRoutes from './modules/portfolio/portfolio.routes.js';
+import balanceRoutes from './modules/balance/balance.routes.js';
+import onlineStatusRoutes from './modules/users/onlineStatus.routes.js';
+import storesRoutes from './modules/stores/stores.routes.js';
+import turnkeyRoutes from './modules/turnkey/turnkey.routes.js';
+
+const app = express();
+
+// ─── Глобальные Middleware ─────────────────────
+
+// Безопасность
+app.use(helmet());
+
+// Сжатие ответов — только на VPS (Vercel CDN сжимает сам на edge)
+const isVercelEnv = process.env.VERCEL === '1' || process.env.VERCEL === 'true';
+if (!isVercelEnv) {
+  app.use(compression({
+    level: 6,
+    threshold: 1024, // Сжимаем ответы > 1KB
+    filter: (req, res) => {
+      if (req.headers['x-no-compression']) return false;
+      return compression.filter(req, res);
+    },
+  }));
+}
+
+// CORS
+app.use(cors({
+  origin: config.corsOrigin.split(','),
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}));
+
+// Парсинг тела запроса
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true }));
+
+// Rate Limiting — только для VPS/Docker (на Vercel MemoryStore сбрасывается между cold starts)
+if (!isVercelEnv) {
+  // Rate Limiting — глобальный лимит
+  const globalLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 минут
+    max: 200, // Максимум 200 запросов с одного IP
+    message: {
+      success: false,
+      error: { message: 'Слишком много запросов, попробуйте позже', statusCode: 429 },
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+  app.use('/api/', globalLimiter);
+
+  // Rate Limiting — строгий лимит для авторизации
+  const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 10, // Максимум 10 попыток за 15 минут
+    message: {
+      success: false,
+      error: { message: 'Слишком много попыток входа, попробуйте позже', statusCode: 429 },
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+  app.use('/api/auth', authLimiter);
+
+  // Rate Limiting — лимит для создания заказов
+  const createOrderLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 час
+    max: 20, // Максимум 20 заказов в час
+    message: {
+      success: false,
+      error: { message: 'Превышен лимит создания заказов', statusCode: 429 },
+    },
+  });
+  app.use('/api/orders', createOrderLimiter);
+
+  // Rate Limiting — лимит для заявок на партнёрство (антиспам)
+  const partnerRequestLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 час
+    max: 3, // Максимум 3 заявки в час с одного IP
+    message: {
+      success: false,
+      error: { message: 'Слишком много заявок, попробуйте позже', statusCode: 429 },
+    },
+  });
+  app.use('/api/stores/partner-request', partnerRequestLimiter);
+}
+
+// Статические файлы (загрузки) — только для VPS/Docker
+if (!isVercelEnv) {
+  app.use('/uploads', express.static(path.resolve(config.upload.dir)));
+}
+
+// Request logging (dev only)
+if (config.env === 'development') {
+  app.use((req, _res, next) => {
+    logger.debug({ method: req.method, url: req.url }, '→ Request');
+    next();
+  });
+}
+
+// ─── Маршруты API ──────────────────────────────
+
+app.use('/api/auth', authRoutes);
+app.use('/api/users', usersRoutes);
+app.use('/api/orders', ordersRoutes);
+app.use('/api/payments', paymentsRoutes);
+app.use('/api/referrals', referralsRoutes);
+app.use('/api/reviews', ratingsRoutes);
+app.use('/api/geo', geoRoutes);
+app.use('/api/school', schoolRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/catalog', catalogRoutes);
+app.use('/api/chat', chatRoutes);
+app.use('/api/notifications', notificationsRoutes);
+app.use('/api/photos', photosRoutes);
+app.use('/api/favorites', favoritesRoutes);
+app.use('/api/promo', promoRoutes);
+app.use('/api/guarantees', guaranteesRoutes);
+app.use('/api/portfolio', portfolioRoutes);
+app.use('/api/balance', balanceRoutes);
+app.use('/api/users', onlineStatusRoutes); // Heartbeat, go-offline, online-masters
+app.use('/api/stores', storesRoutes);
+app.use('/api/turnkey', turnkeyRoutes);
+
+// ─── Healthcheck ───────────────────────────────
+
+app.get('/api/health', async (_req, res) => {
+  let dbStatus = 'ok';
+  let redisStatus = 'ok';
+
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+  } catch {
+    dbStatus = 'error';
+  }
+
+  try {
+    const { getRedis } = await import('./config/redis.js');
+    const redis = getRedis();
+    const pong = await redis.ping();
+    if (pong !== 'PONG') redisStatus = 'degraded';
+  } catch {
+    redisStatus = 'unavailable';
+  }
+
+  const overallStatus = dbStatus === 'ok' ? 'ok' : 'degraded';
+
+  res.status(overallStatus === 'ok' ? 200 : 503).json({
+    success: overallStatus === 'ok',
+    data: {
+      status: overallStatus,
+      timestamp: new Date().toISOString(),
+      version: '1.0.0',
+      environment: config.env,
+      runtime: isVercelEnv ? 'vercel-serverless' : 'node',
+      services: {
+        database: dbStatus,
+        redis: redisStatus,
+      },
+    },
+  });
+});
+
+// ─── Обработчики ошибок ────────────────────────
+
+app.use(notFoundHandler);
+app.use(errorHandler);
+
+// ─── Запуск сервера ────────────────────────────
+
+if (!isVercelEnv) {
+  // Обычный запуск (VPS / Docker / локальная разработка)
+  async function bootstrap() {
+    try {
+      await prisma.$connect();
+      logger.info('✅ PostgreSQL подключён');
+
+      app.listen(config.port, config.host, () => {
+        logger.info(`🚀 MasterUz Backend запущен на ${config.host}:${config.port}`);
+        logger.info(`📝 Среда: ${config.env}`);
+        logger.info(`🔗 API: http://${config.host}:${config.port}/api`);
+      });
+    } catch (error) {
+      logger.error({ error }, '❌ Ошибка запуска сервера');
+      process.exit(1);
+    }
+  }
+
+  // Graceful shutdown
+  process.on('SIGTERM', async () => {
+    logger.info('SIGTERM получен, завершаю...');
+    await prisma.$disconnect();
+    process.exit(0);
+  });
+
+  process.on('SIGINT', async () => {
+    logger.info('SIGINT получен, завершаю...');
+    await prisma.$disconnect();
+    process.exit(0);
+  });
+
+  bootstrap();
+}
+
+export default app;

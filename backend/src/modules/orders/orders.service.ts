@@ -1,0 +1,811 @@
+// ============================================
+// MasterUz — Orders Service (Антифрод механика)
+// PUBLISHED → ACCEPTED → IN_TRANSIT → IN_PROGRESS → COMPLETED
+// Эскроу / Двойное подтверждение / Штрафы / Споры
+// ============================================
+
+import { prisma } from '../../config/database.js';
+import { ApiError } from '../../utils/ApiError.js';
+import { calculateDistance, calculateCommission, getPagination, paginatedResponse } from '../../utils/helpers.js';
+import { OrderStatus, Prisma } from '@prisma/client';
+import type { CreateOrderInput, ListOrdersInput, OrderResponseInput } from './orders.schema.js';
+import { logger } from '../../utils/logger.js';
+import { notificationService } from '../../services/notificationService.js';
+import { balanceService } from '../balance/balance.service.js';
+
+// ─── Конфиг штрафов ─────────────────────────
+const PENALTY_AFTER_ACCEPT = 20000;   // Штраф за отмену после принятия (20 000 сум)
+const PENALTY_AFTER_TRANSIT = 30000;  // Штраф за отмену после «мастер в пути» (30 000 сум)
+const PENALTY_MASTER_CANCEL = 30000;  // Штраф мастеру за отмену (30 000 сум)
+const AUTO_CONFIRM_TIMEOUT_MS = 60 * 60 * 1000; // 1 час — авто-подтверждение клиентом
+
+export class OrdersService {
+  /**
+   * Создание нового заказа с блокировкой средств (эскроу)
+   */
+  async createOrder(clientId: string, data: CreateOrderInput) {
+    // Проверяем категорию
+    const category = await prisma.category.findUnique({
+      where: { id: data.categoryId },
+    });
+
+    if (!category || !category.isActive) {
+      throw ApiError.badRequest('Категория не найдена или неактивна');
+    }
+
+    // ─── Проверка принятия оферты ──────────
+    if (!data.offerAccepted) {
+      throw ApiError.badRequest('Необходимо принять условия оферты');
+    }
+
+    // Получаем текущую комиссию из конфигурации
+    const [commissionConfig, visitFeeConfig, visitFeeCommConfig] = await Promise.all([
+      prisma.platformConfig.findUnique({ where: { key: 'commission_rate' } }),
+      prisma.platformConfig.findUnique({ where: { key: 'visit_fee' } }),
+      prisma.platformConfig.findUnique({ where: { key: 'visit_fee_commission_rate' } }),
+    ]);
+    const commissionRate = commissionConfig ? parseFloat(commissionConfig.value) : 15;
+    const visitFee = visitFeeConfig ? parseFloat(visitFeeConfig.value) : 100000;
+    const visitFeeCommissionRate = visitFeeCommConfig ? parseFloat(visitFeeCommConfig.value) : 10;
+
+    // ─── Проверка минимальной цены ────────────────
+    if (data.taskIds && data.taskIds.length > 0) {
+      const selectedTasks = await prisma.task.findMany({
+        where: { id: { in: data.taskIds } },
+        select: { id: true, minPrice: true, name: true },
+      });
+
+      const totalMinPrice = selectedTasks.reduce((sum, t) => sum + (t.minPrice ?? 0), 0);
+      const minimumRequired = totalMinPrice + visitFee;
+
+      if (data.price < minimumRequired) {
+        throw ApiError.badRequest(
+          `Минимальная стоимость заказа: ${minimumRequired.toLocaleString('ru')} сум ` +
+          `(работы: ${totalMinPrice.toLocaleString('ru')} + выезд: ${visitFee.toLocaleString('ru')})`
+        );
+      }
+    }
+
+    // ─── Обработка срочности (+40%) ────────────
+    const URGENT_MULTIPLIER = 1.4;
+    const isUrgent = data.isUrgent === true;
+    const urgentMultiplier = isUrgent ? URGENT_MULTIPLIER : 1.0;
+    const effectivePrice = data.price * urgentMultiplier;
+
+    // Комиссия с работ + комиссия с выезда
+    const workCommission = calculateCommission(effectivePrice, commissionRate);
+    const visitFeeCommission = calculateCommission(visitFee, visitFeeCommissionRate);
+    const commissionAmount = workCommission + visitFeeCommission;
+
+    // Полная сумма для эскроу: цена заказа + стоимость выезда
+    const escrowAmount = effectivePrice + visitFee;
+
+    // ─── Проверка баланса и блокировка средств ────
+    const clientBalance = await balanceService.getBalance(clientId);
+    if (clientBalance < escrowAmount) {
+      throw ApiError.badRequest(
+        `Недостаточно средств. Баланс: ${clientBalance.toLocaleString('ru')} сум, ` +
+        `необходимо: ${escrowAmount.toLocaleString('ru')} сум`
+      );
+    }
+
+    // Блокируем средства
+    await balanceService.holdFunds(clientId, escrowAmount, 'pending');
+
+    try {
+      const order = await prisma.order.create({
+        data: {
+          clientId,
+          categoryId: data.categoryId,
+          title: data.title,
+          description: data.description,
+          price: effectivePrice,
+          priceMax: data.priceMax ? data.priceMax * urgentMultiplier : null,
+          commissionRate,
+          commissionAmount,
+          visitFee,
+          escrowAmount,
+          offerAccepted: true,
+          status: OrderStatus.PUBLISHED,
+          isUrgent,
+          urgentMultiplier,
+          latitude: data.latitude,
+          longitude: data.longitude,
+          address: data.address,
+          street: data.street,
+          city: data.city,
+          district: data.district,
+          region: data.region,
+          deadline: data.deadline ? new Date(data.deadline) : null,
+          ...(data.taskIds && data.taskIds.length > 0
+            ? { orderTasks: { create: data.taskIds.map((taskId: string) => ({ taskId })) } }
+            : {}),
+        },
+        include: {
+          category: true,
+          client: { include: { profile: true } },
+          orderTasks: { include: { task: true } },
+        },
+      });
+
+      // Обновляем orderId в транзакции эскроу
+      await prisma.balanceTransaction.updateMany({
+        where: { userId: clientId, orderId: 'pending', type: 'ESCROW_HOLD' },
+        data: { orderId: order.id },
+      });
+
+      logger.info({ orderId: order.id, clientId, isUrgent, escrowAmount }, 'Заказ создан, средства заблокированы');
+
+      notificationService.notifyMastersNewOrder(order.id).catch((err) => {
+        logger.error({ error: err }, 'Ошибка уведомления мастеров');
+      });
+
+      return order;
+    } catch (error) {
+      // Если создание не удалось — возвращаем средства
+      await prisma.user.update({
+        where: { id: clientId },
+        data: { balance: { increment: escrowAmount } },
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Получение списка заказов с фильтрами
+   */
+  async listOrders(filters: ListOrdersInput, userId?: string) {
+    const { skip, take, page, limit } = getPagination(
+      Number(filters.page) || 1,
+      Number(filters.limit) || 20
+    );
+
+    const where: Prisma.OrderWhereInput = {};
+
+    // Фильтр по статусу
+    if (filters.status) {
+      where.status = filters.status as OrderStatus;
+    } else {
+      where.status = OrderStatus.PUBLISHED;
+    }
+
+    // Фильтр по категории (поддержка UUID и slug)
+    if (filters.categoryId) {
+      // Проверяем: это UUID или slug?
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(filters.categoryId);
+      if (isUuid) {
+        where.categoryId = filters.categoryId;
+      } else {
+        // Ищем категорию по slug
+        const category = await prisma.category.findFirst({
+          where: { slug: filters.categoryId },
+        });
+        if (category) {
+          where.categoryId = category.id;
+        }
+      }
+    }
+
+    // Фильтр по подкатегории (через связанные задачи)
+    if (filters.subcategoryId) {
+      where.orderTasks = {
+        some: {
+          task: {
+            subcategoryId: filters.subcategoryId,
+          },
+        },
+      };
+    }
+
+    // Фильтр по городу
+    if (filters.city) {
+      where.city = filters.city;
+    }
+
+    // Фильтр по району
+    if (filters.district) {
+      where.district = filters.district;
+    }
+
+    // Фильтр по срочности
+    if (filters.isUrgent === 'true') {
+      where.isUrgent = true;
+    }
+
+    // Фильтр по цене
+    if (filters.minPrice || filters.maxPrice) {
+      where.price = {};
+      if (filters.minPrice) where.price.gte = Number(filters.minPrice);
+      if (filters.maxPrice) where.price.lte = Number(filters.maxPrice);
+    }
+
+    // Определяем сортировку
+    let orderBy: Prisma.OrderOrderByWithRelationInput = { createdAt: 'desc' };
+    if (filters.sortBy === 'price') {
+      orderBy = { price: filters.sortOrder || 'desc' };
+    }
+
+    const [orders, total] = await Promise.all([
+      prisma.order.findMany({
+        where,
+        skip,
+        take,
+        orderBy,
+        include: {
+          category: true,
+          client: {
+            include: { profile: true },
+          },
+          orderTasks: {
+            include: { task: true },
+          },
+          _count: {
+            select: { responses: true },
+          },
+        },
+      }),
+      prisma.order.count({ where }),
+    ]);
+
+    // Если есть координаты — рассчитываем расстояние и фильтруем
+    let processedOrders = orders;
+    if (filters.latitude && filters.longitude) {
+      processedOrders = orders
+        .map((order) => {
+          const distance =
+            order.latitude && order.longitude
+              ? calculateDistance(
+                  Number(filters.latitude),
+                  Number(filters.longitude),
+                  order.latitude,
+                  order.longitude
+                )
+              : null;
+
+          return { ...order, distance };
+        })
+        .filter((order) => {
+          if (filters.radius && order.distance !== null) {
+            return order.distance <= Number(filters.radius);
+          }
+          return true;
+        })
+        .sort((a, b) => {
+          if (filters.sortBy === 'distance' && a.distance !== null && b.distance !== null) {
+            return a.distance - b.distance;
+          }
+          return 0;
+        }) as any;
+    }
+
+    return paginatedResponse(processedOrders, total, page, limit);
+  }
+
+  /**
+   * Получение деталей заказа
+   */
+  async getOrder(orderId: string, userId?: string) {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        category: true,
+        client: {
+          include: { profile: true },
+        },
+        master: {
+          include: { profile: true, masterProfile: true },
+        },
+        responses: {
+          include: {
+            master: {
+              include: { profile: true, masterProfile: true },
+            },
+          },
+        },
+        orderTasks: {
+          include: { task: true },
+        },
+        reviews: true,
+      },
+    });
+
+    if (!order) {
+      throw ApiError.notFound('Заказ не найден');
+    }
+
+    return order;
+  }
+
+  /**
+   * Отклик мастера на заказ
+   */
+  async respondToOrder(orderId: string, masterId: string, data: OrderResponseInput) {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+    });
+
+    if (!order) {
+      throw ApiError.notFound('Заказ не найден');
+    }
+
+    if (order.status !== OrderStatus.PUBLISHED) {
+      throw ApiError.badRequest('Заказ недоступен для откликов');
+    }
+
+    if (order.clientId === masterId) {
+      throw ApiError.badRequest('Нельзя откликнуться на свой заказ');
+    }
+
+    // Проверяем, что мастер — действительно мастер
+    const masterProfile = await prisma.masterProfile.findUnique({
+      where: { userId: masterId },
+    });
+
+    if (!masterProfile) {
+      throw ApiError.badRequest('Только мастера могут откликаться на заказы');
+    }
+
+    // Проверяем, что мастер оплатил регистрационный взнос
+    if (!masterProfile.registrationPaid) {
+      throw ApiError.forbidden('Оплатите регистрационный взнос для доступа к заказам');
+    }
+
+    // ─── Ограничение для новичков (< 5 заказов) ─────────
+    if (masterProfile.completedOrders < 5 && data.priceOffer) {
+      const newbieConfig = await prisma.platformConfig.findUnique({ where: { key: 'newbie_max_price_ratio' } });
+      const maxRatio = newbieConfig ? parseFloat(newbieConfig.value) : 0.7;
+      const maxNewbiePrice = Math.round(order.price * maxRatio);
+
+      if (data.priceOffer > maxNewbiePrice) {
+        throw ApiError.badRequest(
+          `Новые мастера (менее 5 заказов) могут предлагать не более ${(maxRatio * 100).toFixed(0)}% от стоимости заказа. ` +
+          `Максимальная ставка: ${maxNewbiePrice.toLocaleString('ru')} сум`
+        );
+      }
+    }
+
+    // Проверяем дублирование отклика
+    const existingResponse = await prisma.orderResponse.findUnique({
+      where: {
+        orderId_masterId: {
+          orderId,
+          masterId,
+        },
+      },
+    });
+
+    if (existingResponse) {
+      throw ApiError.conflict('Вы уже откликнулись на этот заказ');
+    }
+
+    const response = await prisma.orderResponse.create({
+      data: {
+        orderId,
+        masterId,
+        priceOffer: data.priceOffer,
+        message: data.message,
+      },
+      include: {
+        master: {
+          include: { profile: true, masterProfile: true },
+        },
+      },
+    });
+
+    logger.info({ orderId, masterId }, 'Мастер откликнулся на заказ');
+
+    return response;
+  }
+
+  /**
+   * Назначение мастера на заказ (клиентом) → статус ACCEPTED
+   */
+  async assignMaster(orderId: string, clientId: string, masterId: string) {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+    });
+
+    if (!order) {
+      throw ApiError.notFound('Заказ не найден');
+    }
+
+    if (order.clientId !== clientId) {
+      throw ApiError.forbidden('Только владелец заказа может назначить мастера');
+    }
+
+    if (order.status !== OrderStatus.PUBLISHED) {
+      throw ApiError.badRequest('Заказ не в статусе публикации');
+    }
+
+    // Проверяем отклик мастера
+    const response = await prisma.orderResponse.findUnique({
+      where: {
+        orderId_masterId: {
+          orderId,
+          masterId,
+        },
+      },
+    });
+
+    if (!response) {
+      throw ApiError.badRequest('Мастер не откликался на этот заказ');
+    }
+
+    // PUBLISHED → ACCEPTED (не сразу IN_PROGRESS!)
+    const [updatedOrder] = await prisma.$transaction([
+      prisma.order.update({
+        where: { id: orderId },
+        data: {
+          masterId,
+          status: OrderStatus.ACCEPTED,
+          acceptedAt: new Date(),
+        },
+        include: {
+          master: { include: { profile: true } },
+          client: { include: { profile: true } },
+          category: true,
+        },
+      }),
+      prisma.orderResponse.update({
+        where: { id: response.id },
+        data: { status: 'ACCEPTED' },
+      }),
+      prisma.orderResponse.updateMany({
+        where: {
+          orderId,
+          masterId: { not: masterId },
+        },
+        data: { status: 'REJECTED' },
+      }),
+    ]);
+
+    logger.info({ orderId, masterId, clientId }, 'Мастер принят → ACCEPTED');
+
+    // Уведомляем мастера о назначении
+    notificationService.notifyMasterAssigned(orderId).catch((err) => {
+      logger.error({ error: err }, 'Ошибка уведомления мастера о назначении');
+    });
+    notificationService.notifyMasterResponseAccepted(orderId, masterId).catch((err) => {
+      logger.error({ error: err }, 'Ошибка уведомления о принятии отклика');
+    });
+
+    return updatedOrder;
+  }
+
+  /**
+   * Мастер обновляет статус: ACCEPTED → IN_TRANSIT → IN_PROGRESS
+   */
+  async updateOrderStatus(orderId: string, masterId: string, newStatus: string) {
+    const order = await prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) throw ApiError.notFound('Заказ не найден');
+    if (order.masterId !== masterId) throw ApiError.forbidden('Вы не назначены на этот заказ');
+
+    const transitions: Record<string, string[]> = {
+      ACCEPTED: ['IN_TRANSIT'],
+      IN_TRANSIT: ['IN_PROGRESS'],
+    };
+
+    const allowedNext = transitions[order.status] || [];
+    if (!allowedNext.includes(newStatus)) {
+      throw ApiError.badRequest(
+        `Нельзя перевести из ${order.status} в ${newStatus}. Допустимые: ${allowedNext.join(', ')}`
+      );
+    }
+
+    const updateData: any = { status: newStatus as OrderStatus };
+    if (newStatus === 'IN_TRANSIT') {
+      updateData.inTransitAt = new Date();
+    }
+
+    const updatedOrder = await prisma.order.update({
+      where: { id: orderId },
+      data: updateData,
+      include: {
+        master: { include: { profile: true } },
+        client: { include: { profile: true } },
+        category: true,
+      },
+    });
+
+    logger.info({ orderId, masterId, from: order.status, to: newStatus }, 'Статус обновлён мастером');
+    return updatedOrder;
+  }
+
+  /**
+   * Мастер подтверждает выполнение работы
+   */
+  async masterConfirmComplete(orderId: string, masterId: string) {
+    const order = await prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) throw ApiError.notFound('Заказ не найден');
+    if (order.masterId !== masterId) throw ApiError.forbidden('Вы не назначены на этот заказ');
+    if (order.status !== OrderStatus.IN_PROGRESS) throw ApiError.badRequest('Заказ не в статусе «В работе»');
+    if (order.masterConfirmedAt) throw ApiError.badRequest('Вы уже подтвердили выполнение');
+
+    const updatedOrder = await prisma.order.update({
+      where: { id: orderId },
+      data: { masterConfirmedAt: new Date() },
+    });
+
+    logger.info({ orderId, masterId }, 'Мастер подтвердил выполнение');
+
+    // Если клиент уже подтвердил — завершаем и выплачиваем
+    if (updatedOrder.clientConfirmedAt) {
+      return this.finalizeOrder(orderId);
+    }
+
+    // Запускаем таймер автоподтверждения клиентом (1 час)
+    this.scheduleAutoConfirm(orderId);
+    return updatedOrder;
+  }
+
+  /**
+   * Клиент подтверждает завершение работы
+   */
+  async clientConfirmComplete(orderId: string, clientId: string) {
+    const order = await prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) throw ApiError.notFound('Заказ не найден');
+    if (order.clientId !== clientId) throw ApiError.forbidden('Только владелец может подтвердить');
+    if (order.status !== OrderStatus.IN_PROGRESS) throw ApiError.badRequest('Заказ не в статусе «В работе»');
+    if (order.clientConfirmedAt) throw ApiError.badRequest('Вы уже подтвердили завершение');
+
+    const updatedOrder = await prisma.order.update({
+      where: { id: orderId },
+      data: { clientConfirmedAt: new Date() },
+    });
+
+    logger.info({ orderId, clientId }, 'Клиент подтвердил завершение');
+
+    // Если мастер уже подтвердил — завершаем и выплачиваем
+    if (updatedOrder.masterConfirmedAt) {
+      return this.finalizeOrder(orderId);
+    }
+
+    return updatedOrder;
+  }
+
+  /**
+   * Финализация заказа: оба подтвердили → COMPLETED + выплата
+   */
+  private async finalizeOrder(orderId: string) {
+    const order = await prisma.order.update({
+      where: { id: orderId },
+      data: {
+        status: OrderStatus.COMPLETED,
+        completedAt: new Date(),
+      },
+    });
+
+    // Переводим средства мастеру
+    await balanceService.releaseFunds(orderId);
+
+    // Обновляем счётчик
+    if (order.masterId) {
+      await prisma.masterProfile.update({
+        where: { userId: order.masterId },
+        data: { completedOrders: { increment: 1 } },
+      });
+    }
+
+    logger.info({ orderId }, 'Заказ финализирован, средства переведены');
+    return order;
+  }
+
+  /**
+   * Авто-подтверждение через 1 час
+   */
+  private scheduleAutoConfirm(orderId: string) {
+    setTimeout(async () => {
+      try {
+        const order = await prisma.order.findUnique({ where: { id: orderId } });
+        if (!order) return;
+        if (order.status === OrderStatus.IN_PROGRESS && order.masterConfirmedAt && !order.clientConfirmedAt) {
+          logger.info({ orderId }, 'Авто-подтверждение клиентом (таймаут 1 час)');
+          await prisma.order.update({
+            where: { id: orderId },
+            data: { clientConfirmedAt: new Date() },
+          });
+          await this.finalizeOrder(orderId);
+        }
+      } catch (error) {
+        logger.error({ error, orderId }, 'Ошибка авто-подтверждения');
+      }
+    }, AUTO_CONFIRM_TIMEOUT_MS);
+  }
+
+  /**
+   * Отмена заказа с системой штрафов
+   */
+  async cancelOrder(orderId: string, userId: string, reason?: string) {
+    const order = await prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) throw ApiError.notFound('Заказ не найден');
+
+    if (order.status === OrderStatus.COMPLETED || order.status === OrderStatus.CANCELLED) {
+      throw ApiError.badRequest('Заказ уже завершён или отменён');
+    }
+
+    const isClient = order.clientId === userId;
+    const isMaster = order.masterId === userId;
+    if (!isClient && !isMaster) throw ApiError.forbidden('Нет прав для отмены');
+
+    let penaltyAmount = 0;
+    const cancelledBy = isClient ? 'CLIENT' : 'MASTER';
+
+    if (isClient) {
+      switch (order.status) {
+        case OrderStatus.PUBLISHED: penaltyAmount = 0; break;
+        case OrderStatus.ACCEPTED: penaltyAmount = PENALTY_AFTER_ACCEPT; break;
+        case OrderStatus.IN_TRANSIT:
+        case OrderStatus.IN_PROGRESS: penaltyAmount = PENALTY_AFTER_TRANSIT; break;
+        default: penaltyAmount = 0;
+      }
+    } else if (isMaster && order.status !== OrderStatus.PUBLISHED) {
+      penaltyAmount = PENALTY_MASTER_CANCEL;
+    }
+
+    await prisma.order.update({
+      where: { id: orderId },
+      data: {
+        status: OrderStatus.CANCELLED,
+        cancelledAt: new Date(),
+        cancelReason: reason || null,
+        cancelledBy,
+        penaltyAmount,
+      },
+    });
+
+    // Возвращаем эскроу клиенту
+    if (order.escrowAmount > 0) {
+      await balanceService.refundFunds(orderId);
+    }
+
+    // Списываем штраф
+    if (penaltyAmount > 0) {
+      await balanceService.chargePenalty(
+        userId, penaltyAmount, orderId,
+        `Штраф за отмену (${cancelledBy === 'CLIENT' ? 'клиент' : 'мастер'}): ${penaltyAmount.toLocaleString('ru')} сум`
+      );
+    }
+
+    logger.info({ orderId, userId, cancelledBy, penaltyAmount }, 'Заказ отменён');
+    return { orderId, cancelledBy, penaltyAmount, reason };
+  }
+
+  /**
+   * Открытие спора
+   */
+  async disputeOrder(orderId: string, clientId: string, reason: string) {
+    const order = await prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) throw ApiError.notFound('Заказ не найден');
+    if (order.clientId !== clientId) throw ApiError.forbidden('Только клиент может открыть спор');
+
+    if (![OrderStatus.IN_PROGRESS, OrderStatus.COMPLETED].includes(order.status as any)) {
+      throw ApiError.badRequest('Спор можно открыть только для заказов в работе или завершённых');
+    }
+
+    const updatedOrder = await prisma.order.update({
+      where: { id: orderId },
+      data: { status: OrderStatus.DISPUTED, disputeReason: reason },
+    });
+
+    logger.info({ orderId, clientId, reason }, 'Спор открыт');
+    return updatedOrder;
+  }
+
+  /**
+   * Разрешение спора (администратор)
+   */
+  async resolveDispute(orderId: string, adminId: string, resolution: string, note?: string) {
+    const order = await prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) throw ApiError.notFound('Заказ не найден');
+    if (order.status !== OrderStatus.DISPUTED) throw ApiError.badRequest('Заказ не в статусе спора');
+
+    switch (resolution) {
+      case 'refund_client':
+        await balanceService.refundFunds(orderId);
+        await prisma.order.update({
+          where: { id: orderId },
+          data: { status: OrderStatus.CANCELLED, cancelledAt: new Date(), cancelReason: note || 'Спор решён в пользу клиента', cancelledBy: 'ADMIN' },
+        });
+        break;
+
+      case 'pay_master':
+        await balanceService.releaseFunds(orderId);
+        await prisma.order.update({
+          where: { id: orderId },
+          data: { status: OrderStatus.COMPLETED, completedAt: new Date() },
+        });
+        if (order.masterId) {
+          await prisma.masterProfile.update({
+            where: { userId: order.masterId },
+            data: { completedOrders: { increment: 1 } },
+          });
+        }
+        break;
+
+      case 'split':
+        if (order.escrowAmount > 0 && order.masterId) {
+          const half = order.escrowAmount / 2;
+          await prisma.$transaction(async (tx) => {
+            const client = await tx.user.findUnique({ where: { id: order.clientId }, select: { balance: true } });
+            const master = await tx.user.findUnique({ where: { id: order.masterId! }, select: { balance: true } });
+            if (client) {
+              await tx.user.update({ where: { id: order.clientId }, data: { balance: { increment: half } } });
+              await tx.balanceTransaction.create({
+                data: { userId: order.clientId, type: 'REFUND', amount: half, balanceBefore: client.balance, balanceAfter: client.balance + half, orderId, description: 'Возврат 50% по спору' },
+              });
+            }
+            if (master) {
+              await tx.user.update({ where: { id: order.masterId! }, data: { balance: { increment: half } } });
+              await tx.balanceTransaction.create({
+                data: { userId: order.masterId!, type: 'PAYOUT', amount: half, balanceBefore: master.balance, balanceAfter: master.balance + half, orderId, description: 'Оплата 50% по спору' },
+              });
+            }
+            await tx.order.update({ where: { id: orderId }, data: { escrowAmount: 0, status: OrderStatus.CANCELLED, cancelledAt: new Date(), cancelReason: note || 'Спор 50/50', cancelledBy: 'ADMIN' } });
+          });
+        }
+        break;
+
+      default:
+        throw ApiError.badRequest('Неверный тип решения');
+    }
+
+    logger.info({ orderId, adminId, resolution }, 'Спор разрешён');
+    return { orderId, resolution, note };
+  }
+
+  /**
+   * Завершение заказа (обратная совместимость)
+   */
+  async completeOrder(orderId: string, userId: string) {
+    const order = await prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) throw ApiError.notFound('Заказ не найден');
+
+    if (order.masterId === userId) {
+      return this.masterConfirmComplete(orderId, userId);
+    } else if (order.clientId === userId) {
+      return this.clientConfirmComplete(orderId, userId);
+    }
+
+    throw ApiError.forbidden('Нет прав для завершения заказа');
+  }
+
+  /**
+   * Заказы клиента
+   */
+  async getClientOrders(clientId: string, status?: string) {
+    const where: Prisma.OrderWhereInput = { clientId };
+    if (status) where.status = status as OrderStatus;
+
+    return prisma.order.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        category: true,
+        master: { include: { profile: true } },
+        orderTasks: { include: { task: true } },
+        _count: { select: { responses: true } },
+      },
+    });
+  }
+
+  /**
+   * Заказы мастера (назначенные)
+   */
+  async getMasterOrders(masterId: string, status?: string) {
+    const where: Prisma.OrderWhereInput = { masterId };
+    if (status) where.status = status as OrderStatus;
+
+    return prisma.order.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        category: true,
+        client: { include: { profile: true } },
+        orderTasks: { include: { task: true } },
+        _count: { select: { responses: true } },
+      },
+    });
+  }
+}
+
+export const ordersService = new OrdersService();

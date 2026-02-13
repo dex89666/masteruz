@@ -1,0 +1,101 @@
+# ============================================
+# MasterUz — Docker Compose
+# Агент 5 (DevOps-инженер)
+# ============================================
+
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: masteruz-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: masteruz
+      POSTGRES_USER: masteruz
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-masteruz_secret_2024}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U masteruz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: masteruz-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: masteruz-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://masteruz:${DB_PASSWORD:-masteruz_secret_2024}@postgres:5432/masteruz
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-change_this_jwt_secret_in_production}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change_this_refresh_secret_in_production}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_BOT_NAME: ${TELEGRAM_BOT_NAME:-MasterUzBot}
+      YANDEX_MAPS_API_KEY: ${YANDEX_MAPS_API_KEY}
+      CLICK_MERCHANT_ID: ${CLICK_MERCHANT_ID}
+      CLICK_SERVICE_ID: ${CLICK_SERVICE_ID}
+      CLICK_SECRET_KEY: ${CLICK_SECRET_KEY}
+      PAYME_MERCHANT_ID: ${PAYME_MERCHANT_ID}
+      PAYME_SECRET_KEY: ${PAYME_SECRET_KEY}
+      UPLOAD_DIR: /app/uploads
+      MAX_FILE_SIZE: 5242880
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
+    volumes:
+      - uploads_data:/app/uploads
+    ports:
+      - "3000:3000"
+
+  # Frontend (Nginx + SPA)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: /api
+        VITE_TELEGRAM_BOT_NAME: ${TELEGRAM_BOT_NAME:-MasterUzBot}
+        VITE_YANDEX_MAPS_KEY: ${YANDEX_MAPS_API_KEY}
+    container_name: masteruz-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  uploads_data:
+    driver: local

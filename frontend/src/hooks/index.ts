@@ -1,0 +1,290 @@
+// ============================================
+// MasterUz — Custom Hooks
+// Агент 2 (Фронтенд-разработчик)
+// ============================================
+
+import { useEffect, useState, useCallback, useRef } from 'react';
+import { useAuthStore, useAppStore } from '../store';
+import { authApi, catalogApi, onlineStatusApi } from '../api/client';
+import { useTranslation } from '../i18n';
+
+/**
+ * Хук для определения Telegram Mini App
+ */
+export function useTelegram() {
+  const setIsTelegramMiniApp = useAppStore((s) => s.setIsTelegramMiniApp);
+
+  const tg = (window as any).Telegram?.WebApp;
+  const isMiniApp = !!tg?.initData;
+
+  useEffect(() => {
+    if (isMiniApp) {
+      tg.ready();
+      tg.expand();
+      setIsTelegramMiniApp(true);
+    }
+  }, [isMiniApp, tg, setIsTelegramMiniApp]);
+
+  return {
+    tg,
+    isMiniApp,
+    initData: tg?.initData || '',
+    user: tg?.initDataUnsafe?.user,
+    colorScheme: tg?.colorScheme || 'light',
+    themeParams: tg?.themeParams,
+    close: () => tg?.close(),
+    showAlert: (message: string) => tg?.showAlert(message),
+    showConfirm: (message: string, callback: (confirmed: boolean) => void) =>
+      tg?.showConfirm(message, callback),
+    mainButton: tg?.MainButton,
+    backButton: tg?.BackButton,
+    // Haptic feedback
+    hapticImpact: (style: 'light' | 'medium' | 'heavy' | 'rigid' | 'soft' = 'medium') =>
+      tg?.HapticFeedback?.impactOccurred(style),
+    hapticNotification: (type: 'error' | 'success' | 'warning' = 'success') =>
+      tg?.HapticFeedback?.notificationOccurred(type),
+    hapticSelection: () =>
+      tg?.HapticFeedback?.selectionChanged(),
+  };
+}
+
+/**
+ * Хук для геолокации
+ */
+export function useGeolocation() {
+  const setUserLocation = useAppStore((s) => s.setUserLocation);
+  const userLocation = useAppStore((s) => s.userLocation);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const requestLocation = useCallback(() => {
+    if (!navigator.geolocation) {
+      setError('Геолокация не поддерживается');
+      return;
+    }
+
+    setLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const location = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        };
+        setUserLocation(location);
+        setLoading(false);
+      },
+      (err) => {
+        setError(err.message);
+        setLoading(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  }, [setUserLocation]);
+
+  return { location: userLocation, error, loading, requestLocation };
+}
+
+/**
+ * Хук для инициализации приложения
+ */
+export function useAppInit() {
+  const { setAuth, setLoading, logout } = useAuthStore();
+  const { setCategories, catalogLoaded } = useAppStore();
+
+  useEffect(() => {
+    async function init() {
+      setLoading(true);
+      const token = localStorage.getItem('accessToken');
+
+      if (token) {
+        try {
+          const response = await authApi.me();
+          if (response.data.success) {
+            setAuth(
+              response.data.data,
+              token,
+              localStorage.getItem('refreshToken') || ''
+            );
+          }
+        } catch {
+          logout();
+        }
+      } else {
+        setLoading(false);
+      }
+
+      // Load catalog categories (cache in store)
+      if (!catalogLoaded) {
+        try {
+          const catRes = await catalogApi.getCategories();
+          if (catRes.data.data) {
+            setCategories(catRes.data.data);
+          }
+        } catch {
+          // silent — catalog may load later
+        }
+      }
+    }
+
+    init();
+  }, [setAuth, setLoading, logout, setCategories, catalogLoaded]);
+}
+
+/**
+ * Хук для форматирования цены (UZS) — с учётом языка
+ */
+export function useFormatPrice() {
+  const { t, locale } = useTranslation();
+
+  return useCallback((price: number, currencyLabel?: string): string => {
+    const formatted = new Intl.NumberFormat(locale, {
+      style: 'decimal',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(price);
+    const suffix = currencyLabel !== undefined ? currencyLabel : t('common.currency');
+    return suffix ? `${formatted} ${suffix}` : formatted;
+  }, [t, locale]);
+}
+
+/**
+ * Хук для темы (светлая/тёмная/системная)
+ */
+export type ThemeMode = 'light' | 'dark' | 'system';
+
+const THEME_KEY = 'masteruz_theme';
+
+function getSystemTheme(): 'light' | 'dark' {
+  if (typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+    return 'dark';
+  }
+  return 'light';
+}
+
+export function useTheme() {
+  const [mode, setModeState] = useState<ThemeMode>(() => {
+    try {
+      return (localStorage.getItem(THEME_KEY) as ThemeMode) || 'system';
+    } catch {
+      return 'system';
+    }
+  });
+
+  const resolvedTheme = mode === 'system' ? getSystemTheme() : mode;
+  const isDark = resolvedTheme === 'dark';
+
+  // Apply class on <html>
+  useEffect(() => {
+    const root = document.documentElement;
+    if (isDark) {
+      root.classList.add('dark');
+    } else {
+      root.classList.remove('dark');
+    }
+  }, [isDark]);
+
+  // Listen for system theme changes
+  useEffect(() => {
+    if (mode !== 'system') return;
+    const mql = window.matchMedia('(prefers-color-scheme: dark)');
+    const handler = () => setModeState('system'); // re-trigger
+    mql.addEventListener('change', handler);
+    return () => mql.removeEventListener('change', handler);
+  }, [mode]);
+
+  const setMode = useCallback((m: ThemeMode) => {
+    setModeState(m);
+    try { localStorage.setItem(THEME_KEY, m); } catch { /* noop */ }
+  }, []);
+
+  const toggle = useCallback(() => {
+    setMode(isDark ? 'light' : 'dark');
+  }, [isDark, setMode]);
+
+  return { mode, setMode, isDark, resolvedTheme, toggle };
+}
+
+/**
+ * Хук для дебаунса значения
+ */
+export function useDebounce<T>(value: T, delay: number): T {
+  const [debounced, setDebounced] = useState(value);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(timer);
+  }, [value, delay]);
+
+  return debounced;
+}
+
+/**
+ * Хук для отслеживания прокрутки
+ */
+export function useScrollProgress() {
+  const [progress, setProgress] = useState(0);
+
+  useEffect(() => {
+    function handleScroll() {
+      const scrollTop = window.scrollY;
+      const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+      setProgress(docHeight > 0 ? Math.min(scrollTop / docHeight, 1) : 0);
+    }
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  return progress;
+}
+
+/**
+ * Хук для отслеживания онлайн-статуса мастера
+ * Отправляет heartbeat каждые 30 секунд, пока мастер в приложении
+ */
+export function useOnlineStatus() {
+  const { user } = useAuthStore();
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    // Только для мастеров
+    if (!user || user.role !== 'MASTER') return;
+
+    // Первый heartbeat сразу
+    onlineStatusApi.heartbeat().catch(() => {});
+
+    // Затем каждые 30 секунд
+    intervalRef.current = setInterval(() => {
+      onlineStatusApi.heartbeat().catch(() => {});
+    }, 30000);
+
+    // При закрытии/уходе со страницы — уходим в оффлайн
+    function handleBeforeUnload() {
+      // navigator.sendBeacon для надёжности
+      const token = localStorage.getItem('accessToken');
+      if (token) {
+        navigator.sendBeacon?.(
+          `${import.meta.env.VITE_API_URL || '/api'}/users/go-offline`,
+          new Blob([JSON.stringify({})], { type: 'application/json' })
+        );
+      }
+    }
+
+    function handleVisibilityChange() {
+      if (document.hidden) {
+        onlineStatusApi.goOffline().catch(() => {});
+      } else {
+        onlineStatusApi.heartbeat().catch(() => {});
+      }
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      onlineStatusApi.goOffline().catch(() => {});
+    };
+  }, [user]);
+}
