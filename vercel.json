@@ -2,45 +2,25 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "version": 2,
   "framework": null,
-  "buildCommand": null,
-  "outputDirectory": null,
-  "installCommand": null,
-  "builds": [
-    {
-      "src": "backend/api/index.ts",
-      "use": "@vercel/node",
-      "config": {
-        "includeFiles": ["backend/src/**", "backend/prisma/**", "backend/package.json", "backend/tsconfig.json"]
-      }
-    },
-    {
-      "src": "frontend/package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "dist"
-      }
+  "buildCommand": "cd backend && npm run vercel-build && cd ../frontend && npm install && npm run vercel-build",
+  "outputDirectory": "frontend/dist",
+  "installCommand": "cd backend && npm install",
+  "functions": {
+    "backend/api/index.ts": {
+      "includeFiles": "backend/src/**,backend/prisma/**,backend/package.json,backend/tsconfig.json",
+      "maxDuration": 30
     }
+  },
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/backend/api/index.ts" }
   ],
-  "routes": [
+  "headers": [
     {
-      "src": "/api/(.*)",
-      "dest": "backend/api/index.ts",
-      "headers": {
-        "X-Frame-Options": "ALLOWALL",
-        "Content-Security-Policy": "frame-ancestors 'self' https://web.telegram.org https://*.telegram.org",
-        "Access-Control-Allow-Origin": "*"
-      }
-    },
-    {
-      "handle": "filesystem"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/index.html",
-      "headers": {
-        "X-Frame-Options": "ALLOWALL",
-        "Content-Security-Policy": "frame-ancestors 'self' https://web.telegram.org https://*.telegram.org"
-      }
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Frame-Options", "value": "ALLOWALL" },
+        { "key": "Content-Security-Policy", "value": "frame-ancestors 'self' https://web.telegram.org https://*.telegram.org" }
+      ]
     }
   ]
 }
