@@ -1,0 +1,14 @@
+{
+  "name": "masteruz",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "install:backend": "cd backend && npm install",
+    "install:frontend": "cd frontend && npm install",
+    "build": "cd backend && npx prisma generate && cd ../frontend && npm run build",
+    "postinstall": "npm run install:backend && npm run install:frontend"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
