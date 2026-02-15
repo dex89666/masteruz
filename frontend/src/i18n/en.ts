@@ -6,7 +6,7 @@ const en = {
   // ─── Common ─────────────────────────────
   common: {
     appName: 'MasterUz',
-    tagline: 'VladMaster — fixed in a minute',
+    tagline: 'Vladlab — fixed in a minute',
     back: 'Back',
     cancel: 'Cancel',
     save: 'Save',
@@ -122,7 +122,7 @@ const en = {
 
   // ─── Home page ──────────────────────────
   home: {
-    heroTitle: '⚡ VladMaster',
+    heroTitle: '⚡ Vladlab',
     heroSubtitle: 'Something broke? We fix it!',
     heroDesc: "Don't put up with inconvenience — book a master in 2 taps. Plumber, electrician, repairs — verified pros with a guarantee. Fast. Reliable. No overpay.",
     findMaster: 'Find a master',
@@ -312,7 +312,7 @@ const en = {
     earned: 'Earned',
     adminPanel: 'Admin panel',
     logoutConfirm: 'You have logged out',
-    shareTitle: 'VladMaster — Broke? We fix it!',
+    shareTitle: 'Vladlab — Broke? We fix it!',
     shareText: 'Join MasterUz! Find a master or earn with your skills.',
   },
 

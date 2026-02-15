@@ -6,7 +6,7 @@ const ru = {
   // ─── Общее ─────────────────────────────
   common: {
     appName: 'MasterUz',
-    tagline: 'VladMaster — решаем за минуту',
+    tagline: 'Vladlab — решаем за минуту',
     back: 'Назад',
     cancel: 'Отмена',
     save: 'Сохранить',
@@ -122,7 +122,7 @@ const ru = {
 
   // ─── Главная страница ───────────────────
   home: {
-    heroTitle: '⚡ VladMaster',
+    heroTitle: '⚡ Vladlab',
     heroSubtitle: 'Сломалось? Решим!',
     heroDesc: 'Не терпите неудобства — закажите мастера в 2 клика. Сантехник, электрик, ремонт — проверенные специалисты с гарантией. Быстро. Надёжно. Без переплат.',
     findMaster: 'Найти мастера',
@@ -314,7 +314,7 @@ const ru = {
     earned: 'Заработано',
     adminPanel: 'Панель администратора',
     logoutConfirm: 'Вы вышли из аккаунта',
-    shareTitle: 'VladMaster — Сломалось? Решим!',
+    shareTitle: 'Vladlab — Сломалось? Решим!',
     shareText: 'Присоединяйся к MasterUz! Найди мастера или зарабатывай на своих навыках.',
   },
 

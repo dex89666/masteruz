@@ -21,6 +21,9 @@ if (tgWebApp) {
     tgWebApp.enableClosingConfirmation();
   }
 
+  // Mark body as Telegram Mini App for CSS adjustments
+  document.body.classList.add('tg-mini-app');
+
   // Apply Telegram theme colors to CSS variables
   if (tgWebApp.themeParams) {
     const root = document.documentElement;

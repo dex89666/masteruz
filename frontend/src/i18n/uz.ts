@@ -6,7 +6,7 @@ const uz = {
   // ─── Umumiy ─────────────────────────────
   common: {
     appName: 'MasterUz',
-    tagline: 'VladMaster — bir daqiqada hal qilamiz',
+    tagline: 'Vladlab — bir daqiqada hal qilamiz',
     back: 'Orqaga',
     cancel: 'Bekor qilish',
     save: 'Saqlash',
@@ -122,7 +122,7 @@ const uz = {
 
   // ─── Bosh sahifa ────────────────────────
   home: {
-    heroTitle: '⚡ VladMaster',
+    heroTitle: '⚡ Vladlab',
     heroSubtitle: "Buzildi? Hal qilamiz!",
     heroDesc: "Noqulaylikka chidamang — 2 marta bosib usta chaqiring. Santexnik, elektrik, ta'mir — kafolat bilan tekshirilgan ustalar. Tez. Ishonchli. Ortiqcha to'lovsiz.",
     findMaster: 'Usta topish',
@@ -312,7 +312,7 @@ const uz = {
     earned: 'Ishlangan',
     adminPanel: 'Administrator paneli',
     logoutConfirm: 'Akkauntdan chiqdingiz',
-    shareTitle: "VladMaster — Buzildi? Hal qilamiz!",
+    shareTitle: "Vladlab — Buzildi? Hal qilamiz!",
     shareText: "MasterUz'ga qo'shiling! Usta toping yoki ko'nikmalaringiz bilan pul ishlang.",
   },
 

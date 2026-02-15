@@ -10,6 +10,16 @@
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
   }
 
+  /* Telegram Mini App — push content below TG native buttons */
+  body.tg-mini-app {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  body.tg-mini-app .tg-header-spacer {
+    display: block;
+    height: 56px; /* height of Telegram's Close/Minimize bar */
+  }
+
   /* Dark mode */
   .dark body,
   .dark {

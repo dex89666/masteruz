@@ -48,6 +48,9 @@ export function Layout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const totalCartItems = useCartStore((s) => s.getTotalItems());
 
+  // Detect Telegram Mini App (body has class 'tg-mini-app' set in main.tsx)
+  const [isTgApp] = useState(() => document.body.classList.contains('tg-mini-app'));
+
   // Online status heartbeat for masters
   useOnlineStatus();
 
@@ -88,8 +91,11 @@ export function Layout() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
-      {/* Header */}
-      <header className="sticky top-0 z-50 bg-white dark:bg-gray-800 shadow-sm border-b border-gray-100 dark:border-gray-700">
+      {/* Telegram spacer — pushes header below TG native buttons */}
+      {isTgApp && <div className="tg-header-spacer md:hidden" />}
+
+      {/* Header — not sticky on mobile in TG to avoid overlap with TG buttons */}
+      <header className={`${isTgApp ? 'relative' : 'sticky top-0'} z-50 bg-white dark:bg-gray-800 shadow-sm border-b border-gray-100 dark:border-gray-700`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-14 md:h-16">
             {/* Logo */}
