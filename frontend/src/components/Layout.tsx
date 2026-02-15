@@ -48,9 +48,6 @@ export function Layout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const totalCartItems = useCartStore((s) => s.getTotalItems());
 
-  // Detect Telegram Mini App environment
-  const isTelegramWebApp = !!(window as any).Telegram?.WebApp?.initData;
-
   // Online status heartbeat for masters
   useOnlineStatus();
 
@@ -92,7 +89,7 @@ export function Layout() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
       {/* Header */}
-      <header className={`sticky top-0 z-50 bg-white dark:bg-gray-800 shadow-sm border-b border-gray-100 dark:border-gray-700 ${isTelegramWebApp ? 'mt-0' : ''}`}>
+      <header className="sticky top-0 z-50 bg-white dark:bg-gray-800 shadow-sm border-b border-gray-100 dark:border-gray-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-14 md:h-16">
             {/* Logo */}
@@ -163,9 +160,8 @@ export function Layout() {
               )}
             </nav>
 
-            {/* Right side actions */}
-            <div className="flex items-center gap-2">
-              {/* Global search button */}
+            {/* Desktop right side actions — hidden on mobile */}
+            <div className="hidden md:flex items-center gap-2">
               <button
                 onClick={() => setSearchOpen(true)}
                 className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
@@ -174,7 +170,6 @@ export function Layout() {
                 <Search size={18} />
               </button>
 
-              {/* Cart button */}
               <Link
                 to="/cart"
                 className="relative p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
@@ -194,7 +189,7 @@ export function Layout() {
               {isAuthenticated && <NotificationBell />}
 
               {isAuthenticated ? (
-                <div className="hidden md:flex items-center gap-3">
+                <div className="flex items-center gap-3">
                   <span className="text-sm text-gray-600 dark:text-gray-400">
                     {user?.profile?.firstName}
                   </span>
@@ -207,37 +202,80 @@ export function Layout() {
                   </button>
                 </div>
               ) : (
-                <Link to="/login" className="hidden md:inline-flex btn-primary text-sm px-4 py-2">
+                <Link to="/login" className="btn-primary text-sm px-4 py-2">
                   {t('nav.login')}
                 </Link>
               )}
-
-              {/* Mobile hamburger menu button */}
-              <button
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="md:hidden p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-              >
-                {mobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
-              </button>
             </div>
+
+            {/* Mobile: ONLY the burger button — big and prominent */}
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="md:hidden relative flex items-center justify-center w-11 h-11 rounded-xl bg-primary-500 text-white hover:bg-primary-600 active:scale-95 transition-all shadow-md shadow-primary-500/20"
+            >
+              {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+              {/* Cart badge on burger */}
+              {totalCartItems > 0 && !mobileMenuOpen && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+                  {totalCartItems}
+                </span>
+              )}
+            </button>
           </div>
         </div>
 
-        {/* Mobile dropdown menu */}
+        {/* Mobile fullscreen menu — slides down */}
         {mobileMenuOpen && (
-          <div className="md:hidden border-t border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg max-h-[70vh] overflow-y-auto">
-            <div className="px-4 py-3 space-y-1">
+          <div className="md:hidden border-t border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-2xl max-h-[80vh] overflow-y-auto">
+            <div className="px-4 py-4 space-y-1">
+
+              {/* Quick actions row */}
+              <div className="flex items-center justify-around py-3 mb-2 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
+                <button
+                  onClick={() => { setSearchOpen(true); setMobileMenuOpen(false); }}
+                  className="flex flex-col items-center gap-1 p-2"
+                >
+                  <Search size={22} className="text-primary-500" />
+                  <span className="text-[11px] text-gray-500 dark:text-gray-400">{t('common.search')}</span>
+                </button>
+                <Link
+                  to="/cart"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex flex-col items-center gap-1 p-2 relative"
+                >
+                  <ShoppingCart size={22} className="text-primary-500" />
+                  {totalCartItems > 0 && (
+                    <span className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[16px] h-[16px] flex items-center justify-center px-0.5">
+                      {totalCartItems}
+                    </span>
+                  )}
+                  <span className="text-[11px] text-gray-500 dark:text-gray-400">{t('cart.title')}</span>
+                </Link>
+                <div className="flex flex-col items-center gap-1 p-2">
+                  <ThemeToggle />
+                </div>
+                <div className="flex flex-col items-center gap-1 p-2">
+                  <LanguageSwitcher />
+                </div>
+                {isAuthenticated && (
+                  <div className="flex flex-col items-center gap-1 p-2">
+                    <NotificationBell />
+                  </div>
+                )}
+              </div>
+
+              {/* Navigation links */}
               {navItems.map((item) => (
                 <Link
                   key={item.path}
                   to={item.path}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
+                  className={`flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-medium transition-colors ${
                     location.pathname === item.path
-                      ? 'bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400'
-                      : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
+                      ? 'bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400 ring-1 ring-primary-200 dark:ring-primary-800'
+                      : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
                   }`}
                 >
-                  <item.icon size={20} />
+                  <item.icon size={22} />
                   {item.label}
                 </Link>
               ))}
@@ -245,54 +283,54 @@ export function Layout() {
               {isMaster && (
                 <Link
                   to="/school"
-                  className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800"
+                  className="flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
                 >
-                  <GraduationCap size={20} />
+                  <GraduationCap size={22} />
                   {t('nav.school')}
                 </Link>
               )}
 
               <Link
                 to="/stores"
-                className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800"
+                className="flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
               >
-                <Store size={20} />
+                <Store size={22} />
                 {t('stores.title')}
               </Link>
 
               <Link
                 to="/turnkey"
-                className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800"
+                className="flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
               >
-                <Hammer size={20} />
+                <Hammer size={22} />
                 {t('turnkey.title')}
               </Link>
 
               {isAdmin && (
                 <Link
                   to="/admin"
-                  className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800"
+                  className="flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
                 >
-                  <Settings size={20} />
+                  <Settings size={22} />
                   {t('nav.admin')}
                 </Link>
               )}
 
               {/* Divider */}
-              <div className="border-t border-gray-100 dark:border-gray-700 my-2" />
+              <div className="border-t border-gray-200 dark:border-gray-700 my-3" />
 
               {isAuthenticated ? (
                 <button
                   onClick={() => { logout(); setMobileMenuOpen(false); }}
-                  className="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-sm font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+                  className="flex items-center gap-3 w-full px-4 py-3.5 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
                 >
-                  <LogOut size={20} />
+                  <LogOut size={22} />
                   {t('nav.logout')}
                 </button>
               ) : (
                 <Link
                   to="/login"
-                  className="flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-bold bg-primary-500 text-white hover:bg-primary-600 transition-colors"
+                  className="flex items-center justify-center gap-2 px-4 py-4 rounded-xl text-base font-bold bg-primary-500 text-white hover:bg-primary-600 transition-colors shadow-md"
                 >
                   {t('nav.login')}
                 </Link>
