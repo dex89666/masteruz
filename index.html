@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MasterUZ - Handyman Services Directory</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>🔧 MasterUZ</h1>
+            <p class="tagline">Professional Handyman Services in Uzbekistan</p>
+        </div>
+    </header>
+
+    <main class="container">
+        <section class="search-section">
+            <input type="text" id="searchInput" placeholder="Search for services or specialists...">
+            <select id="categoryFilter">
+                <option value="">All Categories</option>
+                <option value="plumbing">Plumbing</option>
+                <option value="electrical">Electrical</option>
+                <option value="carpentry">Carpentry</option>
+                <option value="painting">Painting</option>
+                <option value="appliance">Appliance Repair</option>
+                <option value="hvac">HVAC</option>
+                <option value="general">General Repairs</option>
+            </select>
+        </section>
+
+        <section class="services-grid" id="servicesGrid">
+            <!-- Plumbing Services -->
+            <div class="service-card" data-category="plumbing">
+                <div class="service-icon">🚰</div>
+                <h3>Plumbing Services</h3>
+                <p class="service-description">Professional plumbing repairs and installations</p>
+                <div class="specialist">
+                    <strong>Master Aziz</strong>
+                    <p>📞 +998 90 123 4567</p>
+                    <p>⭐ 4.8/5 (156 reviews)</p>
+                    <p>📍 Tashkent</p>
+                </div>
+            </div>
+
+            <div class="service-card" data-category="plumbing">
+                <div class="service-icon">🚰</div>
+                <h3>Emergency Plumbing</h3>
+                <p class="service-description">24/7 emergency plumbing services</p>
+                <div class="specialist">
+                    <strong>Master Bobur</strong>
+                    <p>📞 +998 91 234 5678</p>
+                    <p>⭐ 4.9/5 (203 reviews)</p>
+                    <p>📍 Samarkand</p>
+                </div>
+            </div>
+
+            <!-- Electrical Services -->
+            <div class="service-card" data-category="electrical">
+                <div class="service-icon">⚡</div>
+                <h3>Electrical Repairs</h3>
+                <p class="service-description">Licensed electrical work and installations</p>
+                <div class="specialist">
+                    <strong>Master Jahongir</strong>
+                    <p>📞 +998 93 345 6789</p>
+                    <p>⭐ 4.7/5 (142 reviews)</p>
+                    <p>📍 Bukhara</p>
+                </div>
+            </div>
+
+            <div class="service-card" data-category="electrical">
+                <div class="service-icon">💡</div>
+                <h3>Lighting Installation</h3>
+                <p class="service-description">Professional lighting design and installation</p>
+                <div class="specialist">
+                    <strong>Master Dilshod</strong>
+                    <p>📞 +998 94 456 7890</p>
+                    <p>⭐ 4.6/5 (98 reviews)</p>
+                    <p>📍 Tashkent</p>
+                </div>
+            </div>
+
+            <!-- Carpentry Services -->
+            <div class="service-card" data-category="carpentry">
+                <div class="service-icon">🪚</div>
+                <h3>Carpentry & Woodwork</h3>
+                <p class="service-description">Custom furniture and wood repairs</p>
+                <div class="specialist">
+                    <strong>Master Rustam</strong>
+                    <p>📞 +998 95 567 8901</p>
+                    <p>⭐ 4.9/5 (187 reviews)</p>
+                    <p>📍 Andijan</p>
+                </div>
+            </div>
+
+            <div class="service-card" data-category="carpentry">
+                <div class="service-icon">🔨</div>
+                <h3>Furniture Assembly</h3>
+                <p class="service-description">Professional furniture assembly services</p>
+                <div class="specialist">
+                    <strong>Master Karim</strong>
+                    <p>📞 +998 97 678 9012</p>
+                    <p>⭐ 4.5/5 (134 reviews)</p>
+                    <p>📍 Namangan</p>
+                </div>
+            </div>
+
+            <!-- Painting Services -->
+            <div class="service-card" data-category="painting">
+                <div class="service-icon">🎨</div>
+                <h3>Interior Painting</h3>
+                <p class="service-description">Professional interior painting services</p>
+                <div class="specialist">
+                    <strong>Master Sardor</strong>
+                    <p>📞 +998 90 789 0123</p>
+                    <p>⭐ 4.8/5 (165 reviews)</p>
+                    <p>📍 Fergana</p>
+                </div>
+            </div>
+
+            <div class="service-card" data-category="painting">
+                <div class="service-icon">🖌️</div>
+                <h3>Exterior Painting</h3>
+                <p class="service-description">Weather-resistant exterior painting</p>
+                <div class="specialist">
+                    <strong>Master Ulugbek</strong>
+                    <p>📞 +998 91 890 1234</p>
+                    <p>⭐ 4.7/5 (129 reviews)</p>
+                    <p>📍 Tashkent</p>
+                </div>
+            </div>
+
+            <!-- Appliance Repair -->
+            <div class="service-card" data-category="appliance">
+                <div class="service-icon">🔧</div>
+                <h3>Appliance Repair</h3>
+                <p class="service-description">Repair of home appliances and electronics</p>
+                <div class="specialist">
+                    <strong>Master Otabek</strong>
+                    <p>📞 +998 93 901 2345</p>
+                    <p>⭐ 4.6/5 (176 reviews)</p>
+                    <p>📍 Samarkand</p>
+                </div>
+            </div>
+
+            <div class="service-card" data-category="appliance">
+                <div class="service-icon">🌀</div>
+                <h3>Washing Machine Repair</h3>
+                <p class="service-description">Expert washing machine diagnostics and repair</p>
+                <div class="specialist">
+                    <strong>Master Sherzod</strong>
+                    <p>📞 +998 94 012 3456</p>
+                    <p>⭐ 4.9/5 (241 reviews)</p>
+                    <p>📍 Bukhara</p>
+                </div>
+            </div>
+
+            <!-- HVAC Services -->
+            <div class="service-card" data-category="hvac">
+                <div class="service-icon">❄️</div>
+                <h3>Air Conditioning Services</h3>
+                <p class="service-description">AC installation, repair, and maintenance</p>
+                <div class="specialist">
+                    <strong>Master Timur</strong>
+                    <p>📞 +998 95 123 4567</p>
+                    <p>⭐ 4.8/5 (195 reviews)</p>
+                    <p>📍 Tashkent</p>
+                </div>
+            </div>
+
+            <div class="service-card" data-category="hvac">
+                <div class="service-icon">🔥</div>
+                <h3>Heating Systems</h3>
+                <p class="service-description">Heating system installation and repair</p>
+                <div class="specialist">
+                    <strong>Master Farrux</strong>
+                    <p>📞 +998 97 234 5678</p>
+                    <p>⭐ 4.7/5 (158 reviews)</p>
+                    <p>📍 Andijan</p>
+                </div>
+            </div>
+
+            <!-- General Repairs -->
+            <div class="service-card" data-category="general">
+                <div class="service-icon">🛠️</div>
+                <h3>General Handyman</h3>
+                <p class="service-description">All-around handyman services</p>
+                <div class="specialist">
+                    <strong>Master Alisher</strong>
+                    <p>📞 +998 90 345 6789</p>
+                    <p>⭐ 4.9/5 (312 reviews)</p>
+                    <p>📍 Tashkent</p>
+                </div>
+            </div>
+
+            <div class="service-card" data-category="general">
+                <div class="service-icon">🏠</div>
+                <h3>Home Maintenance</h3>
+                <p class="service-description">Regular home maintenance and repairs</p>
+                <div class="specialist">
+                    <strong>Master Nodir</strong>
+                    <p>📞 +998 91 456 7890</p>
+                    <p>⭐ 4.8/5 (267 reviews)</p>
+                    <p>📍 Samarkand</p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <div class="container">
+            <p>&copy; 2026 MasterUZ - Professional Handyman Services Directory</p>
+            <p>Connecting skilled professionals with customers across Uzbekistan</p>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
