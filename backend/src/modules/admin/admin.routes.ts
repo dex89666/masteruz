@@ -63,6 +63,33 @@ router.put('/users/:id/verify', async (req: Request, res: Response, next: NextFu
   }
 });
 
+// Смена роли пользователя (только ADMIN)
+router.put('/users/:id/role', authorize('ADMIN'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { role } = req.body;
+    const validRoles = ['CLIENT', 'MASTER', 'MANAGER', 'ADMIN'];
+    if (!role || !validRoles.includes(role)) {
+      res.status(400).json({ success: false, error: { message: 'Некорректная роль. Допустимо: CLIENT, MASTER, MANAGER, ADMIN' } });
+      return;
+    }
+    // Нельзя менять роль самому себе
+    if (req.params.id === req.user!.userId) {
+      res.status(400).json({ success: false, error: { message: 'Нельзя изменить свою собственную роль' } });
+      return;
+    }
+    const user = await prisma.user.update({
+      where: { id: req.params.id },
+      data: { role: role as any },
+      include: {
+        profile: { select: { firstName: true, lastName: true } },
+      },
+    });
+    res.json({ success: true, data: { id: user.id, username: user.username, role: user.role, firstName: user.profile?.firstName } });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Заказы
 router.get('/orders', async (req: Request, res: Response, next: NextFunction) => {
   try {

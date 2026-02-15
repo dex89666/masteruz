@@ -272,6 +272,16 @@ export function AdminDashboardPage() {
     }
   }
 
+  async function handleChangeRole(userId: string, newRole: string) {
+    try {
+      await adminApi.changeUserRole(userId, newRole);
+      toast.success(`Роль изменена на ${newRole}`);
+      loadUsers();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error?.message || t('common.error'));
+    }
+  }
+
   async function handleSaveConfig(key: string) {
     try {
       await adminApi.updateConfig(key, editValue);
@@ -617,6 +627,7 @@ export function AdminDashboardPage() {
                         <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
                           u.role === 'MASTER' ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' :
                           u.role === 'ADMIN' ? 'bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400' :
+                          u.role === 'MANAGER' ? 'bg-purple-50 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400' :
                           'bg-gray-50 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
                         }`}>
                           {u.role}
@@ -633,6 +644,20 @@ export function AdminDashboardPage() {
 
                     {/* Actions */}
                     <div className="flex flex-col gap-1 flex-shrink-0">
+                      {/* Role change (only ADMIN) */}
+                      {user?.role === 'ADMIN' && u.id !== user?.id && (
+                        <select
+                          value={u.role}
+                          onChange={(e) => handleChangeRole(u.id, e.target.value)}
+                          className="text-[10px] px-1 py-0.5 rounded border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 cursor-pointer"
+                          title="Сменить роль"
+                        >
+                          <option value="CLIENT">CLIENT</option>
+                          <option value="MASTER">MASTER</option>
+                          <option value="MANAGER">MANAGER</option>
+                          <option value="ADMIN">ADMIN</option>
+                        </select>
+                      )}
                       {!u.isVerified && u.role === 'MASTER' && (
                         <button
                           onClick={() => handleVerify(u.id)}

@@ -403,6 +403,9 @@ export const adminApi = {
   verifyUser: (id: string) =>
     api.put<ApiResponse<any>>(`/admin/users/${id}/verify`),
 
+  changeUserRole: (id: string, role: string) =>
+    api.put<ApiResponse<any>>(`/admin/users/${id}/role`, { role }),
+
   getOrders: (params?: any) =>
     api.get<PaginatedResponse<any>>('/admin/orders', { params }),
 
