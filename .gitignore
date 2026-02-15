@@ -21,3 +21,5 @@ certbot/
 backups/
 .vercel/
 .vite/
+.vercel
+.env*.local
