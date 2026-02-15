@@ -32,6 +32,8 @@ import {
   ShoppingCart,
   Store,
   Hammer,
+  Menu,
+  X,
 } from 'lucide-react';
 import { useCartStore } from '../store/cartStore';
 
@@ -43,7 +45,11 @@ export function Layout() {
   const isClient = user?.role === 'CLIENT';
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'MANAGER';
   const [searchOpen, setSearchOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const totalCartItems = useCartStore((s) => s.getTotalItems());
+
+  // Detect Telegram Mini App environment
+  const isTelegramWebApp = !!(window as any).Telegram?.WebApp?.initData;
 
   // Online status heartbeat for masters
   useOnlineStatus();
@@ -59,6 +65,11 @@ export function Layout() {
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, []);
+
+  // Close mobile menu on route change
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [location.pathname]);
 
   // Desktop nav items
   const navItems = [
@@ -96,14 +107,16 @@ export function Layout() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-white dark:bg-gray-800 shadow-sm border-b border-gray-100 dark:border-gray-700">
+      <header className={`sticky top-0 z-50 bg-white dark:bg-gray-800 shadow-sm border-b border-gray-100 dark:border-gray-700 ${isTelegramWebApp ? 'mt-0' : ''}`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
+          <div className="flex items-center justify-between h-14 md:h-16">
+            {/* Logo */}
             <Link to="/" className="flex items-center gap-2">
               <span className="text-2xl">🔧</span>
               <span className="text-xl font-bold text-primary-600 dark:text-primary-400">MasterUz</span>
             </Link>
 
+            {/* Desktop nav — hidden on mobile */}
             <nav className="hidden md:flex items-center gap-1">
               {navItems.map((item) => (
                 <Link
@@ -165,6 +178,7 @@ export function Layout() {
               )}
             </nav>
 
+            {/* Right side actions */}
             <div className="flex items-center gap-2">
               {/* Global search button */}
               <button
@@ -195,8 +209,8 @@ export function Layout() {
               {isAuthenticated && <NotificationBell />}
 
               {isAuthenticated ? (
-                <div className="flex items-center gap-3">
-                  <span className="hidden sm:block text-sm text-gray-600 dark:text-gray-400">
+                <div className="hidden md:flex items-center gap-3">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">
                     {user?.profile?.firstName}
                   </span>
                   <button
@@ -208,13 +222,99 @@ export function Layout() {
                   </button>
                 </div>
               ) : (
-                <Link to="/login" className="btn-primary text-sm px-4 py-2">
+                <Link to="/login" className="hidden md:inline-flex btn-primary text-sm px-4 py-2">
+                  {t('nav.login')}
+                </Link>
+              )}
+
+              {/* Mobile hamburger menu button */}
+              <button
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="md:hidden p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              >
+                {mobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Mobile dropdown menu */}
+        {mobileMenuOpen && (
+          <div className="md:hidden border-t border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg max-h-[70vh] overflow-y-auto">
+            <div className="px-4 py-3 space-y-1">
+              {navItems.map((item) => (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
+                    location.pathname === item.path
+                      ? 'bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400'
+                      : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
+                  }`}
+                >
+                  <item.icon size={20} />
+                  {item.label}
+                </Link>
+              ))}
+
+              {isMaster && (
+                <Link
+                  to="/school"
+                  className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800"
+                >
+                  <GraduationCap size={20} />
+                  {t('nav.school')}
+                </Link>
+              )}
+
+              <Link
+                to="/stores"
+                className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800"
+              >
+                <Store size={20} />
+                {t('stores.title')}
+              </Link>
+
+              <Link
+                to="/turnkey"
+                className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800"
+              >
+                <Hammer size={20} />
+                {t('turnkey.title')}
+              </Link>
+
+              {isAdmin && (
+                <Link
+                  to="/admin"
+                  className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800"
+                >
+                  <Settings size={20} />
+                  {t('nav.admin')}
+                </Link>
+              )}
+
+              {/* Divider */}
+              <div className="border-t border-gray-100 dark:border-gray-700 my-2" />
+
+              {isAuthenticated ? (
+                <button
+                  onClick={() => { logout(); setMobileMenuOpen(false); }}
+                  className="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-sm font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+                >
+                  <LogOut size={20} />
+                  {t('nav.logout')}
+                </button>
+              ) : (
+                <Link
+                  to="/login"
+                  className="flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-bold bg-primary-500 text-white hover:bg-primary-600 transition-colors"
+                >
                   {t('nav.login')}
                 </Link>
               )}
             </div>
           </div>
-        </div>
+        )}
       </header>
 
       {/* Main Content */}
@@ -289,29 +389,6 @@ export function Layout() {
           </div>
         </div>
       </footer>
-
-      {/* Bottom Navigation (Mobile) */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 z-50 safe-area-pb">
-        <div className="flex justify-around items-center py-2">
-          {mobileNav.map((item) => (
-            <Link
-              key={item.path}
-              to={item.path}
-              className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg text-xs transition-colors ${
-                location.pathname === item.path
-                  ? 'text-primary-600 dark:text-primary-400'
-                  : 'text-gray-400 dark:text-gray-500'
-              }`}
-            >
-              <item.icon size={20} />
-              <span>{item.label}</span>
-            </Link>
-          ))}
-        </div>
-      </nav>
-
-      {/* Bottom padding for mobile nav */}
-      <div className="md:hidden h-16" />
 
       {/* Scroll to top */}
       <ScrollToTop />

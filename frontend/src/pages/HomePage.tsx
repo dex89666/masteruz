@@ -57,23 +57,25 @@ export function HomePage() {
   return (
     <div className="min-h-screen">
       {/* Hero Section */}
-      <section className="bg-gradient-to-br from-primary-600 via-primary-700 to-primary-800 text-white py-16 md:py-24">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <section className="bg-gradient-to-br from-gray-900 via-gray-800 to-primary-900 text-white py-16 md:py-24 relative overflow-hidden">
+        {/* Background glow effect */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-primary-500/10 rounded-full blur-3xl" />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="text-center max-w-3xl mx-auto">
-            <h1 className="text-4xl md:text-5xl font-extrabold mb-6 leading-tight">
+            <h1 className="text-4xl md:text-6xl font-extrabold mb-6 leading-tight">
               {t('home.heroTitle')}<br />
-              <span className="text-primary-200">{t('home.heroSubtitle')}</span>
+              <span className="text-primary-400">{t('home.heroSubtitle')}</span>
             </h1>
-            <p className="text-lg md:text-xl text-primary-100 mb-8">
+            <p className="text-lg md:text-xl text-gray-300 mb-8">
               {t('home.heroDesc')}
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link to="/orders" className="btn-primary bg-white text-primary-700 hover:bg-gray-100 px-8 py-4 text-base">
+              <Link to="/orders" className="inline-flex items-center justify-center bg-primary-500 hover:bg-primary-600 text-white font-bold px-8 py-4 rounded-xl text-base transition-all shadow-lg shadow-primary-500/25 hover:shadow-primary-500/40">
                 <Search size={20} className="mr-2" />
                 {t('home.findMaster')}
               </Link>
               {!isAuthenticated && (
-                <Link to="/login" className="btn-secondary border-white/30 text-white hover:bg-white/10 px-8 py-4 text-base">
+                <Link to="/login" className="inline-flex items-center justify-center border-2 border-white/20 text-white hover:bg-white/10 font-semibold px-8 py-4 rounded-xl text-base transition-all">
                   <Wrench size={20} className="mr-2" />
                   {t('home.becomeMaster')}
                 </Link>
@@ -132,32 +134,32 @@ export function HomePage() {
       )}
 
       {/* Platform Stats */}
-      <section className="py-10 bg-gradient-to-r from-primary-700 to-primary-900 text-white">
+      <section className="py-10 bg-gradient-to-r from-gray-900 to-gray-800 text-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
             <div>
               <div className="text-3xl md:text-4xl font-extrabold">
                 <AnimatedCounter end={300} suffix="+" />
               </div>
-              <p className="text-primary-200 text-sm mt-1">{t('home.stat_services')}</p>
+              <p className="text-primary-400 text-sm mt-1">{t('home.stat_services')}</p>
             </div>
             <div>
               <div className="text-3xl md:text-4xl font-extrabold">
                 <AnimatedCounter end={14} />
               </div>
-              <p className="text-primary-200 text-sm mt-1">{t('home.stat_categories')}</p>
+              <p className="text-primary-400 text-sm mt-1">{t('home.stat_categories')}</p>
             </div>
             <div>
               <div className="text-3xl md:text-4xl font-extrabold">
                 <AnimatedCounter end={8} />
               </div>
-              <p className="text-primary-200 text-sm mt-1">{t('home.stat_cities')}</p>
+              <p className="text-primary-400 text-sm mt-1">{t('home.stat_cities')}</p>
             </div>
             <div>
               <div className="text-3xl md:text-4xl font-extrabold">
                 <AnimatedCounter end={30} />
               </div>
-              <p className="text-primary-200 text-sm mt-1">{t('home.stat_guarantee')}</p>
+              <p className="text-primary-400 text-sm mt-1">{t('home.stat_guarantee')}</p>
             </div>
           </div>
         </div>

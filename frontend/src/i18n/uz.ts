@@ -6,7 +6,7 @@ const uz = {
   // ─── Umumiy ─────────────────────────────
   common: {
     appName: 'MasterUz',
-    tagline: 'Soatlik usta',
+    tagline: 'Usta bir daqiqada',
     back: 'Orqaga',
     cancel: 'Bekor qilish',
     save: 'Saqlash',
@@ -122,9 +122,9 @@ const uz = {
 
   // ─── Bosh sahifa ────────────────────────
   home: {
-    heroTitle: '🔧 Soatlik usta —',
-    heroSubtitle: "usta har doim yoningizda",
-    heroDesc: "O'zbekistonda maishiy xizmatlarni buyurtma qilish platformasi. Santexnika, elektr, ta'mirlash va qurilish — ishonchli ustani bir daqiqada toping.",
+    heroTitle: '⚡ Buzildi?',
+    heroSubtitle: "Usta allaqachon yo'lda!",
+    heroDesc: "Noqulaylikka chidamang — 2 marta bosib usta chaqiring. Santexnik, elektrik, ta'mir — kafolat bilan tekshirilgan ustalar. Tez. Ishonchli. Ortiqcha to'lovsiz.",
     findMaster: 'Usta topish',
     becomeMaster: "Usta bo'lish",
     whyUs: 'Nega MasterUz?',

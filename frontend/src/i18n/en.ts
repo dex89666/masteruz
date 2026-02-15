@@ -6,7 +6,7 @@ const en = {
   // ─── Common ─────────────────────────────
   common: {
     appName: 'MasterUz',
-    tagline: 'Handyman on call',
+    tagline: 'Master in a minute',
     back: 'Back',
     cancel: 'Cancel',
     save: 'Save',
@@ -122,9 +122,9 @@ const en = {
 
   // ─── Home page ──────────────────────────
   home: {
-    heroTitle: '🔧 Handyman on call —',
-    heroSubtitle: 'a master is always near you',
-    heroDesc: 'A platform for ordering household services in Uzbekistan. Plumbing, electrical, repairs and construction — find a reliable master in one minute.',
+    heroTitle: '⚡ Something broke?',
+    heroSubtitle: 'Your master is on the way!',
+    heroDesc: "Don't put up with inconvenience — book a master in 2 taps. Plumber, electrician, repairs — verified pros with a guarantee. Fast. Reliable. No overpay.",
     findMaster: 'Find a master',
     becomeMaster: 'Become a master',
     whyUs: 'Why MasterUz?',
