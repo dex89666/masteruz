@@ -36,7 +36,7 @@
     },
     {
       "src": "/(.*)",
-      "dest": "frontend/index.html",
+      "dest": "/index.html",
       "headers": {
         "X-Frame-Options": "ALLOWALL",
         "Content-Security-Policy": "frame-ancestors 'self' https://web.telegram.org https://*.telegram.org"
