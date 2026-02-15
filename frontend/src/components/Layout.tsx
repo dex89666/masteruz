@@ -89,21 +89,6 @@ export function Layout() {
       : []),
   ];
 
-  // Mobile bottom nav (max 5 items)
-  const mobileNav = [
-    { path: '/', icon: Home, label: t('nav.home') },
-    { path: '/orders', icon: Search, label: t('nav.orders') },
-    ...(isAuthenticated
-      ? [
-          ...(isMaster
-            ? [{ path: '/dashboard', icon: LayoutDashboard, label: t('nav.dashboard') }]
-            : [{ path: '/orders/create', icon: PlusCircle, label: t('nav.create') }]),
-          { path: '/my-orders', icon: Briefcase, label: t('nav.myOrders') },
-          { path: '/profile', icon: User, label: t('nav.profile') },
-        ]
-      : []),
-  ].slice(0, 5);
-
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
       {/* Header */}
