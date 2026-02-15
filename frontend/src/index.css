@@ -17,7 +17,7 @@
 
   body.tg-mini-app .tg-header-spacer {
     display: block;
-    height: 56px; /* height of Telegram's Close/Minimize bar */
+    height: 80px; /* height of Telegram's native header bar + extra safety margin */
   }
 
   /* Dark mode */
