@@ -19,11 +19,12 @@ import {
   AlertTriangle, Zap, Package, Star, Activity,
   ArrowUpRight, ArrowDownRight,
   XCircle, RefreshCw, Database, Store, Hammer,
+  FolderTree, Plus, Trash2, Edit3, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { Dashboard } from '../types';
 
-type AdminTab = 'overview' | 'users' | 'orders' | 'payments' | 'config' | 'stores' | 'turnkey';
+type AdminTab = 'overview' | 'users' | 'orders' | 'payments' | 'catalog' | 'config' | 'stores' | 'turnkey';
 
 // ─── Stat Card Component ────────────────────
 function StatCard({ icon: Icon, label, value, subValue, color, trend }: {
@@ -140,6 +141,15 @@ export function AdminDashboardPage() {
   const [turnkeyLoading, setTurnkeyLoading] = useState(false);
   const [turnkeyStatus, setTurnkeyStatus] = useState('');
 
+  // Catalog tab state
+  const [catalogTree, setCatalogTree] = useState<any[]>([]);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set());
+  const [expandedSubs, setExpandedSubs] = useState<Set<string>>(new Set());
+  const [editingItem, setEditingItem] = useState<{ type: 'category' | 'subcategory' | 'task'; id: string | null; data: any } | null>(null);
+  const [showAddForm, setShowAddForm] = useState<{ type: 'category' | 'subcategory' | 'task'; parentId?: string } | null>(null);
+  const [formData, setFormData] = useState<any>({});
+
   // Guard: only ADMIN / MANAGER
   useEffect(() => {
     if (!user || (user.role !== 'ADMIN' && user.role !== 'MANAGER')) {
@@ -157,6 +167,7 @@ export function AdminDashboardPage() {
     if (tab === 'config') loadConfig();
     if (tab === 'stores') loadPartnerRequests();
     if (tab === 'turnkey') loadTurnkeyProjects();
+    if (tab === 'catalog') loadCatalog();
   }, [tab]);
 
   useEffect(() => { if (tab === 'stores') loadPartnerRequests(); }, [requestsStatus]);
@@ -184,6 +195,20 @@ export function AdminDashboardPage() {
       console.error(e);
     } finally {
       setLoading(false);
+    }
+  }
+
+  // ─── Каталог: загрузка полного дерева ──────
+  async function loadCatalog() {
+    setCatalogLoading(true);
+    try {
+      const res = await adminApi.getFullCatalog();
+      setCatalogTree(res.data.data || []);
+    } catch (e) {
+      console.error(e);
+      toast.error('Ошибка загрузки каталога');
+    } finally {
+      setCatalogLoading(false);
     }
   }
 
@@ -250,6 +275,208 @@ export function AdminDashboardPage() {
     } finally {
       setConfigLoading(false);
     }
+  }
+
+  // ─── Каталог: CRUD обработчики ──────
+  function slugify(text: string): string {
+    return text.toLowerCase().replace(/[^a-zа-яё0-9]+/gi, '-').replace(/^-+|-+$/g, '').replace(/а/g,'a').replace(/б/g,'b').replace(/в/g,'v').replace(/г/g,'g').replace(/д/g,'d').replace(/е/g,'e').replace(/ё/g,'yo').replace(/ж/g,'zh').replace(/з/g,'z').replace(/и/g,'i').replace(/й/g,'y').replace(/к/g,'k').replace(/л/g,'l').replace(/м/g,'m').replace(/н/g,'n').replace(/о/g,'o').replace(/п/g,'p').replace(/р/g,'r').replace(/с/g,'s').replace(/т/g,'t').replace(/у/g,'u').replace(/ф/g,'f').replace(/х/g,'kh').replace(/ц/g,'ts').replace(/ч/g,'ch').replace(/ш/g,'sh').replace(/щ/g,'shch').replace(/ъ/g,'').replace(/ы/g,'y').replace(/ь/g,'').replace(/э/g,'e').replace(/ю/g,'yu').replace(/я/g,'ya');
+  }
+
+  function openAddForm(type: 'category' | 'subcategory' | 'task', parentId?: string) {
+    setShowAddForm({ type, parentId });
+    setFormData({ name: '', nameUz: '', nameEn: '', icon: '', minPrice: 0, description: '', estimatedTime: '' });
+  }
+
+  function openEditForm(type: 'category' | 'subcategory' | 'task', item: any) {
+    setEditingItem({ type, id: item.id, data: item });
+    setFormData({
+      name: item.name || '',
+      nameUz: item.nameUz || '',
+      nameEn: item.nameEn || '',
+      icon: item.icon || '',
+      minPrice: item.minPrice || 0,
+      description: item.description || '',
+      estimatedTime: item.estimatedTime || '',
+      isActive: item.isActive !== false,
+    });
+  }
+
+  function cancelForm() {
+    setShowAddForm(null);
+    setEditingItem(null);
+    setFormData({});
+  }
+
+  async function handleCreateCategory() {
+    if (!formData.name) return toast.error('Введите название');
+    try {
+      await adminApi.createCategory({
+        name: formData.name,
+        nameUz: formData.nameUz || undefined,
+        nameEn: formData.nameEn || undefined,
+        slug: slugify(formData.name),
+        icon: formData.icon || undefined,
+      });
+      toast.success('Категория создана');
+      cancelForm();
+      loadCatalog();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error?.message || 'Ошибка создания');
+    }
+  }
+
+  async function handleUpdateCategory(id: string) {
+    try {
+      await adminApi.updateCategory(id, {
+        name: formData.name,
+        nameUz: formData.nameUz || undefined,
+        nameEn: formData.nameEn || undefined,
+        icon: formData.icon || undefined,
+        isActive: formData.isActive,
+      });
+      toast.success('Категория обновлена');
+      cancelForm();
+      loadCatalog();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error?.message || 'Ошибка обновления');
+    }
+  }
+
+  async function handleDeleteCategory(id: string) {
+    if (!confirm('Удалить категорию? Все подкатегории и задачи станут неактивными.')) return;
+    try {
+      await adminApi.deleteCategory(id);
+      toast.success('Категория удалена');
+      loadCatalog();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error?.message || 'Ошибка удаления');
+    }
+  }
+
+  async function handleCreateSubcategory() {
+    if (!formData.name || !showAddForm?.parentId) return toast.error('Введите название');
+    try {
+      await adminApi.createSubcategory({
+        categoryId: showAddForm.parentId,
+        name: formData.name,
+        nameUz: formData.nameUz || undefined,
+        nameEn: formData.nameEn || undefined,
+        slug: slugify(formData.name),
+        icon: formData.icon || undefined,
+      });
+      toast.success('Подкатегория создана');
+      cancelForm();
+      loadCatalog();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error?.message || 'Ошибка создания');
+    }
+  }
+
+  async function handleUpdateSubcategory(id: string) {
+    try {
+      await adminApi.updateSubcategory(id, {
+        name: formData.name,
+        nameUz: formData.nameUz || undefined,
+        nameEn: formData.nameEn || undefined,
+        icon: formData.icon || undefined,
+        isActive: formData.isActive,
+      });
+      toast.success('Подкатегория обновлена');
+      cancelForm();
+      loadCatalog();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error?.message || 'Ошибка обновления');
+    }
+  }
+
+  async function handleDeleteSubcategory(id: string) {
+    if (!confirm('Удалить подкатегорию? Все задачи станут неактивными.')) return;
+    try {
+      await adminApi.deleteSubcategory(id);
+      toast.success('Подкатегория удалена');
+      loadCatalog();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error?.message || 'Ошибка удаления');
+    }
+  }
+
+  async function handleCreateTask() {
+    if (!formData.name || !showAddForm?.parentId) return toast.error('Введите название');
+    try {
+      await adminApi.createTask({
+        subcategoryId: showAddForm.parentId,
+        name: formData.name,
+        nameUz: formData.nameUz || undefined,
+        nameEn: formData.nameEn || undefined,
+        description: formData.description || undefined,
+        estimatedTime: formData.estimatedTime || undefined,
+        minPrice: Number(formData.minPrice) || 0,
+        slug: slugify(formData.name),
+      });
+      toast.success('Услуга создана');
+      cancelForm();
+      loadCatalog();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error?.message || 'Ошибка создания');
+    }
+  }
+
+  async function handleUpdateTask(id: string) {
+    try {
+      await adminApi.updateTask(id, {
+        name: formData.name,
+        nameUz: formData.nameUz || undefined,
+        nameEn: formData.nameEn || undefined,
+        description: formData.description || undefined,
+        estimatedTime: formData.estimatedTime || undefined,
+        minPrice: Number(formData.minPrice) || 0,
+        isActive: formData.isActive,
+      });
+      toast.success('Услуга обновлена');
+      cancelForm();
+      loadCatalog();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error?.message || 'Ошибка обновления');
+    }
+  }
+
+  async function handleDeleteTask(id: string) {
+    if (!confirm('Удалить услугу?')) return;
+    try {
+      await adminApi.deleteTask(id);
+      toast.success('Услуга удалена');
+      loadCatalog();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error?.message || 'Ошибка удаления');
+    }
+  }
+
+  function handleSubmitForm() {
+    if (editingItem) {
+      if (editingItem.type === 'category') handleUpdateCategory(editingItem.id!);
+      else if (editingItem.type === 'subcategory') handleUpdateSubcategory(editingItem.id!);
+      else handleUpdateTask(editingItem.id!);
+    } else if (showAddForm) {
+      if (showAddForm.type === 'category') handleCreateCategory();
+      else if (showAddForm.type === 'subcategory') handleCreateSubcategory();
+      else handleCreateTask();
+    }
+  }
+
+  function toggleCat(id: string) {
+    setExpandedCats(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSub(id: string) {
+    setExpandedSubs(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
   }
 
   async function handleVerify(userId: string) {
@@ -362,6 +589,7 @@ export function AdminDashboardPage() {
     { key: 'payments', label: t('admin.tabPayments'), icon: CreditCard },
     { key: 'stores', label: t('stores.title'), icon: Store },
     { key: 'turnkey', label: t('turnkey.title'), icon: Hammer },
+    { key: 'catalog', label: 'Каталог', icon: FolderTree },
     { key: 'config', label: t('admin.tabConfig'), icon: Settings },
   ];
 
@@ -1093,6 +1321,164 @@ export function AdminDashboardPage() {
                   </div>
                 );
               })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════ */}
+      {/* TAB: CATALOG                           */}
+      {/* ═══════════════════════════════════════ */}
+      {tab === 'catalog' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold dark:text-white flex items-center gap-2">
+              <FolderTree size={18} className="text-primary-600 dark:text-primary-400" />
+              Управление каталогом
+            </h2>
+            <button onClick={() => openAddForm('category')} className="flex items-center gap-1.5 px-3 py-2 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700 transition">
+              <Plus size={16} /> Категория
+            </button>
+          </div>
+
+          {catalogLoading ? (
+            <div className="text-center py-8 text-gray-500">Загрузка каталога...</div>
+          ) : catalogTree.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">Каталог пуст. Добавьте первую категорию.</div>
+          ) : (
+            <div className="space-y-2">
+              {catalogTree.map((cat: any) => (
+                <div key={cat.id} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+                  <div className="flex items-center gap-2 px-4 py-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-750" onClick={() => toggleCat(cat.id)}>
+                    {expandedCats.has(cat.id) ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                    <span className="text-lg mr-1">{cat.icon || '📁'}</span>
+                    <span className="font-semibold flex-1 dark:text-white">
+                      {cat.name}
+                      {!cat.isActive && <span className="ml-2 text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full">скрыта</span>}
+                    </span>
+                    <span className="text-xs text-gray-400 mr-2">{cat.subcategories?.length || 0} подкат.</span>
+                    <button onClick={(e) => { e.stopPropagation(); openEditForm('category', cat); }} className="p-1.5 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg"><Edit3 size={15} /></button>
+                    <button onClick={(e) => { e.stopPropagation(); handleDeleteCategory(cat.id); }} className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg"><Trash2 size={15} /></button>
+                  </div>
+                  {expandedCats.has(cat.id) && (
+                    <div className="border-t border-gray-100 dark:border-gray-700">
+                      <div className="px-4 py-2 flex justify-end">
+                        <button onClick={() => openAddForm('subcategory', cat.id)} className="flex items-center gap-1 px-2.5 py-1.5 text-xs bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400 rounded-lg hover:bg-green-100">
+                          <Plus size={14} /> Подкатегория
+                        </button>
+                      </div>
+                      {(cat.subcategories || []).map((sub: any) => (
+                        <div key={sub.id} className="border-t border-gray-50 dark:border-gray-700/50">
+                          <div className="flex items-center gap-2 px-6 py-2.5 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-750" onClick={() => toggleSub(sub.id)}>
+                            {expandedSubs.has(sub.id) ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                            <span className="mr-1">{sub.icon || '📂'}</span>
+                            <span className="font-medium flex-1 text-sm dark:text-gray-200">
+                              {sub.name}
+                              {!sub.isActive && <span className="ml-2 text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full">скрыта</span>}
+                            </span>
+                            <span className="text-xs text-gray-400 mr-2">{sub.tasks?.length || 0} услуг</span>
+                            <button onClick={(e) => { e.stopPropagation(); openEditForm('subcategory', sub); }} className="p-1 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded"><Edit3 size={14} /></button>
+                            <button onClick={(e) => { e.stopPropagation(); handleDeleteSubcategory(sub.id); }} className="p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded"><Trash2 size={14} /></button>
+                          </div>
+                          {expandedSubs.has(sub.id) && (
+                            <div className="bg-gray-50/50 dark:bg-gray-900/30">
+                              <div className="px-8 py-1.5 flex justify-end">
+                                <button onClick={() => openAddForm('task', sub.id)} className="flex items-center gap-1 px-2.5 py-1 text-xs bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400 rounded-lg hover:bg-primary-100">
+                                  <Plus size={14} /> Услуга
+                                </button>
+                              </div>
+                              {(sub.tasks || []).map((task: any) => (
+                                <div key={task.id} className="flex items-center gap-2 px-8 py-2 border-t border-gray-100 dark:border-gray-800 hover:bg-gray-100/50 dark:hover:bg-gray-800/50">
+                                  <span className="flex-1 text-sm dark:text-gray-300">
+                                    {task.name}
+                                    {!task.isActive && <span className="ml-2 text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full">скрыта</span>}
+                                  </span>
+                                  <span className="text-sm font-semibold text-primary-600 dark:text-primary-400 min-w-[80px] text-right">
+                                    {task.minPrice?.toLocaleString()} сум
+                                  </span>
+                                  <button onClick={() => openEditForm('task', task)} className="p-1 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded"><Edit3 size={14} /></button>
+                                  <button onClick={() => handleDeleteTask(task.id)} className="p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded"><Trash2 size={14} /></button>
+                                </div>
+                              ))}
+                              {(sub.tasks || []).length === 0 && (
+                                <div className="px-8 py-3 text-xs text-gray-400 italic">Нет услуг</div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                      {(cat.subcategories || []).length === 0 && (
+                        <div className="px-6 py-3 text-xs text-gray-400 italic">Нет подкатегорий</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Модальная форма добавления/редактирования */}
+          {(showAddForm || editingItem) && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={cancelForm}>
+              <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+                <h3 className="text-lg font-bold dark:text-white">
+                  {editingItem
+                    ? `Редактировать ${editingItem.type === 'category' ? 'категорию' : editingItem.type === 'subcategory' ? 'подкатегорию' : 'услугу'}`
+                    : `Добавить ${showAddForm?.type === 'category' ? 'категорию' : showAddForm?.type === 'subcategory' ? 'подкатегорию' : 'услугу'}`}
+                </h3>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Название (RU) *</label>
+                    <input value={formData.name || ''} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500" placeholder="Название" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Название (UZ)</label>
+                      <input value={formData.nameUz || ''} onChange={(e) => setFormData({ ...formData, nameUz: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm" placeholder="O'zbekcha" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Название (EN)</label>
+                      <input value={formData.nameEn || ''} onChange={(e) => setFormData({ ...formData, nameEn: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm" placeholder="English" />
+                    </div>
+                  </div>
+                  {((showAddForm?.type || editingItem?.type) !== 'task') && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Иконка (emoji)</label>
+                      <input value={formData.icon || ''} onChange={(e) => setFormData({ ...formData, icon: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" placeholder="🔧" />
+                    </div>
+                  )}
+                  {((showAddForm?.type || editingItem?.type) === 'task') && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Цена (сум) *</label>
+                        <input type="number" value={formData.minPrice || 0} onChange={(e) => setFormData({ ...formData, minPrice: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" placeholder="50000" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Описание</label>
+                        <textarea value={formData.description || ''} onChange={(e) => setFormData({ ...formData, description: e.target.value })} rows={2} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm" placeholder="Описание услуги" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Время выполнения</label>
+                        <input value={formData.estimatedTime || ''} onChange={(e) => setFormData({ ...formData, estimatedTime: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm" placeholder="30-60 мин" />
+                      </div>
+                    </>
+                  )}
+                  {editingItem && (
+                    <div className="flex items-center gap-2">
+                      <input type="checkbox" id="isActive" checked={formData.isActive !== false} onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })} className="w-4 h-4 text-primary-600 rounded" />
+                      <label htmlFor="isActive" className="text-sm text-gray-700 dark:text-gray-300">Активна (видима для пользователей)</label>
+                    </div>
+                  )}
+                </div>
+                <div className="flex gap-3 pt-2">
+                  <button onClick={cancelForm} className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition text-sm font-medium">
+                    Отмена
+                  </button>
+                  <button onClick={handleSubmitForm} className="flex-1 px-4 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition text-sm font-medium">
+                    {editingItem ? 'Сохранить' : 'Создать'}
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </div>

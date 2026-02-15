@@ -124,7 +124,7 @@ const uz = {
   home: {
     heroTitle: '⚡ Vladlab',
     heroSubtitle: "Buzildi? Hal qilamiz!",
-    heroDesc: "Noqulaylikka chidamang — 2 marta bosib usta chaqiring. Santexnik, elektrik, ta'mir — kafolat bilan tekshirilgan ustalar. Tez. Ishonchli. Ortiqcha to'lovsiz.",
+    heroDesc: "Bitta narx. Bitta bosish. Kutilmagan xarajatlarsiz. Santexnik, elektrik, ta'mir — kafolat bilan tekshirilgan ustalar.",
     findMaster: 'Usta topish',
     becomeMaster: "Usta bo'lish",
     whyUs: 'Nega MasterUz?',

@@ -124,7 +124,7 @@ const en = {
   home: {
     heroTitle: '⚡ Vladlab',
     heroSubtitle: 'Something broke? We fix it!',
-    heroDesc: "Don't put up with inconvenience — book a master in 2 taps. Plumber, electrician, repairs — verified pros with a guarantee. Fast. Reliable. No overpay.",
+    heroDesc: "One price. One click. No surprises. Plumber, electrician, repairs — verified pros with a guarantee.",
     findMaster: 'Find a master',
     becomeMaster: 'Become a master',
     whyUs: 'Why MasterUz?',

@@ -5,6 +5,7 @@
 
 import { Router } from 'express';
 import { prisma } from '../../config/database.js';
+import { authenticate, authorize } from '../../middleware/auth.js';
 
 const router = Router();
 
@@ -191,6 +192,356 @@ router.get('/price-list', async (_req, res, next) => {
     });
 
     res.json({ success: true, data: { visitFee, catalog } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ═══════════════════════════════════════════
+// Защищённые CRUD-маршруты (admin/manager)
+// ═══════════════════════════════════════════
+router.use('/admin', authenticate, authorize('ADMIN', 'MANAGER'));
+
+// ─── CRUD Категории ─────────────────────────
+
+/**
+ * POST /catalog/admin/categories — создание категории
+ */
+router.post('/admin/categories', async (req, res, next) => {
+  try {
+    const { name, nameUz, nameEn, slug, icon, parentId } = req.body;
+
+    if (!name || !slug) {
+      return res.status(400).json({
+        success: false,
+        error: { message: 'name и slug обязательны' },
+      });
+    }
+
+    const existingSlug = await prisma.category.findUnique({ where: { slug } });
+    if (existingSlug) {
+      return res.status(400).json({
+        success: false,
+        error: { message: `Категория с slug "${slug}" уже существует` },
+      });
+    }
+
+    const maxSort = await prisma.category.aggregate({
+      where: { parentId: parentId || null },
+      _max: { sortOrder: true },
+    });
+
+    const category = await prisma.category.create({
+      data: {
+        name,
+        nameUz: nameUz || name,
+        nameEn: nameEn || name,
+        slug,
+        icon: icon || '📋',
+        parentId: parentId || null,
+        sortOrder: (maxSort._max.sortOrder ?? 0) + 1,
+        isActive: true,
+      },
+      include: {
+        _count: { select: { subcategories: true } },
+      },
+    });
+
+    res.status(201).json({ success: true, data: category });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * PUT /catalog/admin/categories/:id — обновление категории
+ */
+router.put('/admin/categories/:id', async (req, res, next) => {
+  try {
+    const { name, nameUz, nameEn, icon, isActive, sortOrder } = req.body;
+
+    const updateData: any = {};
+    if (name !== undefined) updateData.name = name;
+    if (nameUz !== undefined) updateData.nameUz = nameUz;
+    if (nameEn !== undefined) updateData.nameEn = nameEn;
+    if (icon !== undefined) updateData.icon = icon;
+    if (isActive !== undefined) updateData.isActive = isActive;
+    if (sortOrder !== undefined) updateData.sortOrder = sortOrder;
+
+    const category = await prisma.category.update({
+      where: { id: req.params.id },
+      data: updateData,
+      include: {
+        _count: { select: { subcategories: true } },
+      },
+    });
+
+    res.json({ success: true, data: category });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * DELETE /catalog/admin/categories/:id — мягкое удаление категории
+ */
+router.delete('/admin/categories/:id', async (req, res, next) => {
+  try {
+    const category = await prisma.category.update({
+      where: { id: req.params.id },
+      data: { isActive: false },
+    });
+
+    res.json({ success: true, data: category });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ─── CRUD Подкатегории (через /admin/) ──────
+
+/**
+ * POST /catalog/admin/subcategories — создание подкатегории
+ */
+router.post('/admin/subcategories', async (req, res, next) => {
+  try {
+    const { categoryId, name, nameUz, nameEn, slug, icon } = req.body;
+
+    if (!categoryId || !name || !slug) {
+      return res.status(400).json({
+        success: false,
+        error: { message: 'categoryId, name и slug обязательны' },
+      });
+    }
+
+    const existingSlug = await prisma.subcategory.findUnique({ where: { slug } });
+    if (existingSlug) {
+      return res.status(400).json({
+        success: false,
+        error: { message: `Подкатегория с slug "${slug}" уже существует` },
+      });
+    }
+
+    const maxSort = await prisma.subcategory.aggregate({
+      where: { categoryId },
+      _max: { sortOrder: true },
+    });
+
+    const subcategory = await prisma.subcategory.create({
+      data: {
+        categoryId,
+        name,
+        nameUz: nameUz || name,
+        nameEn: nameEn || name,
+        slug,
+        icon: icon || '📋',
+        sortOrder: (maxSort._max.sortOrder ?? 0) + 1,
+        isActive: true,
+      },
+      include: {
+        category: { select: { id: true, name: true, slug: true } },
+        _count: { select: { tasks: true } },
+      },
+    });
+
+    res.status(201).json({ success: true, data: subcategory });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * PUT /catalog/admin/subcategories/:id — обновление подкатегории
+ */
+router.put('/admin/subcategories/:id', async (req, res, next) => {
+  try {
+    const { name, nameUz, nameEn, icon, isActive, sortOrder, categoryId } = req.body;
+
+    const updateData: any = {};
+    if (name !== undefined) updateData.name = name;
+    if (nameUz !== undefined) updateData.nameUz = nameUz;
+    if (nameEn !== undefined) updateData.nameEn = nameEn;
+    if (icon !== undefined) updateData.icon = icon;
+    if (isActive !== undefined) updateData.isActive = isActive;
+    if (sortOrder !== undefined) updateData.sortOrder = sortOrder;
+    if (categoryId !== undefined) updateData.categoryId = categoryId;
+
+    const subcategory = await prisma.subcategory.update({
+      where: { id: req.params.id },
+      data: updateData,
+      include: {
+        category: { select: { id: true, name: true, slug: true } },
+        _count: { select: { tasks: true } },
+      },
+    });
+
+    res.json({ success: true, data: subcategory });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * DELETE /catalog/admin/subcategories/:id — мягкое удаление
+ */
+router.delete('/admin/subcategories/:id', async (req, res, next) => {
+  try {
+    const subcategory = await prisma.subcategory.update({
+      where: { id: req.params.id },
+      data: { isActive: false },
+    });
+
+    res.json({ success: true, data: subcategory });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ─── CRUD Задачи (через /admin/) ────────────
+
+/**
+ * POST /catalog/admin/tasks — создание задачи
+ */
+router.post('/admin/tasks', async (req, res, next) => {
+  try {
+    const {
+      subcategoryId, name, nameUz, nameEn,
+      description, descriptionUz, descriptionEn,
+      estimatedTime, estimatedTimeUz, estimatedTimeEn,
+      minPrice, slug,
+    } = req.body;
+
+    if (!subcategoryId || !name || !slug) {
+      return res.status(400).json({
+        success: false,
+        error: { message: 'subcategoryId, name и slug обязательны' },
+      });
+    }
+
+    const existingSlug = await prisma.task.findUnique({ where: { slug } });
+    if (existingSlug) {
+      return res.status(400).json({
+        success: false,
+        error: { message: `Задача с slug "${slug}" уже существует` },
+      });
+    }
+
+    const maxSort = await prisma.task.aggregate({
+      where: { subcategoryId },
+      _max: { sortOrder: true },
+    });
+
+    const task = await prisma.task.create({
+      data: {
+        subcategoryId,
+        name,
+        nameUz: nameUz || name,
+        nameEn: nameEn || name,
+        description: description || '',
+        descriptionUz: descriptionUz || description || '',
+        descriptionEn: descriptionEn || description || '',
+        estimatedTime: estimatedTime || '',
+        estimatedTimeUz: estimatedTimeUz || estimatedTime || '',
+        estimatedTimeEn: estimatedTimeEn || estimatedTime || '',
+        minPrice: minPrice ?? null,
+        slug,
+        sortOrder: (maxSort._max.sortOrder ?? 0) + 1,
+        isActive: true,
+      },
+      include: {
+        subcategory: {
+          select: { id: true, name: true, slug: true, categoryId: true },
+        },
+      },
+    });
+
+    res.status(201).json({ success: true, data: task });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * PUT /catalog/admin/tasks/:id — обновление задачи
+ */
+router.put('/admin/tasks/:id', async (req, res, next) => {
+  try {
+    const {
+      name, nameUz, nameEn,
+      description, descriptionUz, descriptionEn,
+      estimatedTime, estimatedTimeUz, estimatedTimeEn,
+      minPrice, isActive, subcategoryId, sortOrder,
+    } = req.body;
+
+    const updateData: any = {};
+    if (name !== undefined) updateData.name = name;
+    if (nameUz !== undefined) updateData.nameUz = nameUz;
+    if (nameEn !== undefined) updateData.nameEn = nameEn;
+    if (description !== undefined) updateData.description = description;
+    if (descriptionUz !== undefined) updateData.descriptionUz = descriptionUz;
+    if (descriptionEn !== undefined) updateData.descriptionEn = descriptionEn;
+    if (estimatedTime !== undefined) updateData.estimatedTime = estimatedTime;
+    if (estimatedTimeUz !== undefined) updateData.estimatedTimeUz = estimatedTimeUz;
+    if (estimatedTimeEn !== undefined) updateData.estimatedTimeEn = estimatedTimeEn;
+    if (minPrice !== undefined) updateData.minPrice = minPrice;
+    if (isActive !== undefined) updateData.isActive = isActive;
+    if (subcategoryId !== undefined) updateData.subcategoryId = subcategoryId;
+    if (sortOrder !== undefined) updateData.sortOrder = sortOrder;
+
+    const task = await prisma.task.update({
+      where: { id: req.params.id },
+      data: updateData,
+      include: {
+        subcategory: {
+          select: { id: true, name: true, slug: true, categoryId: true },
+        },
+      },
+    });
+
+    res.json({ success: true, data: task });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * DELETE /catalog/admin/tasks/:id — мягкое удаление
+ */
+router.delete('/admin/tasks/:id', async (req, res, next) => {
+  try {
+    const task = await prisma.task.update({
+      where: { id: req.params.id },
+      data: { isActive: false },
+    });
+
+    res.json({ success: true, data: task });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET /catalog/admin/full — полное дерево (включая неактивные)
+ */
+router.get('/admin/full', async (_req, res, next) => {
+  try {
+    const catalog = await prisma.category.findMany({
+      orderBy: { sortOrder: 'asc' },
+      include: {
+        subcategories: {
+          orderBy: { sortOrder: 'asc' },
+          include: {
+            tasks: {
+              orderBy: { sortOrder: 'asc' },
+            },
+            _count: { select: { tasks: true } },
+          },
+        },
+        _count: { select: { subcategories: true } },
+      },
+    });
+
+    res.json({ success: true, data: catalog });
   } catch (error) {
     next(error);
   }

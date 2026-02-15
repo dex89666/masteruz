@@ -427,6 +427,37 @@ export const adminApi = {
   getPriceList: () =>
     api.get<ApiResponse<any[]>>('/catalog/price-list'),
 
+  // ─── CRUD Категории ────────────────────
+  createCategory: (data: {
+    name: string;
+    nameUz?: string;
+    nameEn?: string;
+    slug: string;
+    icon?: string;
+  }) => api.post<ApiResponse<any>>('/catalog/admin/categories', data),
+
+  updateCategory: (id: string, data: any) =>
+    api.put<ApiResponse<any>>(`/catalog/admin/categories/${id}`, data),
+
+  deleteCategory: (id: string) =>
+    api.delete<ApiResponse<any>>(`/catalog/admin/categories/${id}`),
+
+  // ─── CRUD Подкатегории ────────────────
+  createSubcategory: (data: {
+    categoryId: string;
+    name: string;
+    nameUz?: string;
+    nameEn?: string;
+    slug: string;
+    icon?: string;
+  }) => api.post<ApiResponse<any>>('/catalog/admin/subcategories', data),
+
+  updateSubcategory: (id: string, data: any) =>
+    api.put<ApiResponse<any>>(`/catalog/admin/subcategories/${id}`, data),
+
+  deleteSubcategory: (id: string) =>
+    api.delete<ApiResponse<any>>(`/catalog/admin/subcategories/${id}`),
+
   // ─── CRUD Задачи ──────────────────────
   createTask: (data: {
     subcategoryId: string;
@@ -441,26 +472,17 @@ export const adminApi = {
     estimatedTimeEn?: string;
     minPrice?: number;
     slug: string;
-  }) => api.post<ApiResponse<any>>('/catalog/tasks', data),
+  }) => api.post<ApiResponse<any>>('/catalog/admin/tasks', data),
 
   updateTask: (taskId: string, data: any) =>
-    api.put<ApiResponse<any>>(`/catalog/tasks/${taskId}`, data),
+    api.put<ApiResponse<any>>(`/catalog/admin/tasks/${taskId}`, data),
 
   deleteTask: (taskId: string) =>
-    api.delete<ApiResponse<any>>(`/catalog/tasks/${taskId}`),
+    api.delete<ApiResponse<any>>(`/catalog/admin/tasks/${taskId}`),
 
-  // ─── CRUD Подкатегории ────────────────
-  createSubcategory: (data: {
-    categoryId: string;
-    name: string;
-    nameUz?: string;
-    nameEn?: string;
-    slug: string;
-    icon?: string;
-  }) => api.post<ApiResponse<any>>('/catalog/subcategories', data),
-
-  updateSubcategory: (id: string, data: any) =>
-    api.put<ApiResponse<any>>(`/catalog/subcategories/${id}`, data),
+  // Полное дерево каталога (включая неактивные — для админки)
+  getFullCatalog: () =>
+    api.get<ApiResponse<any[]>>('/catalog/admin/full'),
 
   // ─── Сертификаты мастеров ──────────────
   getCertificates: (params?: { page?: number; verified?: string }) =>
