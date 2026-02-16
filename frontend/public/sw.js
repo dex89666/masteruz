@@ -3,7 +3,7 @@
 // Улучшенное кэширование с стратегиями
 // ============================================
 
-const CACHE_VERSION = 2;
+const CACHE_VERSION = 3;
 const STATIC_CACHE = `masteruz-static-v${CACHE_VERSION}`;
 const API_CACHE = `masteruz-api-v${CACHE_VERSION}`;
 const IMAGE_CACHE = `masteruz-images-v${CACHE_VERSION}`;
