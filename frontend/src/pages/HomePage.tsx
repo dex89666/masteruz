@@ -7,29 +7,29 @@ import { useEffect, useState } from 'react';
 import { Search, Wrench, Shield, Star, MapPin, Users, GraduationCap, ArrowRight, Zap, HelpCircle, Store, Hammer } from 'lucide-react';
 import { useAuthStore } from '../store';
 import { useTranslation } from '../i18n';
-import { usersApi, ordersApi } from '../api/client';
+import { usersApi, ordersApi, catalogApi } from '../api/client';
 import { MasterCard } from '../components/MasterCard';
 import { OrderCard } from '../components/OrderCard';
 import { AnimatedCounter } from '../components/AnimatedCounter';
 import { useFormatPrice } from '../hooks';
 import type { Order } from '../types';
 
-const CATEGORY_SLUGS = [
-  { icon: '🔧', slug: 'plumbing' },
-  { icon: '⚡', slug: 'electrical' },
-  { icon: '🪑', slug: 'furniture' },
-  { icon: '🏗️', slug: 'construction' },
-  { icon: '🎨', slug: 'painting' },
-  { icon: '🚪', slug: 'windows-doors' },
-  { icon: '🔌', slug: 'appliance-install' },
-  { icon: '🪵', slug: 'carpentry' },
-  { icon: '🧹', slug: 'cleaning' },
-  { icon: '🌿', slug: 'garden-outdoor' },
-  { icon: '🏠', slug: 'turnkey-renovation' },
-  { icon: '🎯', slug: 'interior-design' },
-  { icon: '🪑', slug: 'custom-furniture' },
-  { icon: '🧱', slug: 'building-materials' },
-] as const;
+const FALLBACK_CATEGORIES = [
+  { icon: '🔧', slug: 'plumbing', name: 'Сантехника' },
+  { icon: '⚡', slug: 'electrical', name: 'Электрика' },
+  { icon: '🪑', slug: 'furniture', name: 'Мебель' },
+  { icon: '🏗️', slug: 'construction', name: 'Строительство' },
+  { icon: '🎨', slug: 'painting', name: 'Покраска и отделка' },
+  { icon: '🚪', slug: 'windows-doors', name: 'Окна и двери' },
+  { icon: '🔌', slug: 'appliance-install', name: 'Бытовая техника' },
+  { icon: '🪵', slug: 'carpentry', name: 'Плотницкие работы' },
+  { icon: '🧹', slug: 'cleaning', name: 'Клининг' },
+  { icon: '🌿', slug: 'garden-outdoor', name: 'Сад и двор' },
+  { icon: '🏠', slug: 'turnkey-renovation', name: 'Ремонт под ключ' },
+  { icon: '🎯', slug: 'interior-design', name: 'Дизайн интерьера' },
+  { icon: '🪑', slug: 'custom-furniture', name: 'Мебель на заказ' },
+  { icon: '🧱', slug: 'building-materials', name: 'Стройматериалы' },
+];
 
 const FEATURE_ICONS = [Search, Shield, Star, MapPin] as const;
 const FEATURE_KEYS = ['search', 'safety', 'quality', 'nearby'] as const;
@@ -43,8 +43,17 @@ export function HomePage() {
   const formatPrice = useFormatPrice();
   const [topMasters, setTopMasters] = useState<any[]>([]);
   const [urgentOrders, setUrgentOrders] = useState<Order[]>([]);
+  const [categories, setCategories] = useState<any[]>(FALLBACK_CATEGORIES);
 
   useEffect(() => {
+    // Load categories from DB
+    catalogApi.getCategories()
+      .then((res) => {
+        const cats = res.data.data || [];
+        if (cats.length > 0) setCategories(cats);
+      })
+      .catch(() => {});
+
     usersApi.searchMasters({ limit: 6, sortBy: 'rating', sortOrder: 'desc' })
       .then((res) => setTopMasters(res.data.data || []))
       .catch(() => {});
@@ -90,14 +99,14 @@ export function HomePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <h2 className="text-2xl font-bold text-center mb-8 dark:text-white">{t('categories.title')}</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
-            {CATEGORY_SLUGS.map((cat) => (
+            {categories.map((cat: any) => (
               <Link
                 key={cat.slug}
                 to={`/catalog/${cat.slug}`}
                 className="card dark:bg-gray-800 dark:ring-gray-700 text-center hover:shadow-md transition-all hover:-translate-y-1 p-4"
               >
-                <span className="text-3xl mb-2 block">{cat.icon}</span>
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{t(`categories.${cat.slug}`)}</span>
+                <span className="text-3xl mb-2 block">{cat.icon || '📁'}</span>
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{cat.name}</span>
               </Link>
             ))}
           </div>

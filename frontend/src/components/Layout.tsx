@@ -393,6 +393,8 @@ export function Layout() {
               <ul className="space-y-2 text-sm">
                 <li><Link to="/about" className="hover:text-white transition-colors">{t('footer.about')}</Link></li>
                 <li><Link to="/support" className="hover:text-white transition-colors">{t('support.title')}</Link></li>
+                <li><Link to="/careers" className="hover:text-white transition-colors">Вакансии</Link></li>
+                <li><Link to="/development" className="hover:text-white transition-colors">Разработка</Link></li>
                 <li><a href="#" className="hover:text-white transition-colors">{t('home.publicOffer')}</a></li>
                 <li><a href="#" className="hover:text-white transition-colors">{t('home.privacyPolicy')}</a></li>
               </ul>
@@ -405,11 +407,11 @@ export function Layout() {
               <a href="https://t.me/masteruz_support" className="hover:text-white transition-colors">
                 Telegram
               </a>
-              <a href="tel:+998901234567" className="hover:text-white transition-colors">
-                +998 90 123-45-67
+              <a href="tel:+998957005040" className="hover:text-white transition-colors">
+                +998 95 700-50-40
               </a>
-              <a href="mailto:info@masteruz.uz" className="hover:text-white transition-colors">
-                info@masteruz.uz
+              <a href="mailto:vladlabcorp@gmail.com" className="hover:text-white transition-colors">
+                vladlabcorp@gmail.com
               </a>
             </div>
           </div>

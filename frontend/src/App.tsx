@@ -51,6 +51,8 @@ const PartnerRequestPage = lazy(() => import('./pages/PartnerRequestPage').then(
 const TurnkeyPage = lazy(() => import('./pages/TurnkeyPage').then(m => ({ default: m.TurnkeyPage })));
 const MyTurnkeyProjectsPage = lazy(() => import('./pages/MyTurnkeyProjectsPage').then(m => ({ default: m.MyTurnkeyProjectsPage })));
 const TurnkeyProjectDetailPage = lazy(() => import('./pages/TurnkeyProjectDetailPage').then(m => ({ default: m.TurnkeyProjectDetailPage })));
+const CareersPage = lazy(() => import('./pages/CareersPage').then(m => ({ default: m.CareersPage })));
+const DevelopmentPage = lazy(() => import('./pages/DevelopmentPage').then(m => ({ default: m.DevelopmentPage })));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -114,6 +116,8 @@ function AppContent() {
         <Route path="stores/partner-request" element={<PartnerRequestPage />} />
         <Route path="stores/:slug" element={<StoreProfilePage />} />
         <Route path="turnkey" element={<TurnkeyPage />} />
+        <Route path="careers" element={<CareersPage />} />
+        <Route path="development" element={<DevelopmentPage />} />
 
         {/* Protected routes (need auth) */}
         <Route
