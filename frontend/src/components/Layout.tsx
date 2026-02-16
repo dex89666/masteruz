@@ -97,26 +97,26 @@ export function Layout() {
       {/* Header — not sticky on mobile in TG to avoid overlap with TG buttons */}
       <header className={`${isTgApp ? 'relative' : 'sticky top-0'} z-50 bg-white dark:bg-gray-800 shadow-sm border-b border-gray-100 dark:border-gray-700`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-14 md:h-16">
+          <div className="flex items-center justify-between h-14 md:h-16 gap-2">
             {/* Logo */}
-            <Link to="/" className="flex items-center gap-2">
+            <Link to="/" className="flex items-center gap-2 shrink-0">
               <span className="text-2xl">🔧</span>
               <span className="text-xl font-bold text-primary-600 dark:text-primary-400">MasterUz</span>
             </Link>
 
             {/* Desktop nav — hidden on mobile */}
-            <nav className="hidden md:flex items-center gap-1">
+            <nav className="hidden lg:flex items-center gap-0.5 overflow-x-auto scrollbar-hide">
               {navItems.map((item) => (
                 <Link
                   key={item.path}
                   to={item.path}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${
                     location.pathname === item.path
                       ? 'bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400'
                       : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white'
                   }`}
                 >
-                  <item.icon size={18} />
+                  <item.icon size={15} />
                   {item.label}
                 </Link>
               ))}
@@ -124,66 +124,66 @@ export function Layout() {
               {isMaster && (
                 <Link
                   to="/school"
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 whitespace-nowrap"
                 >
-                  <GraduationCap size={18} />
+                  <GraduationCap size={15} />
                   {t('nav.school')}
                 </Link>
               )}
 
               <Link
                 to="/stores"
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${
                   location.pathname.startsWith('/stores')
                     ? 'bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400'
                     : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
                 }`}
               >
-                <Store size={18} />
+                <Store size={15} />
                 {t('stores.title')}
               </Link>
 
               <Link
                 to="/turnkey"
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${
                   location.pathname.startsWith('/turnkey')
                     ? 'bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400'
                     : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
                 }`}
               >
-                <Hammer size={18} />
+                <Hammer size={15} />
                 {t('turnkey.title')}
               </Link>
 
               {isAdmin && (
                 <Link
                   to="/admin"
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 whitespace-nowrap"
                 >
-                  <Settings size={18} />
+                  <Settings size={15} />
                   {t('nav.admin')}
                 </Link>
               )}
             </nav>
 
             {/* Desktop right side actions — hidden on mobile */}
-            <div className="hidden md:flex items-center gap-2">
+            <div className="hidden lg:flex items-center gap-1 shrink-0">
               <button
                 onClick={() => setSearchOpen(true)}
-                className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                className="p-1.5 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                 title={t('common.search')}
               >
-                <Search size={18} />
+                <Search size={17} />
               </button>
 
               <Link
                 to="/cart"
-                className="relative p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                className="relative p-1.5 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                 title={t('cart.title')}
               >
-                <ShoppingCart size={18} />
+                <ShoppingCart size={17} />
                 {totalCartItems > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 bg-primary-600 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+                  <span className="absolute -top-0.5 -right-0.5 bg-primary-600 text-white text-[10px] font-bold rounded-full min-w-[16px] h-[16px] flex items-center justify-center px-0.5">
                     {totalCartItems}
                   </span>
                 )}
@@ -195,20 +195,17 @@ export function Layout() {
               {isAuthenticated && <NotificationBell />}
 
               {isAuthenticated ? (
-                <div className="flex items-center gap-3">
-                  <span className="text-sm text-gray-600 dark:text-gray-400">
-                    {user?.profile?.firstName}
-                  </span>
+                <div className="flex items-center gap-2">
                   <button
                     onClick={logout}
-                    className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                    className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
                     title={t('nav.logout')}
                   >
-                    <LogOut size={18} />
+                    <LogOut size={17} />
                   </button>
                 </div>
               ) : (
-                <Link to="/login" className="btn-primary text-sm px-4 py-2">
+                <Link to="/login" className="btn-primary text-xs px-3 py-1.5">
                   {t('nav.login')}
                 </Link>
               )}
@@ -217,7 +214,7 @@ export function Layout() {
             {/* Mobile: ONLY the burger button — big and prominent */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden relative flex items-center justify-center w-11 h-11 rounded-xl bg-primary-500 text-white hover:bg-primary-600 active:scale-95 transition-all shadow-md shadow-primary-500/20"
+              className="lg:hidden relative flex items-center justify-center w-11 h-11 rounded-xl bg-primary-500 text-white hover:bg-primary-600 active:scale-95 transition-all shadow-md shadow-primary-500/20"
             >
               {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
               {/* Cart badge on burger */}
@@ -232,7 +229,7 @@ export function Layout() {
 
         {/* Mobile fullscreen menu — slides down */}
         {mobileMenuOpen && (
-          <div className="md:hidden border-t border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-2xl max-h-[80vh] overflow-y-auto">
+          <div className="lg:hidden border-t border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-2xl max-h-[80vh] overflow-y-auto">
             <div className="px-4 py-4 space-y-1">
 
               {/* Quick actions row */}
