@@ -243,6 +243,51 @@ export class BalanceService {
   }
 
   /**
+   * Списать комиссию с мастера (при принятии заказа на оценку)
+   */
+  async chargeCommission(userId: string, amount: number, orderId: string) {
+    if (amount <= 0) return;
+
+    await prisma.$transaction(async (tx: PrismaTx) => {
+      const user = await tx.user.findUnique({
+        where: { id: userId },
+        select: { balance: true },
+      });
+      if (!user) throw ApiError.notFound('Пользователь не найден');
+
+      if (user.balance < amount) {
+        throw ApiError.badRequest(
+          `Недостаточно средств. Баланс: ${user.balance.toLocaleString('ru')} сум, ` +
+          `нужно: ${amount.toLocaleString('ru')} сум`
+        );
+      }
+
+      const balanceBefore = user.balance;
+      const balanceAfter = balanceBefore - amount;
+
+      await Promise.all([
+        tx.user.update({
+          where: { id: userId },
+          data: { balance: balanceAfter },
+        }),
+        tx.balanceTransaction.create({
+          data: {
+            userId,
+            type: TxType.COMMISSION,
+            amount: -amount,
+            balanceBefore,
+            balanceAfter,
+            orderId,
+            description: `Комиссия за принятие заказа: ${amount.toLocaleString('ru')} сум`,
+          },
+        }),
+      ]);
+    });
+
+    logger.info({ userId, amount, orderId }, 'Комиссия списана с мастера');
+  }
+
+  /**
    * Списать штраф за отмену
    */
   async chargePenalty(userId: string, amount: number, orderId: string, reason: string) {

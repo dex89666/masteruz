@@ -268,7 +268,7 @@ export const schoolApi = {
     api.get<ApiResponse<any>>('/school/progress'),
 };
 
-// ─── Chat API (чат заказа) ─────────────────
+// ─── Chat API (чат заказа с модерацией) ────
 export const chatApi = {
   getMessages: (orderId: string) =>
     api.get<ApiResponse<any[]>>(`/chat/${orderId}`),
@@ -278,6 +278,77 @@ export const chatApi = {
 
   getUnreadCount: (orderId: string) =>
     api.get<ApiResponse<{ unread: number }>>(`/chat/${orderId}/unread`),
+
+  // Admin: флагированные сообщения
+  getFlaggedMessages: (page?: number) =>
+    api.get<any>('/chat/admin/flagged', { params: { page } }),
+
+  blockMessage: (messageId: string) =>
+    api.put<ApiResponse<any>>(`/chat/admin/${messageId}/block`),
+
+  unflagMessage: (messageId: string) =>
+    api.put<ApiResponse<any>>(`/chat/admin/${messageId}/unflag`),
+};
+
+// ─── Estimation API (Выезд на оценку + смета) ──
+export const estimationApi = {
+  // Клиент: создать заказ на оценку
+  createEstimationOrder: (data: {
+    categoryId: string;
+    title: string;
+    description: string;
+    address: string;
+    city?: string;
+    district?: string;
+    region?: string;
+    latitude?: number;
+    longitude?: number;
+    images: string[];
+    scheduledDate?: string;
+    scheduledTime?: string;
+  }) => api.post<ApiResponse<any>>('/estimation', data),
+
+  // Получить смету по заказу
+  getEstimate: (orderId: string) =>
+    api.get<ApiResponse<any[]>>(`/estimation/${orderId}/estimate`),
+
+  // Клиент: одобрить смету
+  approveEstimate: (estimateId: string) =>
+    api.put<ApiResponse<any>>(`/estimation/${estimateId}/approve`),
+
+  // Клиент: отклонить смету
+  rejectEstimate: (estimateId: string, reason?: string) =>
+    api.put<ApiResponse<any>>(`/estimation/${estimateId}/reject`, { reason }),
+
+  // Мастер: принять заказ на оценку
+  acceptEstimation: (orderId: string) =>
+    api.put<ApiResponse<any>>(`/estimation/${orderId}/accept`),
+
+  // Мастер: создать смету
+  createEstimate: (orderId: string, data: {
+    workItems: Array<{ name: string; quantity: number; unitPrice: number; total: number }>;
+    materialItems: Array<{ name: string; quantity: number; unit: string; unitPrice: number; total: number }>;
+    estimatedDays?: number;
+    notes?: string;
+    photos: string[];
+    videos?: string[];
+  }) => api.post<ApiResponse<any>>(`/estimation/${orderId}/estimate`, data),
+
+  // Мастер: отправить смету клиенту
+  sendEstimate: (estimateId: string) =>
+    api.put<ApiResponse<any>>(`/estimation/estimate/${estimateId}/send`),
+
+  // Admin: все заказы на оценку
+  getEstimationOrders: (params?: { status?: string; page?: number }) =>
+    api.get<any>('/estimation/admin/orders', { params }),
+
+  // Admin: сметы на модерации
+  getPendingModeration: () =>
+    api.get<ApiResponse<any[]>>('/estimation/admin/moderation'),
+
+  // Admin: модерировать смету
+  moderateEstimate: (estimateId: string, approved: boolean, note?: string) =>
+    api.put<ApiResponse<any>>(`/estimation/admin/moderate/${estimateId}`, { approved, note }),
 };
 
 // ─── Notifications API ─────────────────────
@@ -418,11 +489,25 @@ export const adminApi = {
   updateConfig: (key: string, value: string, description?: string) =>
     api.put<ApiResponse<any>>('/admin/config', { key, value, description }),
 
-  getBlacklist: (page?: number) =>
-    api.get<PaginatedResponse<any>>('/admin/blacklist', { params: { page } }),
+  getBlacklist: (page?: number, violationType?: string) =>
+    api.get<PaginatedResponse<any>>('/admin/blacklist', { params: { page, violationType } }),
+
+  addToBlacklist: (data: {
+    userId: string;
+    reason: string;
+    violationType?: string;
+    evidence?: string;
+    penaltyAmount?: number;
+    orderId?: string;
+    isPermanent?: boolean;
+    telegramLocation?: string;
+  }) => api.post<ApiResponse<any>>('/admin/blacklist', data),
+
+  removeFromBlacklist: (id: string) =>
+    api.delete<ApiResponse<any>>(`/admin/blacklist/${id}`),
 
   updateTaskPrice: (taskId: string, minPrice: number) =>
-    api.patch<ApiResponse<any>>(`/catalog/tasks/${taskId}/price`, { minPrice }),
+    api.patch<ApiResponse<any>>(`/catalog/admin/tasks/${taskId}/price`, { minPrice }),
 
   getPriceList: () =>
     api.get<ApiResponse<any[]>>('/catalog/price-list'),

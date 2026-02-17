@@ -105,6 +105,12 @@ const uz = {
     COMPLETED: 'Tugallangan',
     CANCELLED: 'Bekor qilingan',
     DISPUTED: 'Nizo',
+    ESTIMATION_IN_PROGRESS: 'Baholash jarayonda',
+    ESTIMATION_DONE: 'Baholash tugallandi',
+    ESTIMATE_SENT: 'Smeta yuborildi',
+    ESTIMATE_APPROVED: 'Smeta tasdiqlandi',
+    ESTIMATE_REJECTED: 'Smeta rad etildi',
+    MODERATION: 'Moderatsiyada',
   },
 
   // ─── Shaharlar ──────────────────────────
@@ -1047,9 +1053,23 @@ const uz = {
     escrowReleased: 'Mablag\'lar ustaga o\'tkazildi',
     insufficientBalance: 'Balansda mablag\' yetarli emas',
     topUpRequired: 'Buyurtma yaratish uchun balansni to\'ldiring',
-    offerAcceptLabel: 'Men ommaviy oferta shartlarini qabul qilaman',
+    offerAcceptLabel: 'Men ommaviy oferta shartlarini qabul qilaman (platforma komissiyasini chetlab o\'tish taqiqlangan)',
     offerAcceptRequired: 'Oferta shartlarini qabul qilish shart',
     offerLink: 'Ofertani o\'qish',
+  },
+
+  estimation: {
+    title: 'Baholash uchun chiqish',
+    subtitle: 'Usta kelib o\'lchov oladi va smeta tuzadi',
+    fixedPrice: 'Chiqish narxi belgilangan',
+    masterShare: 'Usta chiqish uchun 120 000 so\'m oladi',
+    createOrder: 'Baholash buyurtma berish',
+    estimateReady: 'Smeta tayyor',
+    estimateSent: 'Smeta mijozga yuborildi',
+    estimateApproved: 'Smeta tasdiqlandi',
+    estimateRejected: 'Smeta rad etildi',
+    moderation: 'Moderatsiyada',
+    commissionWarning: 'Platforma komissiyasini chetlab o\'tish taqiqlangan va 500 000 so\'mgacha jarima hamda akkaunt blokirovkasiga olib keladi',
   },
 
   balance: {

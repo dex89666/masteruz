@@ -235,6 +235,22 @@ export function HomePage() {
               <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -translate-y-8 translate-x-8" />
               <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/5 rounded-full translate-y-6 -translate-x-6" />
             </div>
+
+            {/* Estimation — Выезд на оценку */}
+            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-cyan-600 to-teal-700 text-white p-8">
+              <div className="relative z-10">
+                <Search size={40} className="mb-4 opacity-80" />
+                <h3 className="text-2xl font-bold mb-2">🔍 Выезд на оценку</h3>
+                <p className="text-cyan-100 mb-6 text-sm leading-relaxed">Мастер приедет, сделает замеры и составит точную смету. Фиксированная цена 150 000 сум.</p>
+                <div className="flex flex-wrap gap-3">
+                  <Link to="/estimation/create" className="inline-flex items-center gap-2 bg-white text-cyan-700 font-semibold px-5 py-2.5 rounded-lg hover:bg-cyan-50 transition-colors text-sm">
+                    Заказать оценку <ArrowRight size={16} />
+                  </Link>
+                </div>
+              </div>
+              <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -translate-y-8 translate-x-8" />
+              <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/5 rounded-full translate-y-6 -translate-x-6" />
+            </div>
           </div>
         </div>
       </section>

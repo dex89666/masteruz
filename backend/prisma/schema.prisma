@@ -31,6 +31,22 @@ enum OrderStatus {
   COMPLETED
   CANCELLED
   DISPUTED
+  // Статусы для оценки
+  ESTIMATION_IN_PROGRESS  // Мастер едет на оценку
+  ESTIMATION_DONE         // Оценка завершена, мастер составляет смету
+  ESTIMATE_SENT           // Смета отправлена клиенту
+  ESTIMATE_APPROVED       // Клиент согласился, ожидание модерации
+  ESTIMATE_REJECTED       // Клиент отказался от сметы
+  MODERATION              // Модерация сметы админом/менеджером
+}
+
+// ─── Статусы сметы ────────────────────────────
+enum EstimateStatus {
+  DRAFT
+  SENT
+  APPROVED
+  REJECTED
+  MODERATION
 }
 
 // ─── Статусы платежа ──────────────────────────
@@ -54,6 +70,8 @@ enum PaymentType {
   PENALTY
   BALANCE_TOPUP
   VISIT_FEE
+  ESTIMATION_FEE     // Плата за выезд на оценку
+  ESTIMATE_PAYMENT   // Оплата по смете
 }
 
 // ─── Провайдеры платежей ──────────────────────
@@ -131,6 +149,7 @@ model User {
   balanceTransactions BalanceTransaction[]
   storeReviews   StoreReview[]
   turnkeyProjects TurnkeyProject[]
+  estimates      Estimate[]     @relation("EstimateMaster")
 
   @@map("users")
 }
@@ -336,6 +355,10 @@ model Order {
   cancelReason     String?     @map("cancel_reason")
   cancelledBy      String?     @map("cancelled_by")
   disputeReason    String?     @map("dispute_reason")
+  // Оценка (выезд мастера)
+  isEstimationOrder Boolean    @default(false) @map("is_estimation_order")
+  estimationFee    Float?      @map("estimation_fee")         // 150 000 сум
+  parentOrderId    String?     @map("parent_order_id")        // Связь: заказ оценки → основной заказ
   // Geo / адрес
   latitude         Float?
   longitude        Float?
@@ -361,6 +384,9 @@ model Order {
   chatMessages ChatMessage[]
   photos     OrderPhoto[]
   guarantee  Guarantee?
+  estimates  Estimate[]
+  parentOrder Order?         @relation("EstimationChain", fields: [parentOrderId], references: [id])
+  childOrders Order[]        @relation("EstimationChain")
 
   @@index([status, createdAt])
   @@index([latitude, longitude])
@@ -525,12 +551,23 @@ model Blacklist {
   userId     String    @map("user_id")
   reason     String
   blockedById String   @map("blocked_by_id")
+  // Расширенные данные
+  violationType String? @map("violation_type")  // bypass_commission, fraud, abuse, spam
+  evidence    String?                           // Доказательства (ссылки, скриншоты)
+  address     String?                           // Адрес нарушителя
+  city        String?                           // Город
+  district    String?                           // Район
+  telegramLocation String? @map("telegram_location") // Геолокация из Telegram
+  penaltyAmount Float?  @map("penalty_amount")  // Удержанная сумма
+  orderId     String?  @map("order_id")         // Связанный заказ
+  isPermanent Boolean  @default(true) @map("is_permanent")
   createdAt  DateTime  @default(now()) @map("created_at")
   expiresAt  DateTime? @map("expires_at")
 
   user      User @relation("BlockedUser", fields: [userId], references: [id])
   blockedBy User @relation("BlockedByUser", fields: [blockedById], references: [id])
 
+  @@index([violationType])
   @@map("blacklist")
 }
 
@@ -563,6 +600,12 @@ model ChatMessage {
   imageUrl  String?  @map("image_url")
   isSystem  Boolean  @default(false) @map("is_system")
   isRead    Boolean  @default(false) @map("is_read")
+  // Модерация чата
+  isFlagged Boolean  @default(false) @map("is_flagged")
+  flagReason String? @map("flag_reason")
+  isBlocked Boolean  @default(false) @map("is_blocked")
+  moderatedById String? @map("moderated_by_id")
+  moderatedAt DateTime? @map("moderated_at")
   createdAt DateTime @default(now()) @map("created_at")
 
   order  Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
@@ -570,6 +613,7 @@ model ChatMessage {
 
   @@index([orderId, createdAt])
   @@index([senderId])
+  @@index([isFlagged])
   @@map("chat_messages")
 }
 
@@ -875,6 +919,47 @@ model TurnkeyStage {
 }
 
 // ════════════════════════════════════════════════
+// СМЕТА (Estimate) — мастер составляет на месте
+// ════════════════════════════════════════════════
+
+model Estimate {
+  id              String         @id @default(uuid())
+  orderId         String         @map("order_id")
+  masterId        String         @map("master_id")
+  status          EstimateStatus @default(DRAFT)
+  // Элементы сметы
+  workItems       Json           @default("[]") @map("work_items")      // [{name, quantity, unitPrice, total}]
+  materialItems   Json           @default("[]") @map("material_items")  // [{name, quantity, unit, unitPrice, total}]
+  workTotal       Float          @default(0) @map("work_total")
+  materialTotal   Float          @default(0) @map("material_total")
+  totalAmount     Float          @default(0) @map("total_amount")
+  estimatedDays   Int?           @map("estimated_days")
+  notes           String?
+  // Медиа-файлы (фото/видео с устройства)
+  photos          String[]       @default([])
+  videos          String[]       @default([])
+  // Модерация
+  moderatedById   String?        @map("moderated_by_id")
+  moderatedAt     DateTime?      @map("moderated_at")
+  moderationNote  String?        @map("moderation_note")
+  // Реакция клиента
+  clientResponseAt DateTime?     @map("client_response_at")
+  rejectionReason String?        @map("rejection_reason")
+  // Даты
+  sentAt          DateTime?      @map("sent_at")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  order  Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  master User  @relation("EstimateMaster", fields: [masterId], references: [id])
+
+  @@index([orderId])
+  @@index([masterId])
+  @@index([status])
+  @@map("estimates")
+}
+
+// ════════════════════════════════════════════════
 // ТРАНЗАКЦИИ БАЛАНСА (аудит-лог движения средств)
 // ════════════════════════════════════════════════
 
@@ -886,6 +971,8 @@ enum BalanceTransactionType {
   REFUND          // Возврат средств
   COMMISSION      // Оплата комиссии
   PAYOUT          // Выплата мастеру
+  ESTIMATION_FEE  // Оплата за выезд на оценку
+  ESTIMATE_PAYOUT // Выплата мастеру за оценку
 }
 
 model BalanceTransaction {

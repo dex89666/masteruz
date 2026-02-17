@@ -5,7 +5,7 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { adminApi, storesApi, turnkeyApi } from '../api/client';
+import { adminApi, storesApi, turnkeyApi, estimationApi, chatApi } from '../api/client';
 import { useAuthStore } from '../store';
 import { useTranslation } from '../i18n';
 import { useFormatPrice } from '../hooks';
@@ -24,7 +24,7 @@ import {
 import toast from 'react-hot-toast';
 import type { Dashboard } from '../types';
 
-type AdminTab = 'overview' | 'users' | 'orders' | 'payments' | 'catalog' | 'config' | 'stores' | 'turnkey';
+type AdminTab = 'overview' | 'users' | 'orders' | 'payments' | 'catalog' | 'config' | 'stores' | 'turnkey' | 'moderation';
 
 // ─── Stat Card Component ────────────────────
 function StatCard({ icon: Icon, label, value, subValue, color, trend }: {
@@ -150,6 +150,13 @@ export function AdminDashboardPage() {
   const [showAddForm, setShowAddForm] = useState<{ type: 'category' | 'subcategory' | 'task'; parentId?: string } | null>(null);
   const [formData, setFormData] = useState<any>({});
 
+  // Moderation tab state
+  const [pendingEstimates, setPendingEstimates] = useState<any[]>([]);
+  const [flaggedMessages, setFlaggedMessages] = useState<any[]>([]);
+  const [blacklist, setBlacklist] = useState<any[]>([]);
+  const [moderationLoading, setModerationLoading] = useState(false);
+  const [moderationSubTab, setModerationSubTab] = useState<'estimates' | 'messages' | 'blacklist'>('estimates');
+
   // Guard: only ADMIN / MANAGER
   useEffect(() => {
     if (!user || (user.role !== 'ADMIN' && user.role !== 'MANAGER')) {
@@ -168,6 +175,7 @@ export function AdminDashboardPage() {
     if (tab === 'stores') loadPartnerRequests();
     if (tab === 'turnkey') loadTurnkeyProjects();
     if (tab === 'catalog') loadCatalog();
+    if (tab === 'moderation') loadModerationData();
   }, [tab]);
 
   useEffect(() => { if (tab === 'stores') loadPartnerRequests(); }, [requestsStatus]);
@@ -210,6 +218,58 @@ export function AdminDashboardPage() {
     } finally {
       setCatalogLoading(false);
     }
+  }
+
+  async function loadModerationData() {
+    setModerationLoading(true);
+    try {
+      const [estRes, msgRes, blRes] = await Promise.all([
+        estimationApi.getPendingModeration().catch(() => ({ data: { data: [] } })),
+        chatApi.getFlaggedMessages().catch(() => ({ data: { data: [] } })),
+        adminApi.getBlacklist().catch(() => ({ data: { data: [] } })),
+      ]);
+      setPendingEstimates(estRes.data.data || []);
+      setFlaggedMessages(msgRes.data.data || []);
+      setBlacklist(blRes.data.data || []);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setModerationLoading(false);
+    }
+  }
+
+  async function handleModerateEstimate(estimateId: string, approved: boolean, comment?: string) {
+    try {
+      await estimationApi.moderateEstimate(estimateId, approved, comment);
+      toast.success(approved ? 'Смета одобрена, основной заказ создан' : 'Смета отклонена, возврат средств');
+      loadModerationData();
+    } catch (err: any) {
+      toast.error(err.response?.data?.error?.message || 'Ошибка');
+    }
+  }
+
+  async function handleBlockMessage(messageId: string) {
+    try {
+      await chatApi.blockMessage(messageId);
+      toast.success('Сообщение заблокировано');
+      loadModerationData();
+    } catch { toast.error('Ошибка'); }
+  }
+
+  async function handleUnflagMessage(messageId: string) {
+    try {
+      await chatApi.unflagMessage(messageId);
+      toast.success('Флаг снят');
+      loadModerationData();
+    } catch { toast.error('Ошибка'); }
+  }
+
+  async function handleRemoveFromBlacklist(id: string) {
+    try {
+      await adminApi.removeFromBlacklist(id);
+      toast.success('Пользователь разблокирован');
+      loadModerationData();
+    } catch { toast.error('Ошибка'); }
   }
 
   async function loadUsers() {
@@ -590,6 +650,7 @@ export function AdminDashboardPage() {
     { key: 'stores', label: t('stores.title'), icon: Store },
     { key: 'turnkey', label: t('turnkey.title'), icon: Hammer },
     { key: 'catalog', label: 'Каталог', icon: FolderTree },
+    { key: 'moderation', label: 'Модерация', icon: AlertTriangle },
     { key: 'config', label: t('admin.tabConfig'), icon: Settings },
   ];
 
@@ -1479,6 +1540,176 @@ export function AdminDashboardPage() {
                   </button>
                 </div>
               </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════ */}
+      {/* TAB: MODERATION                        */}
+      {/* ═══════════════════════════════════════ */}
+      {tab === 'moderation' && (
+        <div className="space-y-4">
+          <h2 className="font-semibold dark:text-white flex items-center gap-2">
+            <AlertTriangle size={18} className="text-red-500" />
+            Модерация и безопасность
+          </h2>
+
+          {/* Sub-tabs */}
+          <div className="flex gap-2">
+            {[
+              { key: 'estimates' as const, label: `Сметы (${pendingEstimates.length})`, icon: '📋' },
+              { key: 'messages' as const, label: `Сообщения (${flaggedMessages.length})`, icon: '💬' },
+              { key: 'blacklist' as const, label: `Чёрный список (${blacklist.length})`, icon: '🚫' },
+            ].map(st => (
+              <button
+                key={st.key}
+                onClick={() => setModerationSubTab(st.key)}
+                className={`px-3 py-2 rounded-lg text-sm font-medium ${
+                  moderationSubTab === st.key
+                    ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                    : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
+                }`}
+              >
+                {st.icon} {st.label}
+              </button>
+            ))}
+          </div>
+
+          {moderationLoading && <LoadingSpinner />}
+
+          {/* Pending estimates */}
+          {moderationSubTab === 'estimates' && !moderationLoading && (
+            <div className="space-y-3">
+              {pendingEstimates.length === 0 && (
+                <div className="text-center py-8 text-gray-400">
+                  <Shield size={40} className="mx-auto mb-2 text-green-400" />
+                  <p>Нет смет на модерации</p>
+                </div>
+              )}
+              {pendingEstimates.map((est: any) => (
+                <div key={est.id} className="card border-2 border-violet-200 dark:border-violet-800">
+                  <div className="flex items-start justify-between mb-2">
+                    <div>
+                      <p className="font-bold text-sm">Смета #{est.id?.slice(0, 8)}</p>
+                      <p className="text-xs text-gray-500">
+                        Заказ: {est.order?.title || est.orderId?.slice(0, 8)}
+                      </p>
+                    </div>
+                    <span className="badge bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400">
+                      На модерации
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-xs mb-3">
+                    <div>
+                      <span className="text-gray-400">Работы:</span>
+                      <p className="font-bold">{(est.workTotal || 0).toLocaleString('ru')} сум</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-400">Материалы:</span>
+                      <p className="font-bold">{(est.materialTotal || 0).toLocaleString('ru')} сум</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-400">Итого:</span>
+                      <p className="font-bold text-primary-600">{(est.totalAmount || 0).toLocaleString('ru')} сум</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleModerateEstimate(est.id, true)}
+                      className="flex-1 py-2 bg-green-600 text-white rounded-lg text-sm font-semibold flex items-center justify-center gap-1"
+                    >
+                      <CheckCircle size={14} /> Одобрить
+                    </button>
+                    <button
+                      onClick={() => handleModerateEstimate(est.id, false, 'Отклонено модератором')}
+                      className="flex-1 py-2 bg-red-500 text-white rounded-lg text-sm font-semibold flex items-center justify-center gap-1"
+                    >
+                      <XCircle size={14} /> Отклонить
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Flagged messages */}
+          {moderationSubTab === 'messages' && !moderationLoading && (
+            <div className="space-y-2">
+              {flaggedMessages.length === 0 && (
+                <div className="text-center py-8 text-gray-400">
+                  <CheckCircle size={40} className="mx-auto mb-2 text-green-400" />
+                  <p>Нет подозрительных сообщений</p>
+                </div>
+              )}
+              {flaggedMessages.map((msg: any) => (
+                <div key={msg.id} className="card border border-orange-200 dark:border-orange-800">
+                  <div className="flex items-start justify-between mb-1">
+                    <div>
+                      <p className="text-xs text-gray-400">
+                        {msg.sender?.firstName || 'Пользователь'} · Заказ {msg.orderId?.slice(0, 8)}
+                      </p>
+                      <p className="text-xs text-orange-500 font-semibold">{msg.flagReason || 'Подозрительное'}</p>
+                    </div>
+                    <span className="text-xs text-gray-400">
+                      {new Date(msg.createdAt).toLocaleString('ru')}
+                    </span>
+                  </div>
+                  <p className="text-sm bg-orange-50 dark:bg-orange-900/20 p-2 rounded-lg my-2">{msg.text}</p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleBlockMessage(msg.id)}
+                      className="px-3 py-1.5 bg-red-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1"
+                    >
+                      <Ban size={12} /> Заблокировать
+                    </button>
+                    <button
+                      onClick={() => handleUnflagMessage(msg.id)}
+                      className="px-3 py-1.5 bg-gray-200 dark:bg-gray-700 rounded-lg text-xs font-semibold flex items-center gap-1"
+                    >
+                      <CheckCircle size={12} /> Снять флаг
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Blacklist */}
+          {moderationSubTab === 'blacklist' && !moderationLoading && (
+            <div className="space-y-2">
+              {blacklist.length === 0 && (
+                <div className="text-center py-8 text-gray-400">
+                  <Users size={40} className="mx-auto mb-2" />
+                  <p>Чёрный список пуст</p>
+                </div>
+              )}
+              {blacklist.map((entry: any) => (
+                <div key={entry.id} className="card border border-red-200 dark:border-red-800">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="font-semibold text-sm">
+                        {entry.user?.profile?.firstName || 'ID: ' + entry.userId?.slice(0, 8)}
+                      </p>
+                      <p className="text-xs text-gray-400">{entry.reason}</p>
+                      {entry.violationType && (
+                        <span className="inline-block mt-1 px-2 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded text-xs">
+                          {entry.violationType}
+                        </span>
+                      )}
+                      {entry.penaltyAmount > 0 && (
+                        <p className="text-xs text-red-500 mt-1">Штраф: {entry.penaltyAmount?.toLocaleString('ru')} сум</p>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => handleRemoveFromBlacklist(entry.id)}
+                      className="px-3 py-1.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-lg text-xs font-semibold"
+                    >
+                      Разблокировать
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>

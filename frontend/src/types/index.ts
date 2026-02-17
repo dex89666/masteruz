@@ -113,6 +113,7 @@ export interface OrderTask {
 }
 
 // ─── Заказы ────────────────────────────────
+// ─── Статусы заказа (расширенные) ──────────
 export type OrderStatus =
   | 'DRAFT'
   | 'PUBLISHED'
@@ -121,7 +122,13 @@ export type OrderStatus =
   | 'IN_PROGRESS'
   | 'COMPLETED'
   | 'CANCELLED'
-  | 'DISPUTED';
+  | 'DISPUTED'
+  | 'ESTIMATION_IN_PROGRESS'
+  | 'ESTIMATION_DONE'
+  | 'ESTIMATE_SENT'
+  | 'ESTIMATE_APPROVED'
+  | 'ESTIMATE_REJECTED'
+  | 'MODERATION';
 
 export interface Order {
   id: string;
@@ -150,6 +157,10 @@ export interface Order {
   cancelReason: string | null;
   cancelledBy: string | null;
   disputeReason: string | null;
+  // Оценка
+  isEstimationOrder: boolean;
+  estimationFee: number | null;
+  parentOrderId: string | null;
   // Geo
   latitude: number | null;
   longitude: number | null;
@@ -289,7 +300,7 @@ export interface Notification {
   createdAt: string;
 }
 
-// ─── Чат ───────────────────────────────────
+// ─── Чат (с модерацией) ───────────────────
 export interface ChatMessage {
   id: string;
   orderId: string;
@@ -298,8 +309,88 @@ export interface ChatMessage {
   imageUrl: string | null;
   isSystem: boolean;
   isRead: boolean;
+  isFlagged?: boolean;
+  flagReason?: string;
+  isBlocked?: boolean;
   createdAt: string;
-  sender?: User;
+  sender?: {
+    id: string;
+    firstName: string;
+    avatarUrl?: string | null;
+  };
+}
+
+// ─── Смета (Estimate) ─────────────────────
+export type EstimateStatus = 'DRAFT' | 'SENT' | 'APPROVED' | 'REJECTED' | 'MODERATION';
+
+export interface EstimateWorkItem {
+  name: string;
+  quantity: number;
+  unit: string;
+  unitPrice: number;
+  total: number;
+}
+
+export interface EstimateMaterialItem {
+  name: string;
+  quantity: number;
+  unit: string;
+  unitPrice: number;
+  total: number;
+}
+
+export interface Estimate {
+  id: string;
+  orderId: string;
+  masterId: string;
+  status: EstimateStatus;
+  workItems: EstimateWorkItem[];
+  materialItems: EstimateMaterialItem[];
+  workTotal: number;
+  materialTotal: number;
+  totalAmount: number;
+  estimatedDays: number | null;
+  notes: string | null;
+  photos: string[];
+  videos: string[];
+  moderatedById: string | null;
+  moderatedAt: string | null;
+  moderationNote: string | null;
+  clientResponseAt: string | null;
+  rejectionReason: string | null;
+  sentAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  order?: Order;
+  master?: {
+    id: string;
+    username?: string;
+    firstName?: string;
+    lastName?: string;
+    profile?: any;
+    masterProfile?: any;
+  };
+}
+
+// ─── Чёрный список (расширенный) ──────────
+export interface BlacklistEntry {
+  id: string;
+  userId: string;
+  reason: string;
+  blockedById: string;
+  violationType: string | null;
+  evidence: string | null;
+  address: string | null;
+  city: string | null;
+  district: string | null;
+  telegramLocation: string | null;
+  penaltyAmount: number | null;
+  orderId: string | null;
+  isPermanent: boolean;
+  createdAt: string;
+  expiresAt: string | null;
+  user?: User;
+  blockedBy?: User;
 }
 
 // ─── Фото до/после ────────────────────────
@@ -424,7 +515,9 @@ export type BalanceTransactionType =
   | 'PENALTY'
   | 'REFUND'
   | 'COMMISSION'
-  | 'PAYOUT';
+  | 'PAYOUT'
+  | 'ESTIMATION_FEE'
+  | 'ESTIMATE_PAYOUT';
 
 export interface BalanceTransaction {
   id: string;

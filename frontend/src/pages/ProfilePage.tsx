@@ -307,7 +307,7 @@ export function ProfilePage() {
 
       {/* Действия */}
       <div className="space-y-2">
-        {user.role === 'ADMIN' && (
+        {(user.role === 'ADMIN' || user.role === 'MANAGER') && (
           <Link
             to="/admin"
             className="flex items-center justify-between p-3 card hover:shadow-md dark:hover:shadow-black/20"

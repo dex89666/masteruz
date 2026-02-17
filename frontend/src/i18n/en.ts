@@ -105,6 +105,12 @@ const en = {
     COMPLETED: 'Completed',
     CANCELLED: 'Cancelled',
     DISPUTED: 'Disputed',
+    ESTIMATION_IN_PROGRESS: 'Estimation in progress',
+    ESTIMATION_DONE: 'Estimation completed',
+    ESTIMATE_SENT: 'Estimate sent',
+    ESTIMATE_APPROVED: 'Estimate approved',
+    ESTIMATE_REJECTED: 'Estimate rejected',
+    MODERATION: 'Under moderation',
   },
 
   // ─── Cities ─────────────────────────────
@@ -1047,9 +1053,23 @@ const en = {
     escrowReleased: 'Funds released to the master',
     insufficientBalance: 'Insufficient balance',
     topUpRequired: 'Top up your balance to create an order',
-    offerAcceptLabel: 'I accept the terms of the public offer',
+    offerAcceptLabel: 'I accept the terms of the public offer (including commission bypass prohibition)',
     offerAcceptRequired: 'You must accept the terms of the offer',
     offerLink: 'Read offer',
+  },
+
+  estimation: {
+    title: 'On-site estimation',
+    subtitle: 'Master will come, take measurements and prepare a cost estimate',
+    fixedPrice: 'Fixed visit price',
+    masterShare: 'Master receives 120,000 sum per visit',
+    createOrder: 'Order estimation',
+    estimateReady: 'Estimate ready',
+    estimateSent: 'Estimate sent to client',
+    estimateApproved: 'Estimate approved',
+    estimateRejected: 'Estimate rejected',
+    moderation: 'Under moderation',
+    commissionWarning: 'Bypassing platform commission is prohibited and punishable by a fine up to 500,000 sum and account suspension',
   },
 
   balance: {

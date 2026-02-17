@@ -141,14 +141,143 @@ router.put('/config', authorize('ADMIN'), async (req: Request, res: Response, ne
   }
 });
 
-// Чёрный список
+// Чёрный список (расширенный)
 router.get('/blacklist', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const result = await adminService.getBlacklist(
-      parseInt(req.query.page as string) || 1,
-      parseInt(req.query.limit as string) || 20
-    );
-    res.json({ success: true, ...result });
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+    const violationType = req.query.violationType as string;
+    const skip = (page - 1) * limit;
+
+    const where: any = {};
+    if (violationType) where.violationType = violationType;
+
+    const [entries, total] = await Promise.all([
+      prisma.blacklist.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          user: {
+            include: {
+              profile: { select: { firstName: true, lastName: true, avatarUrl: true, city: true, district: true, address: true } },
+              masterProfile: { select: { completedOrders: true, rating: true } },
+            },
+          },
+          blockedBy: {
+            include: { profile: { select: { firstName: true, lastName: true } } },
+          },
+        },
+      }),
+      prisma.blacklist.count({ where }),
+    ]);
+
+    res.json({
+      success: true,
+      data: entries,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+        hasNext: page * limit < total,
+        hasPrev: page > 1,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Добавить в чёрный список (расширенная версия)
+router.post('/blacklist', authorize('ADMIN'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { userId, reason, violationType, evidence, penaltyAmount, orderId, isPermanent, telegramLocation } = req.body;
+
+    // Проверяем пользователя
+    const targetUser = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { profile: true },
+    });
+    if (!targetUser) {
+      res.status(404).json({ success: false, error: { message: 'Пользователь не найден' } });
+      return;
+    }
+
+    // Создаём запись в чёрном списке
+    const entry = await prisma.blacklist.create({
+      data: {
+        userId,
+        reason,
+        blockedById: req.user!.userId,
+        violationType: violationType || 'other',
+        evidence,
+        address: targetUser.profile?.address,
+        city: targetUser.profile?.city,
+        district: targetUser.profile?.district,
+        telegramLocation: telegramLocation || null,
+        penaltyAmount: penaltyAmount ? parseFloat(penaltyAmount) : null,
+        orderId: orderId || null,
+        isPermanent: isPermanent !== false,
+      },
+      include: {
+        user: { include: { profile: { select: { firstName: true, lastName: true } } } },
+        blockedBy: { include: { profile: { select: { firstName: true } } } },
+      },
+    });
+
+    // Блокируем пользователя
+    await prisma.user.update({
+      where: { id: userId },
+      data: { isActive: false },
+    });
+
+    // Списываем штраф при наличии
+    if (penaltyAmount && parseFloat(penaltyAmount) > 0) {
+      const { balanceService } = await import('../balance/balance.service.js');
+      await balanceService.chargePenalty(
+        userId,
+        parseFloat(penaltyAmount),
+        orderId || 'blacklist',
+        `Штраф за нарушение: ${reason}`
+      );
+    }
+
+    // Уведомление пользователю
+    await prisma.notification.create({
+      data: {
+        userId,
+        type: 'ACCOUNT_BLOCKED',
+        title: '🚫 Аккаунт заблокирован',
+        message: `Причина: ${reason}. ${isPermanent !== false ? 'Блокировка постоянная.' : 'Временная блокировка.'}`,
+        data: { reason, violationType },
+      },
+    });
+
+    res.status(201).json({ success: true, data: entry });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Удалить из чёрного списка (разблокировать)
+router.delete('/blacklist/:id', authorize('ADMIN'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const entry = await prisma.blacklist.findUnique({
+      where: { id: req.params.id },
+    });
+    if (!entry) {
+      res.status(404).json({ success: false, error: { message: 'Запись не найдена' } });
+      return;
+    }
+
+    await prisma.$transaction([
+      prisma.blacklist.delete({ where: { id: req.params.id } }),
+      prisma.user.update({ where: { id: entry.userId }, data: { isActive: true } }),
+    ]);
+
+    res.json({ success: true, message: 'Пользователь разблокирован' });
   } catch (error) {
     next(error);
   }

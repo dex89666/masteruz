@@ -5,7 +5,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ordersApi, reviewsApi, photosApi } from '../api/client';
+import { ordersApi, reviewsApi, photosApi, estimationApi } from '../api/client';
 import { StarRating } from '../components/StarRating';
 import { OrderChat } from '../components/OrderChat';
 import { PhotoGallery } from '../components/PhotoGallery';
@@ -231,6 +231,12 @@ export function OrderDetailPage() {
     COMPLETED: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
     CANCELLED: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
     DISPUTED: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400',
+    ESTIMATION_IN_PROGRESS: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-400',
+    ESTIMATION_DONE: 'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-400',
+    ESTIMATE_SENT: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400',
+    ESTIMATE_APPROVED: 'bg-lime-100 text-lime-800 dark:bg-lime-900/30 dark:text-lime-400',
+    ESTIMATE_REJECTED: 'bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-400',
+    MODERATION: 'bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-400',
   };
 
   if (loading) return <OrderDetailSkeleton />;
@@ -346,6 +352,73 @@ export function OrderDetailPage() {
           clientConfirmedAt={order.clientConfirmedAt || undefined}
         />
       </div>
+
+      {/* ═══════ БЛОК ОЦЕНКИ (Estimation Order) ═══════ */}
+      {order.isEstimationOrder && (
+        <div className="card mb-4 border-2 border-cyan-300 dark:border-cyan-700 bg-cyan-50/50 dark:bg-cyan-900/10">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-10 h-10 bg-cyan-100 dark:bg-cyan-900/40 rounded-xl flex items-center justify-center">
+              <span className="text-lg">🔍</span>
+            </div>
+            <div>
+              <h3 className="font-bold text-gray-900 dark:text-white">Заказ на оценку</h3>
+              <p className="text-xs text-gray-500">Выезд мастера: {formatPrice(order.estimationFee || 150000, t('common.currency'))}</p>
+            </div>
+          </div>
+
+          {/* Мастер: принять заказ на оценку */}
+          {isMaster && !isAssignedMaster && order.status === 'PUBLISHED' && (
+            <button
+              onClick={async () => {
+                try {
+                  await estimationApi.acceptEstimation(order.id);
+                  toast.success('Заказ принят! Выезжайте к клиенту.');
+                  loadOrder();
+                } catch (err: any) {
+                  toast.error(err.response?.data?.error?.message || 'Ошибка');
+                }
+              }}
+              className="w-full py-3 bg-cyan-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-cyan-700"
+            >
+              ✅ Принять заказ на оценку (комиссия 30 000 сум)
+            </button>
+          )}
+
+          {/* Мастер: составить смету */}
+          {isAssignedMaster && ['ESTIMATION_IN_PROGRESS', 'ESTIMATION_DONE', 'ESTIMATE_SENT'].includes(order.status) && (
+            <Link
+              to={`/estimation/${order.id}/form`}
+              className="w-full py-3 bg-primary-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-primary-700"
+            >
+              📋 {order.status === 'ESTIMATION_IN_PROGRESS' ? 'Составить смету' : 'Редактировать смету'}
+            </Link>
+          )}
+
+          {/* Клиент: посмотреть смету */}
+          {isOwner && ['ESTIMATE_SENT', 'ESTIMATE_APPROVED', 'ESTIMATE_REJECTED', 'MODERATION'].includes(order.status) && (
+            <Link
+              to={`/estimation/${order.id}/estimate`}
+              className="w-full py-3 bg-green-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-green-700 mt-2"
+            >
+              📋 Посмотреть смету
+            </Link>
+          )}
+
+          {/* Статус-сообщения */}
+          {order.status === 'ESTIMATION_IN_PROGRESS' && isOwner && (
+            <p className="text-sm text-cyan-700 dark:text-cyan-400 mt-2">⏳ Мастер выехал. Ожидайте замеры и смету.</p>
+          )}
+          {order.status === 'ESTIMATE_APPROVED' && (
+            <p className="text-sm text-green-700 dark:text-green-400 mt-2">✅ Смета одобрена. Ожидание модерации.</p>
+          )}
+          {order.status === 'MODERATION' && (
+            <p className="text-sm text-violet-700 dark:text-violet-400 mt-2">🛡️ Смета на модерации. Администратор проверяет.</p>
+          )}
+          {order.status === 'ESTIMATE_REJECTED' && (
+            <p className="text-sm text-red-600 dark:text-red-400 mt-2">❌ Смета отклонена клиентом. Мастер получил 120 000 сум за выезд.</p>
+          )}
+        </div>
+      )}
 
       {/* Назначенный мастер */}
       {order.masterId && order.master && (

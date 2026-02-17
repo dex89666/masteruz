@@ -53,6 +53,9 @@ const MyTurnkeyProjectsPage = lazy(() => import('./pages/MyTurnkeyProjectsPage')
 const TurnkeyProjectDetailPage = lazy(() => import('./pages/TurnkeyProjectDetailPage').then(m => ({ default: m.TurnkeyProjectDetailPage })));
 const CareersPage = lazy(() => import('./pages/CareersPage').then(m => ({ default: m.CareersPage })));
 const DevelopmentPage = lazy(() => import('./pages/DevelopmentPage').then(m => ({ default: m.DevelopmentPage })));
+const CreateEstimationPage = lazy(() => import('./pages/CreateEstimationPage').then(m => ({ default: m.CreateEstimationPage })));
+const EstimateFormPage = lazy(() => import('./pages/EstimateFormPage').then(m => ({ default: m.EstimateFormPage })));
+const EstimateViewPage = lazy(() => import('./pages/EstimateViewPage').then(m => ({ default: m.EstimateViewPage })));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -118,6 +121,32 @@ function AppContent() {
         <Route path="turnkey" element={<TurnkeyPage />} />
         <Route path="careers" element={<CareersPage />} />
         <Route path="development" element={<DevelopmentPage />} />
+
+        {/* Estimation (оценка) routes */}
+        <Route
+          path="estimation/create"
+          element={
+            <ProtectedRoute>
+              <CreateEstimationPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="estimation/:orderId/estimate"
+          element={
+            <ProtectedRoute>
+              <EstimateViewPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="estimation/:orderId/form"
+          element={
+            <MasterRoute>
+              <EstimateFormPage />
+            </MasterRoute>
+          }
+        />
 
         {/* Protected routes (need auth) */}
         <Route

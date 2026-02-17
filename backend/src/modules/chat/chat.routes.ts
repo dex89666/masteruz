@@ -1,31 +1,44 @@
 // ============================================
 // MasterUz — Chat Routes (переписка по заказу)
-// Клиент ↔ Мастер в рамках заказа
+// Клиент ↔ Мастер — без контактных данных, только имена
+// Авто-модерация + флаги для менеджера
 // ============================================
 
 import { Router, Request, Response, NextFunction } from 'express';
 import { prisma } from '../../config/database.js';
-import { authenticate } from '../../middleware/auth.js';
+import { authenticate, authorize } from '../../middleware/auth.js';
 import { ApiError } from '../../utils/ApiError.js';
+import { moderateMessage, censorMessage } from './chatModeration.js';
+import { logger } from '../../utils/logger.js';
 
 const router = Router();
 
 /**
  * GET /chat/:orderId — история сообщений заказа
+ * Доступ: участники заказа + админы/менеджеры
+ * Контактные данные НЕ передаются — только имена
  */
 router.get('/:orderId', authenticate, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { orderId } = req.params;
     const userId = req.user!.userId;
 
-    // Проверяем что пользователь — участник заказа
+    // Проверяем что пользователь — участник заказа или админ
     const order = await prisma.order.findUnique({
       where: { id: orderId },
       select: { clientId: true, masterId: true },
     });
 
     if (!order) throw ApiError.notFound('Заказ не найден');
-    if (order.clientId !== userId && order.masterId !== userId) {
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+    const isAdmin = user?.role === 'ADMIN' || user?.role === 'MANAGER';
+    const isParticipant = order.clientId === userId || order.masterId === userId;
+
+    if (!isParticipant && !isAdmin) {
       throw ApiError.forbidden('Вы не участник этого заказа');
     }
 
@@ -34,22 +47,45 @@ router.get('/:orderId', authenticate, async (req: Request, res: Response, next: 
       orderBy: { createdAt: 'asc' },
       include: {
         sender: {
-          include: { profile: true },
+          include: { profile: { select: { firstName: true, avatarUrl: true } } },
         },
       },
     });
 
-    // Помечаем непрочитанные как прочитанные
-    await prisma.chatMessage.updateMany({
-      where: {
-        orderId,
-        senderId: { not: userId },
-        isRead: false,
+    // Убираем контактные данные — только имя и аватар
+    const sanitizedMessages = messages.map(msg => ({
+      id: msg.id,
+      orderId: msg.orderId,
+      senderId: msg.senderId,
+      text: msg.isBlocked ? '🚫 Сообщение заблокировано модерацией' : msg.text,
+      imageUrl: msg.imageUrl,
+      isSystem: msg.isSystem,
+      isRead: msg.isRead,
+      isFlagged: isAdmin ? msg.isFlagged : undefined,
+      flagReason: isAdmin ? msg.flagReason : undefined,
+      isBlocked: msg.isBlocked,
+      createdAt: msg.createdAt,
+      sender: {
+        id: msg.sender.id,
+        firstName: msg.sender.profile?.firstName || 'Пользователь',
+        avatarUrl: msg.sender.profile?.avatarUrl,
+        // НЕ передаём: phone, email, telegramId, username
       },
-      data: { isRead: true },
-    });
+    }));
 
-    res.json({ success: true, data: messages });
+    // Помечаем непрочитанные как прочитанные (только для участников)
+    if (isParticipant) {
+      await prisma.chatMessage.updateMany({
+        where: {
+          orderId,
+          senderId: { not: userId },
+          isRead: false,
+        },
+        data: { isRead: true },
+      });
+    }
+
+    res.json({ success: true, data: sanitizedMessages });
   } catch (error) {
     next(error);
   }
@@ -57,6 +93,7 @@ router.get('/:orderId', authenticate, async (req: Request, res: Response, next: 
 
 /**
  * POST /chat/:orderId — отправить сообщение
+ * Авто-модерация: проверка на запрещённые фразы
  */
 router.post('/:orderId', authenticate, async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -79,16 +116,43 @@ router.post('/:orderId', authenticate, async (req: Request, res: Response, next:
       throw ApiError.forbidden('Вы не участник этого заказа');
     }
 
+    // ─── Авто-модерация текста ────────────
+    let processedText = text || null;
+    let isFlagged = false;
+    let isBlocked = false;
+    let flagReason: string | null = null;
+
+    if (text) {
+      const modResult = moderateMessage(text);
+
+      if (modResult.isBlocked) {
+        // Блокируем нецензурное сообщение — цензурируем
+        processedText = censorMessage(text);
+        isBlocked = false; // Показываем цензурированную версию
+        isFlagged = true;
+        flagReason = modResult.reasons.join('; ');
+        logger.warn({ orderId, userId, reasons: modResult.reasons }, 'Сообщение содержит мат — цензурировано');
+      } else if (modResult.isFlagged) {
+        // Флагируем подозрительное — но не блокируем
+        isFlagged = true;
+        flagReason = modResult.reasons.join('; ');
+        logger.warn({ orderId, userId, reasons: modResult.reasons }, 'Подозрительное сообщение в чате');
+      }
+    }
+
     const message = await prisma.chatMessage.create({
       data: {
         orderId,
         senderId: userId,
-        text: text || null,
+        text: processedText,
         imageUrl: imageUrl || null,
+        isFlagged,
+        flagReason,
+        isBlocked,
       },
       include: {
         sender: {
-          include: { profile: true },
+          include: { profile: { select: { firstName: true, avatarUrl: true } } },
         },
       },
     });
@@ -96,23 +160,61 @@ router.post('/:orderId', authenticate, async (req: Request, res: Response, next:
     // Создаём уведомление для получателя
     const recipientId = order.clientId === userId ? order.masterId : order.clientId;
     if (recipientId) {
-      const senderProfile = await prisma.userProfile.findUnique({
-        where: { userId },
-        select: { firstName: true },
-      });
+      const senderName = message.sender.profile?.firstName || 'Пользователь';
 
       await prisma.notification.create({
         data: {
           userId: recipientId,
           type: 'CHAT_MESSAGE',
           title: 'Новое сообщение',
-          message: `${senderProfile?.firstName || 'Пользователь'}: ${text?.substring(0, 100) || '📷 Фото'}`,
+          message: `${senderName}: ${processedText?.substring(0, 100) || '📷 Фото'}`,
           data: { orderId, messageId: message.id },
         },
       });
     }
 
-    res.status(201).json({ success: true, data: message });
+    // Если сообщение флагированное — уведомляем модераторов
+    if (isFlagged) {
+      const admins = await prisma.user.findMany({
+        where: { role: { in: ['ADMIN', 'MANAGER'] }, isActive: true },
+        select: { id: true },
+      });
+      for (const admin of admins) {
+        await prisma.notification.create({
+          data: {
+            userId: admin.id,
+            type: 'CHAT_FLAG',
+            title: '🚩 Подозрительное сообщение в чате',
+            message: `Заказ #${orderId.substring(0, 8)}: "${processedText?.substring(0, 80)}" — ${flagReason}`,
+            data: { orderId, messageId: message.id, flagReason },
+          },
+        });
+      }
+    }
+
+    // Ответ без контактных данных
+    res.status(201).json({
+      success: true,
+      data: {
+        id: message.id,
+        orderId: message.orderId,
+        senderId: message.senderId,
+        text: message.isBlocked ? '🚫 Сообщение заблокировано' : message.text,
+        imageUrl: message.imageUrl,
+        isSystem: message.isSystem,
+        isRead: message.isRead,
+        isFlagged: message.isFlagged,
+        createdAt: message.createdAt,
+        sender: {
+          id: message.sender.id,
+          firstName: message.sender.profile?.firstName || 'Пользователь',
+          avatarUrl: message.sender.profile?.avatarUrl,
+        },
+      },
+      ...(isFlagged && !isBlocked ? {
+        warning: '⚠️ Обмен контактами и обход платформы запрещён. Повторные нарушения приведут к блокировке.',
+      } : {}),
+    });
   } catch (error) {
     next(error);
   }
@@ -135,6 +237,79 @@ router.get('/:orderId/unread', authenticate, async (req: Request, res: Response,
     });
 
     res.json({ success: true, data: { unread: count } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ═══════════════════════════════════════════
+// АДМИНСКИЕ МАРШРУТЫ — модерация чата
+// ═══════════════════════════════════════════
+
+/**
+ * GET /chat/admin/flagged — все флагированные сообщения
+ */
+router.get('/admin/flagged', authenticate, authorize('ADMIN', 'MANAGER'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 50;
+    const skip = (page - 1) * limit;
+
+    const [messages, total] = await Promise.all([
+      prisma.chatMessage.findMany({
+        where: { isFlagged: true },
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          sender: { include: { profile: { select: { firstName: true } } } },
+          order: { select: { id: true, title: true, clientId: true, masterId: true } },
+        },
+      }),
+      prisma.chatMessage.count({ where: { isFlagged: true } }),
+    ]);
+
+    res.json({ success: true, data: messages, total, page, limit });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * PUT /chat/admin/:messageId/block — заблокировать сообщение
+ */
+router.put('/admin/:messageId/block', authenticate, authorize('ADMIN', 'MANAGER'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const message = await prisma.chatMessage.update({
+      where: { id: req.params.messageId },
+      data: {
+        isBlocked: true,
+        moderatedById: req.user!.userId,
+        moderatedAt: new Date(),
+      },
+    });
+
+    res.json({ success: true, data: message });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * PUT /chat/admin/:messageId/unflag — снять флаг
+ */
+router.put('/admin/:messageId/unflag', authenticate, authorize('ADMIN', 'MANAGER'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const message = await prisma.chatMessage.update({
+      where: { id: req.params.messageId },
+      data: {
+        isFlagged: false,
+        moderatedById: req.user!.userId,
+        moderatedAt: new Date(),
+      },
+    });
+
+    res.json({ success: true, data: message });
   } catch (error) {
     next(error);
   }
