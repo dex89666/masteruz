@@ -29,6 +29,8 @@ const typeIcons: Record<BalanceTransactionType, typeof Wallet> = {
   REFUND: RefreshCw,
   COMMISSION: Receipt,
   PAYOUT: TrendingDown,
+  ESTIMATION_FEE: CreditCard,
+  ESTIMATE_PAYOUT: ArrowDownCircle,
 };
 
 const typeColors: Record<BalanceTransactionType, string> = {
@@ -39,6 +41,8 @@ const typeColors: Record<BalanceTransactionType, string> = {
   REFUND: 'text-emerald-500 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30',
   COMMISSION: 'text-orange-500 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/30',
   PAYOUT: 'text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800',
+  ESTIMATION_FEE: 'text-indigo-500 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30',
+  ESTIMATE_PAYOUT: 'text-teal-500 dark:text-teal-400 bg-teal-50 dark:bg-teal-900/30',
 };
 
 const amountSign: Record<BalanceTransactionType, '+' | '-'> = {
@@ -49,6 +53,8 @@ const amountSign: Record<BalanceTransactionType, '+' | '-'> = {
   REFUND: '+',
   COMMISSION: '-',
   PAYOUT: '-',
+  ESTIMATION_FEE: '-',
+  ESTIMATE_PAYOUT: '+',
 };
 
 export function BalancePage() {
