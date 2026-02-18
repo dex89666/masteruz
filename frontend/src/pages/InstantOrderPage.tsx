@@ -84,6 +84,7 @@ export function InstantOrderPage() {
   // Медиа-рекордер
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const recognitionRef = useRef<any>(null);
 
   // ─── Загрузка категорий ────────────────
   useState(() => {
@@ -125,44 +126,94 @@ export function InstantOrderPage() {
     setImageFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
-  // ─── Голосовой ввод ────────────────────
+  // ─── Голосовой ввод (Web Speech API — 1 в 1 распознавание) ────
   const startRecording = useCallback(async () => {
     try {
+      // Проверяем поддержку Web Speech API
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (!SpeechRecognition) {
+        toast.error('Ваш браузер не поддерживает распознавание речи. Попробуйте Chrome или Edge.');
+        return;
+      }
+
+      // Запрашиваем доступ к микрофону (для индикации записи)
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const recorder = new MediaRecorder(stream);
       chunksRef.current = [];
-
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunksRef.current.push(e.data);
-      };
-
-      recorder.onstop = () => {
-        stream.getTracks().forEach((t) => t.stop());
-        // В реальном проекте: отправить blob на STT (Whisper API)
-        // Сейчас — mock: берём описание или генерируем placeholder
-        const recognized = description || 'Нужен ремонт — записано голосом. Отредактируйте описание при необходимости.';
-        setVoiceText(recognized);
-        // Авто-заполняем поле описания, чтобы пользователь мог отредактировать
-        if (!description.trim()) {
-          setDescription(recognized);
-        }
-        toast.success('🎤 Голос распознан! Отредактируйте текст ниже.');
-      };
-
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
       mediaRecorderRef.current = recorder;
       recorder.start();
+
+      // Создаём и настраиваем SpeechRecognition
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'ru-RU';
+      recognition.interimResults = true;
+      recognition.continuous = true;
+      recognition.maxAlternatives = 1;
+
+      let finalTranscript = '';
+      let interimTranscript = '';
+
+      recognition.onresult = (event: any) => {
+        interimTranscript = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            finalTranscript += transcript + ' ';
+          } else {
+            interimTranscript = transcript;
+          }
+        }
+        // Показываем промежуточный результат в реальном времени
+        const currentText = (finalTranscript + interimTranscript).trim();
+        if (currentText) {
+          setVoiceText(currentText);
+          setDescription(currentText);
+        }
+      };
+
+      recognition.onerror = (event: any) => {
+        console.error('Speech recognition error:', event.error);
+        if (event.error === 'no-speech') {
+          toast.error('Речь не обнаружена. Попробуйте ещё раз.');
+        } else if (event.error === 'not-allowed') {
+          toast.error('Доступ к микрофону запрещён.');
+        }
+      };
+
+      recognition.onend = () => {
+        // Финализируем текст
+        const result = finalTranscript.trim();
+        if (result) {
+          setVoiceText(result);
+          setDescription(result);
+          toast.success('🎤 Голос распознан! Отредактируйте текст ниже.');
+        } else {
+          toast.error('Не удалось распознать речь. Попробуйте ещё раз.');
+        }
+        // Останавливаем запись
+        stream.getTracks().forEach((t) => t.stop());
+        setIsRecording(false);
+      };
+
+      recognitionRef.current = recognition;
+      recognition.start();
       setIsRecording(true);
-      toast('🎙️ Запись... Опишите проблему голосом', { duration: 2000 });
+      toast('🎙️ Говорите... Описание появится в реальном времени', { duration: 2000 });
     } catch {
       toast.error('Не удалось получить доступ к микрофону');
     }
-  }, [description]);
+  }, []);
 
   const stopRecording = useCallback(() => {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+      recognitionRef.current = null;
+    }
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
-      setIsRecording(false);
     }
+    setIsRecording(false);
   }, [isRecording]);
 
   // ─── AI-анализ ─────────────────────────

@@ -7,7 +7,6 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { usersApi, favoritesApi, portfolioApi } from '../api/client';
 import { useAuthStore } from '../store';
-import { useFormatPrice } from '../hooks';
 import { useTranslation } from '../i18n';
 import { Breadcrumbs } from '../components/Breadcrumbs';
 import { ProfileSkeleton } from '../components/PageSkeletons';
@@ -23,7 +22,7 @@ export function MasterProfilePage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuthStore();
-  const formatPrice = useFormatPrice();
+  // formatPrice removed (hourlyRate hidden from public profile)
   const { t } = useTranslation();
 
   const [master, setMaster] = useState<UserType | null>(null);
@@ -208,17 +207,6 @@ export function MasterProfilePage() {
               </span>
             ))}
           </div>
-        </div>
-      )}
-
-      {/* Hourly rate */}
-      {mp?.hourlyRate && (
-        <div className="card mb-4">
-          <h2 className="font-semibold mb-2 dark:text-white">{t('masters.hourlyRate')}</h2>
-          <p className="text-2xl font-bold text-primary-600 dark:text-primary-400">
-            {formatPrice(mp.hourlyRate, t('common.currency'))}
-            <span className="text-sm font-normal text-gray-500 dark:text-gray-400"> / {t('masters.hour')}</span>
-          </p>
         </div>
       )}
 

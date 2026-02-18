@@ -237,8 +237,8 @@ export function SupportChatPage() {
         <div className="text-center py-16">
           <MessageCircle className="w-16 h-16 mx-auto mb-4 text-gray-300" />
           <h3 className="text-lg font-medium text-gray-600 mb-2">Нет активных чатов</h3>
-          <p className="text-gray-400 text-sm">
-            Когда администратор создаст обращение, оно появится здесь.
+          <p className="text-gray-400 text-sm max-w-xs mx-auto">
+            Когда администратор или менеджер создаст обращение, оно появится здесь. Вы не можете начать чат первым — поддержка свяжется с вами при необходимости.
           </p>
         </div>
       ) : (

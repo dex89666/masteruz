@@ -1792,22 +1792,46 @@ export function AdminDashboardPage() {
                   )}
 
                   {/* Actions */}
-                  <div className="flex gap-2 pt-2 border-t dark:border-gray-700">
-                    <button
-                      onClick={() => handleModerateAiOrder(order.id, true)}
-                      className="flex-1 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-1.5 transition"
-                    >
-                      <CheckCircle size={16} /> Одобрить и опубликовать
-                    </button>
-                    <button
-                      onClick={() => {
-                        const note = prompt('Причина отклонения:', 'Не соответствует требованиям');
-                        if (note !== null) handleModerateAiOrder(order.id, false, note || 'Отклонено модератором');
-                      }}
-                      className="flex-1 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-1.5 transition"
-                    >
-                      <XCircle size={16} /> Отклонить
-                    </button>
+                  <div className="flex flex-col gap-2 pt-2 border-t dark:border-gray-700">
+                    {/* Price edit row */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-500 shrink-0">Цена:</span>
+                      <input
+                        type="number"
+                        defaultValue={order.price || 0}
+                        className="flex-1 px-2 py-1 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                        id={`price-edit-${order.id}`}
+                      />
+                      <span className="text-xs text-gray-400">сум</span>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          handleModerateAiOrder(order.id, true, undefined);
+                        }}
+                        className="flex-1 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-1.5 transition"
+                      >
+                        <CheckCircle size={16} /> Одобрить
+                      </button>
+                      <button
+                        onClick={() => {
+                          const note = prompt('Что нужно исправить?', 'Уточните описание или добавьте фото');
+                          if (note !== null) handleModerateAiOrder(order.id, false, '⚠️ На доработку: ' + (note || 'Требуется уточнение'));
+                        }}
+                        className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-1.5 transition"
+                      >
+                        <RefreshCw size={16} /> На доработку
+                      </button>
+                      <button
+                        onClick={() => {
+                          const note = prompt('Причина отклонения:', 'Не соответствует требованиям');
+                          if (note !== null) handleModerateAiOrder(order.id, false, note || 'Отклонено модератором');
+                        }}
+                        className="py-2.5 px-4 bg-red-500 hover:bg-red-600 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-1.5 transition"
+                      >
+                        <XCircle size={16} />
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
