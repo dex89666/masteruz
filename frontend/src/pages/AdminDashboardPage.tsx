@@ -5,7 +5,7 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { adminApi, storesApi, turnkeyApi, estimationApi, chatApi, supportChatApi } from '../api/client';
+import { adminApi, storesApi, turnkeyApi, estimationApi, chatApi, supportChatApi, instantOrderApi } from '../api/client';
 import { useAuthStore } from '../store';
 import { useTranslation } from '../i18n';
 import { useFormatPrice } from '../hooks';
@@ -20,7 +20,7 @@ import {
   ArrowUpRight, ArrowDownRight,
   XCircle, RefreshCw, Database, Store, Hammer,
   FolderTree, Plus, Trash2, Edit3, ChevronDown, ChevronUp,
-  Headphones, Send, MessageCircle,
+  Headphones, Send, MessageCircle, FileText, Sparkles,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { Dashboard } from '../types';
@@ -156,7 +156,7 @@ export function AdminDashboardPage() {
   const [flaggedMessages, setFlaggedMessages] = useState<any[]>([]);
   const [blacklist, setBlacklist] = useState<any[]>([]);
   const [moderationLoading, setModerationLoading] = useState(false);
-  const [moderationSubTab, setModerationSubTab] = useState<'estimates' | 'messages' | 'blacklist'>('estimates');
+  const [moderationSubTab, setModerationSubTab] = useState<'estimates' | 'messages' | 'blacklist' | 'aiOrders'>('aiOrders');
 
   // Support chat tab state
   const [supportChats, setSupportChats] = useState<any[]>([]);
@@ -167,6 +167,14 @@ export function AdminDashboardPage() {
   const [supportSending, setSupportSending] = useState(false);
   const [supportNewUserId, setSupportNewUserId] = useState('');
   const [supportNewSubject, setSupportNewSubject] = useState('');
+  const [supportUserSearch, setSupportUserSearch] = useState('');
+  const [supportUserResults, setSupportUserResults] = useState<any[]>([]);
+  const [supportUserSearching, setSupportUserSearching] = useState(false);
+
+  // AI Orders moderation state
+  const [aiModerationOrders, setAiModerationOrders] = useState<any[]>([]);
+  const [aiModerationLoading, setAiModerationLoading] = useState(false);
+
 
   // Guard: only ADMIN / MANAGER
   useEffect(() => {
@@ -248,6 +256,30 @@ export function AdminDashboardPage() {
     } finally {
       setModerationLoading(false);
     }
+    // Also load AI orders
+    loadAiModerationOrders();
+  }
+
+  async function loadAiModerationOrders() {
+    setAiModerationLoading(true);
+    try {
+      const res = await instantOrderApi.getPendingModeration({ page: 1, limit: 50 });
+      setAiModerationOrders(res.data.data || []);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setAiModerationLoading(false);
+    }
+  }
+
+  async function handleModerateAiOrder(orderId: string, approved: boolean, note?: string) {
+    try {
+      await instantOrderApi.moderate(orderId, approved, note);
+      toast.success(approved ? 'Заказ одобрен и опубликован для мастеров' : 'Заказ отклонён, средства возвращены');
+      loadAiModerationOrders();
+    } catch (err: any) {
+      toast.error(err.response?.data?.error?.message || 'Ошибка модерации');
+    }
   }
 
   async function handleModerateEstimate(estimateId: string, approved: boolean, comment?: string) {
@@ -318,15 +350,34 @@ export function AdminDashboardPage() {
   }
 
   async function handleCreateSupportChat() {
-    if (!supportNewUserId.trim()) { toast.error('Введите ID пользователя'); return; }
+    if (!supportNewUserId.trim()) { toast.error('Выберите пользователя'); return; }
     try {
       await supportChatApi.createChat(supportNewUserId.trim(), supportNewSubject || undefined);
       toast.success('Чат создан');
       setSupportNewUserId('');
       setSupportNewSubject('');
+      setSupportUserResults([]);
+      setSupportUserSearch('');
       loadSupportChats();
     } catch (err: any) {
       toast.error(err.response?.data?.error?.message || 'Ошибка создания чата');
+    }
+  }
+
+  async function handleSearchSupportUsers() {
+    if (!supportUserSearch.trim()) return;
+    setSupportUserSearching(true);
+    try {
+      const res = await adminApi.getUsers({
+        page: 1,
+        limit: 20,
+        search: supportUserSearch.trim(),
+      });
+      setSupportUserResults(res.data.data || []);
+    } catch {
+      toast.error('Ошибка поиска');
+    } finally {
+      setSupportUserSearching(false);
     }
   }
 
@@ -1624,8 +1675,9 @@ export function AdminDashboardPage() {
           </h2>
 
           {/* Sub-tabs */}
-          <div className="flex gap-2">
+          <div className="flex gap-2 overflow-x-auto pb-1">
             {[
+              { key: 'aiOrders' as const, label: `AI-заказы (${aiModerationOrders.length})`, icon: '🤖' },
               { key: 'estimates' as const, label: `Сметы (${pendingEstimates.length})`, icon: '📋' },
               { key: 'messages' as const, label: `Сообщения (${flaggedMessages.length})`, icon: '💬' },
               { key: 'blacklist' as const, label: `Чёрный список (${blacklist.length})`, icon: '🚫' },
@@ -1633,7 +1685,7 @@ export function AdminDashboardPage() {
               <button
                 key={st.key}
                 onClick={() => setModerationSubTab(st.key)}
-                className={`px-3 py-2 rounded-lg text-sm font-medium ${
+                className={`px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap ${
                   moderationSubTab === st.key
                     ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
                     : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
@@ -1645,6 +1697,122 @@ export function AdminDashboardPage() {
           </div>
 
           {moderationLoading && <LoadingSpinner />}
+
+          {/* AI Orders moderation */}
+          {moderationSubTab === 'aiOrders' && !moderationLoading && (
+            <div className="space-y-3">
+              {aiModerationLoading && <LoadingSpinner />}
+              {!aiModerationLoading && aiModerationOrders.length === 0 && (
+                <div className="text-center py-8 text-gray-400">
+                  <Shield size={40} className="mx-auto mb-2 text-green-400" />
+                  <p>Нет AI-заказов на модерации</p>
+                </div>
+              )}
+              {aiModerationOrders.map((order: any) => (
+                <div key={order.id} className="card border-2 border-orange-200 dark:border-orange-800 space-y-3">
+                  {/* Header */}
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="font-bold text-sm dark:text-white flex items-center gap-2">
+                        <Sparkles size={14} className="text-orange-500" />
+                        {order.title || 'AI-заказ'}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        #{order.id?.slice(0, 8)} · {order.client?.profile?.firstName || 'Клиент'} · {new Date(order.createdAt).toLocaleDateString('ru')}
+                      </p>
+                    </div>
+                    <span className="badge bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400 flex items-center gap-1">
+                      <Clock size={12} /> На модерации
+                    </span>
+                  </div>
+
+                  {/* Photos */}
+                  {order.images && order.images.length > 0 && (
+                    <div className="flex gap-2 overflow-x-auto pb-1">
+                      {(order.images as string[]).slice(0, 5).map((img: string, i: number) => (
+                        <div key={i} className="w-20 h-20 rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-700 flex-shrink-0">
+                          <img src={img} alt={`Фото ${i + 1}`} className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).src = 'https://placeholder.co/80x80?text=📷'; }} />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Description */}
+                  <div className="bg-gray-50 dark:bg-gray-900 rounded-xl p-3">
+                    <p className="text-xs text-gray-400 mb-1 flex items-center gap-1"><FileText size={12} /> Описание</p>
+                    <p className="text-sm dark:text-gray-300">{order.description}</p>
+                  </div>
+
+                  {/* Additional wishes */}
+                  {order.additionalWishes && (
+                    <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-3 border border-amber-200 dark:border-amber-800">
+                      <p className="text-xs text-amber-600 dark:text-amber-400 font-semibold mb-1">⚠️ Дополнительные пожелания клиента:</p>
+                      <p className="text-sm text-amber-800 dark:text-amber-200">{order.additionalWishes}</p>
+                    </div>
+                  )}
+
+                  {/* Tasks + AI variant info */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                    <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-2">
+                      <span className="text-gray-400">Категория</span>
+                      <p className="font-bold dark:text-white truncate">{order.category?.name || '—'}</p>
+                    </div>
+                    <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-2">
+                      <span className="text-gray-400">Работ</span>
+                      <p className="font-bold dark:text-white">{order.orderTasks?.length || 0}</p>
+                    </div>
+                    <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-2">
+                      <span className="text-gray-400">AI-вариант</span>
+                      <p className="font-bold dark:text-white">{order.aiTemplate?.tier || '—'}</p>
+                    </div>
+                    <div className="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-2">
+                      <span className="text-gray-400">Цена</span>
+                      <p className="font-bold text-primary-600 dark:text-primary-400">{(order.price || 0).toLocaleString('ru')} сум</p>
+                    </div>
+                  </div>
+
+                  {/* Task list */}
+                  {order.orderTasks && order.orderTasks.length > 0 && (
+                    <div className="text-xs">
+                      <p className="text-gray-400 mb-1">Задачи:</p>
+                      <div className="flex flex-wrap gap-1">
+                        {order.orderTasks.map((ot: any) => (
+                          <span key={ot.id} className="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-2 py-0.5 rounded-full">
+                            {ot.task?.name || ot.taskId?.slice(0, 8)}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {order.isUrgent && (
+                    <div className="text-xs text-orange-600 dark:text-orange-400 font-semibold flex items-center gap-1">
+                      <Zap size={12} /> Срочный заказ (множитель: x{order.urgentMultiplier?.toFixed(1) || '1.4'})
+                    </div>
+                  )}
+
+                  {/* Actions */}
+                  <div className="flex gap-2 pt-2 border-t dark:border-gray-700">
+                    <button
+                      onClick={() => handleModerateAiOrder(order.id, true)}
+                      className="flex-1 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-1.5 transition"
+                    >
+                      <CheckCircle size={16} /> Одобрить и опубликовать
+                    </button>
+                    <button
+                      onClick={() => {
+                        const note = prompt('Причина отклонения:', 'Не соответствует требованиям');
+                        if (note !== null) handleModerateAiOrder(order.id, false, note || 'Отклонено модератором');
+                      }}
+                      className="flex-1 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-1.5 transition"
+                    >
+                      <XCircle size={16} /> Отклонить
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* Pending estimates */}
           {moderationSubTab === 'estimates' && !moderationLoading && (
@@ -1801,29 +1969,81 @@ export function AdminDashboardPage() {
             </button>
           </div>
 
-          {/* Create new chat */}
+          {/* Create new chat — user search */}
           <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 border border-gray-100 dark:border-gray-700">
             <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Создать чат с пользователем</h3>
+
+            {/* Search input */}
+            <div className="flex gap-2 mb-3">
+              <div className="relative flex-1">
+                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Поиск по имени или Telegram ID..."
+                  value={supportUserSearch}
+                  onChange={(e) => setSupportUserSearch(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSearchSupportUsers()}
+                  className="w-full pl-9 pr-3 py-2 border rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                />
+              </div>
+              <button
+                onClick={handleSearchSupportUsers}
+                disabled={supportUserSearching || !supportUserSearch.trim()}
+                className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-semibold hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50"
+              >
+                {supportUserSearching ? '...' : 'Найти'}
+              </button>
+            </div>
+
+            {/* Search results */}
+            {supportUserResults.length > 0 && (
+              <div className="mb-3 max-h-40 overflow-y-auto border rounded-lg dark:border-gray-600 divide-y dark:divide-gray-600">
+                {supportUserResults.map((u: any) => (
+                  <button
+                    key={u.id}
+                    onClick={() => { setSupportNewUserId(u.id); setSupportUserSearch(u.firstName + ' ' + (u.lastName || '')); setSupportUserResults([]); }}
+                    className={`w-full text-left px-3 py-2 text-sm hover:bg-orange-50 dark:hover:bg-gray-700 flex items-center gap-2 ${supportNewUserId === u.id ? 'bg-orange-50 dark:bg-gray-700' : ''}`}
+                  >
+                    <div className="w-7 h-7 bg-orange-100 dark:bg-orange-900/30 rounded-full flex items-center justify-center text-xs font-bold text-orange-600">
+                      {(u.firstName || '?')[0]}
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-800 dark:text-white">{u.firstName} {u.lastName || ''}</span>
+                      <span className="text-gray-400 ml-2 text-xs">@{u.telegramUsername || u.telegramId}</span>
+                    </div>
+                    <span className="ml-auto text-xs px-2 py-0.5 bg-gray-100 dark:bg-gray-600 rounded text-gray-500 dark:text-gray-300">{u.role}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {supportNewUserId && (
+              <div className="mb-3 flex items-center gap-2 text-xs text-green-600 dark:text-green-400">
+                <CheckCircle size={14} /> Пользователь выбран
+              </div>
+            )}
+
+            {/* Subject dropdown + create button */}
             <div className="flex flex-col sm:flex-row gap-2">
-              <input
-                type="text"
-                placeholder="ID пользователя (UUID)"
-                value={supportNewUserId}
-                onChange={(e) => setSupportNewUserId(e.target.value)}
-                className="flex-1 px-3 py-2 border rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-              />
-              <input
-                type="text"
-                placeholder="Тема (необязательно)"
+              <select
                 value={supportNewSubject}
                 onChange={(e) => setSupportNewSubject(e.target.value)}
                 className="flex-1 px-3 py-2 border rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-              />
+              >
+                <option value="">Тема (необязательно)</option>
+                <option value="Проблема с заказом">Проблема с заказом</option>
+                <option value="Вопрос по оплате">Вопрос по оплате</option>
+                <option value="Жалоба на мастера">Жалоба на мастера</option>
+                <option value="Технический вопрос">Технический вопрос</option>
+                <option value="Предложение">Предложение</option>
+                <option value="Другое">Другое</option>
+              </select>
               <button
                 onClick={handleCreateSupportChat}
-                className="px-4 py-2 bg-orange-500 text-white rounded-lg text-sm font-semibold hover:bg-orange-600 flex items-center gap-1"
+                disabled={!supportNewUserId}
+                className="px-4 py-2 bg-orange-500 text-white rounded-lg text-sm font-semibold hover:bg-orange-600 disabled:opacity-50 flex items-center gap-1"
               >
-                <Plus size={16} /> Создать
+                <Plus size={16} /> Начать чат
               </button>
             </div>
           </div>
@@ -1983,6 +2203,7 @@ export function AdminDashboardPage() {
                   { key: 'visit_fee_commission_rate', label: 'Комиссия с выезда (%)', icon: CreditCard, color: 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400', desc: 'Процент комиссии с оплаты выезда', suffix: '%' },
                   { key: 'default_guarantee_days', label: 'Гарантийный срок (дни)', icon: Shield, color: 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400', desc: 'Гарантия по умолчанию на все работы', suffix: ' дн.' },
                   { key: 'material_cancel_compensation', label: 'Компенсация мастеру при отказе (%)', icon: AlertTriangle, color: 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400', desc: 'Процент компенсации после закупки материала', suffix: '%' },
+                  { key: 'max_response_time', label: 'Макс. время отклика мастера (ч)', icon: Clock, color: 'bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400', desc: 'Максимальное время на отклик мастера', suffix: ' ч' },
                 ].map(({ key, label, icon: Icon, color, desc, suffix }) => {
                   const configItem = config.find((c: any) => c.key === key);
                   const value = configItem?.value || '';
@@ -2048,14 +2269,14 @@ export function AdminDashboardPage() {
               {config.filter((c: any) => ![
                 'commission_rate', 'material_commission_rate', 'urgency_multiplier',
                 'min_order_amount', 'visit_fee', 'visit_fee_commission_rate',
-                'default_guarantee_days', 'material_cancel_compensation'
+                'default_guarantee_days', 'material_cancel_compensation', 'max_response_time'
               ].includes(c.key)).length > 0 && (
                 <div className="space-y-2">
                   <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Прочие настройки</h3>
                   {config.filter((c: any) => ![
                     'commission_rate', 'material_commission_rate', 'urgency_multiplier',
                     'min_order_amount', 'visit_fee', 'visit_fee_commission_rate',
-                    'default_guarantee_days', 'material_cancel_compensation'
+                    'default_guarantee_days', 'material_cancel_compensation', 'max_response_time'
                   ].includes(c.key)).map((c: any) => (
                     <div key={c.id} className="card">
                       <div className="flex items-center justify-between gap-3">

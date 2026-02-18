@@ -139,10 +139,14 @@ export function InstantOrderPage() {
       recorder.onstop = () => {
         stream.getTracks().forEach((t) => t.stop());
         // В реальном проекте: отправить blob на STT (Whisper API)
-        // Сейчас — mock
-        const mockText = description || 'Голосовое описание проблемы записано';
-        setVoiceText(mockText);
-        toast.success('Голос записан! Описание распознано.');
+        // Сейчас — mock: берём описание или генерируем placeholder
+        const recognized = description || 'Нужен ремонт — записано голосом. Отредактируйте описание при необходимости.';
+        setVoiceText(recognized);
+        // Авто-заполняем поле описания, чтобы пользователь мог отредактировать
+        if (!description.trim()) {
+          setDescription(recognized);
+        }
+        toast.success('🎤 Голос распознан! Отредактируйте текст ниже.');
       };
 
       mediaRecorderRef.current = recorder;
@@ -397,19 +401,23 @@ export function InstantOrderPage() {
               </button>
 
               {voiceText && (
-                <div className="bg-green-50 dark:bg-green-900/20 rounded-xl p-3 mb-4 text-sm text-green-700 dark:text-green-300">
-                  <strong>Распознано:</strong> {voiceText}
+                <div className="bg-green-50 dark:bg-green-900/20 rounded-xl p-3 mb-4 text-sm text-green-700 dark:text-green-300 flex items-center gap-2">
+                  <CheckCircle size={16} className="text-green-500 flex-shrink-0" />
+                  <span><strong>Голос распознан!</strong> Текст добавлен в поле ниже — отредактируйте при необходимости.</span>
                 </div>
               )}
 
-              {/* Текстовое описание */}
+              {/* Текстовое описание (заполняется автоматически из голоса) */}
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Что нужно сделать? Например: течёт кран на кухне, нужно заменить..."
-                className="w-full h-28 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white px-4 py-3 resize-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                className={`w-full h-28 rounded-xl border ${voiceText && description ? 'border-green-400 ring-2 ring-green-200 dark:ring-green-800' : 'border-gray-300 dark:border-gray-600'} dark:bg-gray-700 dark:text-white px-4 py-3 resize-none focus:ring-2 focus:ring-orange-500 focus:border-transparent`}
                 maxLength={2000}
               />
+              {voiceText && (
+                <p className="text-xs text-gray-400 mt-1">✏️ Вы можете свободно редактировать распознанный текст</p>
+              )}
             </div>
 
             {/* Выбор категории (опционально) */}
@@ -440,13 +448,20 @@ export function InstantOrderPage() {
               <ChevronRight size={20} />
             </button>
 
+            {/* Разделитель */}
+            <div className="flex items-center gap-4">
+              <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
+              <span className="text-sm text-gray-400">или</span>
+              <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
+            </div>
+
             {/* Кнопка индивидуальной оценки — большая и яркая */}
             <Link
               to="/estimation/create"
               className="w-full py-4 bg-gradient-to-r from-orange-400 to-amber-400 hover:from-orange-500 hover:to-amber-500 text-white rounded-2xl font-bold text-lg flex items-center justify-center gap-3 transition-all shadow-lg shadow-orange-400/25 border-2 border-orange-300"
             >
               <AlertTriangle size={22} />
-              Это не подходит — нужна индивидуальная оценка мастера
+              🔍 Нужна индивидуальная оценка мастера
             </Link>
           </div>
         )}
@@ -582,13 +597,20 @@ export function InstantOrderPage() {
               })}
             </div>
 
+            {/* Разделитель */}
+            <div className="flex items-center gap-4">
+              <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
+              <span className="text-sm text-gray-400">или</span>
+              <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
+            </div>
+
             {/* Кнопка индивидуальной оценки — большая и яркая */}
             <Link
               to="/estimation/create"
               className="w-full py-4 bg-gradient-to-r from-orange-400 to-amber-400 hover:from-orange-500 hover:to-amber-500 text-white rounded-2xl font-bold text-lg flex items-center justify-center gap-3 transition-all shadow-lg shadow-orange-400/25 border-2 border-orange-300"
             >
               <AlertTriangle size={22} />
-              Это не подходит — нужна индивидуальная оценка мастера
+              🔍 Это не подходит — нужна индивидуальная оценка мастера
             </Link>
 
             {/* Вернуться к загрузке */}
@@ -761,13 +783,20 @@ export function InstantOrderPage() {
               )}
             </button>
 
+            {/* Разделитель */}
+            <div className="flex items-center gap-4 mt-2">
+              <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
+              <span className="text-sm text-gray-400">или</span>
+              <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
+            </div>
+
             {/* Индивидуальная оценка — большая и яркая */}
             <Link
               to="/estimation/create"
               className="w-full py-4 bg-gradient-to-r from-orange-400 to-amber-400 hover:from-orange-500 hover:to-amber-500 text-white rounded-2xl font-bold text-lg flex items-center justify-center gap-3 transition-all shadow-lg shadow-orange-400/25 border-2 border-orange-300"
             >
               <AlertTriangle size={22} />
-              Это не подходит — нужна индивидуальная оценка мастера
+              🔍 Нужна индивидуальная оценка мастера
             </Link>
           </div>
         )}
