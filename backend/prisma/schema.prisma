@@ -158,6 +158,9 @@ model User {
   turnkeyProjects TurnkeyProject[]
   estimates      Estimate[]     @relation("EstimateMaster")
   aiOrderTemplates AiOrderTemplate[]
+  supportChatsAsUser  SupportChat[]    @relation("SupportChatUser")
+  supportChatsAsAdmin SupportChat[]    @relation("SupportChatAdmin")
+  supportMessages     SupportMessage[] @relation("SupportMsgSender")
 
   @@map("users")
 }
@@ -959,6 +962,43 @@ model AiOrderTemplate {
 
   @@index([categoryId, tier])
   @@map("ai_order_templates")
+}
+
+// ════════════════════════════════════════════════
+// ЧАТ ПОДДЕРЖКИ (админ/менеджер ↔ пользователь)
+// ════════════════════════════════════════════════
+
+model SupportChat {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")        // Клиент / мастер
+  adminId     String   @map("admin_id")        // Кто инициировал (ADMIN/MANAGER)
+  subject     String?                           // Тема обращения
+  isClosed    Boolean  @default(false) @map("is_closed")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user     User  @relation("SupportChatUser", fields: [userId], references: [id])
+  admin    User  @relation("SupportChatAdmin", fields: [adminId], references: [id])
+  messages SupportMessage[]
+
+  @@index([userId])
+  @@index([adminId])
+  @@map("support_chats")
+}
+
+model SupportMessage {
+  id        String   @id @default(uuid())
+  chatId    String   @map("chat_id")
+  senderId  String   @map("sender_id")
+  text      String
+  isRead    Boolean  @default(false) @map("is_read")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  chat   SupportChat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  sender User        @relation("SupportMsgSender", fields: [senderId], references: [id])
+
+  @@index([chatId, createdAt])
+  @@map("support_messages")
 }
 
 // ════════════════════════════════════════════════

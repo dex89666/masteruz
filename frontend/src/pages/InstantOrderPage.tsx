@@ -9,7 +9,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import {
   Camera, Upload, Mic, MicOff, Sparkles, Zap, Star, Crown,
   ChevronRight, ArrowLeft, MapPin, Calendar, AlertTriangle,
-  CheckCircle, Loader2, X, Package, Clock
+  CheckCircle, Loader2, X, Package, Clock, Wallet
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useTranslation } from '../i18n';
@@ -78,6 +78,8 @@ export function InstantOrderPage() {
 
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [showBalanceModal, setShowBalanceModal] = useState(false);
+  const [balanceError, setBalanceError] = useState('');
 
   // Медиа-рекордер
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -260,7 +262,13 @@ export function InstantOrderPage() {
       );
       navigate(`/orders/${order.id}`);
     } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Ошибка создания заказа');
+      const msg = err.response?.data?.error?.message || err.response?.data?.message || 'Ошибка создания заказа';
+      if (msg.includes('Недостаточно средств') || msg.includes('средств')) {
+        setBalanceError(msg);
+        setShowBalanceModal(true);
+      } else {
+        toast.error(msg);
+      }
     } finally {
       setCreating(false);
     }
@@ -432,12 +440,14 @@ export function InstantOrderPage() {
               <ChevronRight size={20} />
             </button>
 
-            {/* Ссылка на индивидуальную оценку */}
-            <div className="text-center py-3">
-              <Link to="/estimation/create" className="text-gray-500 dark:text-gray-400 hover:text-orange-500 text-sm underline">
-                Это не подходит — нужна индивидуальная оценка мастера →
-              </Link>
-            </div>
+            {/* Кнопка индивидуальной оценки — большая и яркая */}
+            <Link
+              to="/estimation/create"
+              className="w-full py-4 bg-gradient-to-r from-orange-400 to-amber-400 hover:from-orange-500 hover:to-amber-500 text-white rounded-2xl font-bold text-lg flex items-center justify-center gap-3 transition-all shadow-lg shadow-orange-400/25 border-2 border-orange-300"
+            >
+              <AlertTriangle size={22} />
+              Это не подходит — нужна индивидуальная оценка мастера
+            </Link>
           </div>
         )}
 
@@ -572,16 +582,14 @@ export function InstantOrderPage() {
               })}
             </div>
 
-            {/* Кнопка индивидуальной оценки */}
-            <div className="text-center py-4">
-              <Link
-                to="/estimation/create"
-                className="inline-flex items-center gap-2 text-gray-500 dark:text-gray-400 hover:text-orange-500 text-sm border border-gray-300 dark:border-gray-600 rounded-xl px-5 py-2.5 hover:border-orange-300 transition-all"
-              >
-                <AlertTriangle size={14} />
-                Это не подходит — нужна индивидуальная оценка мастера
-              </Link>
-            </div>
+            {/* Кнопка индивидуальной оценки — большая и яркая */}
+            <Link
+              to="/estimation/create"
+              className="w-full py-4 bg-gradient-to-r from-orange-400 to-amber-400 hover:from-orange-500 hover:to-amber-500 text-white rounded-2xl font-bold text-lg flex items-center justify-center gap-3 transition-all shadow-lg shadow-orange-400/25 border-2 border-orange-300"
+            >
+              <AlertTriangle size={22} />
+              Это не подходит — нужна индивидуальная оценка мастера
+            </Link>
 
             {/* Вернуться к загрузке */}
             <button
@@ -753,15 +761,51 @@ export function InstantOrderPage() {
               )}
             </button>
 
-            {/* Индивидуальная оценка */}
-            <div className="text-center py-3">
-              <Link to="/estimation/create" className="text-gray-500 dark:text-gray-400 hover:text-orange-500 text-sm underline">
-                Хочу индивидуальную оценку мастера →
-              </Link>
-            </div>
+            {/* Индивидуальная оценка — большая и яркая */}
+            <Link
+              to="/estimation/create"
+              className="w-full py-4 bg-gradient-to-r from-orange-400 to-amber-400 hover:from-orange-500 hover:to-amber-500 text-white rounded-2xl font-bold text-lg flex items-center justify-center gap-3 transition-all shadow-lg shadow-orange-400/25 border-2 border-orange-300"
+            >
+              <AlertTriangle size={22} />
+              Это не подходит — нужна индивидуальная оценка мастера
+            </Link>
           </div>
         )}
       </div>
+
+      {/* Модальное окно «Недостаточно средств» */}
+      {showBalanceModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl max-w-md w-full p-8 text-center relative">
+            <button
+              onClick={() => setShowBalanceModal(false)}
+              className="absolute top-4 right-4 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600"
+            >
+              <X size={20} />
+            </button>
+            <div className="w-20 h-20 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center mx-auto mb-5">
+              <Wallet size={36} className="text-red-500" />
+            </div>
+            <h3 className="text-2xl font-extrabold dark:text-white mb-3">Недостаточно средств</h3>
+            <p className="text-gray-600 dark:text-gray-300 mb-6 text-sm leading-relaxed">
+              {balanceError}
+            </p>
+            <button
+              onClick={() => { setShowBalanceModal(false); navigate('/balance'); }}
+              className="w-full py-4 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-2xl font-bold text-lg flex items-center justify-center gap-3 transition-all shadow-lg shadow-green-500/25"
+            >
+              <Wallet size={22} />
+              Пополнить баланс
+            </button>
+            <button
+              onClick={() => setShowBalanceModal(false)}
+              className="w-full mt-3 py-3 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 font-medium text-sm"
+            >
+              Закрыть
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

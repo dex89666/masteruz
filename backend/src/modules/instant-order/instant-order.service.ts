@@ -205,17 +205,19 @@ export class InstantOrderService {
     }
 
     // Получаем конфигурацию платформы
-    const [commissionConfig, visitFeeConfig, visitFeeCommConfig] = await Promise.all([
+    const [commissionConfig, visitFeeConfig, visitFeeCommConfig, urgencyConfig] = await Promise.all([
       prisma.platformConfig.findUnique({ where: { key: 'commission_rate' } }),
       prisma.platformConfig.findUnique({ where: { key: 'visit_fee' } }),
       prisma.platformConfig.findUnique({ where: { key: 'visit_fee_commission_rate' } }),
+      prisma.platformConfig.findUnique({ where: { key: 'urgency_multiplier' } }),
     ]);
     const commissionRate = commissionConfig ? parseFloat(commissionConfig.value) : DEFAULT_COMMISSION_RATE;
     const visitFee = visitFeeConfig ? parseFloat(visitFeeConfig.value) : DEFAULT_VISIT_FEE;
     const visitFeeCommissionRate = visitFeeCommConfig ? parseFloat(visitFeeCommConfig.value) : VISIT_FEE_COMMISSION_RATE;
 
-    // Обработка срочности
-    const URGENT_MULTIPLIER = 1.4;
+    // Обработка срочности (из настроек или по умолчанию 40%)
+    const urgencyPercent = urgencyConfig ? parseFloat(urgencyConfig.value) : 40;
+    const URGENT_MULTIPLIER = 1 + urgencyPercent / 100;
     const isUrgent = data.isUrgent === true;
     const urgentMultiplier = isUrgent ? URGENT_MULTIPLIER : 1.0;
     const effectivePrice = template.estimatedPrice * urgentMultiplier;

@@ -5,7 +5,7 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { adminApi, storesApi, turnkeyApi, estimationApi, chatApi } from '../api/client';
+import { adminApi, storesApi, turnkeyApi, estimationApi, chatApi, supportChatApi } from '../api/client';
 import { useAuthStore } from '../store';
 import { useTranslation } from '../i18n';
 import { useFormatPrice } from '../hooks';
@@ -20,11 +20,12 @@ import {
   ArrowUpRight, ArrowDownRight,
   XCircle, RefreshCw, Database, Store, Hammer,
   FolderTree, Plus, Trash2, Edit3, ChevronDown, ChevronUp,
+  Headphones, Send, MessageCircle,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { Dashboard } from '../types';
 
-type AdminTab = 'overview' | 'users' | 'orders' | 'payments' | 'catalog' | 'config' | 'stores' | 'turnkey' | 'moderation';
+type AdminTab = 'overview' | 'users' | 'orders' | 'payments' | 'catalog' | 'config' | 'stores' | 'turnkey' | 'moderation' | 'support';
 
 // ─── Stat Card Component ────────────────────
 function StatCard({ icon: Icon, label, value, subValue, color, trend }: {
@@ -157,6 +158,16 @@ export function AdminDashboardPage() {
   const [moderationLoading, setModerationLoading] = useState(false);
   const [moderationSubTab, setModerationSubTab] = useState<'estimates' | 'messages' | 'blacklist'>('estimates');
 
+  // Support chat tab state
+  const [supportChats, setSupportChats] = useState<any[]>([]);
+  const [supportLoading, setSupportLoading] = useState(false);
+  const [supportSelectedChat, setSupportSelectedChat] = useState<any | null>(null);
+  const [supportMessages, setSupportMessages] = useState<any[]>([]);
+  const [supportNewMsg, setSupportNewMsg] = useState('');
+  const [supportSending, setSupportSending] = useState(false);
+  const [supportNewUserId, setSupportNewUserId] = useState('');
+  const [supportNewSubject, setSupportNewSubject] = useState('');
+
   // Guard: only ADMIN / MANAGER
   useEffect(() => {
     if (!user || (user.role !== 'ADMIN' && user.role !== 'MANAGER')) {
@@ -176,6 +187,7 @@ export function AdminDashboardPage() {
     if (tab === 'turnkey') loadTurnkeyProjects();
     if (tab === 'catalog') loadCatalog();
     if (tab === 'moderation') loadModerationData();
+    if (tab === 'support') loadSupportChats();
   }, [tab]);
 
   useEffect(() => { if (tab === 'stores') loadPartnerRequests(); }, [requestsStatus]);
@@ -269,6 +281,61 @@ export function AdminDashboardPage() {
       await adminApi.removeFromBlacklist(id);
       toast.success('Пользователь разблокирован');
       loadModerationData();
+    } catch { toast.error('Ошибка'); }
+  }
+
+  // ─── Support Chat Functions ────────────────
+  async function loadSupportChats() {
+    setSupportLoading(true);
+    try {
+      const res = await supportChatApi.getAdminChats({ page: 1, limit: 50 });
+      setSupportChats(res.data.data || []);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSupportLoading(false);
+    }
+  }
+
+  async function loadSupportMessages(chatId: string) {
+    try {
+      const res = await supportChatApi.getMessages(chatId);
+      setSupportMessages(res.data.data || []);
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  async function handleSendSupportMessage() {
+    if (!supportSelectedChat || !supportNewMsg.trim() || supportSending) return;
+    setSupportSending(true);
+    try {
+      await supportChatApi.sendMessage(supportSelectedChat.id, supportNewMsg.trim());
+      setSupportNewMsg('');
+      await loadSupportMessages(supportSelectedChat.id);
+    } catch { toast.error('Ошибка отправки'); }
+    finally { setSupportSending(false); }
+  }
+
+  async function handleCreateSupportChat() {
+    if (!supportNewUserId.trim()) { toast.error('Введите ID пользователя'); return; }
+    try {
+      await supportChatApi.createChat(supportNewUserId.trim(), supportNewSubject || undefined);
+      toast.success('Чат создан');
+      setSupportNewUserId('');
+      setSupportNewSubject('');
+      loadSupportChats();
+    } catch (err: any) {
+      toast.error(err.response?.data?.error?.message || 'Ошибка создания чата');
+    }
+  }
+
+  async function handleCloseSupportChat(chatId: string) {
+    try {
+      await supportChatApi.closeChat(chatId);
+      toast.success('Чат закрыт');
+      setSupportSelectedChat(null);
+      loadSupportChats();
     } catch { toast.error('Ошибка'); }
   }
 
@@ -651,6 +718,7 @@ export function AdminDashboardPage() {
     { key: 'turnkey', label: t('turnkey.title'), icon: Hammer },
     { key: 'catalog', label: 'Каталог', icon: FolderTree },
     { key: 'moderation', label: 'Модерация', icon: AlertTriangle },
+    { key: 'support', label: 'Поддержка', icon: Headphones },
     { key: 'config', label: t('admin.tabConfig'), icon: Settings },
   ];
 
@@ -1716,10 +1784,177 @@ export function AdminDashboardPage() {
       )}
 
       {/* ═══════════════════════════════════════ */}
+      {/* TAB: SUPPORT CHAT                      */}
+      {/* ═══════════════════════════════════════ */}
+      {tab === 'support' && (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold dark:text-white flex items-center gap-2">
+              <Headphones size={18} className="text-orange-500" />
+              Чат поддержки
+            </h2>
+            <button
+              onClick={loadSupportChats}
+              className="p-2 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
+            >
+              <RefreshCw size={16} />
+            </button>
+          </div>
+
+          {/* Create new chat */}
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 border border-gray-100 dark:border-gray-700">
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Создать чат с пользователем</h3>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input
+                type="text"
+                placeholder="ID пользователя (UUID)"
+                value={supportNewUserId}
+                onChange={(e) => setSupportNewUserId(e.target.value)}
+                className="flex-1 px-3 py-2 border rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              />
+              <input
+                type="text"
+                placeholder="Тема (необязательно)"
+                value={supportNewSubject}
+                onChange={(e) => setSupportNewSubject(e.target.value)}
+                className="flex-1 px-3 py-2 border rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              />
+              <button
+                onClick={handleCreateSupportChat}
+                className="px-4 py-2 bg-orange-500 text-white rounded-lg text-sm font-semibold hover:bg-orange-600 flex items-center gap-1"
+              >
+                <Plus size={16} /> Создать
+              </button>
+            </div>
+          </div>
+
+          {supportLoading ? (
+            <LoadingSpinner />
+          ) : supportSelectedChat ? (
+            /* Chat messages view */
+            <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 overflow-hidden">
+              {/* Chat header */}
+              <div className="flex items-center gap-3 p-4 border-b dark:border-gray-700">
+                <button
+                  onClick={() => { setSupportSelectedChat(null); setSupportMessages([]); }}
+                  className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full"
+                >
+                  <ChevronLeft size={18} />
+                </button>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-sm dark:text-white">{supportSelectedChat.subject}</h3>
+                  <p className="text-xs text-gray-500">
+                    Пользователь: {supportSelectedChat.user?.profile?.firstName || supportSelectedChat.userId}
+                  </p>
+                </div>
+                {!supportSelectedChat.isClosed && (
+                  <button
+                    onClick={() => handleCloseSupportChat(supportSelectedChat.id)}
+                    className="px-3 py-1.5 bg-red-100 text-red-600 rounded-lg text-xs font-semibold"
+                  >
+                    Закрыть чат
+                  </button>
+                )}
+              </div>
+
+              {/* Messages */}
+              <div className="max-h-96 overflow-y-auto p-4 space-y-2 bg-gray-50 dark:bg-gray-900">
+                {supportMessages.length === 0 && (
+                  <p className="text-center text-gray-400 text-sm py-8">Нет сообщений</p>
+                )}
+                {supportMessages.map((msg: any) => {
+                  const isAdmin = msg.senderId !== supportSelectedChat.userId;
+                  return (
+                    <div key={msg.id} className={`flex ${isAdmin ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`max-w-[75%] rounded-2xl px-4 py-2 text-sm ${
+                        isAdmin
+                          ? 'bg-orange-500 text-white rounded-br-md'
+                          : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white border rounded-bl-md'
+                      }`}>
+                        <p className="whitespace-pre-wrap break-words">{msg.text}</p>
+                        <p className={`text-[10px] mt-1 ${isAdmin ? 'text-orange-200' : 'text-gray-400'}`}>
+                          {new Date(msg.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Input */}
+              {!supportSelectedChat.isClosed && (
+                <div className="p-3 border-t dark:border-gray-700">
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={supportNewMsg}
+                      onChange={(e) => setSupportNewMsg(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleSendSupportMessage(); }}
+                      placeholder="Введите сообщение..."
+                      className="flex-1 px-4 py-2.5 bg-gray-100 dark:bg-gray-700 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 dark:text-white"
+                      disabled={supportSending}
+                    />
+                    <button
+                      onClick={handleSendSupportMessage}
+                      disabled={!supportNewMsg.trim() || supportSending}
+                      className="p-2.5 bg-orange-500 text-white rounded-full hover:bg-orange-600 disabled:opacity-50"
+                    >
+                      <Send size={18} />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            /* Chats list */
+            <div className="space-y-2">
+              {supportChats.length === 0 ? (
+                <EmptyState icon={MessageCircle} title="Нет чатов поддержки" description="Создайте чат, чтобы связаться с пользователем" />
+              ) : supportChats.map((chat: any) => {
+                const lastMsg = chat.messages?.[0];
+                return (
+                  <button
+                    key={chat.id}
+                    onClick={() => { setSupportSelectedChat(chat); loadSupportMessages(chat.id); }}
+                    className="w-full flex items-center gap-4 p-4 bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 hover:border-orange-200 hover:shadow-md transition text-left"
+                  >
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                      chat.isClosed ? 'bg-gray-100 dark:bg-gray-700' : 'bg-orange-100 dark:bg-orange-900/30'
+                    }`}>
+                      <MessageCircle size={18} className={chat.isClosed ? 'text-gray-400' : 'text-orange-500'} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-sm dark:text-white truncate">{chat.subject}</span>
+                        <span className="text-xs text-gray-400 ml-2">
+                          {new Date(chat.updatedAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-500 truncate">
+                        {chat.user?.profile?.firstName || 'Пользователь'} — {lastMsg?.text?.slice(0, 60) || (chat.isClosed ? 'Закрыт' : 'Нет сообщений')}
+                      </p>
+                    </div>
+                    {chat.isClosed && (
+                      <span className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-500 px-2 py-1 rounded-full">Закрыт</span>
+                    )}
+                    {chat._count?.messages > 0 && !chat.isClosed && (
+                      <span className="text-xs font-bold bg-orange-500 text-white w-5 h-5 rounded-full flex items-center justify-center">
+                        {chat._count.messages}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════ */}
       {/* TAB: CONFIG                            */}
       {/* ═══════════════════════════════════════ */}
       {tab === 'config' && (
-        <div className="space-y-4">
+        <div className="space-y-6">
           <div className="flex items-center justify-between">
             <h2 className="font-semibold dark:text-white flex items-center gap-2">
               <Database size={18} className="text-primary-600 dark:text-primary-400" />
@@ -1735,62 +1970,140 @@ export function AdminDashboardPage() {
 
           {configLoading ? (
             <LoadingSpinner />
-          ) : config.length === 0 ? (
-            <EmptyState icon={Settings} title={t('common.noData')} description="Нет настроек платформы" />
           ) : (
-            <div className="space-y-2">
-              {config.map((c) => (
-                <div key={c.id} className="card">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <p className="font-mono text-sm font-medium dark:text-white truncate">{c.key}</p>
-                      {c.description && (
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{c.description}</p>
-                      )}
+            <>
+              {/* Основные настройки — красивые карточки */}
+              <div className="grid gap-4 md:grid-cols-2">
+                {[
+                  { key: 'commission_rate', label: 'Комиссия платформы (%)', icon: CreditCard, color: 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400', desc: 'Процент комиссии за обычные заказы', suffix: '%' },
+                  { key: 'material_commission_rate', label: 'Комиссия за материалы (%)', icon: Package, color: 'bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400', desc: 'Процент комиссии за стройматериалы', suffix: '%' },
+                  { key: 'urgency_multiplier', label: 'Надбавка за срочность (%)', icon: Zap, color: 'bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400', desc: 'Процент надбавки к цене за срочные заказы', suffix: '%' },
+                  { key: 'min_order_amount', label: 'Минимальная сумма заказа', icon: DollarSign, color: 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400', desc: 'Минимальная цена заказа (сум)', suffix: ' сум' },
+                  { key: 'visit_fee', label: 'Стоимость выезда на оценку', icon: Activity, color: 'bg-cyan-50 dark:bg-cyan-900/20 text-cyan-600 dark:text-cyan-400', desc: 'Фиксированная стоимость выезда мастера', suffix: ' сум' },
+                  { key: 'visit_fee_commission_rate', label: 'Комиссия с выезда (%)', icon: CreditCard, color: 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400', desc: 'Процент комиссии с оплаты выезда', suffix: '%' },
+                  { key: 'default_guarantee_days', label: 'Гарантийный срок (дни)', icon: Shield, color: 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400', desc: 'Гарантия по умолчанию на все работы', suffix: ' дн.' },
+                  { key: 'material_cancel_compensation', label: 'Компенсация мастеру при отказе (%)', icon: AlertTriangle, color: 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400', desc: 'Процент компенсации после закупки материала', suffix: '%' },
+                ].map(({ key, label, icon: Icon, color, desc, suffix }) => {
+                  const configItem = config.find((c: any) => c.key === key);
+                  const value = configItem?.value || '';
+                  const isEditing = editingConfig === key;
+
+                  return (
+                    <div key={key} className="card border border-gray-200 dark:border-gray-700">
+                      <div className="flex items-start gap-3">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${color}`}>
+                          <Icon size={18} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-sm dark:text-white">{label}</p>
+                          <p className="text-xs text-gray-400 mt-0.5">{desc}</p>
+                          <div className="mt-2">
+                            {isEditing ? (
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="text"
+                                  className="input text-sm w-32 px-3 py-1.5"
+                                  value={editValue}
+                                  onChange={(e) => setEditValue(e.target.value)}
+                                  onKeyDown={(e) => e.key === 'Enter' && handleSaveConfig(key)}
+                                  autoFocus
+                                />
+                                <button
+                                  onClick={() => handleSaveConfig(key)}
+                                  className="p-1.5 rounded-lg bg-green-50 text-green-600 dark:bg-green-900/30 dark:text-green-400 hover:bg-green-100"
+                                >
+                                  <Save size={14} />
+                                </button>
+                                <button
+                                  onClick={() => setEditingConfig(null)}
+                                  className="p-1.5 rounded-lg bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400 hover:bg-gray-200"
+                                >
+                                  <XCircle size={14} />
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono text-lg font-bold text-primary-600 dark:text-primary-400">
+                                  {value || '—'}{value && suffix}
+                                </span>
+                                {user?.role === 'ADMIN' && (
+                                  <button
+                                    onClick={() => { setEditingConfig(key); setEditValue(value); }}
+                                    className="p-1.5 rounded-lg bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600"
+                                  >
+                                    <Edit3 size={12} />
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      {editingConfig === c.key ? (
-                        <>
-                          <input
-                            type="text"
-                            className="input text-sm w-32"
-                            value={editValue}
-                            onChange={(e) => setEditValue(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && handleSaveConfig(c.key)}
-                          />
-                          <button
-                            onClick={() => handleSaveConfig(c.key)}
-                            className="p-2 rounded-lg bg-green-50 text-green-600 dark:bg-green-900/30 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/50"
-                          >
-                            <Save size={14} />
-                          </button>
-                          <button
-                            onClick={() => setEditingConfig(null)}
-                            className="p-2 rounded-lg bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600"
-                          >
-                            <XCircle size={14} />
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <span className="font-mono text-sm font-medium text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 px-2 py-1 rounded">
-                            {c.value}
-                          </span>
-                          {user?.role === 'ADMIN' && (
-                            <button
-                              onClick={() => { setEditingConfig(c.key); setEditValue(c.value); }}
-                              className="p-2 rounded-lg bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600"
-                            >
-                              <Settings size={14} />
-                            </button>
+                  );
+                })}
+              </div>
+
+              {/* Остальные настройки — таблица */}
+              {config.filter((c: any) => ![
+                'commission_rate', 'material_commission_rate', 'urgency_multiplier',
+                'min_order_amount', 'visit_fee', 'visit_fee_commission_rate',
+                'default_guarantee_days', 'material_cancel_compensation'
+              ].includes(c.key)).length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Прочие настройки</h3>
+                  {config.filter((c: any) => ![
+                    'commission_rate', 'material_commission_rate', 'urgency_multiplier',
+                    'min_order_amount', 'visit_fee', 'visit_fee_commission_rate',
+                    'default_guarantee_days', 'material_cancel_compensation'
+                  ].includes(c.key)).map((c: any) => (
+                    <div key={c.id} className="card">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-mono text-sm font-medium dark:text-white truncate">{c.key}</p>
+                          {c.description && (
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{c.description}</p>
                           )}
-                        </>
-                      )}
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          {editingConfig === c.key ? (
+                            <>
+                              <input
+                                type="text"
+                                className="input text-sm w-32"
+                                value={editValue}
+                                onChange={(e) => setEditValue(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && handleSaveConfig(c.key)}
+                              />
+                              <button onClick={() => handleSaveConfig(c.key)} className="p-2 rounded-lg bg-green-50 text-green-600 dark:bg-green-900/30 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/50">
+                                <Save size={14} />
+                              </button>
+                              <button onClick={() => setEditingConfig(null)} className="p-2 rounded-lg bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600">
+                                <XCircle size={14} />
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <span className="font-mono text-sm font-medium text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 px-2 py-1 rounded">
+                                {c.value}
+                              </span>
+                              {user?.role === 'ADMIN' && (
+                                <button
+                                  onClick={() => { setEditingConfig(c.key); setEditValue(c.value); }}
+                                  className="p-2 rounded-lg bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600"
+                                >
+                                  <Settings size={14} />
+                                </button>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              )}
+            </>
           )}
         </div>
       )}

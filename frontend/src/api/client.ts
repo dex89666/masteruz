@@ -395,6 +395,37 @@ export const instantOrderApi = {
     api.put<ApiResponse<any>>(`/instant-order/admin/moderate/${orderId}`, { approved, note }),
 };
 
+// ─── Support Chat API (чат поддержки) ──────
+export const supportChatApi = {
+  // Мои чаты поддержки
+  getMyChats: () =>
+    api.get<ApiResponse<any[]>>('/support-chat'),
+
+  // Непрочитанные
+  getUnreadCount: () =>
+    api.get<ApiResponse<{ count: number }>>('/support-chat/unread'),
+
+  // Сообщения чата
+  getMessages: (chatId: string) =>
+    api.get<ApiResponse<any[]>>(`/support-chat/${chatId}/messages`),
+
+  // Отправить сообщение
+  sendMessage: (chatId: string, text: string) =>
+    api.post<ApiResponse<any>>(`/support-chat/${chatId}/messages`, { text }),
+
+  // Админ: создать чат
+  createChat: (userId: string, subject?: string) =>
+    api.post<ApiResponse<any>>('/support-chat/admin', { userId, subject }),
+
+  // Админ: все чаты
+  getAdminChats: (params?: { page?: number; limit?: number }) =>
+    api.get<any>('/support-chat/admin/all', { params }),
+
+  // Админ: закрыть чат
+  closeChat: (chatId: string) =>
+    api.put<ApiResponse<any>>(`/support-chat/admin/${chatId}/close`),
+};
+
 // ─── Notifications API ─────────────────────
 export const notificationsApi = {
   getAll: (page?: number) =>

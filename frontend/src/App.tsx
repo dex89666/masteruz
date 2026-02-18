@@ -57,6 +57,7 @@ const CreateEstimationPage = lazy(() => import('./pages/CreateEstimationPage').t
 const EstimateFormPage = lazy(() => import('./pages/EstimateFormPage').then(m => ({ default: m.EstimateFormPage })));
 const EstimateViewPage = lazy(() => import('./pages/EstimateViewPage').then(m => ({ default: m.EstimateViewPage })));
 const InstantOrderPage = lazy(() => import('./pages/InstantOrderPage').then(m => ({ default: m.InstantOrderPage })));
+const SupportChatPage = lazy(() => import('./pages/SupportChatPage').then(m => ({ default: m.SupportChatPage })));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -155,6 +156,16 @@ function AppContent() {
           element={
             <ProtectedRoute>
               <InstantOrderPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Support Chat (Чат поддержки) */}
+        <Route
+          path="support-chat"
+          element={
+            <ProtectedRoute>
+              <SupportChatPage />
             </ProtectedRoute>
           }
         />
