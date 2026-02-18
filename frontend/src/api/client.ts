@@ -351,6 +351,50 @@ export const estimationApi = {
     api.put<ApiResponse<any>>(`/estimation/admin/moderate/${estimateId}`, { approved, note }),
 };
 
+// ─── Instant Order API (ФотоЗаказ за 30 сек) ──
+export const instantOrderApi = {
+  // AI-анализ фотографий → 3 варианта
+  analyze: (data: {
+    images: string[];
+    description?: string;
+    voiceText?: string;
+    categoryId?: string;
+    latitude?: number;
+    longitude?: number;
+  }) => api.post<ApiResponse<any>>('/instant-order/analyze', data),
+
+  // Создать заказ из выбранного AI-варианта
+  create: (data: {
+    templateId: string;
+    title: string;
+    description: string;
+    additionalWishes?: string;
+    voiceDescription?: string;
+    address: string;
+    city?: string;
+    district?: string;
+    region?: string;
+    latitude?: number;
+    longitude?: number;
+    images: string[];
+    deadline?: string;
+    isUrgent?: boolean;
+    offerAccepted: boolean;
+  }) => api.post<ApiResponse<any>>('/instant-order/create', data),
+
+  // Получить AI-шаблон
+  getTemplate: (templateId: string) =>
+    api.get<ApiResponse<any>>(`/instant-order/template/${templateId}`),
+
+  // Admin: AI-заказы на модерации
+  getPendingModeration: (params?: { page?: number; limit?: number }) =>
+    api.get<any>('/instant-order/admin/moderation', { params }),
+
+  // Admin: одобрить/отклонить AI-заказ
+  moderate: (orderId: string, approved: boolean, note?: string) =>
+    api.put<ApiResponse<any>>(`/instant-order/admin/moderate/${orderId}`, { approved, note }),
+};
+
 // ─── Notifications API ─────────────────────
 export const notificationsApi = {
   getAll: (page?: number) =>
@@ -382,6 +426,12 @@ export const photosApi = {
 
   removePhoto: (photoId: string) =>
     api.delete<ApiResponse<any>>(`/photos/${photoId}`),
+
+  // Загрузка фото (FormData с полем 'photo')
+  upload: (formData: FormData) =>
+    api.post<ApiResponse<{ url: string }>>('/photos/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
 };
 
 // ─── Favorites API (избранные мастера) ──────

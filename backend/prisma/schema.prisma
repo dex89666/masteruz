@@ -40,6 +40,13 @@ enum OrderStatus {
   MODERATION              // Модерация сметы админом/менеджером
 }
 
+// ─── Уровни AI-варианта ──────────────────────
+enum AiTier {
+  GOOD
+  BETTER
+  BEST
+}
+
 // ─── Статусы сметы ────────────────────────────
 enum EstimateStatus {
   DRAFT
@@ -150,6 +157,7 @@ model User {
   storeReviews   StoreReview[]
   turnkeyProjects TurnkeyProject[]
   estimates      Estimate[]     @relation("EstimateMaster")
+  aiOrderTemplates AiOrderTemplate[]
 
   @@map("users")
 }
@@ -359,6 +367,12 @@ model Order {
   isEstimationOrder Boolean    @default(false) @map("is_estimation_order")
   estimationFee    Float?      @map("estimation_fee")         // 150 000 сум
   parentOrderId    String?     @map("parent_order_id")        // Связь: заказ оценки → основной заказ
+  // AI Instant Order (ФотоЗаказ за 30 сек)
+  isInstantAiOrder Boolean     @default(false) @map("is_instant_ai_order")
+  aiTemplateId     String?     @map("ai_template_id")
+  additionalWishes String?     @map("additional_wishes")
+  moderationRequired Boolean   @default(false) @map("moderation_required")
+  voiceDescription String?     @map("voice_description")      // Текстовая расшифровка голоса
   // Geo / адрес
   latitude         Float?
   longitude        Float?
@@ -387,12 +401,14 @@ model Order {
   estimates  Estimate[]
   parentOrder Order?         @relation("EstimationChain", fields: [parentOrderId], references: [id])
   childOrders Order[]        @relation("EstimationChain")
+  aiTemplate  AiOrderTemplate? @relation(fields: [aiTemplateId], references: [id])
 
   @@index([status, createdAt])
   @@index([latitude, longitude])
   @@index([categoryId])
   @@index([clientId])
   @@index([masterId])
+  @@index([aiTemplateId])
   @@map("orders")
 }
 
@@ -916,6 +932,33 @@ model TurnkeyStage {
 
   @@index([projectId, sortOrder])
   @@map("turnkey_stages")
+}
+
+// ════════════════════════════════════════════════
+// AI ORDER TEMPLATES (ФотоЗаказ — варианты AI)
+// ════════════════════════════════════════════════
+
+model AiOrderTemplate {
+  id              String   @id @default(uuid())
+  categoryId      String   @map("category_id")
+  tier            AiTier   // GOOD / BETTER / BEST
+  tierLabel       String   @map("tier_label")          // "Хороший" / "Отличный" / "Премиум"
+  taskIds         String[] @default([]) @map("task_ids")  // ID задач из каталога
+  materials       Json     @default("[]")                // [{name, quantity, unit, unitPrice, total}]
+  estimatedPrice  Float    @map("estimated_price")       // Итоговая цена варианта
+  estimatedDays   Int      @map("estimated_days")        // Срок выполнения (дни)
+  confidence      Float    @default(0.8)                 // Уверенность AI (0-1)
+  prompt          String?                                // Промпт, использованный для анализа
+  imageAnalysis   Json?    @map("image_analysis")        // Результат анализа фото
+  description     String?                                // Описание варианта
+  createdById     String?  @map("created_by_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  createdBy User?   @relation(fields: [createdById], references: [id])
+  orders    Order[]
+
+  @@index([categoryId, tier])
+  @@map("ai_order_templates")
 }
 
 // ════════════════════════════════════════════════

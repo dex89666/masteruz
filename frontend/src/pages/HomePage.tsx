@@ -79,6 +79,11 @@ export function HomePage() {
               {t('home.heroDesc')}
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              {/* ★ ФотоЗаказ за 30 секунд — главная CTA */}
+              <Link to="/instant-order" className="inline-flex items-center justify-center bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-bold px-8 py-4 rounded-xl text-base transition-all shadow-lg shadow-orange-500/30 hover:shadow-orange-500/50 animate-pulse hover:animate-none">
+                <Zap size={20} className="mr-2" />
+                📸 Создать заказ за 30 секунд
+              </Link>
               <Link to="/orders" className="inline-flex items-center justify-center bg-primary-500 hover:bg-primary-600 text-white font-bold px-8 py-4 rounded-xl text-base transition-all shadow-lg shadow-primary-500/25 hover:shadow-primary-500/40">
                 <Search size={20} className="mr-2" />
                 {t('home.findMaster')}

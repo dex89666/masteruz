@@ -56,6 +56,7 @@ const DevelopmentPage = lazy(() => import('./pages/DevelopmentPage').then(m => (
 const CreateEstimationPage = lazy(() => import('./pages/CreateEstimationPage').then(m => ({ default: m.CreateEstimationPage })));
 const EstimateFormPage = lazy(() => import('./pages/EstimateFormPage').then(m => ({ default: m.EstimateFormPage })));
 const EstimateViewPage = lazy(() => import('./pages/EstimateViewPage').then(m => ({ default: m.EstimateViewPage })));
+const InstantOrderPage = lazy(() => import('./pages/InstantOrderPage').then(m => ({ default: m.InstantOrderPage })));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -145,6 +146,16 @@ function AppContent() {
             <MasterRoute>
               <EstimateFormPage />
             </MasterRoute>
+          }
+        />
+
+        {/* Instant AI Order (ФотоЗаказ за 30 сек) */}
+        <Route
+          path="instant-order"
+          element={
+            <ProtectedRoute>
+              <InstantOrderPage />
+            </ProtectedRoute>
           }
         />
 

@@ -161,6 +161,12 @@ export interface Order {
   isEstimationOrder: boolean;
   estimationFee: number | null;
   parentOrderId: string | null;
+  // AI Instant Order
+  isInstantAiOrder: boolean;
+  aiTemplateId: string | null;
+  additionalWishes: string | null;
+  moderationRequired: boolean;
+  voiceDescription: string | null;
   // Geo
   latitude: number | null;
   longitude: number | null;
@@ -682,3 +688,66 @@ export interface TurnkeyEstimate {
   pricePerSqmMin: number;
   pricePerSqmMax: number;
 }
+
+// ─── AI Instant Order (ФотоЗаказ за 30 сек) ──
+export type AiTier = 'GOOD' | 'BETTER' | 'BEST';
+
+export interface AiOrderTemplate {
+  id: string;
+  categoryId: string;
+  tier: AiTier;
+  tierLabel: string;
+  taskIds: string[];
+  materials: AiMaterialItem[];
+  estimatedPrice: number;
+  estimatedDays: number;
+  confidence: number;
+  description: string | null;
+}
+
+export interface AiMaterialItem {
+  name: string;
+  quantity: number;
+  unit: string;
+  unitPrice: number;
+  total: number;
+}
+
+export interface AiAnalysisResult {
+  category: {
+    id: string;
+    name: string;
+    nameUz: string | null;
+    nameEn: string | null;
+    slug: string;
+  };
+  detectedFromPhoto: boolean;
+  variants: AiOrderTemplate[];
+  allTasks: {
+    id: string;
+    name: string;
+    nameUz: string | null;
+    nameEn: string | null;
+    minPrice: number | null;
+    estimatedTime: string | null;
+  }[];
+}
+
+export interface InstantOrderCreateData {
+  templateId: string;
+  title: string;
+  description: string;
+  additionalWishes?: string;
+  voiceDescription?: string;
+  address: string;
+  city?: string;
+  district?: string;
+  region?: string;
+  latitude?: number;
+  longitude?: number;
+  images: string[];
+  deadline?: string;
+  isUrgent?: boolean;
+  offerAccepted: boolean;
+}
+

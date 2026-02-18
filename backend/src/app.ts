@@ -43,6 +43,7 @@ import onlineStatusRoutes from './modules/users/onlineStatus.routes.js';
 import storesRoutes from './modules/stores/stores.routes.js';
 import turnkeyRoutes from './modules/turnkey/turnkey.routes.js';
 import estimationRoutes from './modules/estimation/estimation.routes.js';
+import instantOrderRoutes from './modules/instant-order/instant-order.routes.js';
 
 const app = express();
 
@@ -164,6 +165,7 @@ app.use('/api/users', onlineStatusRoutes); // Heartbeat, go-offline, online-mast
 app.use('/api/stores', storesRoutes);
 app.use('/api/turnkey', turnkeyRoutes);
 app.use('/api/estimation', estimationRoutes);
+app.use('/api/instant-order', instantOrderRoutes);
 
 // ─── Healthcheck ───────────────────────────────
 
