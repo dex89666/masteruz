@@ -1066,6 +1066,29 @@ export function AdminDashboardPage() {
                           <option value="ADMIN">ADMIN</option>
                         </select>
                       )}
+                      {/* Quick test role buttons (Admin/Manager can assign additional status) */}
+                      {(user?.role === 'ADMIN' || user?.role === 'MANAGER') && u.id !== user?.id && (
+                        <div className="flex gap-0.5">
+                          {u.role !== 'MASTER' && (
+                            <button
+                              onClick={() => handleChangeRole(u.id, 'MASTER')}
+                              className="text-[9px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 hover:bg-blue-100 transition-colors"
+                              title="Назначить мастером для тестирования"
+                            >
+                              +М
+                            </button>
+                          )}
+                          {u.role !== 'CLIENT' && (
+                            <button
+                              onClick={() => handleChangeRole(u.id, 'CLIENT')}
+                              className="text-[9px] px-1.5 py-0.5 rounded bg-gray-50 text-gray-600 dark:bg-gray-700 dark:text-gray-400 hover:bg-gray-100 transition-colors"
+                              title="Назначить клиентом для тестирования"
+                            >
+                              +К
+                            </button>
+                          )}
+                        </div>
+                      )}
                       {!u.isVerified && u.role === 'MASTER' && (
                         <button
                           onClick={() => handleVerify(u.id)}

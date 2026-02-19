@@ -34,6 +34,7 @@ import {
   Hammer,
   Menu,
   X,
+  Wrench,
 } from 'lucide-react';
 import { useCartStore } from '../store/cartStore';
 
@@ -80,7 +81,7 @@ export function Layout() {
       ? [
           ...(isMaster
             ? [{ path: '/dashboard', icon: LayoutDashboard, label: t('nav.dashboard') }]
-            : [{ path: '/orders/create', icon: PlusCircle, label: t('nav.create') }]),
+            : [{ path: '/instant-order', icon: PlusCircle, label: t('nav.create') }]),
           { path: '/my-orders', icon: Briefcase, label: t('nav.myOrders') },
           ...(isClient ? [{ path: '/favorites', icon: Heart, label: t('nav.favorites') }] : []),
           { path: '/map', icon: MapPin, label: t('nav.map') },
@@ -168,6 +169,17 @@ export function Layout() {
 
             {/* Desktop right side actions — hidden on mobile */}
             <div className="hidden lg:flex items-center gap-1 shrink-0">
+              {/* «Стать мастером» — кнопка в правом верхнем углу (видна не-мастерам) */}
+              {(!isAuthenticated || isClient) && (
+                <Link
+                  to="/become-master"
+                  className="flex items-center gap-1.5 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-all shadow-sm mr-1"
+                >
+                  <Wrench size={14} />
+                  Стать мастером
+                </Link>
+              )}
+
               <button
                 onClick={() => setSearchOpen(true)}
                 className="p-1.5 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
@@ -322,6 +334,17 @@ export function Layout() {
               {/* Divider */}
               <div className="border-t border-gray-200 dark:border-gray-700 my-3" />
 
+              {/* «Стать мастером» в мобильном меню */}
+              {(!isAuthenticated || isClient) && (
+                <Link
+                  to="/become-master"
+                  className="flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl text-sm font-bold bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700 transition-colors shadow-md mb-2"
+                >
+                  <Wrench size={20} />
+                  Стать мастером
+                </Link>
+              )}
+
               {isAuthenticated ? (
                 <button
                   onClick={() => { logout(); setMobileMenuOpen(false); }}
@@ -368,7 +391,7 @@ export function Layout() {
               <h4 className="font-semibold text-white mb-3 text-sm">{t('footer.forClients')}</h4>
               <ul className="space-y-2 text-sm">
                 <li><Link to="/orders" className="hover:text-white transition-colors">{t('nav.orders')}</Link></li>
-                <li><Link to="/orders/create" className="hover:text-white transition-colors">{t('nav.create')}</Link></li>
+                <li><Link to="/instant-order" className="hover:text-white transition-colors">{t('nav.create')}</Link></li>
                 <li><Link to="/masters" className="hover:text-white transition-colors">{t('nav.masters')}</Link></li>
                 <li><Link to="/map" className="hover:text-white transition-colors">{t('nav.map')}</Link></li>
                 <li><Link to="/stores" className="hover:text-white transition-colors">{t('stores.title')}</Link></li>

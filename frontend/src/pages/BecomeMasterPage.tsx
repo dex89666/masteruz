@@ -6,7 +6,7 @@
 // ============================================
 
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { usersApi, catalogApi } from '../api/client';
 import { useAuthStore } from '../store';
 import { RegistrationPaymentModal } from '../components/RegistrationPaymentModal';
@@ -22,17 +22,17 @@ export function BecomeMasterPage() {
   const { user, setAuth } = useAuthStore();
   const { t, language } = useTranslation();
   const [form, setForm] = useState({
-    bio: '',
     experience: '',
-    hourlyRate: '',
   });
   const [submitting, setSubmitting] = useState(false);
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
 
-  // Категории
+  // Категории и подкатегории
   const [categories, setCategories] = useState<any[]>([]);
+  const [selectedSubcategoryIds, setSelectedSubcategoryIds] = useState<string[]>([]);
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
+  const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
   const [loadingCategories, setLoadingCategories] = useState(false);
   const [savingCategories, setSavingCategories] = useState(false);
 
@@ -74,6 +74,37 @@ export function BecomeMasterPage() {
         ? prev.filter((id) => id !== categoryId)
         : [...prev, categoryId]
     );
+    // Также выбираем/убираем все подкатегории этой категории
+    const cat = categories.find((c) => c.id === categoryId);
+    const subIds = (cat?.subcategories || []).map((s: any) => s.id);
+    setSelectedSubcategoryIds((prev) => {
+      const alreadyAll = subIds.every((id: string) => prev.includes(id));
+      if (alreadyAll) {
+        return prev.filter((id) => !subIds.includes(id));
+      } else {
+        return [...new Set([...prev, ...subIds])];
+      }
+    });
+  }
+
+  function toggleSubcategory(subcategoryId: string, categoryId: string) {
+    setSelectedSubcategoryIds((prev) =>
+      prev.includes(subcategoryId)
+        ? prev.filter((id) => id !== subcategoryId)
+        : [...prev, subcategoryId]
+    );
+    // Автоматически добавляем родительскую категорию
+    if (!selectedCategoryIds.includes(categoryId)) {
+      setSelectedCategoryIds((prev) => [...prev, categoryId]);
+    }
+  }
+
+  function toggleExpandCategory(categoryId: string) {
+    setExpandedCategories((prev) =>
+      prev.includes(categoryId)
+        ? prev.filter((id) => id !== categoryId)
+        : [...prev, categoryId]
+    );
   }
 
   function getCategoryName(cat: any) {
@@ -88,18 +119,13 @@ export function BecomeMasterPage() {
 
   async function handleSubmitProfile(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.bio.trim()) {
-      toast.error(t('becomeMasterPage.tellAboutYourself'));
-      return;
-    }
 
     setSubmitting(true);
     try {
       await usersApi.createMasterProfile({
         specializations: ['general'],
-        bio: form.bio,
+        bio: '',
         experienceYears: form.experience ? Number(form.experience) : undefined,
-        hourlyRate: form.hourlyRate ? Number(form.hourlyRate) : undefined,
       });
 
       // Update local user state
@@ -122,7 +148,7 @@ export function BecomeMasterPage() {
   }
 
   async function handleSubmitCategories() {
-    if (selectedCategoryIds.length === 0) {
+    if (selectedCategoryIds.length === 0 && selectedSubcategoryIds.length === 0) {
       toast.error(t('becomeMasterPage.selectAtLeastOne'));
       return;
     }
@@ -221,21 +247,6 @@ export function BecomeMasterPage() {
         <form onSubmit={handleSubmitProfile} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              {t('becomeMasterPage.aboutYou')}
-            </label>
-            <textarea
-              name="bio"
-              value={form.bio}
-              onChange={handleChange}
-              className="textarea"
-              rows={4}
-              placeholder={t('becomeMasterPage.aboutPlaceholder')}
-              maxLength={1000}
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               {t('becomeMasterPage.experienceYears')}
             </label>
             <input
@@ -250,10 +261,20 @@ export function BecomeMasterPage() {
             />
           </div>
 
-          <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl text-sm text-blue-800 dark:text-blue-300">
-            <BookOpen size={16} className="inline mr-2" />
-            {t('becomeMasterPage.schoolNote')}
-          </div>
+          {/* Кнопка «Обучение» — отдельный крупный блок */}
+          <Link
+            to="/school"
+            className="flex items-center gap-3 p-4 bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 border-2 border-purple-200 dark:border-purple-800 rounded-xl hover:shadow-md hover:-translate-y-0.5 transition-all"
+          >
+            <div className="w-12 h-12 rounded-xl bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center shrink-0">
+              <BookOpen size={24} className="text-purple-600 dark:text-purple-400" />
+            </div>
+            <div className="flex-1">
+              <p className="font-semibold text-purple-800 dark:text-purple-300 text-sm">{t('becomeMasterPage.trainingTitle')}</p>
+              <p className="text-xs text-purple-600 dark:text-purple-400">{t('becomeMasterPage.schoolNote')}</p>
+            </div>
+            <ChevronRight size={20} className="text-purple-400 shrink-0" />
+          </Link>
 
           <div className="bg-amber-50 dark:bg-amber-900/20 p-4 rounded-xl border border-amber-200 dark:border-amber-800">
             <div className="flex items-center gap-2 mb-2">
@@ -282,7 +303,7 @@ export function BecomeMasterPage() {
         </form>
       )}
 
-      {/* ── Step 2: Choose Categories ── */}
+      {/* ── Step 2: Choose Categories & Subcategories ── */}
       {currentStep === 2 && (
         <div className="space-y-5">
           {/* Success banner for step 1 */}
@@ -298,7 +319,7 @@ export function BecomeMasterPage() {
             </div>
           </div>
 
-          {/* Category selection */}
+          {/* Category + subcategory selection */}
           <div>
             <div className="flex items-center gap-2 mb-3">
               <Layers size={20} className="text-primary-600 dark:text-primary-400" />
@@ -307,7 +328,7 @@ export function BecomeMasterPage() {
               </h2>
             </div>
             <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-              {t('becomeMasterPage.chooseCategoriesDesc')}
+              Выберите категории и конкретные подкатегории, в которых вы работаете
             </p>
 
             {loadingCategories ? (
@@ -319,52 +340,92 @@ export function BecomeMasterPage() {
             ) : (
               <div className="space-y-2">
                 {categories.map((cat) => {
-                  const isSelected = selectedCategoryIds.includes(cat.id);
-                  const subcCount = cat._count?.subcategories || cat.subcategories?.length || 0;
+                  const isCatSelected = selectedCategoryIds.includes(cat.id);
+                  const isExpanded = expandedCategories.includes(cat.id);
+                  const subcategories = cat.subcategories || [];
+                  const selectedSubsCount = subcategories.filter((s: any) => selectedSubcategoryIds.includes(s.id)).length;
                   return (
-                    <button
-                      key={cat.id}
-                      type="button"
-                      onClick={() => toggleCategory(cat.id)}
-                      className={`w-full flex items-center gap-3 p-3.5 rounded-xl border-2 transition-all text-left ${
-                        isSelected
-                          ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20 dark:border-primary-500 ring-1 ring-primary-200 dark:ring-primary-800'
-                          : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-gray-300 dark:hover:border-gray-600'
-                      }`}
-                    >
-                      {/* Checkbox */}
-                      <div className={`w-5 h-5 rounded shrink-0 flex items-center justify-center border-2 transition-colors ${
-                        isSelected
-                          ? 'bg-primary-600 border-primary-600'
-                          : 'border-gray-300 dark:border-gray-600'
-                      }`}>
-                        {isSelected && <CheckCircle size={14} className="text-white" />}
+                    <div key={cat.id} className={`rounded-xl border-2 transition-all ${
+                      isCatSelected
+                        ? 'border-primary-500 bg-primary-50/50 dark:bg-primary-900/10 dark:border-primary-500'
+                        : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800'
+                    }`}>
+                      {/* Category header */}
+                      <div className="flex items-center gap-3 p-3.5">
+                        <button
+                          type="button"
+                          onClick={() => toggleCategory(cat.id)}
+                          className={`w-5 h-5 rounded shrink-0 flex items-center justify-center border-2 transition-colors ${
+                            isCatSelected
+                              ? 'bg-primary-600 border-primary-600'
+                              : 'border-gray-300 dark:border-gray-600'
+                          }`}
+                        >
+                          {isCatSelected && <CheckCircle size={14} className="text-white" />}
+                        </button>
+                        <span className="text-2xl shrink-0">{cat.icon}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className={`font-medium text-sm ${
+                            isCatSelected ? 'text-primary-700 dark:text-primary-400' : 'text-gray-900 dark:text-white'
+                          }`}>
+                            {getCategoryName(cat)}
+                          </p>
+                          {subcategories.length > 0 && (
+                            <p className="text-xs text-gray-400 dark:text-gray-500">
+                              {selectedSubsCount}/{subcategories.length} подкатегорий
+                            </p>
+                          )}
+                        </div>
+                        {subcategories.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => toggleExpandCategory(cat.id)}
+                            className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                          >
+                            <ChevronRight size={18} className={`text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                          </button>
+                        )}
                       </div>
 
-                      {/* Icon */}
-                      <span className="text-2xl shrink-0">{cat.icon}</span>
-
-                      {/* Text */}
-                      <div className="flex-1 min-w-0">
-                        <p className={`font-medium text-sm ${
-                          isSelected ? 'text-primary-700 dark:text-primary-400' : 'text-gray-900 dark:text-white'
-                        }`}>
-                          {getCategoryName(cat)}
-                        </p>
-                        <p className="text-xs text-gray-400 dark:text-gray-500">
-                          {subcCount} {t('becomeMasterPage.subcategories')}
-                        </p>
-                      </div>
-                    </button>
+                      {/* Subcategories (expandable) */}
+                      {isExpanded && subcategories.length > 0 && (
+                        <div className="border-t border-gray-100 dark:border-gray-700 px-3.5 py-2 grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                          {subcategories.map((sub: any) => {
+                            const isSubSelected = selectedSubcategoryIds.includes(sub.id);
+                            return (
+                              <button
+                                key={sub.id}
+                                type="button"
+                                onClick={() => toggleSubcategory(sub.id, cat.id)}
+                                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-left text-sm transition-all ${
+                                  isSubSelected
+                                    ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400 font-medium'
+                                    : 'hover:bg-gray-50 dark:hover:bg-gray-700/50 text-gray-600 dark:text-gray-400'
+                                }`}
+                              >
+                                <div className={`w-4 h-4 rounded shrink-0 flex items-center justify-center border transition-colors ${
+                                  isSubSelected
+                                    ? 'bg-primary-600 border-primary-600'
+                                    : 'border-gray-300 dark:border-gray-600'
+                                }`}>
+                                  {isSubSelected && <CheckCircle size={10} className="text-white" />}
+                                </div>
+                                {sub.nameUz && language === 'uz' ? sub.nameUz : sub.nameEn && language === 'en' ? sub.nameEn : sub.name}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
                   );
                 })}
               </div>
             )}
 
             {/* Selection counter */}
-            {selectedCategoryIds.length > 0 && (
+            {(selectedCategoryIds.length > 0 || selectedSubcategoryIds.length > 0) && (
               <div className="mt-4 p-3 bg-primary-50 dark:bg-primary-900/20 rounded-xl text-sm text-primary-700 dark:text-primary-400 text-center font-medium">
-                {t('becomeMasterPage.selectedCount')}: {selectedCategoryIds.length} {t('becomeMasterPage.ofCategories')} {categories.length}
+                Выбрано: {selectedCategoryIds.length} категорий, {selectedSubcategoryIds.length} подкатегорий
               </div>
             )}
 

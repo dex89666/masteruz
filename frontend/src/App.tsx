@@ -21,7 +21,6 @@ const HomePage = lazy(() => import('./pages/HomePage').then(m => ({ default: m.H
 const LoginPage = lazy(() => import('./pages/LoginPage').then(m => ({ default: m.LoginPage })));
 const OrdersListPage = lazy(() => import('./pages/OrdersListPage').then(m => ({ default: m.OrdersListPage })));
 const OrderDetailPage = lazy(() => import('./pages/OrderDetailPage').then(m => ({ default: m.OrderDetailPage })));
-const CreateOrderPage = lazy(() => import('./pages/CreateOrderPage').then(m => ({ default: m.CreateOrderPage })));
 const MyOrdersPage = lazy(() => import('./pages/MyOrdersPage').then(m => ({ default: m.MyOrdersPage })));
 const MasterDashboardPage = lazy(() => import('./pages/MasterDashboardPage').then(m => ({ default: m.MasterDashboardPage })));
 const ProfilePage = lazy(() => import('./pages/ProfilePage').then(m => ({ default: m.ProfilePage })));
@@ -174,9 +173,7 @@ function AppContent() {
         <Route
           path="orders/create"
           element={
-            <ProtectedRoute>
-              <CreateOrderPage />
-            </ProtectedRoute>
+            <Navigate to="/instant-order" replace />
           }
         />
         <Route

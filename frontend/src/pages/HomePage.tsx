@@ -6,7 +6,7 @@
 import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import {
-  Search, Wrench, Shield, Star, MapPin, Users, GraduationCap,
+  Search, Shield, Star, MapPin, Users, GraduationCap,
   ArrowRight, Zap, HelpCircle, Store, Hammer, Camera, Handshake,
 } from 'lucide-react';
 import { useAuthStore } from '../store';
@@ -99,21 +99,14 @@ export function HomePage() {
             <p className="text-base md:text-lg text-gray-300 max-w-xl mx-auto">{t('home.heroDesc')}</p>
           </div>
 
-          {/* ★ Две главные кнопки — рядом, крупные */}
-          <div className="flex flex-col sm:flex-row gap-4 justify-center max-w-xl mx-auto">
+          {/* ★ Одна широкая кнопка «Создать заказ» по центру */}
+          <div className="flex flex-col items-center gap-4 max-w-2xl mx-auto">
             <Link
               to="/instant-order"
-              className="flex-1 flex flex-col items-center justify-center bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-bold px-8 py-5 rounded-2xl text-lg transition-all shadow-xl shadow-orange-500/40 hover:shadow-orange-500/60 hover:scale-[1.03] ring-2 ring-orange-400/50"
+              className="w-full flex flex-col items-center justify-center bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-bold px-8 py-6 rounded-2xl text-xl transition-all shadow-xl shadow-orange-500/40 hover:shadow-orange-500/60 hover:scale-[1.02] ring-2 ring-orange-400/50"
             >
-              <span className="flex items-center gap-2"><Camera size={24} /> Создать заказ за 30 секунд</span>
-              <span className="text-xs font-normal text-white/80 mt-1">📸 Фото + 🎤 голос = готовый заказ с ценой</span>
-            </Link>
-            <Link
-              to="/become-master"
-              className="flex-1 flex flex-col items-center justify-center bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-bold px-8 py-5 rounded-2xl text-lg transition-all shadow-xl shadow-green-500/30 hover:shadow-green-500/50 hover:scale-[1.03] ring-2 ring-green-400/50"
-            >
-              <span className="flex items-center gap-2"><Wrench size={24} /> Стать мастером</span>
-              <span className="text-xs font-normal text-white/80 mt-1">💰 Зарабатывайте от 50 000 сум в день</span>
+              <span className="flex items-center gap-3"><Camera size={28} /> Создать заказ</span>
+              <span className="text-sm font-normal text-white/80 mt-1.5">📸 Фото + 🎤 голос = готовый заказ с ценой за 30 секунд</span>
             </Link>
           </div>
 
