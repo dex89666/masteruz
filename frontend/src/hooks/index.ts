@@ -85,13 +85,36 @@ export function useGeolocation() {
 }
 
 /**
+ * Хук для режима «Крупный текст» (возраст 45–70+)
+ */
+export function useLargeText() {
+  const largeText = useAppStore((s) => s.largeText);
+  const toggleLargeText = useAppStore((s) => s.toggleLargeText);
+
+  useEffect(() => {
+    if (largeText) {
+      document.documentElement.classList.add('large-text');
+    } else {
+      document.documentElement.classList.remove('large-text');
+    }
+  }, [largeText]);
+
+  return { largeText, toggleLargeText };
+}
+
+/**
  * Хук для инициализации приложения
  */
 export function useAppInit() {
   const { setAuth, setLoading, logout } = useAuthStore();
-  const { setCategories, catalogLoaded } = useAppStore();
+  const { setCategories, catalogLoaded, largeText } = useAppStore();
 
   useEffect(() => {
+    // Apply large-text mode on init
+    if (largeText) {
+      document.documentElement.classList.add('large-text');
+    }
+
     async function init() {
       setLoading(true);
       const token = localStorage.getItem('accessToken');

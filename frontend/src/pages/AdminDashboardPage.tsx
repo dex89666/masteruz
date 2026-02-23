@@ -794,7 +794,7 @@ export function AdminDashboardPage() {
   }, [dashboard]);
 
   return (
-    <div className="page-container pb-20">
+    <div className="page-container pb-20 admin-panel">
       <h1 className="page-title flex items-center gap-2 mb-2">
         <Shield size={24} className="text-red-500" />
         {t('admin.title')}

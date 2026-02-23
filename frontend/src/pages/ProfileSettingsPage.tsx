@@ -7,9 +7,10 @@ import { useNavigate } from 'react-router-dom';
 import { usersApi } from '../api/client';
 import { useAuthStore } from '../store';
 import { useTranslation } from '../i18n';
+import { useLargeText } from '../hooks';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import {
-  ArrowLeft, Save, User, FileText,
+  ArrowLeft, Save, User, FileText, Type,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -19,6 +20,7 @@ export function ProfileSettingsPage() {
   const navigate = useNavigate();
   const { user, setUser } = useAuthStore();
   const { t } = useTranslation();
+  const { largeText, toggleLargeText } = useLargeText();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -354,6 +356,35 @@ export function ProfileSettingsPage() {
           </div>
         </div>
       )}
+
+      {/* Доступность — Крупный текст */}
+      <div className="card dark:bg-gray-800 dark:ring-gray-700 mb-4">
+        <h2 className="font-semibold mb-4 flex items-center gap-2 dark:text-white">
+          <Type size={18} className="text-primary-600 dark:text-primary-400" />
+          Доступность
+        </h2>
+
+        <label className="flex items-center justify-between gap-4 cursor-pointer p-3 rounded-xl bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+          <div className="flex-1">
+            <span className="text-base font-medium dark:text-white">Крупный текст</span>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+              Увеличить шрифт на 20–30% для удобного чтения
+            </p>
+          </div>
+          <div
+            className={`relative shrink-0 w-14 h-8 rounded-full transition-colors ${
+              largeText ? 'bg-primary-500' : 'bg-gray-300 dark:bg-gray-600'
+            }`}
+            onClick={toggleLargeText}
+          >
+            <div
+              className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-md transition-transform ${
+                largeText ? 'translate-x-7' : 'translate-x-1'
+              }`}
+            />
+          </div>
+        </label>
+      </div>
 
       {/* Кнопка сохранения */}
       <button

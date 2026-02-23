@@ -10,8 +10,8 @@ import { useTranslation } from '../i18n';
 import { ProfileSkeleton } from '../components/PageSkeletons';
 import {
   User, Phone, MapPin, Star, Award, Copy, Share2,
-  LogOut, Settings, BookOpen, Shield, Edit3, ChevronRight,
-  Briefcase, Clock, CreditCard, Camera, Wallet
+  LogOut, Settings, BookOpen, Shield, ChevronRight,
+  Briefcase, Clock, CreditCard, Camera, Wallet, PlusCircle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -121,6 +121,17 @@ export function ProfilePage() {
         </div>
       </div>
 
+      {/* Быстрое создание заказа — большая кнопка для клиентов */}
+      {!isMaster && (
+        <Link
+          to="/instant-order"
+          className="flex items-center justify-center gap-3 w-full mb-4 py-5 rounded-2xl bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white text-lg font-bold shadow-lg shadow-primary-500/25 active:scale-[0.98] transition-all"
+        >
+          <PlusCircle size={26} />
+          Создать заказ за 30 секунд
+        </Link>
+      )}
+
       {/* Быстрые действия */}
       <div className="grid grid-cols-2 gap-3 mb-4">
         <Link to="/my-orders" className="card flex items-center gap-3 hover:shadow-md dark:hover:shadow-black/20 transition-shadow">
@@ -131,12 +142,6 @@ export function ProfilePage() {
           <Link to="/dashboard" className="card flex items-center gap-3 hover:shadow-md dark:hover:shadow-black/20 transition-shadow">
             <Star size={20} className="text-yellow-500" />
             <span className="text-sm font-medium dark:text-white">{t('nav.dashboard')}</span>
-          </Link>
-        )}
-        {!isMaster && (
-          <Link to="/orders/create" className="card flex items-center gap-3 hover:shadow-md dark:hover:shadow-black/20 transition-shadow">
-            <Edit3 size={20} className="text-green-600 dark:text-green-400" />
-            <span className="text-sm font-medium dark:text-white">{t('orders.createOrder')}</span>
           </Link>
         )}
         <Link to="/settings" className="card flex items-center gap-3 hover:shadow-md dark:hover:shadow-black/20 transition-shadow">

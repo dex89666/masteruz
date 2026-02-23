@@ -50,18 +50,22 @@
 @layer components {
   .btn-primary {
     @apply inline-flex items-center justify-center rounded-xl bg-primary-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed;
+    min-height: 44px;
   }
 
   .btn-secondary {
     @apply inline-flex items-center justify-center rounded-xl bg-white px-6 py-3 text-sm font-semibold text-gray-700 shadow-sm ring-1 ring-inset ring-gray-300 transition-all hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed;
+    min-height: 44px;
   }
 
   .btn-danger {
     @apply inline-flex items-center justify-center rounded-xl bg-red-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed;
+    min-height: 44px;
   }
 
   .btn-success {
     @apply inline-flex items-center justify-center rounded-xl bg-green-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed;
+    min-height: 44px;
   }
 
   .card {
@@ -70,10 +74,12 @@
 
   .input {
     @apply block w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 transition-all;
+    min-height: 44px;
   }
 
   .textarea {
     @apply block w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 transition-all resize-none;
+    min-height: 44px;
   }
 
   .label {
@@ -213,4 +219,85 @@
 /* Smooth transition for theme changes */
 html.transitioning * {
   transition: background-color 0.3s ease, border-color 0.3s ease, color 0.2s ease !important;
+}
+
+/* ─── Large text mode (age 45-70+ accessibility) ─── */
+html.large-text {
+  font-size: 118%;
+}
+
+html.large-text .text-xs {
+  font-size: 0.8125rem; /* 13px instead of 12px */
+}
+
+html.large-text .text-sm {
+  font-size: 0.9375rem; /* 15px instead of 14px */
+}
+
+html.large-text .text-base {
+  font-size: 1.125rem; /* 18px instead of 16px */
+}
+
+html.large-text .text-lg {
+  font-size: 1.25rem;
+}
+
+html.large-text .btn-primary,
+html.large-text .btn-secondary,
+html.large-text .btn-danger,
+html.large-text .btn-success {
+  min-height: 52px;
+  font-size: 1rem;
+}
+
+html.large-text .input,
+html.large-text .textarea,
+html.large-text select {
+  min-height: 52px;
+  font-size: 1rem;
+}
+
+html.large-text .badge {
+  font-size: 0.8125rem;
+  padding: 0.375rem 0.75rem;
+}
+
+/* ─── Admin panel — larger readable fonts (14-16px min) ─── */
+.admin-panel {
+  font-size: 0.875rem; /* 14px base */
+}
+
+.admin-panel .text-xs {
+  font-size: 0.8125rem; /* 13px instead of 12px */
+}
+
+.admin-panel .text-sm {
+  font-size: 0.875rem; /* 14px */
+}
+
+.admin-panel table th,
+.admin-panel table td {
+  font-size: 0.875rem;
+  padding: 0.75rem 1rem;
+}
+
+.admin-panel .card {
+  font-size: 0.875rem;
+}
+
+.admin-panel button,
+.admin-panel select,
+.admin-panel input {
+  min-height: 40px;
+  font-size: 0.875rem;
+}
+
+/* ─── Mic pulse animation for voice recording ─── */
+@keyframes pulse-mic {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+  50% { transform: scale(1.08); box-shadow: 0 0 0 12px rgba(239, 68, 68, 0); }
+}
+
+.animate-pulse-mic {
+  animation: pulse-mic 1.5s ease-in-out infinite;
 }

@@ -91,6 +91,17 @@ export function HomePage() {
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] bg-orange-500/10 rounded-full blur-3xl" />
         <div className="absolute top-0 right-0 w-80 h-80 bg-orange-600/5 rounded-full blur-2xl" />
         <div className="max-w-5xl mx-auto px-4 sm:px-6 relative z-10">
+          {/* ★ «Стать мастером» — зелёная кнопка в правом верхнем углу */}
+          <div className="flex justify-end mb-4">
+            <Link
+              to="/become-master"
+              className="flex items-center gap-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-bold px-5 py-3 rounded-xl text-sm md:text-base transition-all shadow-lg shadow-green-500/30 hover:scale-105 min-h-[44px]"
+            >
+              <Users size={18} />
+              Стать мастером
+            </Link>
+          </div>
+
           <div className="text-center mb-10">
             <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-4 leading-tight">
               {t('home.heroTitle')}<br />
@@ -99,14 +110,14 @@ export function HomePage() {
             <p className="text-base md:text-lg text-gray-300 max-w-xl mx-auto">{t('home.heroDesc')}</p>
           </div>
 
-          {/* ★ Одна широкая кнопка «Создать заказ» по центру */}
+          {/* ★ Одна широкая кнопка «Создать заказ за 30 секунд» — крупная, по центру */}
           <div className="flex flex-col items-center gap-4 max-w-2xl mx-auto">
             <Link
               to="/instant-order"
-              className="w-full flex flex-col items-center justify-center bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-bold px-8 py-6 rounded-2xl text-xl transition-all shadow-xl shadow-orange-500/40 hover:shadow-orange-500/60 hover:scale-[1.02] ring-2 ring-orange-400/50"
+              className="w-full flex flex-col items-center justify-center bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-bold px-8 py-7 rounded-2xl text-xl md:text-2xl transition-all shadow-xl shadow-orange-500/40 hover:shadow-orange-500/60 hover:scale-[1.02] ring-2 ring-orange-400/50 min-h-[80px]"
             >
-              <span className="flex items-center gap-3"><Camera size={28} /> Создать заказ</span>
-              <span className="text-sm font-normal text-white/80 mt-1.5">📸 Фото + 🎤 голос = готовый заказ с ценой за 30 секунд</span>
+              <span className="flex items-center gap-3"><Camera size={30} /> Создать заказ за 30 секунд</span>
+              <span className="text-sm md:text-base font-normal text-white/80 mt-2">📸 Фото + 🎤 голос = готовый заказ с ценой</span>
             </Link>
           </div>
 
@@ -130,9 +141,9 @@ export function HomePage() {
               const colors = CATEGORY_COLORS[cat.slug] || { bg: 'bg-gray-50 dark:bg-gray-800', text: 'text-gray-600 dark:text-gray-400', border: 'border-gray-200 dark:border-gray-700' };
               return (
                 <Link key={cat.slug} to={`/catalog/${cat.slug}`}
-                  className={`group relative overflow-hidden rounded-2xl border-2 ${colors.border} ${colors.bg} p-4 md:p-5 text-center transition-all hover:shadow-lg hover:-translate-y-1 hover:scale-[1.02]`}>
-                  <span className="text-4xl md:text-5xl block mb-2 group-hover:scale-110 transition-transform">{cat.icon || '📁'}</span>
-                  <span className={`text-xs md:text-sm font-semibold ${colors.text} leading-tight block`}>{cat.name}</span>
+                  className={`group relative overflow-hidden rounded-2xl border-2 ${colors.border} ${colors.bg} p-5 md:p-6 text-center transition-all hover:shadow-lg hover:-translate-y-1 hover:scale-[1.02] min-h-[100px]`}>
+                  <span className="text-4xl md:text-5xl block mb-2.5 group-hover:scale-110 transition-transform">{cat.icon || '📁'}</span>
+                  <span className={`text-sm md:text-base font-semibold ${colors.text} leading-tight block`}>{cat.name}</span>
                 </Link>
               );
             })}
