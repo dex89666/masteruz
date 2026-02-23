@@ -23,11 +23,17 @@ export const config = {
   // Redis
   redisUrl: process.env.REDIS_URL || 'redis://localhost:6379',
 
-  // JWT
+  // JWT — обязательные переменные (без дефолтов!)
   jwt: {
-    secret: process.env.JWT_SECRET || 'default-secret',
+    secret: (() => {
+      if (!process.env.JWT_SECRET) throw new Error('FATAL: JWT_SECRET is required in environment variables');
+      return process.env.JWT_SECRET;
+    })(),
     expiresIn: process.env.JWT_EXPIRES_IN || '7d',
-    refreshSecret: process.env.JWT_REFRESH_SECRET || 'default-refresh-secret',
+    refreshSecret: (() => {
+      if (!process.env.JWT_REFRESH_SECRET) throw new Error('FATAL: JWT_REFRESH_SECRET is required in environment variables');
+      return process.env.JWT_REFRESH_SECRET;
+    })(),
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '30d',
   },
 

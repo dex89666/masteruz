@@ -3,7 +3,7 @@
 // ============================================
 
 import { Router, Request, Response, NextFunction } from 'express';
-import { authenticate } from '../../middleware/auth.js';
+import { authenticate, authorize } from '../../middleware/auth.js';
 import { balanceService } from './balance.service.js';
 
 const router = Router();
@@ -18,16 +18,16 @@ router.get('/', authenticate, async (req: Request, res: Response, next: NextFunc
   }
 });
 
-// Пополнить баланс
-router.post('/topup', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+// Пополнить баланс — ТОЛЬКО ADMIN (прямое зачисление для тестирования)
+router.post('/topup', authenticate, authorize('ADMIN'), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { amount, provider } = req.body;
-    // В реальности тут будет вызов платёжного провайдера (Click/Payme/Telegram Stars)
-    // Пока — прямое зачисление (для тестирования)
+    const { amount, provider, userId: targetUserId } = req.body;
+    // Админ может пополнить баланс указанному пользователю или себе
+    const effectiveUserId = targetUserId || req.user!.userId;
     const result = await balanceService.topUp(
-      req.user!.userId,
+      effectiveUserId,
       Number(amount),
-      `Пополнение через ${provider || 'INTERNAL'}`
+      `Пополнение через ${provider || 'INTERNAL'} (admin: ${req.user!.userId})`
     );
     res.json({ success: true, data: result });
   } catch (error) {

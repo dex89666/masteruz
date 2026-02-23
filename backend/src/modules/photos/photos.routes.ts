@@ -85,10 +85,31 @@ router.post('/:orderId', authenticate, async (req: Request, res: Response, next:
 });
 
 /**
- * DELETE /photos/:photoId — удалить фото
+ * DELETE /photos/:photoId — удалить фото (только владелец заказа или мастер)
  */
 router.delete('/:photoId', authenticate, async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const userId = req.user!.userId;
+
+    // Находим фото с данными заказа для проверки владельца
+    const photo = await prisma.orderPhoto.findUnique({
+      where: { id: req.params.photoId },
+      include: {
+        order: {
+          select: { clientId: true, masterId: true },
+        },
+      },
+    });
+
+    if (!photo) {
+      throw ApiError.notFound('Фото не найдено');
+    }
+
+    // Проверяем: удалить может только клиент или мастер этого заказа
+    if (photo.order.clientId !== userId && photo.order.masterId !== userId) {
+      throw ApiError.forbidden('Доступ запрещён');
+    }
+
     await prisma.orderPhoto.delete({
       where: { id: req.params.photoId },
     });

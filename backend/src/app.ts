@@ -19,6 +19,7 @@ import { config } from './config/index.js';
 import { prisma } from './config/database.js';
 import { logger } from './utils/logger.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
+import { checkUserActive } from './middleware/auth.js';
 
 // Импорт маршрутов модулей
 import authRoutes from './modules/auth/auth.routes.js';
@@ -141,6 +142,25 @@ if (config.env === 'development') {
     next();
   });
 }
+
+// ─── Глобальная проверка активности пользователя ───
+// Применяется ко всем маршрутам кроме /api/auth и /api/health
+// Если JWT есть и пользователь заблокирован — 403
+app.use('/api', (req, res, next) => {
+  // Пропускаем auth-маршруты и healthcheck — они должны работать всегда
+  if (req.path.startsWith('/auth') || req.path === '/health') {
+    return next();
+  }
+  // Пропускаем payment webhooks (без JWT, проверяются подписью)
+  if (req.path.startsWith('/payments/webhook')) {
+    return next();
+  }
+  // Проверяем только если есть Authorization header (authenticated requests)
+  if (req.headers.authorization) {
+    return checkUserActive(req, res, next);
+  }
+  next();
+});
 
 // ─── Маршруты API ──────────────────────────────
 

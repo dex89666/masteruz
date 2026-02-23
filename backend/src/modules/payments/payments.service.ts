@@ -209,16 +209,27 @@ export class PaymentsService {
    * Обработка webhook от Click
    */
   async handleClickWebhook(data: any) {
-    // Верификация подписи Click
-    const { click_trans_id, merchant_trans_id, amount, sign_string, error: clickError } = data;
+    // Верификация подписи Click (MD5 по спецификации Click API)
+    const { click_trans_id, merchant_trans_id, amount, sign_string, sign_time, error: clickError, action } = data;
 
+    if (!click_trans_id || !merchant_trans_id || !sign_string) {
+      logger.warn({ data }, '⚠️ Click webhook: отсутствуют обязательные поля');
+      throw ApiError.badRequest('Invalid signature');
+    }
+
+    // Click подпись: MD5(click_trans_id + service_id + secret_key + merchant_trans_id + amount + action + sign_time)
+    const signSource = `${click_trans_id}${config.click.serviceId}${config.click.secretKey}${merchant_trans_id}${amount}${action || 0}${sign_time || ''}`;
     const expectedSign = crypto
       .createHash('md5')
-      .update(`${click_trans_id}${config.click.serviceId}${config.click.secretKey}${merchant_trans_id}${amount}`)
+      .update(signSource)
       .digest('hex');
 
     if (sign_string !== expectedSign) {
-      throw ApiError.badRequest('Невалидная подпись Click');
+      logger.warn(
+        { click_trans_id, merchant_trans_id, amount, receivedSign: sign_string, expectedSign },
+        '🚨 SECURITY: Click webhook invalid signature — possible forgery attempt'
+      );
+      throw ApiError.badRequest('Invalid signature');
     }
 
     const payment = await prisma.payment.findUnique({
