@@ -8,6 +8,7 @@ import { ApiError } from '../../utils/ApiError.js';
 import { PaymentStatus, PaymentType, PaymentProvider } from '@prisma/client';
 import { config } from '../../config/index.js';
 import { logger } from '../../utils/logger.js';
+import { toNum } from '../../utils/helpers.js';
 import { notificationService } from '../../services/notificationService.js';
 import crypto from 'crypto';
 
@@ -188,13 +189,13 @@ export class PaymentsService {
 
     switch (provider) {
       case PaymentProvider.CLICK:
-        paymentData = this.generateClickPayment(payment.id, order.commissionAmount);
+        paymentData = this.generateClickPayment(payment.id, toNum(order.commissionAmount));
         break;
       case PaymentProvider.PAYME:
-        paymentData = this.generatePaymePayment(payment.id, order.commissionAmount);
+        paymentData = this.generatePaymePayment(payment.id, toNum(order.commissionAmount));
         break;
       case PaymentProvider.TELEGRAM_STARS:
-        paymentData = { paymentId: payment.id, amount: order.commissionAmount };
+        paymentData = { paymentId: payment.id, amount: toNum(order.commissionAmount) };
         break;
       default:
         throw ApiError.badRequest('Неподдерживаемый провайдер платежей');
@@ -283,7 +284,7 @@ export class PaymentsService {
         if (!payment) {
           return { error: { code: -31050, message: 'Платёж не найден' } };
         }
-        if (payment.amount * 100 !== params.amount) {
+        if (toNum(payment.amount) * 100 !== params.amount) {
           return { error: { code: -31001, message: 'Неверная сумма' } };
         }
         return { result: { allow: true } };

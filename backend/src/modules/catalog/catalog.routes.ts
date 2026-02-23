@@ -1,40 +1,76 @@
 // ============================================
-// MasterUz — Catalog Routes
+// MasterUz — Catalog Routes (Redis-cached)
 // Категории → Подкатегории → Задачи
+// GET-запросы кэшируются в Redis (5 мин TTL)
 // ============================================
 
 import { Router } from 'express';
 import { prisma } from '../../config/database.js';
 import { authenticate, authorize } from '../../middleware/auth.js';
+import { getRedis } from '../../config/redis.js';
+import { logger } from '../../utils/logger.js';
 
 const router = Router();
 
+// ─── Кэш-утилиты ─────────────────────────────
+const CATALOG_CACHE_TTL = 300; // 5 минут
+const CACHE_PREFIX = 'catalog:';
+
+async function getCached<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
+  try {
+    const redis = getRedis();
+    const cached = await redis.get(`${CACHE_PREFIX}${key}`);
+    if (cached) return JSON.parse(cached) as T;
+
+    const data = await fetcher();
+    // Записываем в кэш (не блокируем ответ)
+    redis.setex(`${CACHE_PREFIX}${key}`, CATALOG_CACHE_TTL, JSON.stringify(data)).catch(() => {});
+    return data;
+  } catch {
+    // Redis недоступен — просто запрашиваем из БД
+    return fetcher();
+  }
+}
+
+async function invalidateCatalogCache(): Promise<void> {
+  try {
+    const redis = getRedis();
+    const keys = await redis.keys(`${CACHE_PREFIX}*`);
+    await Promise.all(keys.map((k) => redis.del(k)));
+    logger.debug({ keysInvalidated: keys.length }, 'Catalog cache invalidated');
+  } catch {
+    // Redis недоступен — ничего страшного
+  }
+}
+
 /**
- * GET /catalog/categories — все активные категории
+ * GET /catalog/categories — все активные категории (cached)
  */
 router.get('/categories', async (_req, res, next) => {
   try {
-    const categories = await prisma.category.findMany({
-      where: { isActive: true },
-      orderBy: { sortOrder: 'asc' },
-      include: {
-        subcategories: {
-          where: { isActive: true },
-          orderBy: { sortOrder: 'asc' },
-          select: {
-            id: true,
-            name: true,
-            nameUz: true,
-            nameEn: true,
-            slug: true,
-            icon: true,
-            sortOrder: true,
-            _count: { select: { tasks: true } },
+    const categories = await getCached('categories', () =>
+      prisma.category.findMany({
+        where: { isActive: true },
+        orderBy: { sortOrder: 'asc' },
+        include: {
+          subcategories: {
+            where: { isActive: true },
+            orderBy: { sortOrder: 'asc' },
+            select: {
+              id: true,
+              name: true,
+              nameUz: true,
+              nameEn: true,
+              slug: true,
+              icon: true,
+              sortOrder: true,
+              _count: { select: { tasks: true } },
+            },
           },
+          _count: { select: { subcategories: true } },
         },
-        _count: { select: { subcategories: true } },
-      },
-    });
+      })
+    );
 
     res.json({ success: true, data: categories });
   } catch (error) {
@@ -43,25 +79,27 @@ router.get('/categories', async (_req, res, next) => {
 });
 
 /**
- * GET /catalog/categories/:slug — категория со всеми подкатегориями и задачами
+ * GET /catalog/categories/:slug — категория со всеми подкатегориями и задачами (cached)
  */
 router.get('/categories/:slug', async (req, res, next) => {
   try {
-    const category = await prisma.category.findUnique({
-      where: { slug: req.params.slug },
-      include: {
-        subcategories: {
-          where: { isActive: true },
-          orderBy: { sortOrder: 'asc' },
-          include: {
-            tasks: {
-              where: { isActive: true },
-              orderBy: { sortOrder: 'asc' },
+    const category = await getCached(`cat:${req.params.slug}`, () =>
+      prisma.category.findUnique({
+        where: { slug: req.params.slug },
+        include: {
+          subcategories: {
+            where: { isActive: true },
+            orderBy: { sortOrder: 'asc' },
+            include: {
+              tasks: {
+                where: { isActive: true },
+                orderBy: { sortOrder: 'asc' },
+              },
             },
           },
         },
-      },
-    });
+      })
+    );
 
     if (!category) {
       return res.status(404).json({ success: false, error: { message: 'Категория не найдена' } });
@@ -74,20 +112,22 @@ router.get('/categories/:slug', async (req, res, next) => {
 });
 
 /**
- * GET /catalog/subcategories/:slug — подкатегория с задачами
+ * GET /catalog/subcategories/:slug — подкатегория с задачами (cached)
  */
 router.get('/subcategories/:slug', async (req, res, next) => {
   try {
-    const subcategory = await prisma.subcategory.findUnique({
-      where: { slug: req.params.slug },
-      include: {
-        category: true,
-        tasks: {
-          where: { isActive: true },
-          orderBy: { sortOrder: 'asc' },
+    const subcategory = await getCached(`sub:${req.params.slug}`, () =>
+      prisma.subcategory.findUnique({
+        where: { slug: req.params.slug },
+        include: {
+          category: true,
+          tasks: {
+            where: { isActive: true },
+            orderBy: { sortOrder: 'asc' },
+          },
         },
-      },
-    });
+      })
+    );
 
     if (!subcategory) {
       return res.status(404).json({ success: false, error: { message: 'Подкатегория не найдена' } });
@@ -100,24 +140,27 @@ router.get('/subcategories/:slug', async (req, res, next) => {
 });
 
 /**
- * GET /catalog/tasks?subcategoryId=xxx — задачи подкатегории
+ * GET /catalog/tasks?subcategoryId=xxx — задачи подкатегории (cached)
  */
 router.get('/tasks', async (req, res, next) => {
   try {
     const { subcategoryId } = req.query;
+    const cacheKey = `tasks:${subcategoryId || 'all'}`;
 
-    const tasks = await prisma.task.findMany({
-      where: {
-        isActive: true,
-        ...(subcategoryId ? { subcategoryId: subcategoryId as string } : {}),
-      },
-      orderBy: { sortOrder: 'asc' },
-      include: {
-        subcategory: {
-          select: { id: true, name: true, slug: true, categoryId: true },
+    const tasks = await getCached(cacheKey, () =>
+      prisma.task.findMany({
+        where: {
+          isActive: true,
+          ...(subcategoryId ? { subcategoryId: subcategoryId as string } : {}),
         },
-      },
-    });
+        orderBy: { sortOrder: 'asc' },
+        include: {
+          subcategory: {
+            select: { id: true, name: true, slug: true, categoryId: true },
+          },
+        },
+      })
+    );
 
     res.json({ success: true, data: tasks });
   } catch (error) {
@@ -126,26 +169,28 @@ router.get('/tasks', async (req, res, next) => {
 });
 
 /**
- * GET /catalog/full — полное дерево каталога
+ * GET /catalog/full — полное дерево каталога (cached)
  */
 router.get('/full', async (_req, res, next) => {
   try {
-    const catalog = await prisma.category.findMany({
-      where: { isActive: true },
-      orderBy: { sortOrder: 'asc' },
-      include: {
-        subcategories: {
-          where: { isActive: true },
-          orderBy: { sortOrder: 'asc' },
-          include: {
-            tasks: {
-              where: { isActive: true },
-              orderBy: { sortOrder: 'asc' },
+    const catalog = await getCached('full', () =>
+      prisma.category.findMany({
+        where: { isActive: true },
+        orderBy: { sortOrder: 'asc' },
+        include: {
+          subcategories: {
+            where: { isActive: true },
+            orderBy: { sortOrder: 'asc' },
+            include: {
+              tasks: {
+                where: { isActive: true },
+                orderBy: { sortOrder: 'asc' },
+              },
             },
           },
         },
-      },
-    });
+      })
+    );
 
     res.json({ success: true, data: catalog });
   } catch (error) {
@@ -154,44 +199,48 @@ router.get('/full', async (_req, res, next) => {
 });
 
 /**
- * GET /catalog/price-list — прайс-лист: все задачи с minPrice
+ * GET /catalog/price-list — прайс-лист: все задачи с minPrice (cached)
  */
 router.get('/price-list', async (_req, res, next) => {
   try {
-    const visitFeeConfig = await prisma.platformConfig.findUnique({
-      where: { key: 'visit_fee' },
-    });
-    const visitFee = visitFeeConfig ? parseFloat(visitFeeConfig.value) : 100000;
+    const data = await getCached('price-list', async () => {
+      const visitFeeConfig = await prisma.platformConfig.findUnique({
+        where: { key: 'visit_fee' },
+      });
+      const visitFee = visitFeeConfig ? parseFloat(visitFeeConfig.value) : 100000;
 
-    const catalog = await prisma.category.findMany({
-      where: { isActive: true },
-      orderBy: { sortOrder: 'asc' },
-      include: {
-        subcategories: {
-          where: { isActive: true },
-          orderBy: { sortOrder: 'asc' },
-          include: {
-            tasks: {
-              where: { isActive: true },
-              orderBy: { sortOrder: 'asc' },
-              select: {
-                id: true,
-                name: true,
-                nameUz: true,
-                nameEn: true,
-                slug: true,
-                minPrice: true,
-                estimatedTime: true,
-                estimatedTimeUz: true,
-                estimatedTimeEn: true,
+      const catalog = await prisma.category.findMany({
+        where: { isActive: true },
+        orderBy: { sortOrder: 'asc' },
+        include: {
+          subcategories: {
+            where: { isActive: true },
+            orderBy: { sortOrder: 'asc' },
+            include: {
+              tasks: {
+                where: { isActive: true },
+                orderBy: { sortOrder: 'asc' },
+                select: {
+                  id: true,
+                  name: true,
+                  nameUz: true,
+                  nameEn: true,
+                  slug: true,
+                  minPrice: true,
+                  estimatedTime: true,
+                  estimatedTimeUz: true,
+                  estimatedTimeEn: true,
+                },
               },
             },
           },
         },
-      },
+      });
+
+      return { visitFee, catalog };
     });
 
-    res.json({ success: true, data: { visitFee, catalog } });
+    res.json({ success: true, data });
   } catch (error) {
     next(error);
   }
@@ -247,6 +296,7 @@ router.post('/admin/categories', async (req, res, next) => {
       },
     });
 
+    await invalidateCatalogCache();
     res.status(201).json({ success: true, data: category });
   } catch (error) {
     next(error);
@@ -276,6 +326,7 @@ router.put('/admin/categories/:id', async (req, res, next) => {
       },
     });
 
+    await invalidateCatalogCache();
     res.json({ success: true, data: category });
   } catch (error) {
     next(error);
@@ -292,6 +343,7 @@ router.delete('/admin/categories/:id', async (req, res, next) => {
       data: { isActive: false },
     });
 
+    await invalidateCatalogCache();
     res.json({ success: true, data: category });
   } catch (error) {
     next(error);
@@ -344,6 +396,7 @@ router.post('/admin/subcategories', async (req, res, next) => {
       },
     });
 
+    await invalidateCatalogCache();
     res.status(201).json({ success: true, data: subcategory });
   } catch (error) {
     next(error);
@@ -375,6 +428,7 @@ router.put('/admin/subcategories/:id', async (req, res, next) => {
       },
     });
 
+    await invalidateCatalogCache();
     res.json({ success: true, data: subcategory });
   } catch (error) {
     next(error);
@@ -391,6 +445,7 @@ router.delete('/admin/subcategories/:id', async (req, res, next) => {
       data: { isActive: false },
     });
 
+    await invalidateCatalogCache();
     res.json({ success: true, data: subcategory });
   } catch (error) {
     next(error);
@@ -455,6 +510,7 @@ router.post('/admin/tasks', async (req, res, next) => {
       },
     });
 
+    await invalidateCatalogCache();
     res.status(201).json({ success: true, data: task });
   } catch (error) {
     next(error);
@@ -498,6 +554,7 @@ router.put('/admin/tasks/:id', async (req, res, next) => {
       },
     });
 
+    await invalidateCatalogCache();
     res.json({ success: true, data: task });
   } catch (error) {
     next(error);
@@ -514,6 +571,7 @@ router.delete('/admin/tasks/:id', async (req, res, next) => {
       data: { isActive: false },
     });
 
+    await invalidateCatalogCache();
     res.json({ success: true, data: task });
   } catch (error) {
     next(error);
@@ -566,6 +624,7 @@ router.patch('/admin/tasks/:id/price', async (req, res, next) => {
       data: { minPrice },
     });
 
+    await invalidateCatalogCache();
     res.json({ success: true, data: task });
   } catch (error) {
     next(error);

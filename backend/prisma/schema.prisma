@@ -123,7 +123,7 @@ model User {
   role        UserRole @default(CLIENT)
   isActive    Boolean  @default(true) @map("is_active")
   isVerified  Boolean  @default(false) @map("is_verified")
-  balance     Float    @default(0)
+  balance     Decimal  @default(0) @db.Decimal(12, 2)
   referralCode String  @unique @map("referral_code")
   referredById String? @map("referred_by_id")
   createdAt   DateTime @default(now()) @map("created_at")
@@ -194,7 +194,7 @@ model MasterProfile {
   isOnline        Boolean   @default(false) @map("is_online")
   lastSeenAt      DateTime? @map("last_seen_at")
   maxDistanceKm   Int       @default(10) @map("max_distance_km")
-  hourlyRate      Float?    @map("hourly_rate")
+  hourlyRate      Decimal?  @map("hourly_rate") @db.Decimal(12, 2)
   schoolCompleted  Boolean   @default(false) @map("school_completed")
   registrationPaid Boolean   @default(false) @map("registration_paid")
   registrationPaidAt DateTime? @map("registration_paid_at")
@@ -306,7 +306,7 @@ model Task {
   estimatedTime  String?  @map("estimated_time")          // e.g. "30-60 мин"
   estimatedTimeUz String? @map("estimated_time_uz")
   estimatedTimeEn String? @map("estimated_time_en")
-  minPrice       Float?   @map("min_price")               // Минимальная цена (сум), e.g. 150000
+  minPrice       Decimal? @map("min_price") @db.Decimal(12, 2)  // Минимальная цена (сум), e.g. 150000
   slug           String   @unique
   sortOrder      Int      @default(0) @map("sort_order")
   isActive       Boolean  @default(true) @map("is_active")
@@ -346,29 +346,29 @@ model Order {
   categoryId       String      @map("category_id")
   title            String
   description      String
-  price            Float
-  priceMax         Float?      @map("price_max")
-  commissionRate   Float       @map("commission_rate")
-  commissionAmount Float       @map("commission_amount")
+  price            Decimal     @db.Decimal(12, 2)
+  priceMax         Decimal?    @map("price_max") @db.Decimal(12, 2)
+  commissionRate   Decimal     @map("commission_rate") @db.Decimal(5, 2)
+  commissionAmount Decimal     @map("commission_amount") @db.Decimal(12, 2)
   status           OrderStatus @default(DRAFT)
   isUrgent         Boolean     @default(false) @map("is_urgent")
   urgentMultiplier Float       @default(1.0) @map("urgent_multiplier")
   commissionPaid   Boolean     @default(false) @map("commission_paid")
   // Anti-fraud: Escrow / подтверждения / штрафы
-  visitFee         Float?      @map("visit_fee")
-  escrowAmount     Float       @default(0) @map("escrow_amount")
+  visitFee         Decimal?    @map("visit_fee") @db.Decimal(12, 2)
+  escrowAmount     Decimal     @default(0) @map("escrow_amount") @db.Decimal(12, 2)
   offerAccepted    Boolean     @default(false) @map("offer_accepted")
   masterConfirmedAt DateTime?  @map("master_confirmed_at")
   clientConfirmedAt DateTime?  @map("client_confirmed_at")
   acceptedAt       DateTime?   @map("accepted_at")
   inTransitAt      DateTime?   @map("in_transit_at")
-  penaltyAmount    Float       @default(0) @map("penalty_amount")
+  penaltyAmount    Decimal     @default(0) @map("penalty_amount") @db.Decimal(12, 2)
   cancelReason     String?     @map("cancel_reason")
   cancelledBy      String?     @map("cancelled_by")
   disputeReason    String?     @map("dispute_reason")
   // Оценка (выезд мастера)
   isEstimationOrder Boolean    @default(false) @map("is_estimation_order")
-  estimationFee    Float?      @map("estimation_fee")         // 150 000 сум
+  estimationFee    Decimal?    @map("estimation_fee") @db.Decimal(12, 2) // 150 000 сум
   parentOrderId    String?     @map("parent_order_id")        // Связь: заказ оценки → основной заказ
   // AI Instant Order (ФотоЗаказ за 30 сек)
   isInstantAiOrder Boolean     @default(false) @map("is_instant_ai_order")
@@ -419,7 +419,7 @@ model OrderResponse {
   id         String         @id @default(uuid())
   orderId    String         @map("order_id")
   masterId   String         @map("master_id")
-  priceOffer Float?         @map("price_offer")
+  priceOffer Decimal?       @map("price_offer") @db.Decimal(12, 2)
   message    String?
   status     ResponseStatus @default(PENDING)
   createdAt  DateTime       @default(now()) @map("created_at")
@@ -461,7 +461,7 @@ model Payment {
   id            String          @id @default(uuid())
   orderId       String?         @map("order_id")
   userId        String          @map("user_id")
-  amount        Float
+  amount        Decimal       @db.Decimal(12, 2)
   type          PaymentType
   provider      PaymentProvider
   providerTxId  String?         @unique @map("provider_tx_id")
@@ -487,8 +487,8 @@ model Referral {
   referrerId  String         @map("referrer_id")
   referredId  String         @map("referred_id")
   type        ReferralType
-  bonusAmount Float?         @map("bonus_amount")
-  bonusRate   Float          @map("bonus_rate")
+  bonusAmount Decimal?       @map("bonus_amount") @db.Decimal(12, 2)
+  bonusRate   Decimal         @map("bonus_rate") @db.Decimal(5, 2)
   status      ReferralStatus @default(PENDING)
   createdAt   DateTime       @default(now()) @map("created_at")
 
@@ -577,7 +577,7 @@ model Blacklist {
   city        String?                           // Город
   district    String?                           // Район
   telegramLocation String? @map("telegram_location") // Геолокация из Telegram
-  penaltyAmount Float?  @map("penalty_amount")  // Удержанная сумма
+  penaltyAmount Decimal? @map("penalty_amount") @db.Decimal(12, 2) // Удержанная сумма
   orderId     String?  @map("order_id")         // Связанный заказ
   isPermanent Boolean  @default(true) @map("is_permanent")
   createdAt  DateTime  @default(now()) @map("created_at")
@@ -680,10 +680,10 @@ model PromoCode {
   id           String    @id @default(uuid())
   code         String    @unique
   discountType String    @map("discount_type") // 'percentage' | 'fixed'
-  discountValue Float    @map("discount_value")
+  discountValue Decimal  @map("discount_value") @db.Decimal(12, 2)
   maxUses      Int?      @map("max_uses")
   usedCount    Int       @default(0) @map("used_count")
-  minOrderPrice Float?   @map("min_order_price")
+  minOrderPrice Decimal? @map("min_order_price") @db.Decimal(12, 2)
   isActive     Boolean   @default(true) @map("is_active")
   expiresAt    DateTime? @map("expires_at")
   createdAt    DateTime  @default(now()) @map("created_at")
@@ -698,7 +698,7 @@ model PromoCodeUsage {
   promoCodeId String   @map("promo_code_id")
   userId      String   @map("user_id")
   orderId     String?  @map("order_id")
-  discount    Float
+  discount    Decimal  @db.Decimal(12, 2)
   createdAt   DateTime @default(now()) @map("created_at")
 
   promoCode PromoCode @relation(fields: [promoCodeId], references: [id])
@@ -796,7 +796,7 @@ model PartnerStore {
   isVerified      Boolean     @default(false) @map("is_verified")
   workingHours    String?     @map("working_hours")
   deliveryAvailable Boolean   @default(false) @map("delivery_available")
-  discountForMasters Float?   @map("discount_for_masters") // Скидка для мастеров платформы (%)
+  discountForMasters Decimal?  @map("discount_for_masters") @db.Decimal(5, 2) // Скидка для мастеров платформы (%)
   createdAt       DateTime    @default(now()) @map("created_at")
   updatedAt       DateTime    @updatedAt @map("updated_at")
 
@@ -818,7 +818,7 @@ model StoreProduct {
   description  String?
   descriptionUz String? @map("description_uz")
   descriptionEn String? @map("description_en")
-  price        Float
+  price        Decimal  @db.Decimal(12, 2)
   unit         String?  // шт, м², кг, литр, рулон
   imageUrl     String?  @map("image_url")
   category     String   // category of product
@@ -889,8 +889,8 @@ model TurnkeyProject {
   propertyType    String        @map("property_type")  // apartment, house, office, commercial
   area            Float?        // Площадь в м²
   rooms           Int?          // Количество комнат
-  budgetMin       Float?        @map("budget_min")
-  budgetMax       Float?        @map("budget_max")
+  budgetMin       Decimal?      @map("budget_min") @db.Decimal(12, 2)
+  budgetMax       Decimal?      @map("budget_max") @db.Decimal(12, 2)
   address         String?
   city            String?
   district        String?
@@ -902,7 +902,7 @@ model TurnkeyProject {
   estimatedDays   Int?          @map("estimated_days")
   actualStartDate DateTime?     @map("actual_start_date")
   actualEndDate   DateTime?     @map("actual_end_date")
-  totalPrice      Float?        @map("total_price")
+  totalPrice      Decimal?      @map("total_price") @db.Decimal(12, 2)
   images          String[]      @default([])
   floorPlanUrl    String?       @map("floor_plan_url")
   designProjectUrl String?      @map("design_project_url")
@@ -948,7 +948,7 @@ model AiOrderTemplate {
   tierLabel       String   @map("tier_label")          // "Хороший" / "Отличный" / "Премиум"
   taskIds         String[] @default([]) @map("task_ids")  // ID задач из каталога
   materials       Json     @default("[]")                // [{name, quantity, unit, unitPrice, total}]
-  estimatedPrice  Float    @map("estimated_price")       // Итоговая цена варианта
+  estimatedPrice  Decimal  @map("estimated_price") @db.Decimal(12, 2) // Итоговая цена варианта
   estimatedDays   Int      @map("estimated_days")        // Срок выполнения (дни)
   confidence      Float    @default(0.8)                 // Уверенность AI (0-1)
   prompt          String?                                // Промпт, использованный для анализа
@@ -1013,9 +1013,9 @@ model Estimate {
   // Элементы сметы
   workItems       Json           @default("[]") @map("work_items")      // [{name, quantity, unitPrice, total}]
   materialItems   Json           @default("[]") @map("material_items")  // [{name, quantity, unit, unitPrice, total}]
-  workTotal       Float          @default(0) @map("work_total")
-  materialTotal   Float          @default(0) @map("material_total")
-  totalAmount     Float          @default(0) @map("total_amount")
+  workTotal       Decimal        @default(0) @map("work_total") @db.Decimal(12, 2)
+  materialTotal   Decimal        @default(0) @map("material_total") @db.Decimal(12, 2)
+  totalAmount     Decimal        @default(0) @map("total_amount") @db.Decimal(12, 2)
   estimatedDays   Int?           @map("estimated_days")
   notes           String?
   // Медиа-файлы (фото/видео с устройства)
@@ -1062,9 +1062,9 @@ model BalanceTransaction {
   id            String                @id @default(uuid())
   userId        String                @map("user_id")
   type          BalanceTransactionType
-  amount        Float                 // Сумма (положительная — приход, отрицательная — расход)
-  balanceBefore Float                 @map("balance_before")
-  balanceAfter  Float                 @map("balance_after")
+  amount        Decimal               @db.Decimal(12, 2) // Сумма (положительная — приход, отрицательная — расход)
+  balanceBefore Decimal               @map("balance_before") @db.Decimal(12, 2)
+  balanceAfter  Decimal               @map("balance_after") @db.Decimal(12, 2)
   orderId       String?               @map("order_id")
   description   String?
   metadata      Json?

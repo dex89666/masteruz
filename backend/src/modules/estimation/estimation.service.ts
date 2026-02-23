@@ -10,6 +10,7 @@ import { logger } from '../../utils/logger.js';
 import { balanceService } from '../balance/balance.service.js';
 import { notificationService } from '../../services/notificationService.js';
 import { OrderStatus, EstimateStatus } from '@prisma/client';
+import { toNum, moneyMul, moneyAdd, calculateCommission } from '../../utils/helpers.js';
 
 // ─── Конфигурация оценки ─────────────────────
 const ESTIMATION_FEE = 150000;           // Фиксированная цена выезда: 150 000 сум
@@ -151,7 +152,7 @@ export class EstimationService {
     if (!masterProfile.registrationPaid) throw ApiError.forbidden('Оплатите регистрационный взнос');
 
     // Мастер платит комиссию (20% от стоимости выезда)
-    const masterCommission = order.commissionAmount;
+    const masterCommission = toNum(order.commissionAmount);
     const masterBalance = await balanceService.getBalance(masterId);
     if (masterBalance < masterCommission) {
       throw ApiError.badRequest(
@@ -277,7 +278,7 @@ export class EstimationService {
       userId: estimate.order.clientId,
       type: 'ESTIMATE_RECEIVED',
       title: '📋 Мастер составил смету',
-      message: `Смета на сумму ${estimate.totalAmount.toLocaleString('ru')} сум. Проверьте в заказе.`,
+      message: `Смета на сумму ${toNum(estimate.totalAmount).toLocaleString('ru')} сум. Проверьте в заказе.`,
       data: { orderId: estimate.orderId, estimateId },
     });
 
@@ -299,15 +300,16 @@ export class EstimationService {
 
     // Клиент оплачивает полную сумму сметы
     const clientBalance = await balanceService.getBalance(clientId);
-    if (clientBalance < estimate.totalAmount) {
+    const estTotal = toNum(estimate.totalAmount);
+    if (clientBalance < estTotal) {
       throw ApiError.badRequest(
         `Недостаточно средств. Баланс: ${clientBalance.toLocaleString('ru')} сум, ` +
-        `необходимо: ${estimate.totalAmount.toLocaleString('ru')} сум`
+        `необходимо: ${estTotal.toLocaleString('ru')} сум`
       );
     }
 
     // Блокируем сумму сметы
-    await balanceService.holdFunds(clientId, estimate.totalAmount, estimate.orderId);
+    await balanceService.holdFunds(clientId, estTotal, estimate.orderId);
 
     // Обновляем статусы → модерация
     await prisma.$transaction([
@@ -348,7 +350,7 @@ export class EstimationService {
     if (estimate.status !== EstimateStatus.SENT) throw ApiError.badRequest('Смета не в статусе ожидания');
 
     const order = estimate.order;
-    const masterShare = (order.estimationFee || ESTIMATION_FEE) * MASTER_ESTIMATION_SHARE;
+    const masterShare = moneyMul(toNum(order.estimationFee) || ESTIMATION_FEE, MASTER_ESTIMATION_SHARE);
 
     // Выплачиваем мастеру 80% (120 000 сум)
     if (order.masterId) {
@@ -402,8 +404,8 @@ export class EstimationService {
     if (approved) {
       // Одобрено → создаём основной заказ на основе сметы
       const order = estimate.order;
-      const commissionRate = order.commissionRate;
-      const commissionAmount = estimate.totalAmount * (commissionRate / 100);
+      const commissionRate = toNum(order.commissionRate);
+      const commissionAmount = calculateCommission(toNum(estimate.totalAmount), commissionRate);
 
       // Создаём основной заказ (привязанный к заказу оценки)
       const mainOrder = await prisma.order.create({
@@ -413,7 +415,7 @@ export class EstimationService {
           categoryId: order.categoryId,
           title: order.title.replace('🔍 Выезд на оценку: ', '🔨 '),
           description: `По смете: ${estimate.notes || order.description}`,
-          price: estimate.totalAmount,
+          price: toNum(estimate.totalAmount),
           commissionRate,
           commissionAmount,
           escrowAmount: estimate.totalAmount,
@@ -450,7 +452,7 @@ export class EstimationService {
       ]);
 
       // Оплата мастеру за выезд (из суммы оценки)
-      const masterEstimationShare = (order.estimationFee || ESTIMATION_FEE) * MASTER_ESTIMATION_SHARE;
+      const masterEstimationShare = moneyMul(toNum(order.estimationFee) || ESTIMATION_FEE, MASTER_ESTIMATION_SHARE);
       if (order.masterId) {
         await this.payMasterForEstimation(order.masterId, masterEstimationShare, order.id);
       }
@@ -468,7 +470,7 @@ export class EstimationService {
           userId: order.masterId,
           type: 'MAIN_ORDER_CREATED',
           title: '🔨 Основной заказ создан',
-          message: `Смета одобрена. Приступайте к работам. Сумма: ${estimate.totalAmount.toLocaleString('ru')} сум`,
+          message: `Смета одобрена. Приступайте к работам. Сумма: ${toNum(estimate.totalAmount).toLocaleString('ru')} сум`,
           data: { orderId: mainOrder.id, estimateId },
         });
       }
@@ -607,8 +609,8 @@ export class EstimationService {
       });
       if (!master) return;
 
-      const balanceBefore = master.balance;
-      const balanceAfter = balanceBefore + amount;
+      const balanceBefore = toNum(master.balance);
+      const balanceAfter = moneyAdd(balanceBefore, amount);
 
       await tx.user.update({
         where: { id: masterId },

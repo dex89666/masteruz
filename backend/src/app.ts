@@ -128,6 +128,88 @@ if (!isVercelEnv) {
     },
   });
   app.use('/api/stores/partner-request', partnerRequestLimiter);
+} else {
+  // ─── Vercel: Upstash Rate Limit (serverless-совместимый) ───
+  // Работает через Upstash REST API, не требует TCP-соединений
+  if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
+    // Динамический импорт — вызывается один раз при первом cold start
+    let globalRL: any = null;
+    let authRL: any = null;
+
+    const initUpstashRL = async () => {
+      if (globalRL) return;
+      try {
+        const { Ratelimit } = await import('@upstash/ratelimit');
+
+        const upstashRedisForRL = {
+          url: process.env.UPSTASH_REDIS_REST_URL!,
+          token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+        };
+
+        // Глобальный лимит: 200 запросов / 15 минут
+        globalRL = new Ratelimit({
+          redis: upstashRedisForRL as any,
+          limiter: Ratelimit.slidingWindow(200, '15 m'),
+          prefix: 'rl:global',
+          analytics: false,
+        });
+
+        // Auth лимит: 10 запросов / 15 минут
+        authRL = new Ratelimit({
+          redis: upstashRedisForRL as any,
+          limiter: Ratelimit.slidingWindow(10, '15 m'),
+          prefix: 'rl:auth',
+          analytics: false,
+        });
+      } catch (err) {
+        logger.error({ err }, 'Failed to init Upstash Rate Limit');
+      }
+    };
+
+    // Middleware для Vercel rate limiting — auth
+    app.use('/api/auth', async (req, res, next) => {
+      try {
+        await initUpstashRL();
+        if (!authRL) return next();
+        const ip = req.headers['x-forwarded-for']?.toString().split(',')[0] || req.ip || 'unknown';
+        const { success, remaining } = await authRL.limit(ip);
+        res.setHeader('X-RateLimit-Remaining', remaining.toString());
+        if (!success) {
+          return res.status(429).json({
+            success: false,
+            error: { message: 'Слишком много попыток входа, попробуйте позже', statusCode: 429 },
+          });
+        }
+        next();
+      } catch {
+        next(); // Если Upstash недоступен — пропускаем
+      }
+    });
+
+    // Middleware для Vercel rate limiting — global
+    app.use('/api/', async (req, res, next) => {
+      try {
+        await initUpstashRL();
+        if (!globalRL) return next();
+        const ip = req.headers['x-forwarded-for']?.toString().split(',')[0] || req.ip || 'unknown';
+        const { success, remaining } = await globalRL.limit(ip);
+        res.setHeader('X-RateLimit-Remaining', remaining.toString());
+        if (!success) {
+          return res.status(429).json({
+            success: false,
+            error: { message: 'Слишком много запросов, попробуйте позже', statusCode: 429 },
+          });
+        }
+        next();
+      } catch {
+        next(); // Если Upstash недоступен — пропускаем
+      }
+    });
+
+    logger.info('Rate Limiting: Upstash mode (Vercel serverless)');
+  } else {
+    logger.warn('Vercel: UPSTASH_REDIS_REST_URL not set — rate limiting disabled');
+  }
 }
 
 // Статические файлы (загрузки) — только для VPS/Docker

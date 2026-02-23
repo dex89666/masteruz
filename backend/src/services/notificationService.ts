@@ -6,6 +6,7 @@
 import { prisma } from '../config/database.js';
 import { sendTelegramMessage, notifyMasterOrderApproved, notifyMasterNewOrder, notifyMasterResponseAccepted } from '../utils/telegramBot.js';
 import { logger } from '../utils/logger.js';
+import { toNum } from '../utils/helpers.js';
 
 export class NotificationService {
   /**
@@ -93,7 +94,7 @@ export class NotificationService {
         region: order.region,
         latitude: order.latitude,
         longitude: order.longitude,
-        price: order.price,
+        price: toNum(order.price),
         isUrgent: order.isUrgent,
         tasks: order.orderTasks.map((ot: any) => ot.task.name),
       });
@@ -106,6 +107,7 @@ export class NotificationService {
 
   /**
    * Уведомить мастеров о новом заказе в их городе
+   * PERFORMANCE: Promise.allSettled вместо sequential for...of
    */
   async notifyMastersNewOrder(orderId: string) {
     try {
@@ -138,36 +140,44 @@ export class NotificationService {
         take: 50, // Ограничиваем количество рассылок
       });
 
-      for (const master of masters) {
-        // In-app уведомление
-        await this.createNotification({
-          userId: master.id,
-          type: 'new_order',
-          title: order.isUrgent ? '🚨 Новый срочный заказ!' : '🆕 Новый заказ!',
-          message: `${order.title} — ${order.price.toLocaleString('ru')} сум${order.city ? ` • ${order.city}` : ''}${order.district ? `, ${order.district}` : ''}`,
-          data: {
+      // ─── Параллельная рассылка (Promise.allSettled) ───
+      const results = await Promise.allSettled(
+        masters.map(async (master) => {
+          // In-app уведомление
+          await this.createNotification({
+            userId: master.id,
+            type: 'new_order',
+            title: order.isUrgent ? '🚨 Новый срочный заказ!' : '🆕 Новый заказ!',
+            message: `${order.title} — ${toNum(order.price).toLocaleString('ru')} сум${order.city ? ` • ${order.city}` : ''}${order.district ? `, ${order.district}` : ''}`,
+            data: {
+              orderId: order.id,
+              city: order.city,
+              district: order.district,
+              isUrgent: order.isUrgent,
+            },
+          });
+
+          // Telegram push
+          await notifyMasterNewOrder({
+            masterTelegramId: master.telegramId,
+            orderTitle: order.title,
             orderId: order.id,
             city: order.city,
             district: order.district,
+            region: order.region,
+            price: toNum(order.price),
             isUrgent: order.isUrgent,
-          },
-        });
+            categoryName: order.category?.name || '',
+          });
+        })
+      );
 
-        // Telegram push
-        await notifyMasterNewOrder({
-          masterTelegramId: master.telegramId,
-          orderTitle: order.title,
-          orderId: order.id,
-          city: order.city,
-          district: order.district,
-          region: order.region,
-          price: order.price,
-          isUrgent: order.isUrgent,
-          categoryName: order.category?.name || '',
-        });
+      const failed = results.filter((r) => r.status === 'rejected');
+      if (failed.length > 0) {
+        logger.warn({ orderId, failedCount: failed.length, totalCount: masters.length }, 'Некоторые уведомления не доставлены');
       }
 
-      logger.info({ orderId, mastersNotified: masters.length }, 'Мастера уведомлены о новом заказе');
+      logger.info({ orderId, mastersNotified: masters.length - failed.length, totalMasters: masters.length }, 'Мастера уведомлены о новом заказе');
     } catch (error) {
       logger.error({ error, orderId }, 'Ошибка уведомления мастеров о новом заказе');
     }
@@ -204,7 +214,7 @@ export class NotificationService {
         masterTelegramId: masterUser.telegramId,
         orderTitle: order.title,
         orderId: order.id,
-        price: order.price,
+        price: toNum(order.price),
       });
     } catch (error) {
       logger.error({ error, orderId, masterId }, 'Ошибка уведомления о принятии отклика');

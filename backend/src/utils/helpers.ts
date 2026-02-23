@@ -5,6 +5,10 @@
 
 import crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
+import Decimal from 'decimal.js';
+
+// Конфигурация Decimal.js: 20 знаков, округление к ближайшему чётному (банковское)
+Decimal.set({ precision: 20, rounding: Decimal.ROUND_HALF_EVEN });
 
 /**
  * Генерация уникального реферального кода
@@ -38,11 +42,47 @@ function toRad(deg: number): number {
   return deg * (Math.PI / 180);
 }
 
+// ═══════════════════════════════════════════
+// Decimal.js утилиты для денежных расчётов
+// ═══════════════════════════════════════════
+
 /**
- * Расчёт комиссии платформы
+ * Расчёт комиссии платформы (Decimal.js — без float-ошибок)
+ * @param price  — цена заказа (сум)
+ * @param rate   — процент комиссии (15 = 15%)
+ * @returns число, округлённое до 2 знаков
  */
 export function calculateCommission(price: number, rate: number): number {
-  return Math.round((price * rate) / 100 * 100) / 100;
+  return new Decimal(price).mul(rate).div(100).toDecimalPlaces(2).toNumber();
+}
+
+/**
+ * Безопасное сложение денежных сумм
+ */
+export function moneyAdd(a: number, b: number): number {
+  return new Decimal(a).plus(b).toDecimalPlaces(2).toNumber();
+}
+
+/**
+ * Безопасное вычитание денежных сумм
+ */
+export function moneySub(a: number, b: number): number {
+  return new Decimal(a).minus(b).toDecimalPlaces(2).toNumber();
+}
+
+/**
+ * Безопасное умножение (для urgentMultiplier и т.д.)
+ */
+export function moneyMul(a: number, b: number): number {
+  return new Decimal(a).mul(b).toDecimalPlaces(2).toNumber();
+}
+
+/**
+ * Безопасное деление (для split 50/50 и т.д.)
+ */
+export function moneyDiv(a: number, b: number): number {
+  if (b === 0) return 0;
+  return new Decimal(a).div(b).toDecimalPlaces(2).toNumber();
 }
 
 /**
@@ -98,4 +138,16 @@ export function parseNumber(value: unknown, defaultValue: number): number {
     return isNaN(parsed) ? defaultValue : parsed;
   }
   return defaultValue;
+}
+
+/**
+ * Конвертация Prisma Decimal → number (безопасная)
+ * Prisma возвращает Decimal-объекты для полей типа Decimal.
+ * Эта утилита делает Number() только если значение не является уже number.
+ */
+export function toNum(value: any): number {
+  if (value === null || value === undefined) return 0;
+  if (typeof value === 'number') return value;
+  if (typeof value?.toNumber === 'function') return value.toNumber();
+  return Number(value) || 0;
 }

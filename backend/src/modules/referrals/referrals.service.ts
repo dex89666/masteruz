@@ -8,6 +8,7 @@ import { ApiError } from '../../utils/ApiError.js';
 import { ReferralStatus, ReferralType } from '@prisma/client';
 import { config } from '../../config/index.js';
 import { logger } from '../../utils/logger.js';
+import { toNum, moneyMul, moneyDiv } from '../../utils/helpers.js';
 
 export class ReferralsService {
   /**
@@ -148,7 +149,7 @@ export class ReferralsService {
     if (!referral) return;
 
     // Начисляем бонус рефереру
-    const bonusAmount = (order.commissionAmount * referral.bonusRate) / 100;
+    const bonusAmount = moneyDiv(moneyMul(toNum(order.commissionAmount), toNum(referral.bonusRate)), 100);
 
     await prisma.referral.update({
       where: { id: referral.id },

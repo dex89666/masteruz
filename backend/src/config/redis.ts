@@ -6,12 +6,18 @@
 import { config } from './index.js';
 import { logger } from '../utils/logger.js';
 
-// Универсальный интерфейс Redis
+// Универсальный интерфейс Redis (расширенный для heartbeat/cache)
 export interface RedisLike {
   get(key: string): Promise<string | null>;
   set(key: string, value: string, ...args: any[]): Promise<any>;
   del(key: string): Promise<any>;
   ping(): Promise<string>;
+  // Расширения для heartbeat и кэша
+  setex(key: string, seconds: number, value: string): Promise<any>;
+  keys(pattern: string): Promise<string[]>;
+  sadd(key: string, ...members: string[]): Promise<number>;
+  smembers(key: string): Promise<string[]>;
+  srem(key: string, ...members: string[]): Promise<number>;
 }
 
 let redis: RedisLike | null = null;
@@ -50,6 +56,11 @@ export function getRedis(): RedisLike {
         set: (key, value, ...args) => upstashFetch(['SET', key, value, ...args.map(String)]),
         del: (key) => upstashFetch(['DEL', key]),
         ping: () => upstashFetch(['PING']),
+        setex: (key, seconds, value) => upstashFetch(['SETEX', key, String(seconds), value]),
+        keys: (pattern) => upstashFetch(['KEYS', pattern]),
+        sadd: (key, ...members) => upstashFetch(['SADD', key, ...members]),
+        smembers: (key) => upstashFetch(['SMEMBERS', key]),
+        srem: (key, ...members) => upstashFetch(['SREM', key, ...members]),
       };
 
       logger.info('Redis: Upstash REST mode (serverless)');
@@ -84,16 +95,22 @@ export function getRedis(): RedisLike {
 
 function createInMemoryRedis(): RedisLike {
   const store = new Map<string, { value: string; expiresAt?: number }>();
+  const sets = new Map<string, Set<string>>();
+
+  const isExpired = (key: string): boolean => {
+    const entry = store.get(key);
+    if (entry?.expiresAt && Date.now() > entry.expiresAt) {
+      store.delete(key);
+      return true;
+    }
+    return false;
+  };
 
   return {
     async get(key) {
+      if (isExpired(key)) return null;
       const entry = store.get(key);
-      if (!entry) return null;
-      if (entry.expiresAt && Date.now() > entry.expiresAt) {
-        store.delete(key);
-        return null;
-      }
-      return entry.value;
+      return entry ? entry.value : null;
     },
     async set(key, value, ...args) {
       let expiresAt: number | undefined;
@@ -106,10 +123,46 @@ function createInMemoryRedis(): RedisLike {
     },
     async del(key) {
       store.delete(key);
+      sets.delete(key);
       return 1;
     },
     async ping() {
       return 'PONG';
+    },
+    async setex(key, seconds, value) {
+      store.set(key, { value, expiresAt: Date.now() + seconds * 1000 });
+      return 'OK';
+    },
+    async keys(pattern) {
+      // Поддерживаем только prefix:* паттерн
+      const prefix = pattern.replace(/\*$/, '');
+      const result: string[] = [];
+      for (const key of store.keys()) {
+        if (key.startsWith(prefix) && !isExpired(key)) {
+          result.push(key);
+        }
+      }
+      return result;
+    },
+    async sadd(key, ...members) {
+      if (!sets.has(key)) sets.set(key, new Set());
+      let added = 0;
+      for (const m of members) {
+        if (!sets.get(key)!.has(m)) { sets.get(key)!.add(m); added++; }
+      }
+      return added;
+    },
+    async smembers(key) {
+      return Array.from(sets.get(key) || []);
+    },
+    async srem(key, ...members) {
+      const s = sets.get(key);
+      if (!s) return 0;
+      let removed = 0;
+      for (const m of members) {
+        if (s.delete(m)) removed++;
+      }
+      return removed;
     },
   };
 }

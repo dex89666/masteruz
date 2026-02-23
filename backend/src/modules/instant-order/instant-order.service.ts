@@ -8,6 +8,7 @@ import { ApiError } from '../../utils/ApiError.js';
 import { logger } from '../../utils/logger.js';
 import { balanceService } from '../balance/balance.service.js';
 import { notificationService } from '../../services/notificationService.js';
+import { toNum, moneyMul, moneyAdd, calculateCommission } from '../../utils/helpers.js';
 import { OrderStatus } from '@prisma/client';
 
 // Тип AI-уровня (AiTier будет доступен после prisma generate)
@@ -220,12 +221,12 @@ export class InstantOrderService {
     const URGENT_MULTIPLIER = 1 + urgencyPercent / 100;
     const isUrgent = data.isUrgent === true;
     const urgentMultiplier = isUrgent ? URGENT_MULTIPLIER : 1.0;
-    const effectivePrice = template.estimatedPrice * urgentMultiplier;
+    const effectivePrice = moneyMul(toNum(template.estimatedPrice), urgentMultiplier);
 
     // Комиссии
-    const workCommission = effectivePrice * (commissionRate / 100);
-    const visitFeeCommission = visitFee * (visitFeeCommissionRate / 100);
-    const commissionAmount = workCommission + visitFeeCommission;
+    const workCommission = calculateCommission(effectivePrice, commissionRate);
+    const visitFeeCommission = calculateCommission(visitFee, visitFeeCommissionRate);
+    const commissionAmount = moneyAdd(workCommission, visitFeeCommission);
 
     // Сумма для эскроу
     const escrowAmount = effectivePrice + visitFee;
@@ -411,10 +412,10 @@ export class InstantOrderService {
       });
 
       // Возвращаем эскроу (возврат клиенту напрямую)
-      if (order.escrowAmount > 0) {
+      if (toNum(order.escrowAmount) > 0) {
         await prisma.user.update({
           where: { id: order.clientId },
-          data: { balance: { increment: order.escrowAmount } },
+          data: { balance: { increment: toNum(order.escrowAmount) } },
         });
       }
 

@@ -7,6 +7,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { prisma } from '../../config/database.js';
 import { authenticate, authorize } from '../../middleware/auth.js';
 import { ApiError } from '../../utils/ApiError.js';
+import { toNum } from '../../utils/helpers.js';
 
 const router = Router();
 
@@ -32,8 +33,8 @@ router.post('/validate', authenticate, async (req: Request, res: Response, next:
     if (promo.maxUses && promo.usedCount >= promo.maxUses) {
       throw ApiError.badRequest('Промокод исчерпан');
     }
-    if (promo.minOrderPrice && orderPrice && orderPrice < promo.minOrderPrice) {
-      throw ApiError.badRequest(`Минимальная сумма заказа: ${promo.minOrderPrice.toLocaleString('ru')} сум`);
+    if (promo.minOrderPrice && orderPrice && orderPrice < toNum(promo.minOrderPrice)) {
+      throw ApiError.badRequest(`Минимальная сумма заказа: ${toNum(promo.minOrderPrice).toLocaleString('ru')} сум`);
     }
 
     // Проверяем, не использовал ли уже этот пользователь промокод
@@ -50,10 +51,11 @@ router.post('/validate', authenticate, async (req: Request, res: Response, next:
 
     // Рассчитываем скидку
     let discount = 0;
+    const dv = toNum(promo.discountValue);
     if (promo.discountType === 'percentage') {
-      discount = orderPrice ? Math.round(orderPrice * promo.discountValue / 100) : 0;
+      discount = orderPrice ? Math.round(orderPrice * dv / 100) : 0;
     } else {
-      discount = promo.discountValue;
+      discount = dv;
     }
 
     res.json({
@@ -62,11 +64,11 @@ router.post('/validate', authenticate, async (req: Request, res: Response, next:
         promoCodeId: promo.id,
         code: promo.code,
         discountType: promo.discountType,
-        discountValue: promo.discountValue,
+        discountValue: dv,
         calculatedDiscount: discount,
         description: promo.discountType === 'percentage'
-          ? `Скидка ${promo.discountValue}%`
-          : `Скидка ${promo.discountValue.toLocaleString('ru')} сум`,
+          ? `Скидка ${dv}%`
+          : `Скидка ${dv.toLocaleString('ru')} сум`,
       },
     });
   } catch (error) {

@@ -6,6 +6,7 @@ import { prisma } from '../../config/database.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { logger } from '../../utils/logger.js';
 import { Prisma } from '@prisma/client';
+import { toNum, moneyAdd, moneySub } from '../../utils/helpers.js';
 
 // Используем строковые литералы для типов транзакций (совместимо с Prisma enum)
 const TxType = {
@@ -30,7 +31,7 @@ export class BalanceService {
       select: { balance: true },
     });
     if (!user) throw ApiError.notFound('Пользователь не найден');
-    return user.balance;
+    return toNum(user.balance);
   }
 
   /**
@@ -46,8 +47,8 @@ export class BalanceService {
       });
       if (!user) throw ApiError.notFound('Пользователь не найден');
 
-      const balanceBefore = user.balance;
-      const balanceAfter = balanceBefore + amount;
+      const balanceBefore = toNum(user.balance);
+      const balanceAfter = moneyAdd(balanceBefore, amount);
 
       const [updatedUser, transaction] = await Promise.all([
         tx.user.update({
@@ -66,7 +67,7 @@ export class BalanceService {
         }),
       ]);
 
-      return { balance: updatedUser.balance, transaction };
+      return { balance: toNum(updatedUser.balance), transaction };
     });
 
     logger.info({ userId, amount }, 'Баланс пополнен');
@@ -86,15 +87,16 @@ export class BalanceService {
       });
       if (!user) throw ApiError.notFound('Пользователь не найден');
 
-      if (user.balance < amount) {
+      const bal = toNum(user.balance);
+      if (bal < amount) {
         throw ApiError.badRequest(
-          `Недостаточно средств. Баланс: ${user.balance.toLocaleString('ru')} сум, ` +
+          `Недостаточно средств. Баланс: ${bal.toLocaleString('ru')} сум, ` +
           `нужно: ${amount.toLocaleString('ru')} сум`
         );
       }
 
-      const balanceBefore = user.balance;
-      const balanceAfter = balanceBefore - amount;
+      const balanceBefore = bal;
+      const balanceAfter = moneySub(balanceBefore, amount);
 
       const [updatedUser, transaction] = await Promise.all([
         tx.user.update({
@@ -114,7 +116,7 @@ export class BalanceService {
         }),
       ]);
 
-      return { balance: updatedUser.balance, transaction };
+      return { balance: toNum(updatedUser.balance), transaction };
     });
 
     logger.info({ userId, amount, orderId }, 'Средства заблокированы (эскроу)');
@@ -135,10 +137,12 @@ export class BalanceService {
 
     if (!order) throw ApiError.notFound('Заказ не найден');
     if (!order.masterId) throw ApiError.badRequest('Мастер не назначен');
-    if (order.escrowAmount <= 0) throw ApiError.badRequest('Нет заблокированных средств');
+    if (toNum(order.escrowAmount) <= 0) throw ApiError.badRequest('Нет заблокированных средств');
 
     // Мастер получает: цена заказа - комиссия платформы
-    const masterPayout = order.escrowAmount - order.commissionAmount;
+    const escrow = toNum(order.escrowAmount);
+    const commission = toNum(order.commissionAmount);
+    const masterPayout = moneySub(escrow, commission);
 
     const result = await prisma.$transaction(async (tx: PrismaTx) => {
       // Начисляем мастеру
@@ -148,8 +152,8 @@ export class BalanceService {
       });
       if (!master) throw ApiError.notFound('Мастер не найден');
 
-      const masterBalanceBefore = master.balance;
-      const masterBalanceAfter = masterBalanceBefore + masterPayout;
+      const masterBalanceBefore = toNum(master.balance);
+      const masterBalanceAfter = moneyAdd(masterBalanceBefore, masterPayout);
 
       await Promise.all([
         // Зачисляем мастеру
@@ -173,11 +177,11 @@ export class BalanceService {
           data: {
             userId: order.masterId!,
             type: TxType.COMMISSION,
-            amount: -order.commissionAmount,
+            amount: -commission,
             balanceBefore: masterBalanceAfter,
             balanceAfter: masterBalanceAfter,
             orderId,
-            description: `Комиссия платформы (${order.commissionAmount} сум)`,
+            description: `Комиссия платформы (${commission} сум)`,
           },
         }),
         // Обнуляем эскроу на заказе
@@ -187,10 +191,10 @@ export class BalanceService {
         }),
       ]);
 
-      return { masterPayout, commission: order.commissionAmount };
+      return { masterPayout, commission };
     });
 
-    logger.info({ orderId, masterPayout, commission: order.commissionAmount }, 'Средства переведены мастеру');
+    logger.info({ orderId, masterPayout, commission }, 'Средства переведены мастеру');
     return result;
   }
 
@@ -204,7 +208,8 @@ export class BalanceService {
     });
 
     if (!order) throw ApiError.notFound('Заказ не найден');
-    if (order.escrowAmount <= 0) return;
+    const escrowAmt = toNum(order.escrowAmount);
+    if (escrowAmt <= 0) return;
 
     await prisma.$transaction(async (tx: PrismaTx) => {
       const client = await tx.user.findUnique({
@@ -213,8 +218,8 @@ export class BalanceService {
       });
       if (!client) throw ApiError.notFound('Клиент не найден');
 
-      const balanceBefore = client.balance;
-      const balanceAfter = balanceBefore + order.escrowAmount;
+      const balanceBefore = toNum(client.balance);
+      const balanceAfter = moneyAdd(balanceBefore, escrowAmt);
 
       await Promise.all([
         tx.user.update({
@@ -225,7 +230,7 @@ export class BalanceService {
           data: {
             userId: order.clientId,
             type: TxType.REFUND,
-            amount: order.escrowAmount,
+            amount: escrowAmt,
             balanceBefore,
             balanceAfter,
             orderId,
@@ -239,7 +244,7 @@ export class BalanceService {
       ]);
     });
 
-    logger.info({ orderId, amount: order.escrowAmount }, 'Средства возвращены клиенту');
+    logger.info({ orderId, amount: escrowAmt }, 'Средства возвращены клиенту');
   }
 
   /**
@@ -255,15 +260,16 @@ export class BalanceService {
       });
       if (!user) throw ApiError.notFound('Пользователь не найден');
 
-      if (user.balance < amount) {
+      const bal = toNum(user.balance);
+      if (bal < amount) {
         throw ApiError.badRequest(
-          `Недостаточно средств. Баланс: ${user.balance.toLocaleString('ru')} сум, ` +
+          `Недостаточно средств. Баланс: ${bal.toLocaleString('ru')} сум, ` +
           `нужно: ${amount.toLocaleString('ru')} сум`
         );
       }
 
-      const balanceBefore = user.balance;
-      const balanceAfter = balanceBefore - amount;
+      const balanceBefore = bal;
+      const balanceAfter = moneySub(balanceBefore, amount);
 
       await Promise.all([
         tx.user.update({
@@ -300,8 +306,8 @@ export class BalanceService {
       });
       if (!user) throw ApiError.notFound('Пользователь не найден');
 
-      const balanceBefore = user.balance;
-      const balanceAfter = balanceBefore - amount;
+      const balanceBefore = toNum(user.balance);
+      const balanceAfter = moneySub(balanceBefore, amount);
 
       await Promise.all([
         tx.user.update({
