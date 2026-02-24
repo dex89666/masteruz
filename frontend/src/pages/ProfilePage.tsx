@@ -352,7 +352,12 @@ export function ProfilePage() {
               try {
                 const res = await authApi.switchRole('MASTER');
                 if (res.data.success) {
-                  setUser(res.data.data);
+                  if (res.data.accessToken && res.data.refreshToken) {
+                    const { setAuth } = useAuthStore.getState();
+                    setAuth(res.data.data, res.data.accessToken, res.data.refreshToken);
+                  } else {
+                    setUser(res.data.data);
+                  }
                   toast.success('Роль изменена на Мастер');
                 }
               } catch (err: any) {
@@ -377,7 +382,12 @@ export function ProfilePage() {
               try {
                 const res = await authApi.switchRole('ADMIN');
                 if (res.data.success) {
-                  setUser(res.data.data);
+                  if (res.data.accessToken && res.data.refreshToken) {
+                    const { setAuth } = useAuthStore.getState();
+                    setAuth(res.data.data, res.data.accessToken, res.data.refreshToken);
+                  } else {
+                    setUser(res.data.data);
+                  }
                   toast.success('Роль изменена на Админ');
                 }
               } catch (err: any) {

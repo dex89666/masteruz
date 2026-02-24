@@ -80,6 +80,27 @@ router.post('/switch-role', authenticate, async (req, res, next) => {
     }
 
     // Меняем роль
+    // Если переключаемся на MASTER — создаём masterProfile если его нет (для админов — с registrationPaid=true)
+    if (role === 'MASTER') {
+      const existingMp = await prisma.masterProfile.findUnique({ where: { userId } });
+      if (!existingMp) {
+        await prisma.masterProfile.create({
+          data: {
+            userId,
+            specializations: ['general'],
+            experienceYears: 0,
+            registrationPaid: true, // Админы не платят регистрационный взнос
+          },
+        });
+      } else if (!existingMp.registrationPaid) {
+        // Если профиль есть но не оплачен — отмечаем оплаченным (для админов)
+        await prisma.masterProfile.update({
+          where: { userId },
+          data: { registrationPaid: true },
+        });
+      }
+    }
+
     const updated = await prisma.user.update({
       where: { id: userId },
       data: { role: role as any },
@@ -89,7 +110,20 @@ router.post('/switch-role', authenticate, async (req, res, next) => {
       },
     });
 
-    res.json({ success: true, data: updated });
+    // Генерируем новые токены с обновлённой ролью
+    const { authService } = await import('./auth.service.js');
+    const tokens = authService.generateTokensPublic({
+      userId: updated.id,
+      role: updated.role,
+      phone: updated.phone || '',
+    });
+
+    res.json({
+      success: true,
+      data: updated,
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+    });
   } catch (error) {
     next(error);
   }

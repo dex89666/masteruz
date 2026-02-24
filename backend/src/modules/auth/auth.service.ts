@@ -242,6 +242,11 @@ export class AuthService {
 
     return { accessToken, refreshToken };
   }
+
+  /** Публичный метод для генерации токенов (используется при switch-role) */
+  generateTokensPublic(payload: JwtPayload): { accessToken: string; refreshToken: string } {
+    return this.generateTokens(payload);
+  }
 }
 
 export const authService = new AuthService();

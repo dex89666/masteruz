@@ -34,7 +34,7 @@ import {
 import type { Order } from '../types';
 
 export function MasterDashboardPage() {
-  const { user, setUser } = useAuthStore();
+  const { user, setUser, setAuth } = useAuthStore();
   const formatPrice = useFormatPrice();
   const { t } = useTranslation();
 
@@ -57,7 +57,11 @@ export function MasterDashboardPage() {
     try {
       const res = await authApi.switchRole('ADMIN');
       if (res.data.success) {
-        setUser(res.data.data);
+        if (res.data.accessToken && res.data.refreshToken) {
+          setAuth(res.data.data, res.data.accessToken, res.data.refreshToken);
+        } else {
+          setUser(res.data.data);
+        }
         toast.success('Роль изменена на Админ');
       }
     } catch (err: any) {

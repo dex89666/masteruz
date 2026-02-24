@@ -41,10 +41,11 @@ export function BecomeMasterPage() {
   const registrationPaid = user?.masterProfile?.registrationPaid;
 
   // Если мастер уже зарегистрирован и оплачен — перенаправляем
-  if (alreadyMaster && registrationPaid) {
-    navigate('/master/dashboard');
-    return null;
-  }
+  useEffect(() => {
+    if (alreadyMaster && registrationPaid) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [alreadyMaster, registrationPaid, navigate]);
 
   // Если мастер зарегистрирован но не оплачен — показать step 3
   const currentStep = alreadyMaster && !registrationPaid ? 3 : step;
@@ -177,7 +178,7 @@ export function BecomeMasterPage() {
       setAuth(updatedUser as any, state.accessToken!, state.refreshToken!);
     }
     toast.success(t('becomeMasterPage.regFeeSuccess'));
-    navigate('/school');
+    navigate('/dashboard');
   }
 
   return (

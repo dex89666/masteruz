@@ -43,7 +43,7 @@ import { useCartStore } from '../store/cartStore';
 
 export function Layout() {
   const location = useLocation();
-  const { user, isAuthenticated, logout, setUser } = useAuthStore();
+  const { user, isAuthenticated, logout, setUser, setAuth } = useAuthStore();
   const { t } = useTranslation();
   const isMaster = user?.role === 'MASTER';
   const isClient = user?.role === 'CLIENT';
@@ -67,7 +67,11 @@ export function Layout() {
     try {
       const res = await authApi.switchRole('ADMIN');
       if (res.data.success) {
-        setUser(res.data.data);
+        if (res.data.accessToken && res.data.refreshToken) {
+          setAuth(res.data.data, res.data.accessToken, res.data.refreshToken);
+        } else {
+          setUser(res.data.data);
+        }
         toast.success('Роль изменена на Админ');
       }
     } catch (err: any) {
