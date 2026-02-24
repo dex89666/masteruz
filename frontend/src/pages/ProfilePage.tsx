@@ -11,17 +11,30 @@ import { ProfileSkeleton } from '../components/PageSkeletons';
 import {
   User, Phone, MapPin, Star, Award, Copy, Share2,
   LogOut, Settings, BookOpen, Shield, ChevronRight,
-  Briefcase, Clock, CreditCard, Camera, Wallet, PlusCircle
+  Briefcase, Clock, CreditCard, Camera, Wallet, PlusCircle,
+  ShieldCheck,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export function ProfilePage() {
   const navigate = useNavigate();
-  const { user, logout } = useAuthStore();
+  const { user, logout, setUser } = useAuthStore();
   const { t } = useTranslation();
   const [referralLink, setReferralLink] = useState('');
   const [referralStats, setReferralStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [switchingRole, setSwitchingRole] = useState(false);
+
+  // Помним что пользователь был админом для показа кнопки переключения
+  const wasAdmin = typeof localStorage !== 'undefined' && localStorage.getItem('masteruz-was-admin') === 'true';
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'MANAGER';
+
+  // Сохраняем флаг когда пользователь является админом
+  useEffect(() => {
+    if (isAdmin) {
+      localStorage.setItem('masteruz-was-admin', 'true');
+    }
+  }, [isAdmin]);
 
   useEffect(() => {
     if (!user) {
@@ -317,7 +330,8 @@ export function ProfilePage() {
 
       {/* Действия */}
       <div className="space-y-2">
-        {(user.role === 'ADMIN' || user.role === 'MANAGER') && (
+        {/* Админ-панель */}
+        {isAdmin && (
           <Link
             to="/admin"
             className="flex items-center justify-between p-3 card hover:shadow-md dark:hover:shadow-black/20"
@@ -328,6 +342,56 @@ export function ProfilePage() {
             </div>
             <ChevronRight size={18} className="text-gray-400 dark:text-gray-500" />
           </Link>
+        )}
+
+        {/* Переключение роли (только для админов) */}
+        {isAdmin && user.role !== 'MASTER' && (
+          <button
+            onClick={async () => {
+              setSwitchingRole(true);
+              try {
+                const res = await authApi.switchRole('MASTER');
+                if (res.data.success) {
+                  setUser(res.data.data);
+                  toast.success('Роль изменена на Мастер');
+                }
+              } catch (err: any) {
+                toast.error(err.response?.data?.message || 'Ошибка смены роли');
+              } finally {
+                setSwitchingRole(false);
+              }
+            }}
+            disabled={switchingRole}
+            className="flex items-center w-full p-3 card hover:shadow-md dark:hover:shadow-black/20 text-blue-600 dark:text-blue-400"
+          >
+            <ShieldCheck size={18} className="mr-3" />
+            <span>Перейти в режим Мастера</span>
+          </button>
+        )}
+
+        {/* Вернуться в админку (когда мастер, но был админом) */}
+        {!isAdmin && wasAdmin && (
+          <button
+            onClick={async () => {
+              setSwitchingRole(true);
+              try {
+                const res = await authApi.switchRole('ADMIN');
+                if (res.data.success) {
+                  setUser(res.data.data);
+                  toast.success('Роль изменена на Админ');
+                }
+              } catch (err: any) {
+                toast.error(err.response?.data?.message || 'Ошибка смены роли');
+              } finally {
+                setSwitchingRole(false);
+              }
+            }}
+            disabled={switchingRole}
+            className="flex items-center w-full p-3 card hover:shadow-md dark:hover:shadow-black/20 text-purple-600 dark:text-purple-400"
+          >
+            <ShieldCheck size={18} className="mr-3" />
+            <span>⚡ Вернуться в Админ-панель</span>
+          </button>
         )}
 
         <button

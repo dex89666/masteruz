@@ -36,4 +36,63 @@ router.post('/logout', authenticate, (req, res, next) =>
   authController.logout(req, res, next)
 );
 
+// Переключение роли (только для админов)
+router.post('/switch-role', authenticate, async (req, res, next) => {
+  try {
+    const userId = req.user!.userId;
+    const { role } = req.body;
+
+    if (!role || !['ADMIN', 'MASTER', 'CLIENT', 'MANAGER'].includes(role)) {
+      res.status(400).json({ success: false, message: 'Некорректная роль' });
+      return;
+    }
+
+    // Проверяем, является ли пользователь админом:
+    // 1. Текущая роль ADMIN, или
+    // 2. Его ID в списке admin_user_ids в PlatformConfig
+    const { prisma } = await import('../../config/database.js');
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      res.status(404).json({ success: false, message: 'Пользователь не найден' });
+      return;
+    }
+
+    const isCurrentAdmin = user.role === 'ADMIN';
+
+    // Проверяем PlatformConfig — admin_user_ids
+    const adminConfig = await prisma.platformConfig.findUnique({ where: { key: 'admin_user_ids' } });
+    const adminUserIds: string[] = adminConfig ? adminConfig.value.split(',').map((s: string) => s.trim()) : [];
+    const isInAdminList = adminUserIds.includes(userId);
+
+    if (!isCurrentAdmin && !isInAdminList) {
+      res.status(403).json({ success: false, message: 'Только администраторы могут переключать роли' });
+      return;
+    }
+
+    // При первом переключении — сохраняем userId в admin_user_ids
+    if (isCurrentAdmin && !isInAdminList) {
+      const newList = [...adminUserIds, userId].join(',');
+      await prisma.platformConfig.upsert({
+        where: { key: 'admin_user_ids' },
+        update: { value: newList },
+        create: { key: 'admin_user_ids', value: newList, description: 'Список user ID с правами админа (для переключения ролей)' },
+      });
+    }
+
+    // Меняем роль
+    const updated = await prisma.user.update({
+      where: { id: userId },
+      data: { role: role as any },
+      include: {
+        profile: true,
+        masterProfile: true,
+      },
+    });
+
+    res.json({ success: true, data: updated });
+  } catch (error) {
+    next(error);
+  }
+});
+
 export default router;

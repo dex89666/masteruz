@@ -81,6 +81,9 @@ export const authApi = {
 
   logout: (refreshToken: string) =>
     api.post('/auth/logout', { refreshToken }),
+
+  switchRole: (role: string) =>
+    api.post<ApiResponse<any>>('/auth/switch-role', { role }),
 };
 
 // ─── Users API ─────────────────────────────

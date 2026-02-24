@@ -330,7 +330,13 @@ export class OrdersService {
       throw ApiError.badRequest('Только мастера могут откликаться на заказы');
     }
 
-    if (!masterProfile.registrationPaid) {
+    // Админы могут откликаться без оплаты регистрационного взноса
+    const masterUser = await prisma.user.findUnique({ where: { id: masterId }, select: { role: true } });
+    const adminConfig = await prisma.platformConfig.findUnique({ where: { key: 'admin_user_ids' } });
+    const isAdminUser = masterUser?.role === 'ADMIN' ||
+      (adminConfig?.value || '').split(',').map((s: string) => s.trim()).includes(masterId);
+
+    if (!masterProfile.registrationPaid && !isAdminUser) {
       throw ApiError.forbidden('Оплатите регистрационный взнос для доступа к заказам');
     }
 

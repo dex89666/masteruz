@@ -39,7 +39,6 @@ export function ProfileSettingsPage() {
   const [masterForm, setMasterForm] = useState({
     specializations: [] as string[],
     experienceYears: 0,
-    hourlyRate: 0,
     maxDistanceKm: 30,
     isAvailable: true,
     bio: '',
@@ -74,7 +73,6 @@ export function ProfileSettingsPage() {
         setMasterForm({
           specializations: data.masterProfile.specializations || [],
           experienceYears: data.masterProfile.experienceYears || 0,
-          hourlyRate: data.masterProfile.hourlyRate || 0,
           maxDistanceKm: data.masterProfile.maxDistanceKm || 30,
           isAvailable: data.masterProfile.isAvailable ?? true,
           bio: data.masterProfile.bio || '',
@@ -108,7 +106,6 @@ export function ProfileSettingsPage() {
         await usersApi.updateMasterProfile({
           specializations: masterForm.specializations,
           experienceYears: masterForm.experienceYears,
-          hourlyRate: masterForm.hourlyRate || undefined,
           maxDistanceKm: masterForm.maxDistanceKm,
           isAvailable: masterForm.isAvailable,
           bio: masterForm.bio || undefined,
@@ -299,16 +296,6 @@ export function ProfileSettingsPage() {
                 max="50"
                 value={masterForm.experienceYears}
                 onChange={(e) => setMasterForm({ ...masterForm, experienceYears: Number(e.target.value) })}
-              />
-            </div>
-            <div>
-              <label className="label">{t('settings.hourlyRate')}</label>
-              <input
-                type="number"
-                className="input"
-                min="0"
-                value={masterForm.hourlyRate}
-                onChange={(e) => setMasterForm({ ...masterForm, hourlyRate: Number(e.target.value) })}
               />
             </div>
             <div>
