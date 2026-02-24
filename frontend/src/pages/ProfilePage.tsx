@@ -351,12 +351,13 @@ export function ProfilePage() {
               setSwitchingRole(true);
               try {
                 const res = await authApi.switchRole('MASTER');
-                if (res.data.success) {
-                  if (res.data.accessToken && res.data.refreshToken) {
+                const resData = res.data as any;
+                if (resData.success) {
+                  if (resData.accessToken && resData.refreshToken) {
                     const { setAuth } = useAuthStore.getState();
-                    setAuth(res.data.data, res.data.accessToken, res.data.refreshToken);
+                    setAuth(resData.data, resData.accessToken, resData.refreshToken);
                   } else {
-                    setUser(res.data.data);
+                    setUser(resData.data);
                   }
                   toast.success('Роль изменена на Мастер');
                 }
@@ -381,12 +382,13 @@ export function ProfilePage() {
               setSwitchingRole(true);
               try {
                 const res = await authApi.switchRole('ADMIN');
-                if (res.data.success) {
-                  if (res.data.accessToken && res.data.refreshToken) {
+                const resData = res.data as any;
+                if (resData.success) {
+                  if (resData.accessToken && resData.refreshToken) {
                     const { setAuth } = useAuthStore.getState();
-                    setAuth(res.data.data, res.data.accessToken, res.data.refreshToken);
+                    setAuth(resData.data, resData.accessToken, resData.refreshToken);
                   } else {
-                    setUser(res.data.data);
+                    setUser(resData.data);
                   }
                   toast.success('Роль изменена на Админ');
                 }

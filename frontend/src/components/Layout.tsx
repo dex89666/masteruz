@@ -66,11 +66,12 @@ export function Layout() {
     setSwitchingRole(true);
     try {
       const res = await authApi.switchRole('ADMIN');
-      if (res.data.success) {
-        if (res.data.accessToken && res.data.refreshToken) {
-          setAuth(res.data.data, res.data.accessToken, res.data.refreshToken);
+      const resData = res.data as any;
+      if (resData.success) {
+        if (resData.accessToken && resData.refreshToken) {
+          setAuth(resData.data, resData.accessToken, resData.refreshToken);
         } else {
-          setUser(res.data.data);
+          setUser(resData.data);
         }
         toast.success('Роль изменена на Админ');
       }
