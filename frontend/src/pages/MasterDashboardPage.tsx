@@ -5,12 +5,13 @@
 
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ordersApi, paymentsApi, portfolioApi } from '../api/client';
+import { ordersApi, paymentsApi, portfolioApi, authApi } from '../api/client';
 import { OrderCard } from '../components/OrderCard';
 import { DashboardSkeleton } from '../components/PageSkeletons';
 import { useAuthStore } from '../store';
 import { useFormatPrice } from '../hooks';
 import { useTranslation } from '../i18n';
+import toast from 'react-hot-toast';
 import {
   Briefcase,
   Clock,
@@ -28,11 +29,12 @@ import {
   Wifi,
   WifiOff,
   Image,
+  ShieldCheck,
 } from 'lucide-react';
 import type { Order } from '../types';
 
 export function MasterDashboardPage() {
-  const { user } = useAuthStore();
+  const { user, setUser } = useAuthStore();
   const formatPrice = useFormatPrice();
   const { t } = useTranslation();
 
@@ -42,9 +44,28 @@ export function MasterDashboardPage() {
   const [earnings, setEarnings] = useState({ total: 0, thisMonth: 0, lastMonth: 0 });
   const [portfolioCount, setPortfolioCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [switchingRole, setSwitchingRole] = useState(false);
 
   const mp = user?.masterProfile;
   const profile = user?.profile;
+
+  // Проверяем был ли пользователь админом
+  const wasAdmin = typeof localStorage !== 'undefined' && localStorage.getItem('masteruz-was-admin') === 'true';
+
+  async function handleSwitchToAdmin() {
+    setSwitchingRole(true);
+    try {
+      const res = await authApi.switchRole('ADMIN');
+      if (res.data.success) {
+        setUser(res.data.data);
+        toast.success('Роль изменена на Админ');
+      }
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Ошибка смены роли');
+    } finally {
+      setSwitchingRole(false);
+    }
+  }
 
   useEffect(() => {
     loadData();
@@ -144,6 +165,22 @@ export function MasterDashboardPage() {
 
   return (
     <div className="page-container pb-20">
+      {/* Баннер возврата в Админ-панель */}
+      {wasAdmin && (
+        <button
+          onClick={handleSwitchToAdmin}
+          disabled={switchingRole}
+          className="w-full mb-4 flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white shadow-lg shadow-purple-500/20 transition-all active:scale-[0.98] disabled:opacity-60"
+        >
+          <ShieldCheck size={22} />
+          <div className="flex-1 text-left">
+            <p className="font-semibold text-sm">⚡ Вернуться в Админ-панель</p>
+            <p className="text-[11px] text-purple-200">Переключиться обратно на роль Админа</p>
+          </div>
+          <ArrowRight size={18} className="text-purple-200" />
+        </button>
+      )}
+
       {/* Приветствие */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">

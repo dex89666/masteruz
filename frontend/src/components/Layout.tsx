@@ -35,19 +35,47 @@ import {
   Menu,
   X,
   Wrench,
+  ShieldCheck,
 } from 'lucide-react';
+import { authApi } from '../api/client';
+import toast from 'react-hot-toast';
 import { useCartStore } from '../store/cartStore';
 
 export function Layout() {
   const location = useLocation();
-  const { user, isAuthenticated, logout } = useAuthStore();
+  const { user, isAuthenticated, logout, setUser } = useAuthStore();
   const { t } = useTranslation();
   const isMaster = user?.role === 'MASTER';
   const isClient = user?.role === 'CLIENT';
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'MANAGER';
   const [searchOpen, setSearchOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [switchingRole, setSwitchingRole] = useState(false);
   const totalCartItems = useCartStore((s) => s.getTotalItems());
+
+  // Глобально сохраняем флаг что пользователь был админом
+  const wasAdmin = typeof localStorage !== 'undefined' && localStorage.getItem('masteruz-was-admin') === 'true';
+  useEffect(() => {
+    if (isAdmin) {
+      localStorage.setItem('masteruz-was-admin', 'true');
+    }
+  }, [isAdmin]);
+
+  // Переключение роли обратно в админа
+  async function handleSwitchToAdmin() {
+    setSwitchingRole(true);
+    try {
+      const res = await authApi.switchRole('ADMIN');
+      if (res.data.success) {
+        setUser(res.data.data);
+        toast.success('Роль изменена на Админ');
+      }
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Ошибка смены роли');
+    } finally {
+      setSwitchingRole(false);
+    }
+  }
 
   // Detect Telegram Mini App (body has class 'tg-mini-app' set in main.tsx)
   const [isTgApp] = useState(() => document.body.classList.contains('tg-mini-app'));
@@ -164,6 +192,18 @@ export function Layout() {
                   <Settings size={15} />
                   {t('nav.admin')}
                 </Link>
+              )}
+
+              {/* Кнопка возврата в админку для бывших админов */}
+              {!isAdmin && wasAdmin && (
+                <button
+                  onClick={handleSwitchToAdmin}
+                  disabled={switchingRole}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 whitespace-nowrap transition-colors"
+                >
+                  <ShieldCheck size={15} />
+                  ⚡ Админ
+                </button>
               )}
             </nav>
 
@@ -329,6 +369,18 @@ export function Layout() {
                   <Settings size={22} />
                   {t('nav.admin')}
                 </Link>
+              )}
+
+              {/* Вернуться в админку — для бывших админов */}
+              {!isAdmin && wasAdmin && (
+                <button
+                  onClick={() => { handleSwitchToAdmin(); setMobileMenuOpen(false); }}
+                  disabled={switchingRole}
+                  className="flex items-center gap-3 w-full px-4 py-3.5 rounded-xl text-sm font-medium text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20"
+                >
+                  <ShieldCheck size={22} />
+                  ⚡ Вернуться в Админ-панель
+                </button>
               )}
 
               {/* Divider */}
