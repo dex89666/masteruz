@@ -57,6 +57,9 @@ const EstimateFormPage = lazy(() => import('./pages/EstimateFormPage').then(m =>
 const EstimateViewPage = lazy(() => import('./pages/EstimateViewPage').then(m => ({ default: m.EstimateViewPage })));
 const InstantOrderPage = lazy(() => import('./pages/InstantOrderPage').then(m => ({ default: m.InstantOrderPage })));
 const SupportChatPage = lazy(() => import('./pages/SupportChatPage').then(m => ({ default: m.SupportChatPage })));
+const PrivacyPolicyPage = lazy(() => import('./pages/PrivacyPolicyPage').then(m => ({ default: m.PrivacyPolicyPage })));
+const PublicOfferPage = lazy(() => import('./pages/PublicOfferPage').then(m => ({ default: m.PublicOfferPage })));
+const TermsOfServicePage = lazy(() => import('./pages/TermsOfServicePage').then(m => ({ default: m.TermsOfServicePage })));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -122,6 +125,9 @@ function AppContent() {
         <Route path="turnkey" element={<TurnkeyPage />} />
         <Route path="careers" element={<CareersPage />} />
         <Route path="development" element={<DevelopmentPage />} />
+        <Route path="privacy" element={<PrivacyPolicyPage />} />
+        <Route path="public-offer" element={<PublicOfferPage />} />
+        <Route path="terms" element={<TermsOfServicePage />} />
 
         {/* Estimation (оценка) routes */}
         <Route

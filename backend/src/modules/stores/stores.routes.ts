@@ -60,11 +60,16 @@ router.get('/categories', async (_req, res, next) => {
     const categories = [
       { slug: 'building-materials', name: 'Стройматериалы', nameUz: 'Qurilish materiallari', nameEn: 'Building materials', icon: '🧱' },
       { slug: 'tools', name: 'Инструменты', nameUz: 'Asboblar', nameEn: 'Tools', icon: '🔨' },
-      { slug: 'paints', name: 'Краски и лаки', nameUz: 'Boʻyoqlar va laklar', nameEn: 'Paints & lacquers', icon: '🎨' },
+      { slug: 'paints', name: 'Краски и лаки', nameUz: 'Bo\u02bbyoqlar va laklar', nameEn: 'Paints & lacquers', icon: '🎨' },
       { slug: 'plumbing', name: 'Сантехника', nameUz: 'Santexnika', nameEn: 'Plumbing', icon: '🚿' },
       { slug: 'electrical', name: 'Электрика', nameUz: 'Elektrika', nameEn: 'Electrical', icon: '⚡' },
       { slug: 'finishing', name: 'Отделочные материалы', nameUz: 'Pardoz materiallari', nameEn: 'Finishing materials', icon: '✨' },
       { slug: 'furniture-materials', name: 'Мебельные материалы', nameUz: 'Mebel materiallari', nameEn: 'Furniture materials', icon: '🪵' },
+      { slug: 'home-appliances', name: 'Бытовая техника', nameUz: 'Maishiy texnika', nameEn: 'Home appliances', icon: '🏠' },
+      { slug: 'conditioners', name: 'Кондиционеры и климат', nameUz: 'Konditsionerlar', nameEn: 'Air conditioners', icon: '❄️' },
+      { slug: 'windows-shop', name: 'Окна и двери', nameUz: 'Derazalar va eshiklar', nameEn: 'Windows & doors', icon: '🪟' },
+      { slug: 'tiles-flooring', name: 'Плитка и полы', nameUz: 'Plitka va pollar', nameEn: 'Tiles & flooring', icon: '🪵' },
+      { slug: 'garden-shop', name: 'Сад и ландшафт', nameUz: 'Bog\u02bb va landshaft', nameEn: 'Garden & landscape', icon: '🌿' },
     ];
     res.json({ success: true, data: categories });
   } catch (error) {

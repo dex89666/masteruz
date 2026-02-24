@@ -36,9 +36,9 @@ export function StoresPage() {
       <div className="bg-gradient-to-r from-orange-500 to-amber-500 text-white py-12 px-4">
         <div className="max-w-6xl mx-auto text-center">
           <h1 className="text-3xl md:text-4xl font-bold mb-3">
-            {t('stores.title')}
+            🤝 Партнёры и магазины
           </h1>
-          <p className="text-lg opacity-90 mb-6">{t('stores.subtitle')}</p>
+          <p className="text-lg opacity-90 mb-6">Стройматериалы, техника, кондиционеры, окна и многое другое</p>
 
           {/* Поиск */}
           <div className="max-w-xl mx-auto">

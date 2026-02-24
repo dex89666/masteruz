@@ -7,7 +7,7 @@ import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import {
   Search, Shield, Star, MapPin, Users, GraduationCap,
-  ArrowRight, Zap, HelpCircle, Store, Hammer, Camera, Handshake,
+  ArrowRight, Zap, HelpCircle, Store, Hammer, Camera, Handshake, AlertTriangle,
 } from 'lucide-react';
 import { useAuthStore } from '../store';
 import { useTranslation } from '../i18n';
@@ -118,6 +118,16 @@ export function HomePage() {
             >
               <span className="flex items-center gap-3"><Camera size={30} /> Создать заказ за 30 секунд</span>
               <span className="text-sm md:text-base font-normal text-white/80 mt-2">📸 Фото + 🎤 голос = готовый заказ с ценой</span>
+            </Link>
+
+            {/* ★ Кнопка «Срочный вызов» — красная, заметная */}
+            <Link
+              to="/instant-order?urgent=true"
+              className="w-full flex items-center justify-center gap-3 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-bold px-8 py-5 rounded-2xl text-lg md:text-xl transition-all shadow-lg shadow-red-600/40 hover:shadow-red-600/60 hover:scale-[1.02] ring-2 ring-red-500/50 min-h-[64px] animate-pulse-subtle"
+            >
+              <AlertTriangle size={26} className="shrink-0" />
+              <span>Авария? Срочный вызов</span>
+              <span className="ml-1 text-sm font-normal bg-white/20 px-2 py-0.5 rounded-full">+40%</span>
             </Link>
           </div>
 
