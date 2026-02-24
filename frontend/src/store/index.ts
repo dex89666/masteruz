@@ -46,6 +46,7 @@ export const useAuthStore = create<AuthState>()(
       logout: () => {
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
+        localStorage.removeItem('masteruz-auth');
         set({
           user: null,
           accessToken: null,

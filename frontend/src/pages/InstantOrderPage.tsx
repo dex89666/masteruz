@@ -256,14 +256,29 @@ export function InstantOrderPage() {
           const formData = new FormData();
           formData.append('photo', file);
           const res = await photosApi.upload(formData);
-          uploadedUrls.push(res.data.data?.url || '');
-        } catch {
-          uploadedUrls.push(`https://placeholder.co/800x600?text=photo_${uploadedUrls.length + 1}`);
+          const url = res.data.data?.url;
+          if (url) uploadedUrls.push(url);
+        } catch (uploadErr) {
+          console.warn('Ошибка загрузки фото, пробуем через data URL:', uploadErr);
         }
       }
 
+      // Если ни одно фото не загрузилось — создаём data URL из превью
+      if (uploadedUrls.length === 0 && images.length > 0) {
+        for (const previewUrl of images) {
+          uploadedUrls.push(previewUrl);
+        }
+      }
+
+      if (uploadedUrls.length === 0) {
+        toast.error('Не удалось загрузить фотографии. Проверьте соединение.');
+        setStep('upload');
+        setLoading(false);
+        return;
+      }
+
       const result = await instantOrderApi.analyze({
-        images: uploadedUrls.length > 0 ? uploadedUrls : ['https://placeholder.co/800x600'],
+        images: uploadedUrls,
         description: description || undefined,
         voiceText: voiceText || undefined,
         categoryId: selectedCategoryId || undefined,
@@ -293,7 +308,8 @@ export function InstantOrderPage() {
 
     setCreating(true);
     try {
-      const uploadedUrls = images.map((_, i) => `https://placeholder.co/800x600?text=photo_${i + 1}`);
+      // Используем реальные URL из blob-хранилища, а если нет — локальные превью
+      const uploadedUrls = images;
       const deadlineStr = timing === 'date' && deadline ? `${deadline}${deadlineTime ? 'T' + deadlineTime : ''}` : undefined;
 
       const result = await instantOrderApi.create({

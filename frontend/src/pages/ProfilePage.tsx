@@ -4,7 +4,7 @@
 
 import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { referralsApi } from '../api/client';
+import { referralsApi, authApi } from '../api/client';
 import { useAuthStore } from '../store';
 import { useTranslation } from '../i18n';
 import { ProfileSkeleton } from '../components/PageSkeletons';
@@ -68,9 +68,14 @@ export function ProfilePage() {
   }
 
   function handleLogout() {
+    // Отзываем refresh token на сервере
+    const refreshToken = localStorage.getItem('refreshToken');
+    if (refreshToken) {
+      authApi.logout(refreshToken).catch(() => {});
+    }
     logout();
     toast.success(t('profile.logoutConfirm'));
-    navigate('/');
+    navigate('/login');
   }
 
   if (!user) return null;

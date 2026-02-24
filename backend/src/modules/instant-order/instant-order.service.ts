@@ -432,103 +432,246 @@ export class InstantOrderService {
    */
   private detectCategory(description: string, categories: any[]): any | null {
     const lower = description.toLowerCase();
-    const keywords: Record<string, string[]> = {
-      'plumbing': ['сантехник', 'труб', 'кран', 'унитаз', 'ванн', 'душ', 'канализ', 'водопровод', 'течь', 'смеситель'],
-      'electrical': ['электрик', 'розетк', 'выключател', 'провод', 'свет', 'люстр', 'щиток', 'замыкан', 'счётчик'],
-      'furniture': ['мебел', 'шкаф', 'стол', 'стул', 'кухн', 'полк', 'сборк', 'диван', 'кроват'],
-      'construction': ['стройк', 'кладк', 'стен', 'фундамент', 'бетон', 'кирпич', 'перегородк'],
-      'painting': ['покраск', 'штукатурк', 'обо', 'шпаклёвк', 'отделк', 'грунтовк', 'потолок', 'ламинат'],
-      'windows-doors': ['окн', 'дверь', 'двер', 'балкон', 'стеклопакет', 'замок', 'петл'],
-      'cleaning': ['уборк', 'клининг', 'чистк', 'мойк', 'пыл', 'дезинфекц'],
-      'carpentry': ['плотник', 'дерев', 'доск', 'парк', 'ламинат', 'вагонк'],
+
+    // Расширенная карта ключевых слов для всех 14 категорий каталога.
+    // Веса: точные совпадения (полные слова) = 3, частичные (корни) = 1.
+    const keywords: Record<string, { exact: string[]; partial: string[] }> = {
+      'plumbing': {
+        exact: ['сантехник', 'сантехника', 'водопровод', 'канализация', 'унитаз', 'раковина', 'ванна', 'душевая', 'бойлер', 'радиатор', 'отопление', 'счётчик воды', 'фильтр воды', 'биде', 'джакузи', 'сифон', 'стиральная', 'посудомоечная'],
+        partial: ['труб', 'кран', 'течь', 'течёт', 'потекл', 'протечк', 'засор', 'смесител', 'слив', 'водонагреват', 'тёплый пол', 'промывк', 'прочист'],
+      },
+      'electrical': {
+        exact: ['электрик', 'электрика', 'проводка', 'розетка', 'выключатель', 'люстра', 'светильник', 'щиток', 'автомат', 'диммер', 'led', 'датчик движения'],
+        partial: ['розетк', 'выключател', 'провод', 'свет', 'люстр', 'замыкан', 'счётчик', 'электр', 'ламп', 'точечн', 'кабель', 'подсветк', 'короткое', 'пробк', 'вырубил', 'пропал свет', 'не горит', 'не работает розетк'],
+      },
+      'furniture': {
+        exact: ['мебель', 'шкаф', 'кухня', 'диван', 'кровать', 'комод', 'полка', 'стеллаж', 'тумба', 'гардероб'],
+        partial: ['мебел', 'шкаф', 'стол', 'стул', 'кухн', 'полк', 'сборк', 'диван', 'кроват', 'ящик', 'фурнитур', 'петл', 'дверц', 'фасад'],
+      },
+      'construction': {
+        exact: ['кладка', 'фундамент', 'стяжка', 'перегородка', 'газоблок', 'кирпич', 'бетон', 'арматура', 'опалубка'],
+        partial: ['стройк', 'кладк', 'стен', 'фундамент', 'бетон', 'кирпич', 'перегородк', 'газоблок', 'штукатурк', 'стяжк', 'демонтаж стен', 'снос'],
+      },
+      'painting': {
+        exact: ['покраска', 'штукатурка', 'шпаклёвка', 'шпатлёвка', 'обои', 'грунтовка', 'отделка', 'декоративная штукатурка'],
+        partial: ['покраск', 'штукатурк', 'обо', 'шпаклёвк', 'шпатлёвк', 'отделк', 'грунтовк', 'потолок', 'побелк', 'краск', 'красить', 'поклеить', 'поклейк', 'выровнять стен'],
+      },
+      'windows-doors': {
+        exact: ['окно', 'окна', 'дверь', 'двери', 'балкон', 'стеклопакет', 'москитная сетка', 'подоконник', 'откос', 'замок', 'ручка двери'],
+        partial: ['окн', 'дверь', 'двер', 'балкон', 'стеклопакет', 'замок', 'петл', 'москитн', 'подоконник', 'откос', 'остеклен', 'заклинил', 'не открывается', 'не закрывается'],
+      },
+      'cleaning': {
+        exact: ['уборка', 'клининг', 'дезинфекция', 'химчистка', 'мойка окон', 'генеральная уборка', 'уборка после ремонта'],
+        partial: ['уборк', 'клининг', 'чистк', 'мойк', 'пыл', 'дезинфекц', 'химчистк', 'помыть', 'вымыть', 'отмыть', 'грязь', 'пятн'],
+      },
+      'carpentry': {
+        exact: ['плотник', 'паркет', 'ламинат', 'вагонка', 'деревянный пол', 'лестница', 'беседка', 'терраса'],
+        partial: ['плотник', 'дерев', 'доск', 'парк', 'ламинат', 'вагонк', 'лестниц', 'пол', 'настил', 'циклёвк', 'шлифовк'],
+      },
+      'conditioner': {
+        exact: ['кондиционер', 'сплит-система', 'вентиляция', 'климат', 'фреон'],
+        partial: ['кондиционер', 'сплит', 'вентиляц', 'климат', 'охлажд', 'фреон', 'дует', 'не охлаждает', 'заправк', 'холод'],
+      },
+      'appliances': {
+        exact: ['стиральная машина', 'холодильник', 'духовка', 'плита', 'микроволновка', 'посудомоечная', 'бытовая техника'],
+        partial: ['стиральн', 'холодильник', 'духовк', 'микроволнов', 'плит', 'машинк', 'техник', 'подключ'],
+      },
+      'garden': {
+        exact: ['газон', 'ландшафт', 'полив', 'забор', 'ворота', 'навес', 'беседка', 'сад', 'огород'],
+        partial: ['газон', 'ландшафт', 'полив', 'забор', 'ворот', 'навес', 'садов', 'участ', 'террас', 'дренаж'],
+      },
+      'security': {
+        exact: ['видеонаблюдение', 'домофон', 'сигнализация', 'камера', 'охрана', 'контроль доступа'],
+        partial: ['видеонаблюд', 'домофон', 'сигнализац', 'камер', 'охран', 'контроль доступ', 'ip камер'],
+      },
+      'design': {
+        exact: ['дизайн', 'дизайн-проект', 'интерьер', 'визуализация', '3d проект'],
+        partial: ['дизайн', 'интерьер', 'визуализац', 'проект', 'планировк', '3d'],
+      },
+      'moving': {
+        exact: ['переезд', 'грузчики', 'доставка мебели', 'транспортировка'],
+        partial: ['переезд', 'грузчик', 'перевоз', 'перенос', 'доставк', 'погрузк'],
+      },
     };
 
     let bestMatch: any = null;
     let bestScore = 0;
 
     for (const cat of categories) {
-      const catKeywords = keywords[cat.slug] || [];
-      const score = catKeywords.filter((kw: string) => lower.includes(kw)).length;
+      const catConfig = keywords[cat.slug];
+      if (!catConfig) continue;
+
+      let score = 0;
+      // Exact keyword matches (weight = 3)
+      for (const kw of catConfig.exact) {
+        if (lower.includes(kw)) score += 3;
+      }
+      // Partial keyword matches (weight = 1)
+      for (const kw of catConfig.partial) {
+        if (lower.includes(kw)) score += 1;
+      }
+
       if (score > bestScore) {
         bestScore = score;
         bestMatch = cat;
       }
     }
 
-    // Если совпадений нет — берём первую категорию
-    return bestMatch || categories[0] || null;
+    // Минимум 1 балл для совпадения — не отдаём случайную категорию
+    if (bestScore === 0) {
+      return null;
+    }
+
+    return bestMatch;
   }
 
   /**
-   * Генерация 3 вариантов (Good / Better / Best) из доступных задач
+   * Генерация 3 вариантов (Good / Better / Best) из доступных задач.
+   * Умный подбор: сопоставляем задачи с описанием, точный расчёт цен.
    */
   private generateVariants(category: any, allTasks: any[], description: string, images: string[]) {
-    // Сортируем задачи по цене
-    const sorted = [...allTasks].sort((a: any, b: any) => (a.minPrice ?? 0) - (b.minPrice ?? 0));
+    const lower = description.toLowerCase();
 
-    // Минимальное кол-во задач для каждого уровня
-    const minTasks = Math.max(1, Math.floor(sorted.length * 0.3));
-    const midTasks = Math.max(2, Math.floor(sorted.length * 0.6));
-    const maxTasks = sorted.length;
+    // ─── Ранжируем задачи по релевантности к описанию ─────
+    const scored = allTasks.map((task: any) => {
+      const taskName = (task.name || '').toLowerCase();
+      const taskDesc = (task.description || '').toLowerCase();
+      let relevance = 0;
 
-    const goodTasks = sorted.slice(0, minTasks);
-    const betterTasks = sorted.slice(0, midTasks);
-    const bestTasks = sorted;
+      // Проверяем совпадение ключевых слов описания с названием/описанием задачи
+      const descWords = lower.split(/\s+/).filter(w => w.length > 2);
+      for (const word of descWords) {
+        if (taskName.includes(word)) relevance += 3;
+        if (taskDesc.includes(word)) relevance += 1;
+      }
+      // Проверяем обратное: слова задачи в описании пользователя
+      const taskWords = taskName.split(/\s+/).filter((w: string) => w.length > 3);
+      for (const word of taskWords) {
+        if (lower.includes(word)) relevance += 2;
+      }
 
-    const calculatePrice = (tasks: any[]) =>
+      return { task, relevance, price: task.minPrice ?? 50000 };
+    });
+
+    // Сортируем: сначала по релевантности (desc), потом по цене (asc)
+    scored.sort((a, b) => b.relevance - a.relevance || a.price - b.price);
+
+    // Берём наиболее релевантные задачи
+    const relevant = scored.filter(s => s.relevance > 0);
+    const topTasks = relevant.length > 0 ? relevant : scored; // Если нет совпадений — все задачи
+
+    // GOOD: 1-2 самые релевантные задачи (минимальный объём)
+    const goodCount = Math.max(1, Math.min(2, Math.ceil(topTasks.length * 0.3)));
+    const goodTasks = topTasks.slice(0, goodCount).map(s => s.task);
+
+    // BETTER: 2-4 задачи (оптимальный объём)
+    const betterCount = Math.max(2, Math.min(4, Math.ceil(topTasks.length * 0.6)));
+    const betterTasks = topTasks.slice(0, betterCount).map(s => s.task);
+
+    // BEST: все релевантные задачи
+    const bestTasks = topTasks.map(s => s.task);
+
+    // ─── Точный расчёт стоимости ─────────────────────────
+    const calculateWorkPrice = (tasks: any[]) =>
       tasks.reduce((sum: number, t: any) => sum + (t.minPrice ?? 50000), 0);
 
-    const calculateDays = (tasks: any[], multiplier: number) =>
-      Math.max(1, Math.ceil(tasks.length * 0.5 * multiplier));
+    const calculateDays = (tasks: any[], multiplier: number) => {
+      // Парсим estimatedTime: "30-60 мин" → 0.75 часа → 0.1 дня
+      const totalHours = tasks.reduce((sum: number, t: any) => {
+        const time = (t.estimatedTime || '1 час').toLowerCase();
+        const hourMatch = time.match(/(\d+)(?:\s*-\s*(\d+))?\s*час/);
+        const minMatch = time.match(/(\d+)(?:\s*-\s*(\d+))?\s*мин/);
+        if (hourMatch) {
+          const avg = hourMatch[2] ? (parseInt(hourMatch[1]) + parseInt(hourMatch[2])) / 2 : parseInt(hourMatch[1]);
+          return sum + avg;
+        }
+        if (minMatch) {
+          const avg = minMatch[2] ? (parseInt(minMatch[1]) + parseInt(minMatch[2])) / 2 : parseInt(minMatch[1]);
+          return sum + avg / 60;
+        }
+        return sum + 1;
+      }, 0);
 
-    // Материалы — упрощённый расчёт
-    const generateMaterials = (tasks: any[], tier: string) => {
-      const base = [
-        { name: 'Расходные материалы', quantity: 1, unit: 'компл.', unitPrice: 50000, total: 50000 },
-      ];
-      if (tier === 'BETTER' || tier === 'BEST') {
-        base.push({ name: 'Доп. материалы (качество)', quantity: 1, unit: 'компл.', unitPrice: 100000, total: 100000 });
-      }
-      if (tier === 'BEST') {
-        base.push({ name: 'Премиум материалы', quantity: 1, unit: 'компл.', unitPrice: 200000, total: 200000 });
-      }
-      return base;
+      return Math.max(1, Math.ceil((totalHours / 6) * multiplier)); // 6 рабочих часов в дне
     };
 
-    const variants = [
-      {
-        tier: 'GOOD',
-        tierLabel: TIER_MULTIPLIERS.GOOD.label,
-        taskIds: goodTasks.map((t: any) => t.id),
-        materials: generateMaterials(goodTasks, 'GOOD'),
-        estimatedPrice: Math.round(calculatePrice(goodTasks) * TIER_MULTIPLIERS.GOOD.price),
-        estimatedDays: calculateDays(goodTasks, TIER_MULTIPLIERS.GOOD.days),
-        confidence: 0.85,
-        description: `Базовый вариант: ${goodTasks.length} работ. Стандартные материалы, оптимальная цена.`,
-      },
-      {
-        tier: 'BETTER',
-        tierLabel: TIER_MULTIPLIERS.BETTER.label,
-        taskIds: betterTasks.map((t: any) => t.id),
-        materials: generateMaterials(betterTasks, 'BETTER'),
-        estimatedPrice: Math.round(calculatePrice(betterTasks) * TIER_MULTIPLIERS.BETTER.price),
-        estimatedDays: calculateDays(betterTasks, TIER_MULTIPLIERS.BETTER.days),
-        confidence: 0.90,
-        description: `Оптимальный вариант: ${betterTasks.length} работ. Качественные материалы, лучшее соотношение цена/качество.`,
-      },
-      {
-        tier: 'BEST',
-        tierLabel: TIER_MULTIPLIERS.BEST.label,
-        taskIds: bestTasks.map((t: any) => t.id),
-        materials: generateMaterials(bestTasks, 'BEST'),
-        estimatedPrice: Math.round(calculatePrice(bestTasks) * TIER_MULTIPLIERS.BEST.price),
-        estimatedDays: calculateDays(bestTasks, TIER_MULTIPLIERS.BEST.days),
-        confidence: 0.95,
-        description: `Премиум вариант: ${bestTasks.length} работ. Все задачи + лучшие материалы. Максимальное качество.`,
-      },
-    ];
+    // Материалы — зависят от типа работ и уровня
+    const generateMaterials = (tasks: any[], tier: string) => {
+      const workPrice = calculateWorkPrice(tasks);
+      const materials: any[] = [];
 
-    return { variants };
+      // Базовые расходники: 10% от стоимости работ
+      const baseAmount = Math.round(workPrice * 0.10);
+      materials.push({
+        name: 'Расходные материалы',
+        quantity: 1, unit: 'компл.',
+        unitPrice: baseAmount, total: baseAmount,
+      });
+
+      if (tier === 'BETTER' || tier === 'BEST') {
+        // Качественные материалы: 15% от стоимости работ
+        const qualityAmount = Math.round(workPrice * 0.15);
+        materials.push({
+          name: 'Качественные комплектующие',
+          quantity: 1, unit: 'компл.',
+          unitPrice: qualityAmount, total: qualityAmount,
+        });
+      }
+
+      if (tier === 'BEST') {
+        // Премиум материалы: 20% от стоимости работ
+        const premiumAmount = Math.round(workPrice * 0.20);
+        materials.push({
+          name: 'Премиум материалы и гарантия',
+          quantity: 1, unit: 'компл.',
+          unitPrice: premiumAmount, total: premiumAmount,
+        });
+      }
+
+      return materials;
+    };
+
+    // Итоговая цена = работа * tier_multiplier + материалы
+    const buildVariant = (tasks: any[], tier: keyof typeof TIER_MULTIPLIERS) => {
+      const workPrice = calculateWorkPrice(tasks);
+      const materials = generateMaterials(tasks, tier);
+      const materialsPrice = materials.reduce((sum: number, m: any) => sum + m.total, 0);
+      const estimatedPrice = Math.round(workPrice * TIER_MULTIPLIERS[tier].price + materialsPrice);
+
+      return {
+        tier,
+        tierLabel: TIER_MULTIPLIERS[tier].label,
+        taskIds: tasks.map((t: any) => t.id),
+        materials,
+        estimatedPrice,
+        estimatedDays: calculateDays(tasks, TIER_MULTIPLIERS[tier].days),
+        confidence: tier === 'GOOD' ? 0.85 : tier === 'BETTER' ? 0.92 : 0.97,
+        description:
+          tier === 'GOOD'
+            ? `Базовый ремонт: ${tasks.length} ${this.pluralize(tasks.length, 'работа', 'работы', 'работ')}. Стандартные материалы. Стоимость: ${estimatedPrice.toLocaleString('ru')} сум.`
+            : tier === 'BETTER'
+            ? `Оптимальный вариант: ${tasks.length} ${this.pluralize(tasks.length, 'работа', 'работы', 'работ')}. Качественные комплектующие, лучшее соотношение цена/качество.`
+            : `Премиум решение: ${tasks.length} ${this.pluralize(tasks.length, 'работа', 'работы', 'работ')}. Все задачи + лучшие материалы. Расширенная гарантия.`,
+      };
+    };
+
+    return {
+      variants: [
+        buildVariant(goodTasks, 'GOOD'),
+        buildVariant(betterTasks, 'BETTER'),
+        buildVariant(bestTasks, 'BEST'),
+      ],
+    };
+  }
+
+  /** Склонение числительных */
+  private pluralize(n: number, one: string, few: string, many: string): string {
+    const abs = Math.abs(n) % 100;
+    const lastDigit = abs % 10;
+    if (abs > 10 && abs < 20) return many;
+    if (lastDigit > 1 && lastDigit < 5) return few;
+    if (lastDigit === 1) return one;
+    return many;
   }
 }
 

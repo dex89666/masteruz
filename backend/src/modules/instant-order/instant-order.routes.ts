@@ -13,7 +13,7 @@ const router = Router();
 // ─── Валидация ──────────────────────────────
 
 const analyzeSchema = z.object({
-  images: z.array(z.string().url()).min(1, 'Минимум 1 фото').max(10, 'Максимум 10 фото'),
+  images: z.array(z.string().min(1)).min(1, 'Минимум 1 фото').max(10, 'Максимум 10 фото'),
   description: z.string().max(2000).optional(),
   voiceText: z.string().max(5000).optional(),
   categoryId: z.string().uuid().optional(),
@@ -33,7 +33,7 @@ const createFromTemplateSchema = z.object({
   region: z.string().max(100).optional(),
   latitude: z.number().min(-90).max(90).optional(),
   longitude: z.number().min(-180).max(180).optional(),
-  images: z.array(z.string()).min(1, 'Минимум 1 фото'),
+  images: z.array(z.string().min(1)).min(1, 'Минимум 1 фото'),
   deadline: z.string().optional(),
   isUrgent: z.boolean().optional(),
   offerAccepted: z.boolean(),

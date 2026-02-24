@@ -52,10 +52,11 @@ api.interceptors.response.use(
         originalRequest.headers.Authorization = `Bearer ${accessToken}`;
         return api(originalRequest);
       } catch {
-        // Очищаем токены и перенаправляем на логин
+        // Очищаем токены и persist-хранилище
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
-        window.location.href = '/login';
+        localStorage.removeItem('masteruz-auth');
+        // Не делаем redirect — пусть ProtectedRoute обработает
         return Promise.reject(error);
       }
     }
