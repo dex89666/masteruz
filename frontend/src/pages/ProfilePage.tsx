@@ -12,7 +12,7 @@ import {
   User, Phone, MapPin, Star, Award, Copy, Share2,
   LogOut, Settings, BookOpen, Shield, ChevronRight,
   Briefcase, Clock, CreditCard, Camera, Wallet, PlusCircle,
-  ShieldCheck,
+  ShieldCheck, Users, Wrench,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -328,10 +328,132 @@ export function ProfilePage() {
         )}
       </div>
 
+      {/* Переключение ролей (для админов / бывших админов) */}
+      {(isAdmin || wasAdmin) && (
+        <div className="card mb-4">
+          <h3 className="font-semibold mb-3 dark:text-white flex items-center gap-2">
+            <ShieldCheck size={18} className="text-purple-500" />
+            Переключение роли
+          </h3>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+            Переключайтесь между ролями для тестирования платформы
+          </p>
+          <div className="grid grid-cols-3 gap-2">
+            {/* Админ */}
+            <button
+              onClick={async () => {
+                if (user.role === 'ADMIN') return;
+                setSwitchingRole(true);
+                try {
+                  const res = await authApi.switchRole('ADMIN');
+                  const resData = res.data as any;
+                  if (resData.success) {
+                    if (resData.accessToken && resData.refreshToken) {
+                      const { setAuth } = useAuthStore.getState();
+                      setAuth(resData.data, resData.accessToken, resData.refreshToken);
+                    } else {
+                      setUser(resData.data);
+                    }
+                    toast.success('Роль: Админ');
+                  }
+                } catch (err: any) {
+                  toast.error(err.response?.data?.message || 'Ошибка');
+                } finally {
+                  setSwitchingRole(false);
+                }
+              }}
+              disabled={switchingRole}
+              className={`flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all ${
+                user.role === 'ADMIN'
+                  ? 'border-red-500 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 ring-2 ring-red-500/30'
+                  : 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-red-300 hover:bg-red-50/50 dark:hover:bg-red-900/10'
+              }`}
+            >
+              <ShieldCheck size={22} />
+              <span className="text-xs font-semibold">Админ</span>
+            </button>
+
+            {/* Мастер */}
+            <button
+              onClick={async () => {
+                if (user.role === 'MASTER') return;
+                setSwitchingRole(true);
+                try {
+                  const res = await authApi.switchRole('MASTER');
+                  const resData = res.data as any;
+                  if (resData.success) {
+                    if (resData.accessToken && resData.refreshToken) {
+                      const { setAuth } = useAuthStore.getState();
+                      setAuth(resData.data, resData.accessToken, resData.refreshToken);
+                    } else {
+                      setUser(resData.data);
+                    }
+                    toast.success('Роль: Мастер');
+                  }
+                } catch (err: any) {
+                  toast.error(err.response?.data?.message || 'Ошибка');
+                } finally {
+                  setSwitchingRole(false);
+                }
+              }}
+              disabled={switchingRole}
+              className={`flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all ${
+                user.role === 'MASTER'
+                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 ring-2 ring-blue-500/30'
+                  : 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-blue-300 hover:bg-blue-50/50 dark:hover:bg-blue-900/10'
+              }`}
+            >
+              <Wrench size={22} />
+              <span className="text-xs font-semibold">Мастер</span>
+            </button>
+
+            {/* Клиент */}
+            <button
+              onClick={async () => {
+                if (user.role === 'CLIENT') return;
+                setSwitchingRole(true);
+                try {
+                  const res = await authApi.switchRole('CLIENT');
+                  const resData = res.data as any;
+                  if (resData.success) {
+                    if (resData.accessToken && resData.refreshToken) {
+                      const { setAuth } = useAuthStore.getState();
+                      setAuth(resData.data, resData.accessToken, resData.refreshToken);
+                    } else {
+                      setUser(resData.data);
+                    }
+                    toast.success('Роль: Клиент');
+                  }
+                } catch (err: any) {
+                  toast.error(err.response?.data?.message || 'Ошибка');
+                } finally {
+                  setSwitchingRole(false);
+                }
+              }}
+              disabled={switchingRole}
+              className={`flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all ${
+                user.role === 'CLIENT'
+                  ? 'border-green-500 bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 ring-2 ring-green-500/30'
+                  : 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-green-300 hover:bg-green-50/50 dark:hover:bg-green-900/10'
+              }`}
+            >
+              <Users size={22} />
+              <span className="text-xs font-semibold">Клиент</span>
+            </button>
+          </div>
+          {switchingRole && (
+            <div className="flex items-center justify-center gap-2 mt-2 text-xs text-gray-400">
+              <div className="w-3 h-3 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
+              Переключаю...
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Действия */}
       <div className="space-y-2">
         {/* Админ-панель */}
-        {isAdmin && (
+        {(isAdmin || wasAdmin) && (
           <Link
             to="/admin"
             className="flex items-center justify-between p-3 card hover:shadow-md dark:hover:shadow-black/20"
@@ -342,68 +464,6 @@ export function ProfilePage() {
             </div>
             <ChevronRight size={18} className="text-gray-400 dark:text-gray-500" />
           </Link>
-        )}
-
-        {/* Переключение роли (только для админов) */}
-        {isAdmin && user.role !== 'MASTER' && (
-          <button
-            onClick={async () => {
-              setSwitchingRole(true);
-              try {
-                const res = await authApi.switchRole('MASTER');
-                const resData = res.data as any;
-                if (resData.success) {
-                  if (resData.accessToken && resData.refreshToken) {
-                    const { setAuth } = useAuthStore.getState();
-                    setAuth(resData.data, resData.accessToken, resData.refreshToken);
-                  } else {
-                    setUser(resData.data);
-                  }
-                  toast.success('Роль изменена на Мастер');
-                }
-              } catch (err: any) {
-                toast.error(err.response?.data?.message || 'Ошибка смены роли');
-              } finally {
-                setSwitchingRole(false);
-              }
-            }}
-            disabled={switchingRole}
-            className="flex items-center w-full p-3 card hover:shadow-md dark:hover:shadow-black/20 text-blue-600 dark:text-blue-400"
-          >
-            <ShieldCheck size={18} className="mr-3" />
-            <span>Перейти в режим Мастера</span>
-          </button>
-        )}
-
-        {/* Вернуться в админку (когда мастер, но был админом) */}
-        {!isAdmin && wasAdmin && (
-          <button
-            onClick={async () => {
-              setSwitchingRole(true);
-              try {
-                const res = await authApi.switchRole('ADMIN');
-                const resData = res.data as any;
-                if (resData.success) {
-                  if (resData.accessToken && resData.refreshToken) {
-                    const { setAuth } = useAuthStore.getState();
-                    setAuth(resData.data, resData.accessToken, resData.refreshToken);
-                  } else {
-                    setUser(resData.data);
-                  }
-                  toast.success('Роль изменена на Админ');
-                }
-              } catch (err: any) {
-                toast.error(err.response?.data?.message || 'Ошибка смены роли');
-              } finally {
-                setSwitchingRole(false);
-              }
-            }}
-            disabled={switchingRole}
-            className="flex items-center w-full p-3 card hover:shadow-md dark:hover:shadow-black/20 text-purple-600 dark:text-purple-400"
-          >
-            <ShieldCheck size={18} className="mr-3" />
-            <span>⚡ Вернуться в Админ-панель</span>
-          </button>
         )}
 
         <button

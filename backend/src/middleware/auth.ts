@@ -53,18 +53,35 @@ export function authenticate(req: Request, _res: Response, next: NextFunction): 
 
 /**
  * Middleware для проверки ролей
+ * Проверяет: 1) текущую роль в JWT, 2) admin_user_ids в PlatformConfig
  */
 export function authorize(...roles: UserRole[]) {
-  return (req: Request, _res: Response, next: NextFunction): void => {
+  return async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
     if (!req.user) {
       return next(ApiError.unauthorized('Не авторизован'));
     }
 
-    if (!roles.includes(req.user.role)) {
-      return next(ApiError.forbidden('Недостаточно прав'));
+    // Если текущая роль совпадает — пропускаем
+    if (roles.includes(req.user.role)) {
+      return next();
     }
 
-    next();
+    // Если среди разрешённых ролей есть ADMIN/MANAGER — проверяем admin_user_ids
+    if (roles.includes('ADMIN' as any) || roles.includes('MANAGER' as any)) {
+      try {
+        const adminConfig = await prisma.platformConfig.findUnique({ where: { key: 'admin_user_ids' } });
+        if (adminConfig) {
+          const adminIds = adminConfig.value.split(',').map((s: string) => s.trim());
+          if (adminIds.includes(req.user.userId)) {
+            return next(); // Пользователь в списке админов — пропускаем
+          }
+        }
+      } catch {
+        // Если ошибка БД — продолжаем со стандартной проверкой
+      }
+    }
+
+    return next(ApiError.forbidden('Недостаточно прав'));
   };
 }
 

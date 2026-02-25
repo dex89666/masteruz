@@ -90,6 +90,12 @@ export function HomePage() {
       <section className="bg-gradient-to-br from-gray-900 via-gray-800 to-orange-900 text-white py-12 md:py-20 relative overflow-hidden">
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] bg-orange-500/10 rounded-full blur-3xl" />
         <div className="absolute top-0 right-0 w-80 h-80 bg-orange-600/5 rounded-full blur-2xl" />
+
+        {/* Hero worker illustration — right side on desktop, background on mobile */}
+        <div className="absolute right-0 bottom-0 w-[280px] h-[320px] md:w-[380px] md:h-[430px] lg:w-[440px] lg:h-[500px] opacity-[0.12] md:opacity-20 lg:opacity-25 pointer-events-none select-none">
+          <img src="/hero-worker.svg" alt="" className="w-full h-full object-contain object-bottom" aria-hidden="true" />
+        </div>
+
         <div className="max-w-5xl mx-auto px-4 sm:px-6 relative z-10">
           {/* ★ «Стать мастером» — зелёная кнопка в правом верхнем углу */}
           <div className="flex justify-end mb-4">
