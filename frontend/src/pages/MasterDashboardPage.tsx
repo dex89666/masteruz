@@ -49,8 +49,8 @@ export function MasterDashboardPage() {
   const mp = user?.masterProfile;
   const profile = user?.profile;
 
-  // Проверяем был ли пользователь админом
-  const wasAdmin = typeof localStorage !== 'undefined' && localStorage.getItem('masteruz-was-admin') === 'true';
+  // Админ-статус определяется из бэкенда (поле isAdminUser)
+  const isAdminUser = user?.isAdminUser === true;
 
   async function handleSwitchToAdmin() {
     setSwitchingRole(true);
@@ -171,7 +171,7 @@ export function MasterDashboardPage() {
   return (
     <div className="page-container pb-20">
       {/* Баннер возврата в Админ-панель */}
-      {wasAdmin && (
+      {isAdminUser && (
         <button
           onClick={handleSwitchToAdmin}
           disabled={switchingRole}

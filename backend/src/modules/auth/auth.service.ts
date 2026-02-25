@@ -124,6 +124,18 @@ export class AuthService {
       throw ApiError.notFound('Пользователь не найден');
     }
 
+    // Проверяем, является ли пользователь админом (по PlatformConfig.admin_user_ids)
+    let isAdminUser = user.role === 'ADMIN' || user.role === 'MANAGER';
+    if (!isAdminUser) {
+      try {
+        const adminConfig = await prisma.platformConfig.findUnique({ where: { key: 'admin_user_ids' } });
+        if (adminConfig) {
+          const adminUserIds = adminConfig.value.split(',').map((s: string) => s.trim());
+          isAdminUser = adminUserIds.includes(userId);
+        }
+      } catch {}
+    }
+
     return {
       id: user.id,
       telegramId: Number(user.telegramId),
@@ -137,6 +149,7 @@ export class AuthService {
       profile: user.profile,
       masterProfile: user.masterProfile,
       createdAt: user.createdAt,
+      isAdminUser,
     };
   }
 

@@ -25,16 +25,9 @@ export function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [switchingRole, setSwitchingRole] = useState(false);
 
-  // Помним что пользователь был админом для показа кнопки переключения
-  const wasAdmin = typeof localStorage !== 'undefined' && localStorage.getItem('masteruz-was-admin') === 'true';
+  // Админ-статус определяется из бэкенда (поле isAdminUser) — надёжнее чем localStorage
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'MANAGER';
-
-  // Сохраняем флаг когда пользователь является админом
-  useEffect(() => {
-    if (isAdmin) {
-      localStorage.setItem('masteruz-was-admin', 'true');
-    }
-  }, [isAdmin]);
+  const isAdminUser = user?.isAdminUser === true || isAdmin;
 
   useEffect(() => {
     if (!user) {
@@ -328,8 +321,8 @@ export function ProfilePage() {
         )}
       </div>
 
-      {/* Переключение ролей (для админов / бывших админов) */}
-      {(isAdmin || wasAdmin) && (
+      {/* Переключение ролей (для админов) */}
+      {isAdminUser && (
         <div className="card mb-4">
           <h3 className="font-semibold mb-3 dark:text-white flex items-center gap-2">
             <ShieldCheck size={18} className="text-purple-500" />
@@ -453,7 +446,7 @@ export function ProfilePage() {
       {/* Действия */}
       <div className="space-y-2">
         {/* Админ-панель */}
-        {(isAdmin || wasAdmin) && (
+        {isAdminUser && (
           <Link
             to="/admin"
             className="flex items-center justify-between p-3 card hover:shadow-md dark:hover:shadow-black/20"

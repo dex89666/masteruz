@@ -1,214 +1,237 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 900" fill="none">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 600" fill="none">
   <defs>
-    <linearGradient id="skinGrad" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#f5c6a0"/>
-      <stop offset="100%" stop-color="#e8a97e"/>
+    <linearGradient id="skinTone" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#E8B88A"/>
+      <stop offset="100%" stop-color="#D4A373"/>
     </linearGradient>
-    <linearGradient id="overallGrad" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#3b82f6"/>
-      <stop offset="100%" stop-color="#1d4ed8"/>
+    <linearGradient id="shirtGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#3182CE"/>
+      <stop offset="100%" stop-color="#2B6CB0"/>
     </linearGradient>
-    <linearGradient id="helmetGrad" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#fbbf24"/>
-      <stop offset="100%" stop-color="#f59e0b"/>
+    <linearGradient id="pantsGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#2D3748"/>
+      <stop offset="100%" stop-color="#1A202C"/>
     </linearGradient>
-    <linearGradient id="toolboxGrad" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#ef4444"/>
-      <stop offset="100%" stop-color="#dc2626"/>
-    </linearGradient>
-    <linearGradient id="wrenchGrad" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stop-color="#9ca3af"/>
-      <stop offset="100%" stop-color="#6b7280"/>
-    </linearGradient>
-    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000" flood-opacity="0.15"/>
-    </filter>
-    <filter id="glow">
-      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
-      <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
-    </filter>
   </defs>
 
-  <!-- Background circle -->
-  <circle cx="400" cy="420" r="320" fill="#f97316" opacity="0.06"/>
-  <circle cx="400" cy="420" r="240" fill="#f97316" opacity="0.04"/>
-
-  <!-- Floating tools decoration -->
-  <!-- Bolt -->
-  <g transform="translate(120, 180) rotate(-15)" opacity="0.15">
-    <rect x="0" y="0" width="8" height="30" rx="2" fill="#f97316"/>
-    <circle cx="4" cy="-6" r="8" fill="none" stroke="#f97316" stroke-width="3"/>
-  </g>
-  <!-- Screw -->
-  <g transform="translate(650, 220) rotate(20)" opacity="0.12">
-    <rect x="0" y="0" width="6" height="35" rx="2" fill="#3b82f6"/>
-    <line x1="-4" y1="8" x2="10" y2="8" stroke="#3b82f6" stroke-width="2"/>
-    <line x1="-4" y1="16" x2="10" y2="16" stroke="#3b82f6" stroke-width="2"/>
-  </g>
-  <!-- Gear -->
-  <g transform="translate(160, 650)" opacity="0.1">
-    <circle cx="20" cy="20" r="18" fill="none" stroke="#f59e0b" stroke-width="4"/>
-    <circle cx="20" cy="20" r="7" fill="none" stroke="#f59e0b" stroke-width="3"/>
-    <line x1="20" y1="0" x2="20" y2="8" stroke="#f59e0b" stroke-width="4" stroke-linecap="round"/>
-    <line x1="20" y1="32" x2="20" y2="40" stroke="#f59e0b" stroke-width="4" stroke-linecap="round"/>
-    <line x1="0" y1="20" x2="8" y2="20" stroke="#f59e0b" stroke-width="4" stroke-linecap="round"/>
-    <line x1="32" y1="20" x2="40" y2="20" stroke="#f59e0b" stroke-width="4" stroke-linecap="round"/>
-  </g>
-  <!-- Hammer -->
-  <g transform="translate(620, 620) rotate(30)" opacity="0.1">
-    <rect x="8" y="0" width="6" height="50" rx="2" fill="#8b5cf6"/>
-    <rect x="0" y="-5" width="22" height="14" rx="3" fill="#8b5cf6"/>
-  </g>
-
-  <!-- === MAIN FIGURE === -->
-  <g filter="url(#shadow)">
-
-    <!-- LEGS (boots + pants) -->
-    <!-- Left leg -->
-    <path d="M345 680 L340 780 Q338 800 320 800 L310 800 Q300 800 300 790 L300 780 Q300 770 310 770 L325 770 L330 680Z" fill="#1e3a5f"/>
-    <!-- Left boot -->
-    <path d="M300 780 Q300 800 310 800 L335 800 Q345 800 345 790 L345 775 Q340 770 325 770 L310 770 Q300 770 300 780Z" fill="#4a3728"/>
-    <path d="M300 780 L345 780" stroke="#5c4535" stroke-width="2"/>
-    <!-- Right leg -->
-    <path d="M420 680 L425 780 Q427 800 445 800 L455 800 Q465 800 465 790 L465 780 Q465 770 455 770 L440 770 L435 680Z" fill="#1e3a5f"/>
-    <!-- Right boot -->
-    <path d="M465 780 Q465 800 455 800 L430 800 Q420 800 420 790 L420 775 Q425 770 440 770 L455 770 Q465 770 465 780Z" fill="#4a3728"/>
-    <path d="M420 780 L465 780" stroke="#5c4535" stroke-width="2"/>
-
-    <!-- BODY (overalls / uniform) -->
-    <path d="M330 420 Q320 420 310 440 L300 550 Q295 600 310 650 L340 690 L430 690 L460 650 Q475 600 470 550 L460 440 Q450 420 440 420Z" fill="url(#overallGrad)"/>
-    <!-- Overall straps -->
-    <line x1="350" y1="420" x2="360" y2="480" stroke="#2563eb" stroke-width="6" stroke-linecap="round"/>
-    <line x1="420" y1="420" x2="410" y2="480" stroke="#2563eb" stroke-width="6" stroke-linecap="round"/>
-    <!-- Pocket -->
-    <rect x="355" y="530" width="60" height="45" rx="5" fill="#2563eb" stroke="#1d4ed8" stroke-width="1.5"/>
-    <line x1="385" y1="530" x2="385" y2="550" stroke="#1d4ed8" stroke-width="1"/>
-    <!-- Belt -->
-    <rect x="310" y="580" width="150" height="12" rx="4" fill="#92400e"/>
-    <rect x="375" y="577" width="20" height="18" rx="3" fill="#fbbf24"/>
-    <!-- Knee patches -->
-    <rect x="338" y="700" width="30" height="25" rx="5" fill="#60a5fa" opacity="0.5"/>
-    <rect x="400" y="700" width="30" height="25" rx="5" fill="#60a5fa" opacity="0.5"/>
-
-    <!-- T-SHIRT under overalls -->
-    <path d="M340 380 Q330 385 320 410 L330 430 Q370 440 400 440 Q430 440 440 430 L450 410 Q440 385 430 380 Q410 370 385 370 Q360 370 340 380Z" fill="#f97316"/>
-    <!-- Collar -->
-    <path d="M360 378 Q385 390 410 378" stroke="#ea580c" stroke-width="2" fill="none"/>
-
-    <!-- NECK -->
-    <rect x="370" y="340" width="30" height="42" rx="10" fill="url(#skinGrad)"/>
-
-    <!-- HEAD -->
-    <ellipse cx="385" cy="305" rx="55" ry="60" fill="url(#skinGrad)"/>
-    <!-- Face -->
-    <!-- Eyes -->
-    <ellipse cx="365" cy="300" rx="7" ry="8" fill="white"/>
-    <ellipse cx="405" cy="300" rx="7" ry="8" fill="white"/>
-    <circle cx="367" cy="301" r="4" fill="#3f3f3f"/>
-    <circle cx="407" cy="301" r="4" fill="#3f3f3f"/>
-    <circle cx="368" cy="299" r="1.5" fill="white"/>
-    <circle cx="408" cy="299" r="1.5" fill="white"/>
-    <!-- Eyebrows -->
-    <path d="M355 288 Q365 282 375 286" stroke="#6b5040" stroke-width="3" stroke-linecap="round" fill="none"/>
-    <path d="M395 286 Q405 282 415 288" stroke="#6b5040" stroke-width="3" stroke-linecap="round" fill="none"/>
-    <!-- Nose -->
-    <path d="M385 305 Q388 318 385 322 Q382 322 380 318" stroke="#d4956a" stroke-width="2" fill="none" stroke-linecap="round"/>
-    <!-- Smile -->
-    <path d="M368 332 Q385 345 402 332" stroke="#c47a5a" stroke-width="2.5" fill="none" stroke-linecap="round"/>
-    <!-- Ears -->
-    <ellipse cx="328" cy="305" rx="10" ry="14" fill="#e8a97e"/>
-    <ellipse cx="442" cy="305" rx="10" ry="14" fill="#e8a97e"/>
-    <!-- Light stubble dots -->
-    <circle cx="365" cy="340" r="0.8" fill="#c8956f" opacity="0.4"/>
-    <circle cx="375" cy="342" r="0.8" fill="#c8956f" opacity="0.4"/>
-    <circle cx="395" cy="342" r="0.8" fill="#c8956f" opacity="0.4"/>
-    <circle cx="405" cy="340" r="0.8" fill="#c8956f" opacity="0.4"/>
-
-    <!-- HELMET (construction hard hat) -->
-    <path d="M320 280 Q320 235 385 225 Q450 235 450 280 L450 290 Q450 295 445 295 L325 295 Q320 295 320 290Z" fill="url(#helmetGrad)"/>
-    <!-- Helmet brim -->
-    <path d="M305 290 Q305 282 320 280 L450 280 Q465 282 465 290 Q465 298 450 298 L320 298 Q305 298 305 290Z" fill="#f59e0b"/>
-    <!-- Helmet band -->
-    <rect x="320" y="278" width="130" height="6" rx="2" fill="#d97706"/>
-    <!-- Helmet shine -->
-    <path d="M340 250 Q365 240 390 250" stroke="white" stroke-width="3" opacity="0.3" fill="none" stroke-linecap="round"/>
-    <!-- Helmet front light/logo -->
-    <circle cx="385" cy="268" r="8" fill="#fcd34d" stroke="#f59e0b" stroke-width="1.5"/>
-    <circle cx="385" cy="268" r="4" fill="white" opacity="0.6"/>
-
-    <!-- === LEFT ARM + WRENCH === -->
-    <!-- Upper arm -->
-    <path d="M320 400 Q300 405 280 430 L260 490" stroke="url(#skinGrad)" stroke-width="28" stroke-linecap="round" fill="none"/>
-    <!-- Forearm going up with wrench -->
-    <path d="M260 490 Q240 470 230 440 L220 400" stroke="url(#skinGrad)" stroke-width="26" stroke-linecap="round" fill="none"/>
-    <!-- Sleeve -->
-    <path d="M310 395 Q295 400 280 420 L275 430" stroke="#f97316" stroke-width="32" stroke-linecap="round" fill="none"/>
-
-    <!-- Hand gripping wrench -->
-    <ellipse cx="220" cy="395" rx="16" ry="18" fill="#e8a97e"/>
-    <!-- Fingers -->
-    <path d="M210 385 Q205 380 208 375" stroke="#e8a97e" stroke-width="6" stroke-linecap="round"/>
-    <path d="M215 382 Q210 375 213 370" stroke="#e8a97e" stroke-width="6" stroke-linecap="round"/>
-    <path d="M225 382 Q220 375 223 370" stroke="#e8a97e" stroke-width="6" stroke-linecap="round"/>
-    <path d="M232 385 Q228 378 230 373" stroke="#e8a97e" stroke-width="5" stroke-linecap="round"/>
-
-    <!-- BIG WRENCH -->
-    <g filter="url(#glow)">
-      <!-- Wrench handle -->
-      <rect x="213" y="260" width="14" height="120" rx="5" fill="url(#wrenchGrad)"/>
-      <!-- Wrench shine on handle -->
-      <rect x="216" y="270" width="4" height="100" rx="2" fill="white" opacity="0.15"/>
-      <!-- Wrench head (open jaw) -->
-      <path d="M195 260 L195 225 Q195 210 210 210 L230 210 Q245 210 245 225 L245 260 L233 260 L233 235 Q233 228 226 228 L214 228 Q207 228 207 235 L207 260Z" fill="#9ca3af"/>
-      <!-- Wrench head shine -->
-      <path d="M200 220 L210 220" stroke="white" stroke-width="2" opacity="0.3" stroke-linecap="round"/>
-    </g>
-
-    <!-- === RIGHT ARM + TOOLBOX === -->
-    <!-- Upper arm -->
-    <path d="M450 400 Q470 405 490 440 L510 500" stroke="url(#skinGrad)" stroke-width="28" stroke-linecap="round" fill="none"/>
-    <!-- Forearm going down -->
-    <path d="M510 500 Q520 530 525 560" stroke="url(#skinGrad)" stroke-width="26" stroke-linecap="round" fill="none"/>
-    <!-- Sleeve -->
-    <path d="M460 395 Q475 400 490 425 L495 435" stroke="#f97316" stroke-width="32" stroke-linecap="round" fill="none"/>
-
-    <!-- Hand holding toolbox handle -->
-    <ellipse cx="528" cy="565" rx="14" ry="16" fill="#e8a97e"/>
-
-    <!-- TOOLBOX -->
-    <g transform="translate(490, 575)">
-      <!-- Box body -->
-      <rect x="0" y="15" width="85" height="55" rx="6" fill="url(#toolboxGrad)"/>
-      <!-- Box lid -->
-      <rect x="-3" y="8" width="91" height="12" rx="4" fill="#b91c1c"/>
-      <!-- Metal clasp -->
-      <rect x="35" y="5" width="15" height="8" rx="3" fill="#fbbf24" stroke="#d97706" stroke-width="1"/>
-      <!-- Handle -->
-      <path d="M30 8 Q30 -5 42 -5 L43 -5 Q55 -5 55 8" stroke="#4b5563" stroke-width="5" fill="none" stroke-linecap="round"/>
-      <!-- Shine -->
-      <rect x="8" y="22" width="30" height="3" rx="1.5" fill="white" opacity="0.2"/>
-      <!-- Brand label -->
-      <rect x="20" y="35" width="45" height="15" rx="3" fill="#991b1b"/>
-      <text x="42" y="46" text-anchor="middle" fill="#fca5a5" font-size="8" font-weight="bold" font-family="Arial">TOOLS</text>
-      <!-- Tools peeking out -->
-      <rect x="10" y="0" width="4" height="15" rx="1" fill="#d1d5db" transform="rotate(-10, 12, 15)"/>
-      <rect x="70" y="0" width="4" height="15" rx="1" fill="#fbbf24" transform="rotate(8, 72, 15)"/>
-    </g>
-
-  </g>
-
   <!-- Ground shadow -->
-  <ellipse cx="395" cy="810" rx="180" ry="15" fill="#000" opacity="0.08"/>
+  <ellipse cx="250" cy="582" rx="110" ry="14" fill="#000" opacity="0.12"/>
 
-  <!-- Sparkles / decorative elements -->
-  <g opacity="0.25">
-    <path d="M180 350 L186 358 L194 350 L186 342Z" fill="#f97316"/>
-    <path d="M590 300 L594 306 L600 300 L594 294Z" fill="#3b82f6"/>
-    <path d="M140 480 L144 486 L150 480 L144 474Z" fill="#fbbf24"/>
-    <path d="M640 480 L644 486 L650 480 L644 474Z" fill="#10b981"/>
-    <circle cx="170" cy="250" r="3" fill="#f97316"/>
-    <circle cx="620" cy="400" r="3" fill="#3b82f6"/>
-    <circle cx="680" cy="350" r="2" fill="#fbbf24"/>
-    <circle cx="130" cy="550" r="2" fill="#10b981"/>
+  <!-- === LEGS === -->
+  <!-- Left leg -->
+  <path d="M215 432 L208 555 Q207 565 215 568 L230 568 Q238 565 237 555 L238 432 Z" fill="url(#pantsGrad)"/>
+  <!-- Right leg -->
+  <path d="M262 432 L262 555 Q263 565 270 568 L285 568 Q293 565 292 555 L290 432 Z" fill="url(#pantsGrad)"/>
+  <!-- Knee creases -->
+  <path d="M218 490 Q228 494 235 490" stroke="#1A202C" stroke-width="0.8" fill="none" opacity="0.3"/>
+  <path d="M265 490 Q275 494 288 490" stroke="#1A202C" stroke-width="0.8" fill="none" opacity="0.3"/>
+
+  <!-- === BOOTS === -->
+  <!-- Left boot -->
+  <path d="M203 553 Q198 568 200 575 Q203 585 235 585 Q245 585 243 572 L240 553 Z" fill="#5D4037"/>
+  <path d="M198 575 Q195 587 205 590 L237 590 Q247 590 245 578 Z" fill="#3E2723"/>
+  <path d="M205 570 L240 570" stroke="#4E342E" stroke-width="1" opacity="0.4"/>
+  <!-- Right boot -->
+  <path d="M258 553 Q254 568 256 575 Q259 585 290 585 Q300 585 298 572 L295 553 Z" fill="#5D4037"/>
+  <path d="M253 575 Q250 587 260 590 L292 590 Q302 590 300 578 Z" fill="#3E2723"/>
+  <path d="M260 570 L295 570" stroke="#4E342E" stroke-width="1" opacity="0.4"/>
+
+  <!-- === BELT === -->
+  <rect x="202" y="422" width="96" height="14" rx="3" fill="#6D4C41"/>
+  <!-- Belt buckle -->
+  <rect x="240" y="420" width="20" height="18" rx="3" fill="#D4A017" stroke="#B8860B" stroke-width="1"/>
+  <rect x="246" y="425" width="8" height="8" rx="1" fill="none" stroke="#B8860B" stroke-width="1.5"/>
+
+  <!-- === TORSO === -->
+  <path d="M198 262 Q188 285 193 422 L307 422 Q312 285 302 262 Q282 252 250 250 Q218 252 198 262 Z" fill="url(#shirtGrad)"/>
+
+  <!-- Collar -->
+  <path d="M228 254 L250 278 L272 254" stroke="#1A365D" stroke-width="2" fill="none"/>
+  <path d="M228 254 Q230 260 235 265" stroke="#2C5282" stroke-width="1.5" fill="none" opacity="0.4"/>
+  <path d="M272 254 Q270 260 265 265" stroke="#2C5282" stroke-width="1.5" fill="none" opacity="0.4"/>
+
+  <!-- Chest pocket -->
+  <path d="M275 292 L275 320 L298 320 L298 292 Z" fill="#2C5282" stroke="#1A365D" stroke-width="0.8"/>
+  <path d="M275 292 L298 292" stroke="#1A365D" stroke-width="1.2"/>
+  <!-- Screwdriver in pocket -->
+  <line x1="283" y1="288" x2="281" y2="306" stroke="#F6E05E" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="281" y1="306" x2="280" y2="316" stroke="#A0AEC0" stroke-width="1.5" stroke-linecap="round"/>
+
+  <!-- Buttons -->
+  <circle cx="250" cy="295" r="2.5" fill="#1A365D" opacity="0.5"/>
+  <circle cx="250" cy="320" r="2.5" fill="#1A365D" opacity="0.5"/>
+  <circle cx="250" cy="345" r="2.5" fill="#1A365D" opacity="0.5"/>
+  <circle cx="250" cy="370" r="2.5" fill="#1A365D" opacity="0.5"/>
+
+  <!-- Shirt wrinkles -->
+  <path d="M218 300 Q228 315 222 350" stroke="#1A365D" stroke-width="0.7" fill="none" opacity="0.25"/>
+  <path d="M282 300 Q272 315 278 350" stroke="#1A365D" stroke-width="0.7" fill="none" opacity="0.25"/>
+  <path d="M235 360 Q250 368 265 360" stroke="#1A365D" stroke-width="0.6" fill="none" opacity="0.2"/>
+
+  <!-- Name tag -->
+  <g transform="translate(200, 284)">
+    <rect x="0" y="0" width="32" height="16" rx="2" fill="white" opacity="0.92" stroke="#CBD5E0" stroke-width="0.5"/>
+    <text x="16" y="12" text-anchor="middle" font-size="7" fill="#2B6CB0" font-family="Arial, sans-serif" font-weight="bold">PRO</text>
   </g>
+
+  <!-- === LEFT ARM (holding wrench) === -->
+  <!-- Upper arm -->
+  <path d="M198 262 Q175 275 165 320 L163 355" stroke="url(#shirtGrad)" stroke-width="30" stroke-linecap="round" fill="none"/>
+  <!-- Forearm skin -->
+  <path d="M163 350 Q158 378 150 400 L145 418" stroke="url(#skinTone)" stroke-width="22" stroke-linecap="round" fill="none"/>
+  <!-- Rolled up sleeve -->
+  <path d="M158 348 Q168 345 175 350" stroke="#1A365D" stroke-width="2" fill="none"/>
+  <path d="M155 352 Q165 349 172 354" stroke="#1A365D" stroke-width="1.5" fill="none" opacity="0.5"/>
+
+  <!-- Left hand gripping wrench -->
+  <path d="M138 412 Q132 420 134 432 Q136 440 145 442 Q152 440 155 432 Q158 422 152 414 Z" fill="url(#skinTone)"/>
+  <!-- Fingers -->
+  <path d="M136 418 Q130 424 132 430" stroke="#C4956A" stroke-width="3.5" stroke-linecap="round" fill="none"/>
+  <path d="M138 415 Q133 420 134 426" stroke="#C4956A" stroke-width="3" stroke-linecap="round" fill="none"/>
+  <path d="M150 415 Q156 420 154 427" stroke="#C4956A" stroke-width="3" stroke-linecap="round" fill="none"/>
+
+  <!-- Big wrench in left hand -->
+  <g transform="translate(118, 380) rotate(-20)">
+    <!-- Handle -->
+    <rect x="0" y="8" width="55" height="10" rx="3" fill="#718096"/>
+    <rect x="0" y="10" width="55" height="6" rx="2" fill="#A0AEC0"/>
+    <!-- Jaw open end -->
+    <path d="M55 5 L70 0 L75 5 L75 10 L72 13 L55 13 Z" fill="#718096"/>
+    <path d="M55 13 L72 13 L75 16 L75 21 L70 26 L55 21 Z" fill="#718096"/>
+    <!-- Jaw opening -->
+    <rect x="62" y="10" width="10" height="6" fill="#2D3748" opacity="0.3"/>
+    <!-- Grip texture -->
+    <line x1="10" y1="9" x2="10" y2="17" stroke="#4A5568" stroke-width="0.8" opacity="0.4"/>
+    <line x1="15" y1="9" x2="15" y2="17" stroke="#4A5568" stroke-width="0.8" opacity="0.4"/>
+    <line x1="20" y1="9" x2="20" y2="17" stroke="#4A5568" stroke-width="0.8" opacity="0.4"/>
+    <line x1="25" y1="9" x2="25" y2="17" stroke="#4A5568" stroke-width="0.8" opacity="0.4"/>
+    <line x1="30" y1="9" x2="30" y2="17" stroke="#4A5568" stroke-width="0.8" opacity="0.4"/>
+  </g>
+
+  <!-- === RIGHT ARM (confident pose on hip) === -->
+  <!-- Upper arm -->
+  <path d="M302 262 Q325 275 335 315 L338 360" stroke="url(#shirtGrad)" stroke-width="30" stroke-linecap="round" fill="none"/>
+  <!-- Forearm skin -->
+  <path d="M338 355 Q342 385 338 410 L332 418" stroke="url(#skinTone)" stroke-width="22" stroke-linecap="round" fill="none"/>
+  <!-- Rolled up sleeve -->
+  <path d="M332 352 Q342 349 348 354" stroke="#1A365D" stroke-width="2" fill="none"/>
+
+  <!-- Right hand on hip -->
+  <path d="M322 412 Q315 422 318 432 Q322 438 332 438 Q342 435 345 425 Q346 415 340 410 Z" fill="url(#skinTone)"/>
+  <!-- Thumb -->
+  <path d="M338 412 Q346 408 348 415 Q347 422 342 423" stroke="#C4956A" stroke-width="3" stroke-linecap="round" fill="none"/>
+
+  <!-- === NECK === -->
+  <rect x="238" y="232" width="24" height="24" rx="6" fill="url(#skinTone)"/>
+  <!-- Adam's apple subtle -->
+  <ellipse cx="250" cy="244" rx="3" ry="4" fill="#C4956A" opacity="0.2"/>
+
+  <!-- === HEAD === -->
+  <ellipse cx="250" cy="195" rx="48" ry="53" fill="url(#skinTone)"/>
+
+  <!-- Hair - neat short dark hair -->
+  <path d="M202 188 Q198 155 215 138 Q235 122 255 120 Q275 120 292 135 Q308 152 302 188 Q298 172 282 160 Q265 150 248 152 Q228 155 215 168 Z" fill="#3D2E1F"/>
+  <!-- Hair texture lines -->
+  <path d="M218 152 Q230 142 248 138" stroke="#2D1F12" stroke-width="0.8" opacity="0.3" fill="none"/>
+  <path d="M258 138 Q278 144 290 158" stroke="#2D1F12" stroke-width="0.8" opacity="0.3" fill="none"/>
+  <!-- Side hair -->
+  <path d="M202 188 Q200 195 203 200" stroke="#3D2E1F" stroke-width="5" stroke-linecap="round" fill="none"/>
+  <path d="M298 188 Q300 195 297 200" stroke="#3D2E1F" stroke-width="5" stroke-linecap="round" fill="none"/>
+
+  <!-- Ears -->
+  <ellipse cx="202" cy="200" rx="9" ry="13" fill="#D4A373"/>
+  <ellipse cx="298" cy="200" rx="9" ry="13" fill="#D4A373"/>
+  <ellipse cx="203" cy="200" rx="5" ry="8" fill="#E8B88A" opacity="0.5"/>
+  <ellipse cx="297" cy="200" rx="5" ry="8" fill="#E8B88A" opacity="0.5"/>
+
+  <!-- Eyebrows - confident -->
+  <path d="M220 178 Q230 172 243 176" stroke="#3D2E1F" stroke-width="3.5" stroke-linecap="round" fill="none"/>
+  <path d="M257 176 Q270 172 280 178" stroke="#3D2E1F" stroke-width="3.5" stroke-linecap="round" fill="none"/>
+
+  <!-- Eyes -->
+  <ellipse cx="232" cy="193" rx="9" ry="9.5" fill="white"/>
+  <ellipse cx="268" cy="193" rx="9" ry="9.5" fill="white"/>
+  <!-- Irises - warm brown -->
+  <ellipse cx="234" cy="194" rx="5.5" ry="6" fill="#6B4226"/>
+  <ellipse cx="270" cy="194" rx="5.5" ry="6" fill="#6B4226"/>
+  <!-- Pupils -->
+  <circle cx="235" cy="194" r="2.8" fill="#1A0E05"/>
+  <circle cx="271" cy="194" r="2.8" fill="#1A0E05"/>
+  <!-- Eye shine -->
+  <circle cx="237" cy="192" r="1.8" fill="white" opacity="0.85"/>
+  <circle cx="273" cy="192" r="1.8" fill="white" opacity="0.85"/>
+  <!-- Lower eye shine -->
+  <circle cx="233" cy="196" r="1" fill="white" opacity="0.3"/>
+  <circle cx="269" cy="196" r="1" fill="white" opacity="0.3"/>
+  <!-- Eyelids -->
+  <path d="M223 189 Q232 185 241 189" stroke="#C4956A" stroke-width="1.2" fill="none" opacity="0.4"/>
+  <path d="M259 189 Q268 185 277 189" stroke="#C4956A" stroke-width="1.2" fill="none" opacity="0.4"/>
+  <!-- Lower lash line -->
+  <path d="M224 198 Q232 201 240 198" stroke="#C4956A" stroke-width="0.6" fill="none" opacity="0.3"/>
+  <path d="M260 198 Q268 201 276 198" stroke="#C4956A" stroke-width="0.6" fill="none" opacity="0.3"/>
+
+  <!-- Nose -->
+  <path d="M248 198 Q244 210 240 216 Q244 220 250 220 Q256 220 260 216 Q256 210 252 198" stroke="#C4956A" stroke-width="1.5" fill="none"/>
+  <!-- Nostril hints -->
+  <ellipse cx="243" cy="217" rx="3" ry="2" fill="#C4956A" opacity="0.2"/>
+  <ellipse cx="257" cy="217" rx="3" ry="2" fill="#C4956A" opacity="0.2"/>
+
+  <!-- Confident smile -->
+  <path d="M230 228 Q240 242 250 244 Q260 242 270 228" stroke="#8B4513" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+  <!-- Upper lip -->
+  <path d="M236 230 Q243 226 250 228 Q257 226 264 230" stroke="#C08060" stroke-width="1.5" fill="none" opacity="0.4"/>
+  <!-- Smile showing teeth hint -->
+  <path d="M236 232 Q250 240 264 232" fill="white" opacity="0.3"/>
+  <!-- Laugh lines -->
+  <path d="M226 222 Q228 228 230 228" stroke="#C4956A" stroke-width="0.8" fill="none" opacity="0.3"/>
+  <path d="M274 222 Q272 228 270 228" stroke="#C4956A" stroke-width="0.8" fill="none" opacity="0.3"/>
+
+  <!-- Light stubble -->
+  <g fill="#8B7355" opacity="0.15">
+    <circle cx="232" cy="234" r="0.6"/><circle cx="237" cy="237" r="0.6"/>
+    <circle cx="242" cy="239" r="0.6"/><circle cx="247" cy="240" r="0.6"/>
+    <circle cx="253" cy="240" r="0.6"/><circle cx="258" cy="239" r="0.6"/>
+    <circle cx="263" cy="237" r="0.6"/><circle cx="268" cy="234" r="0.6"/>
+    <circle cx="235" cy="240" r="0.5"/><circle cx="250" cy="243" r="0.5"/>
+    <circle cx="265" cy="240" r="0.5"/>
+  </g>
+
+  <!-- === TOOL BELT ACCESSORIES === -->
+  <!-- Left tool pouch -->
+  <path d="M198 436 Q185 440 182 450 L182 475 Q182 482 190 482 L200 482 Q205 482 205 475 L205 440 Z" fill="#6D4C41" stroke="#5D4037" stroke-width="0.8"/>
+  <!-- Hammer handle sticking out -->
+  <g transform="translate(186, 445) rotate(8)">
+    <rect x="0" y="-5" width="6" height="35" rx="2" fill="#A1887F"/>
+    <rect x="-4" y="-10" width="14" height="10" rx="2" fill="#78909C"/>
+    <!-- Hammer claw -->
+    <path d="M10 -10 Q14 -15 12 -18 L10 -16 Q12 -12 10 -10" fill="#78909C"/>
+  </g>
+
+  <!-- Right tool pouch -->
+  <path d="M295 436 Q310 440 315 450 L315 475 Q315 482 308 482 L298 482 Q293 482 293 475 L293 440 Z" fill="#6D4C41" stroke="#5D4037" stroke-width="0.8"/>
+  <!-- Measuring tape -->
+  <g transform="translate(305, 455)">
+    <circle cx="0" cy="0" r="11" fill="#FDD835" stroke="#F9A825" stroke-width="1"/>
+    <circle cx="0" cy="0" r="7.5" fill="#FFEE58"/>
+    <circle cx="0" cy="0" r="3" fill="#F9A825"/>
+    <!-- Lock button -->
+    <rect x="5" y="-3" width="7" height="6" rx="1.5" fill="#E65100" opacity="0.7"/>
+    <!-- Tape end -->
+    <path d="M11 -1 Q16 -3 18 1 L19 2 Q17 4 14 2 L11 1 Z" fill="#FDD835"/>
+  </g>
+
+  <!-- Pliers in center belt -->
+  <g transform="translate(248, 436) rotate(-3)">
+    <path d="M-2 0 L-3 20 Q-3 22 -1 22 L1 22 Q3 22 3 20 L2 0 Z" fill="#E65100"/>
+    <path d="M2 0 L3 20 Q3 22 5 22 L7 22 Q9 22 9 20 L8 0 Z" fill="#E65100"/>
+    <!-- Joint -->
+    <circle cx="3" cy="0" r="3.5" fill="#78909C"/>
+    <!-- Jaws -->
+    <path d="M-2 0 L-4 -10 Q-3 -14 0 -14 L3 0 Z" fill="#90A4AE"/>
+    <path d="M3 0 L6 -10 Q7 -14 4 -14 L1 0 Z" fill="#90A4AE"/>
+  </g>
+
+  <!-- === FOREARM DETAIL (veins/muscle tone) === -->
+  <path d="M158 365 Q155 375 152 395" stroke="#C4956A" stroke-width="0.6" fill="none" opacity="0.2"/>
+  <path d="M162 360 Q160 375 157 390" stroke="#C4956A" stroke-width="0.6" fill="none" opacity="0.15"/>
 </svg>

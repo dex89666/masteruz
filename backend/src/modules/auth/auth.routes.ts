@@ -120,7 +120,11 @@ router.post('/switch-role', authenticate, async (req, res, next) => {
 
     res.json({
       success: true,
-      data: updated,
+      data: {
+        ...updated,
+        telegramId: Number(updated.telegramId),
+        isAdminUser: true, // Если дошли сюда — пользователь точно админ
+      },
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
     });

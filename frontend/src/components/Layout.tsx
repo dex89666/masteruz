@@ -53,13 +53,8 @@ export function Layout() {
   const [switchingRole, setSwitchingRole] = useState(false);
   const totalCartItems = useCartStore((s) => s.getTotalItems());
 
-  // Глобально сохраняем флаг что пользователь был админом
-  const wasAdmin = typeof localStorage !== 'undefined' && localStorage.getItem('masteruz-was-admin') === 'true';
-  useEffect(() => {
-    if (isAdmin) {
-      localStorage.setItem('masteruz-was-admin', 'true');
-    }
-  }, [isAdmin]);
+  // Админ-статус определяется из бэкенда (поле isAdminUser)
+  const isAdminUser = user?.isAdminUser === true || isAdmin;
 
   // Переключение роли обратно в админа
   async function handleSwitchToAdmin() {
@@ -199,8 +194,8 @@ export function Layout() {
                 </Link>
               )}
 
-              {/* Кнопка возврата в админку для бывших админов */}
-              {!isAdmin && wasAdmin && (
+              {/* Кнопка возврата в админку для админ-пользователей */}
+              {!isAdmin && isAdminUser && (
                 <button
                   onClick={handleSwitchToAdmin}
                   disabled={switchingRole}
@@ -376,8 +371,8 @@ export function Layout() {
                 </Link>
               )}
 
-              {/* Вернуться в админку — для бывших админов */}
-              {!isAdmin && wasAdmin && (
+              {/* Вернуться в админку — для админ-пользователей */}
+              {!isAdmin && isAdminUser && (
                 <button
                   onClick={() => { handleSwitchToAdmin(); setMobileMenuOpen(false); }}
                   disabled={switchingRole}

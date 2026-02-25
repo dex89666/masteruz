@@ -20,6 +20,7 @@ export interface User {
   profile: UserProfile | null;
   masterProfile: MasterProfile | null;
   createdAt: string;
+  isAdminUser?: boolean;
 }
 
 export interface UserProfile {
