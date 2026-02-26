@@ -10,6 +10,7 @@ import { balanceService } from '../balance/balance.service.js';
 import { notificationService } from '../../services/notificationService.js';
 import { toNum, moneyMul, moneyAdd, calculateCommission } from '../../utils/helpers.js';
 import { OrderStatus } from '@prisma/client';
+import { buildSmartVariants } from './pricing-catalog.js';
 
 // Тип AI-уровня (AiTier будет доступен после prisma generate)
 type AiTierType = 'GOOD' | 'BETTER' | 'BEST';
@@ -107,8 +108,48 @@ export class InstantOrderService {
       );
     }
 
-    // ─── AI-подбор задач (Mock + Smart Logic) ──
-    const analysisResult = this.generateVariants(category, allTasks, combinedDescription, images);
+    // ─── УМНЫЙ AI-анализ: сначала каталог расценок, потом fallback ──
+    let analysisResult: any;
+    const smartResult = buildSmartVariants(category.slug, category.name, combinedDescription);
+
+    if (smartResult) {
+      // Умный каталог нашёл конкретную проблему → точные цены Ташкента 2026
+      logger.info(
+        { categorySlug: category.slug, problem: smartResult.problemName },
+        'AI-анализ: найдена проблема в каталоге расценок'
+      );
+
+      // Подбираем taskIds из БД-задач по ключевым словам решения
+      analysisResult = {
+        variants: smartResult.variants.map((v: any) => {
+          // Ищем подходящие задачи из каталога для привязки
+          const matchedTaskIds = this.matchTasksToSolution(allTasks, v.title, v.description);
+          return {
+            tier: v.tier,
+            tierLabel: v.tierLabel,
+            taskIds: matchedTaskIds.length > 0 ? matchedTaskIds : [allTasks[0]?.id].filter(Boolean),
+            materials: v.materials.map((m: any) => ({
+              name: m.name,
+              quantity: m.qty,
+              unit: m.unit,
+              unitPrice: m.unitPrice,
+              total: m.total,
+            })),
+            estimatedPrice: v.estimatedPrice,
+            estimatedDays: v.estimatedDays,
+            confidence: v.confidence,
+            description: `${v.title}. ${v.description}`,
+          };
+        }),
+      };
+    } else {
+      // Fallback: старая логика на основе задач из каталога
+      logger.info(
+        { categorySlug: category.slug },
+        'AI-анализ: проблема не найдена в каталоге, используем fallback'
+      );
+      analysisResult = this.generateVariantsFallback(category, allTasks, combinedDescription, images);
+    }
 
     // Сохраняем шаблоны в БД
     let templates;
@@ -544,10 +585,36 @@ export class InstantOrderService {
   }
 
   /**
-   * Генерация 3 вариантов (Good / Better / Best) из доступных задач.
+   * Подбор задач из БД-каталога, соответствующих решению из каталога расценок.
+   * Используется для привязки реальных task IDs к smart-варианту.
+   */
+  private matchTasksToSolution(allTasks: any[], solutionTitle: string, solutionDesc: string): string[] {
+    const combined = (solutionTitle + ' ' + solutionDesc).toLowerCase();
+    const words = combined.split(/\s+/).filter(w => w.length > 3);
+    
+    const scored = allTasks.map((task: any) => {
+      const taskName = (task.name || '').toLowerCase();
+      const taskDesc = (task.description || '').toLowerCase();
+      let score = 0;
+      for (const word of words) {
+        if (taskName.includes(word)) score += 3;
+        if (taskDesc.includes(word)) score += 1;
+      }
+      return { id: task.id, score };
+    });
+
+    return scored
+      .filter(s => s.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 3)
+      .map(s => s.id);
+  }
+
+  /**
+   * Fallback: генерация 3 вариантов из доступных задач (когда каталог расценок не нашёл проблему).
    * Умный подбор: сопоставляем задачи с описанием, точный расчёт цен.
    */
-  private generateVariants(category: any, allTasks: any[], description: string, images: string[]) {
+  private generateVariantsFallback(category: any, allTasks: any[], description: string, images: string[]) {
     const lower = description.toLowerCase();
 
     // ─── Ранжируем задачи по релевантности к описанию ─────
