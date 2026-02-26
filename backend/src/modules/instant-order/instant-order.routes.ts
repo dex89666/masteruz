@@ -57,7 +57,15 @@ router.post('/analyze', authenticate, async (req: Request, res: Response, next: 
     const data = analyzeSchema.parse(req.body);
     const result = await instantOrderService.analyzePhotos(req.user!.userId, data);
     res.json({ success: true, data: result });
-  } catch (error) {
+  } catch (error: any) {
+    // Подробное логирование для отладки
+    if (error?.name === 'ZodError') {
+      return res.status(400).json({
+        success: false,
+        error: { message: 'Ошибка валидации данных: ' + error.errors?.map((e: any) => e.message).join(', ') },
+      });
+    }
+    console.error('AI analyze error:', error?.message || error);
     next(error);
   }
 });

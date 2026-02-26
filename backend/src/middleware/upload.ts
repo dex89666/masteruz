@@ -63,7 +63,13 @@ export const upload = multer({
  * На VPS — возвращает локальный путь
  */
 export async function saveUploadedFile(file: Express.Multer.File): Promise<string> {
-  if (isVercel && process.env.BLOB_READ_WRITE_TOKEN) {
+  if (isVercel) {
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      // Fallback: конвертируем в base64 data URL на лету
+      const base64 = file.buffer.toString('base64');
+      const dataUrl = `data:${file.mimetype};base64,${base64}`;
+      return dataUrl;
+    }
     // Vercel Blob — загрузка через REST API
     const ext = path.extname(file.originalname);
     const filename = `${uuidv4()}${ext}`;
@@ -82,7 +88,9 @@ export async function saveUploadedFile(file: Express.Multer.File): Promise<strin
     );
     
     if (!response.ok) {
-      throw new ApiError(500, 'Ошибка загрузки файла');
+      // Fallback: base64 data URL
+      const base64 = file.buffer.toString('base64');
+      return `data:${file.mimetype};base64,${base64}`;
     }
     
     const blob = (await response.json()) as { url: string };

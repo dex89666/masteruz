@@ -259,14 +259,24 @@ export function InstantOrderPage() {
           const url = res.data.data?.url;
           if (url) uploadedUrls.push(url);
         } catch (uploadErr) {
-          console.warn('Ошибка загрузки фото, пробуем через data URL:', uploadErr);
+          console.warn('Ошибка загрузки фото на сервер:', uploadErr);
         }
       }
 
-      // Если ни одно фото не загрузилось — создаём data URL из превью
-      if (uploadedUrls.length === 0 && images.length > 0) {
-        for (const previewUrl of images) {
-          uploadedUrls.push(previewUrl);
+      // Если серверная загрузка не удалась — конвертируем File в base64 data URL
+      if (uploadedUrls.length === 0 && imageFiles.length > 0) {
+        for (const file of imageFiles) {
+          try {
+            const base64 = await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(reader.result as string);
+              reader.onerror = reject;
+              reader.readAsDataURL(file);
+            });
+            uploadedUrls.push(base64);
+          } catch {
+            console.warn('Не удалось конвертировать файл в base64');
+          }
         }
       }
 
@@ -292,7 +302,9 @@ export function InstantOrderPage() {
       }
       toast.success('AI-анализ завершён! Выберите вариант.');
     } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Ошибка AI-анализа');
+      const msg = err.response?.data?.error?.message || err.response?.data?.message || err.message || 'Ошибка AI-анализа';
+      console.error('AI analyze error:', err.response?.data || err);
+      toast.error(msg);
       setStep('upload');
     } finally {
       setLoading(false);

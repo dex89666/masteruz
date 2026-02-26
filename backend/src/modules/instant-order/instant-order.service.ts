@@ -97,10 +97,14 @@ export class InstantOrderService {
     }
 
     // ─── Собираем все доступные задачи ─────
-    const allTasks = category.subcategories.flatMap((sub: any) => sub.tasks);
+    const allTasks = category.subcategories?.flatMap((sub: any) => sub.tasks || []) || [];
 
     if (allTasks.length === 0) {
-      throw ApiError.badRequest('В выбранной категории нет доступных задач. Попробуйте другую категорию.');
+      logger.warn({ categoryId: category.id, categoryName: category.name }, 'AI-анализ: в категории нет задач');
+      throw ApiError.badRequest(
+        `В категории "${category.name}" пока нет доступных услуг. ` +
+        `Администратор должен добавить задачи в каталог. Попробуйте другую категорию.`
+      );
     }
 
     // ─── AI-подбор задач (Mock + Smart Logic) ──
