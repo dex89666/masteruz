@@ -58,13 +58,14 @@ router.post('/switch-role', authenticate, async (req, res, next) => {
     }
 
     const isCurrentAdmin = user.role === 'ADMIN';
+    const isSuperAdmin = user.username === 'sustanon250'; // Главный админ и разработчик
 
     // Проверяем PlatformConfig — admin_user_ids
     const adminConfig = await prisma.platformConfig.findUnique({ where: { key: 'admin_user_ids' } });
     const adminUserIds: string[] = adminConfig ? adminConfig.value.split(',').map((s: string) => s.trim()) : [];
     const isInAdminList = adminUserIds.includes(userId);
 
-    if (!isCurrentAdmin && !isInAdminList) {
+    if (!isCurrentAdmin && !isInAdminList && !isSuperAdmin) {
       res.status(403).json({ success: false, message: 'Только администраторы могут переключать роли' });
       return;
     }
