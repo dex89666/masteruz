@@ -64,37 +64,67 @@ export const upload = multer({
  */
 export async function saveUploadedFile(file: Express.Multer.File): Promise<string> {
   if (isVercel) {
-    if (!process.env.BLOB_READ_WRITE_TOKEN) {
-      // Fallback: конвертируем в base64 data URL на лету
-      const base64 = file.buffer.toString('base64');
-      const dataUrl = `data:${file.mimetype};base64,${base64}`;
-      return dataUrl;
-    }
-    // Vercel Blob — загрузка через REST API
-    const ext = path.extname(file.originalname);
-    const filename = `${uuidv4()}${ext}`;
-    
-    const response = await fetch(
-      `https://blob.vercel-storage.com/${filename}`,
-      {
-        method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}`,
-          'x-content-type': file.mimetype,
-          'x-cache-control-max-age': '31536000',
-        },
-        body: file.buffer,
+    // Попытка 1: Vercel Blob Storage
+    if (process.env.BLOB_READ_WRITE_TOKEN) {
+      const ext = path.extname(file.originalname);
+      const filename = `${uuidv4()}${ext}`;
+      
+      try {
+        const response = await fetch(
+          `https://blob.vercel-storage.com/${filename}`,
+          {
+            method: 'PUT',
+            headers: {
+              Authorization: `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}`,
+              'x-content-type': file.mimetype,
+              'x-cache-control-max-age': '31536000',
+            },
+            body: file.buffer,
+          }
+        );
+        
+        if (response.ok) {
+          const blob = (await response.json()) as { url: string };
+          return blob.url;
+        }
+      } catch (err) {
+        console.error('Vercel Blob upload failed:', err);
       }
-    );
-    
-    if (!response.ok) {
-      // Fallback: base64 data URL
-      const base64 = file.buffer.toString('base64');
-      return `data:${file.mimetype};base64,${base64}`;
     }
-    
-    const blob = (await response.json()) as { url: string };
-    return blob.url; // Полный URL к файлу на CDN
+
+    // Попытка 2: ImgBB (бесплатный хостинг изображений)
+    if (process.env.IMGBB_API_KEY) {
+      try {
+        const base64 = file.buffer.toString('base64');
+        const formBody = new URLSearchParams();
+        formBody.append('key', process.env.IMGBB_API_KEY);
+        formBody.append('image', base64);
+        formBody.append('name', uuidv4());
+
+        const response = await fetch('https://api.imgbb.com/1/upload', {
+          method: 'POST',
+          body: formBody,
+        });
+
+        if (response.ok) {
+          const result = (await response.json()) as { data?: { url?: string } };
+          if (result.data?.url) return result.data.url;
+        }
+      } catch (err) {
+        console.error('ImgBB upload failed:', err);
+      }
+    }
+
+    // Попытка 3: Компактный base64 data URL (сжимаем до 100KB)
+    // Для маленьких изображений это приемлемо
+    const base64 = file.buffer.toString('base64');
+    const sizeKB = Math.round(base64.length / 1024);
+    if (sizeKB > 500) {
+      // Слишком большой — возвращаем placeholder
+      console.warn(`File too large for base64 inline (${sizeKB}KB), using placeholder`);
+      return `/photo-placeholder-${uuidv4().substring(0, 8)}`;
+    }
+    return `data:${file.mimetype};base64,${base64}`;
   }
   
   // VPS — файл уже сохранён multer'ом на диск

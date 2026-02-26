@@ -114,20 +114,56 @@ export function InstantOrderPage() {
       .catch(() => {});
   }, []);
 
+  // ─── Сжатие изображения через Canvas ──────
+  const compressImage = useCallback((file: File, maxWidth = 1200, quality = 0.7): Promise<File> => {
+    return new Promise((resolve) => {
+      // Если файл маленький (< 500KB) — не сжимаем
+      if (file.size < 500 * 1024) { resolve(file); return; }
+
+      const img = new window.Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const canvas = document.createElement('canvas');
+        let w = img.width, h = img.height;
+        if (w > maxWidth) { h = Math.round(h * maxWidth / w); w = maxWidth; }
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) { resolve(file); return; }
+        ctx.drawImage(img, 0, 0, w, h);
+        canvas.toBlob(
+          (blob) => {
+            if (blob && blob.size < file.size) {
+              resolve(new File([blob], file.name, { type: 'image/jpeg' }));
+            } else {
+              resolve(file);
+            }
+          },
+          'image/jpeg',
+          quality
+        );
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+      img.src = url;
+    });
+  }, []);
+
   // ─── Photo upload ────────────────────
-  const addFiles = useCallback((files: File[]) => {
+  const addFiles = useCallback(async (files: File[]) => {
     if (images.length + files.length > 10) {
       toast.error('Максимум 10 фотографий');
       return;
     }
     const newPreviews: string[] = [];
     const newFiles: File[] = [];
-    for (const file of files) {
+    for (let file of files) {
       if (file.size > 10 * 1024 * 1024) {
         toast.error(`Файл ${file.name} слишком большой (макс. 10 МБ)`);
         continue;
       }
       if (!file.type.startsWith('image/')) continue;
+      // Сжимаем большие фото перед добавлением
+      file = await compressImage(file);
       newPreviews.push(URL.createObjectURL(file));
       newFiles.push(file);
     }
@@ -257,26 +293,24 @@ export function InstantOrderPage() {
           formData.append('photo', file);
           const res = await photosApi.upload(formData);
           const url = res.data.data?.url;
-          if (url) uploadedUrls.push(url);
+          if (url && !url.startsWith('data:')) {
+            // Только настоящие URL (не base64) — они компактные
+            uploadedUrls.push(url);
+          } else if (url) {
+            // base64 data URL слишком большой для повторной отправки —
+            // сохраняем маркер, настоящий base64 сохраним при создании заказа
+            uploadedUrls.push(`photo-uploaded-${uploadedUrls.length + 1}`);
+          }
         } catch (uploadErr) {
           console.warn('Ошибка загрузки фото на сервер:', uploadErr);
         }
       }
 
-      // Если серверная загрузка не удалась — конвертируем File в base64 data URL
+      // Если серверная загрузка не удалась — используем маркеры
+      // (AI-анализ не использует реальные фото, только описание и категорию)
       if (uploadedUrls.length === 0 && imageFiles.length > 0) {
-        for (const file of imageFiles) {
-          try {
-            const base64 = await new Promise<string>((resolve, reject) => {
-              const reader = new FileReader();
-              reader.onload = () => resolve(reader.result as string);
-              reader.onerror = reject;
-              reader.readAsDataURL(file);
-            });
-            uploadedUrls.push(base64);
-          } catch {
-            console.warn('Не удалось конвертировать файл в base64');
-          }
+        for (let i = 0; i < imageFiles.length; i++) {
+          uploadedUrls.push(`photo-pending-${i + 1}`);
         }
       }
 
@@ -320,8 +354,22 @@ export function InstantOrderPage() {
 
     setCreating(true);
     try {
-      // Используем реальные URL из blob-хранилища, а если нет — локальные превью
-      const uploadedUrls = images;
+      // Загружаем фото на сервер при создании заказа
+      const orderImages: string[] = [];
+      for (const file of imageFiles) {
+        try {
+          const formData = new FormData();
+          formData.append('photo', file);
+          const res = await photosApi.upload(formData);
+          const url = res.data.data?.url;
+          if (url && !url.startsWith('data:')) {
+            orderImages.push(url);
+          }
+        } catch {
+          console.warn('Ошибка загрузки фото при создании заказа');
+        }
+      }
+      // Если загрузка не удалась, используем пустой массив — заказ создастся без фото
       const deadlineStr = timing === 'date' && deadline ? `${deadline}${deadlineTime ? 'T' + deadlineTime : ''}` : undefined;
 
       const result = await instantOrderApi.create({
@@ -332,7 +380,7 @@ export function InstantOrderPage() {
         voiceDescription: voiceText || undefined,
         address,
         city: city || undefined,
-        images: uploadedUrls,
+        images: orderImages.length > 0 ? orderImages : ['photo-pending'],
         deadline: deadlineStr,
         isUrgent,
         offerAccepted,

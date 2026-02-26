@@ -111,26 +111,32 @@ export class InstantOrderService {
     const analysisResult = this.generateVariants(category, allTasks, combinedDescription, images);
 
     // Сохраняем шаблоны в БД
-    const templates = await Promise.all(
-      analysisResult.variants.map(async (variant: any) => {
-        return prisma.aiOrderTemplate.create({
-          data: {
-            categoryId: category!.id,
-            tier: variant.tier as AiTierType,
-            tierLabel: variant.tierLabel,
-            taskIds: variant.taskIds,
-            materials: variant.materials,
-            estimatedPrice: variant.estimatedPrice,
-            estimatedDays: variant.estimatedDays,
-            confidence: variant.confidence,
-            prompt: combinedDescription,
-            imageAnalysis: { imageCount: images.length, description: combinedDescription },
-            description: variant.description,
-            createdById: userId,
-          },
-        });
-      })
-    );
+    let templates;
+    try {
+      templates = await Promise.all(
+        analysisResult.variants.map(async (variant: any) => {
+          return prisma.aiOrderTemplate.create({
+            data: {
+              categoryId: category!.id,
+              tier: variant.tier as AiTierType,
+              tierLabel: variant.tierLabel,
+              taskIds: variant.taskIds,
+              materials: variant.materials,
+              estimatedPrice: Math.round(variant.estimatedPrice),
+              estimatedDays: variant.estimatedDays,
+              confidence: variant.confidence,
+              prompt: (combinedDescription || '').substring(0, 2000),
+              imageAnalysis: { imageCount: images.length, description: (combinedDescription || '').substring(0, 500) },
+              description: (variant.description || '').substring(0, 2000),
+              createdById: userId,
+            },
+          });
+        })
+      );
+    } catch (dbError: any) {
+      logger.error({ error: dbError?.message, code: dbError?.code }, 'Ошибка сохранения AI-шаблона в БД');
+      throw ApiError.internal('Ошибка при создании вариантов. Попробуйте ещё раз.');
+    }
 
     logger.info(
       { userId, categoryId: category.id, variantCount: templates.length },
