@@ -31,6 +31,8 @@ const typeIcons: Record<BalanceTransactionType, typeof Wallet> = {
   PAYOUT: TrendingDown,
   ESTIMATION_FEE: CreditCard,
   ESTIMATE_PAYOUT: ArrowDownCircle,
+  ADMIN_TOPUP: ArrowUpCircle,
+  ADMIN_WITHDRAW: ArrowDownCircle,
 };
 
 const typeColors: Record<BalanceTransactionType, string> = {
@@ -43,6 +45,8 @@ const typeColors: Record<BalanceTransactionType, string> = {
   PAYOUT: 'text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800',
   ESTIMATION_FEE: 'text-indigo-500 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30',
   ESTIMATE_PAYOUT: 'text-teal-500 dark:text-teal-400 bg-teal-50 dark:bg-teal-900/30',
+  ADMIN_TOPUP: 'text-amber-500 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30',
+  ADMIN_WITHDRAW: 'text-rose-500 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/30',
 };
 
 const amountSign: Record<BalanceTransactionType, '+' | '-'> = {
@@ -55,6 +59,8 @@ const amountSign: Record<BalanceTransactionType, '+' | '-'> = {
   PAYOUT: '-',
   ESTIMATION_FEE: '-',
   ESTIMATE_PAYOUT: '+',
+  ADMIN_TOPUP: '+',
+  ADMIN_WITHDRAW: '-',
 };
 
 export function BalancePage() {
