@@ -256,11 +256,22 @@ export interface SchoolCourse {
   videoUrl: string | null;
   thumbnailUrl: string | null;
   durationMinutes: number | null;
-  order: number;
+  sortOrder: number;
   isRequired: boolean;
   isActive: boolean;
+  passingScore: number;
   category?: Category;
-  _count?: { progress: number };
+  questions?: QuizQuestion[];
+  _count?: { progress: number; questions: number };
+}
+
+export interface QuizQuestion {
+  id: string;
+  question: string;
+  questionUz: string | null;
+  options: string[];
+  optionsUz: string[] | null;
+  sortOrder: number;
 }
 
 export interface CourseProgress {
@@ -269,7 +280,30 @@ export interface CourseProgress {
   courseId: string;
   completed: boolean;
   completedAt: string | null;
+  videoWatchedSec: number;
+  videoCompleted: boolean;
+  quizScore: number | null;
+  quizPassedAt: string | null;
+  quizAttempts: number;
   course?: SchoolCourse;
+}
+
+export interface SchoolProgressData {
+  totalCourses: number;
+  completedCourses: number;
+  requiredCourses: number;
+  completedRequired: number;
+  isSchoolCompleted: boolean;
+  progress: CourseProgress[];
+}
+
+export interface QuizResult {
+  score: number;
+  passed: boolean;
+  correctCount: number;
+  totalQuestions: number;
+  passingScore: number;
+  attempts: number;
 }
 
 // ─── API Response ──────────────────────────

@@ -270,6 +270,37 @@ export const schoolApi = {
 
   getProgress: () =>
     api.get<ApiResponse<any>>('/school/progress'),
+
+  updateVideoProgress: (id: string, watchedSeconds: number) =>
+    api.post<ApiResponse<any>>(`/school/courses/${id}/video-progress`, { watchedSeconds }),
+
+  submitQuiz: (id: string, answers: number[]) =>
+    api.post<ApiResponse<any>>(`/school/courses/${id}/quiz`, { answers }),
+
+  // Admin
+  adminGetCourses: () =>
+    api.get<ApiResponse<any[]>>('/school/admin/courses'),
+
+  adminCreateCourse: (data: any) =>
+    api.post<ApiResponse<any>>('/school/admin/courses', data),
+
+  adminUpdateCourse: (id: string, data: any) =>
+    api.put<ApiResponse<any>>(`/school/admin/courses/${id}`, data),
+
+  adminDeleteCourse: (id: string) =>
+    api.delete<ApiResponse<any>>(`/school/admin/courses/${id}`),
+
+  adminGetQuestions: (courseId: string) =>
+    api.get<ApiResponse<any[]>>(`/school/admin/courses/${courseId}/questions`),
+
+  adminCreateQuestion: (courseId: string, data: any) =>
+    api.post<ApiResponse<any>>(`/school/admin/courses/${courseId}/questions`, data),
+
+  adminUpdateQuestion: (questionId: string, data: any) =>
+    api.put<ApiResponse<any>>(`/school/admin/questions/${questionId}`, data),
+
+  adminDeleteQuestion: (questionId: string) =>
+    api.delete<ApiResponse<any>>(`/school/admin/questions/${questionId}`),
 };
 
 // ─── Chat API (чат заказа с модерацией) ────

@@ -5,7 +5,7 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { adminApi, storesApi, turnkeyApi, estimationApi, chatApi, supportChatApi, instantOrderApi } from '../api/client';
+import { adminApi, storesApi, turnkeyApi, estimationApi, chatApi, supportChatApi, instantOrderApi, schoolApi } from '../api/client';
 import { useAuthStore } from '../store';
 import { useTranslation } from '../i18n';
 import { useFormatPrice } from '../hooks';
@@ -21,11 +21,12 @@ import {
   XCircle, RefreshCw, Database, Store, Hammer,
   FolderTree, Plus, Trash2, Edit3, ChevronDown, ChevronUp,
   Headphones, Send, MessageCircle, FileText, Sparkles,
+  GraduationCap, HelpCircle, BookOpen,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { Dashboard } from '../types';
 
-type AdminTab = 'overview' | 'users' | 'orders' | 'payments' | 'catalog' | 'config' | 'stores' | 'turnkey' | 'moderation' | 'support';
+type AdminTab = 'overview' | 'users' | 'orders' | 'payments' | 'catalog' | 'config' | 'stores' | 'turnkey' | 'moderation' | 'support' | 'school';
 
 // ─── Stat Card Component ────────────────────
 function StatCard({ icon: Icon, label, value, subValue, color, trend }: {
@@ -195,6 +196,18 @@ export function AdminDashboardPage() {
   const [balanceTransactions, setBalanceTransactions] = useState<any[]>([]);
   const [balanceTxLoading, setBalanceTxLoading] = useState(false);
 
+  // School tab state
+  const [schoolCourses, setSchoolCourses] = useState<any[]>([]);
+  const [schoolLoading, setSchoolLoading] = useState(false);
+  const [schoolEditCourse, setSchoolEditCourse] = useState<any | null>(null);
+  const [schoolForm, setSchoolForm] = useState<any>({});
+  const [schoolShowAdd, setSchoolShowAdd] = useState(false);
+  const [schoolQuestions, setSchoolQuestions] = useState<any[]>([]);
+  const [schoolQuestionsFor, setSchoolQuestionsFor] = useState<string | null>(null);
+  const [schoolQLoading, setSchoolQLoading] = useState(false);
+  const [schoolQForm, setSchoolQForm] = useState<any>({ options: ['', '', '', ''], correctIndex: 0 });
+  const [schoolShowAddQ, setSchoolShowAddQ] = useState(false);
+
 
   // Guard: only ADMIN / MANAGER
   useEffect(() => {
@@ -216,6 +229,7 @@ export function AdminDashboardPage() {
     if (tab === 'catalog') loadCatalog();
     if (tab === 'moderation') loadModerationData();
     if (tab === 'support') loadSupportChats();
+    if (tab === 'school') loadSchoolCourses();
   }, [tab]);
 
   useEffect(() => { if (tab === 'stores') loadPartnerRequests(); }, [requestsStatus]);
@@ -869,6 +883,95 @@ export function AdminDashboardPage() {
     }
   }
 
+  // ─── School: загрузка и CRUD ────────────
+  async function loadSchoolCourses() {
+    setSchoolLoading(true);
+    try {
+      const res = await schoolApi.adminGetCourses();
+      setSchoolCourses(res.data.data || []);
+    } catch (e) {
+      console.error(e);
+      toast.error('Ошибка загрузки курсов школы');
+    } finally {
+      setSchoolLoading(false);
+    }
+  }
+
+  async function handleSchoolSaveCourse() {
+    try {
+      if (schoolEditCourse) {
+        await schoolApi.adminUpdateCourse(schoolEditCourse.id, schoolForm);
+        toast.success('Курс обновлён');
+      } else {
+        await schoolApi.adminCreateCourse(schoolForm);
+        toast.success('Курс создан');
+      }
+      setSchoolEditCourse(null);
+      setSchoolShowAdd(false);
+      setSchoolForm({});
+      loadSchoolCourses();
+    } catch (e: any) {
+      toast.error(e.response?.data?.message || 'Ошибка сохранения курса');
+    }
+  }
+
+  async function handleSchoolDeleteCourse(id: string) {
+    if (!confirm('Удалить курс и все его вопросы?')) return;
+    try {
+      await schoolApi.adminDeleteCourse(id);
+      toast.success('Курс удалён');
+      loadSchoolCourses();
+    } catch (e: any) {
+      toast.error(e.response?.data?.message || 'Ошибка удаления');
+    }
+  }
+
+  async function loadSchoolQuestions(courseId: string) {
+    setSchoolQuestionsFor(courseId);
+    setSchoolQLoading(true);
+    try {
+      const res = await schoolApi.adminGetQuestions(courseId);
+      setSchoolQuestions(res.data.data || []);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSchoolQLoading(false);
+    }
+  }
+
+  async function handleSchoolSaveQuestion(courseId: string) {
+    try {
+      const opts = (schoolQForm.options || []).filter((o: string) => o.trim());
+      if (opts.length < 2) { toast.error('Минимум 2 варианта ответа'); return; }
+      if (!schoolQForm.question?.trim()) { toast.error('Введите вопрос'); return; }
+      await schoolApi.adminCreateQuestion(courseId, {
+        question: schoolQForm.question,
+        questionUz: schoolQForm.questionUz || undefined,
+        options: opts,
+        optionsUz: schoolQForm.optionsUz?.filter((o: string) => o.trim()) || undefined,
+        correctIndex: schoolQForm.correctIndex || 0,
+        sortOrder: schoolQForm.sortOrder || 0,
+      });
+      toast.success('Вопрос добавлен');
+      setSchoolShowAddQ(false);
+      setSchoolQForm({ options: ['', '', '', ''], correctIndex: 0 });
+      loadSchoolQuestions(courseId);
+    } catch (e: any) {
+      toast.error(e.response?.data?.message || 'Ошибка');
+    }
+  }
+
+  async function handleSchoolDeleteQuestion(qId: string) {
+    if (!confirm('Удалить вопрос?')) return;
+    try {
+      await schoolApi.adminDeleteQuestion(qId);
+      toast.success('Вопрос удалён');
+      if (schoolQuestionsFor) loadSchoolQuestions(schoolQuestionsFor);
+    } catch (e: any) {
+      toast.error(e.response?.data?.message || 'Ошибка');
+    }
+  }
+
   if (!user || (user.role !== 'ADMIN' && user.role !== 'MANAGER')) return null;
 
   const tabs: { key: AdminTab; label: string; icon: any }[] = [
@@ -879,6 +982,7 @@ export function AdminDashboardPage() {
     { key: 'stores', label: t('stores.title'), icon: Store },
     { key: 'turnkey', label: t('turnkey.title'), icon: Hammer },
     { key: 'catalog', label: 'Каталог', icon: FolderTree },
+    { key: 'school', label: 'Школа', icon: GraduationCap },
     { key: 'moderation', label: 'Модерация', icon: AlertTriangle },
     { key: 'support', label: 'Поддержка', icon: Headphones },
     { key: 'config', label: t('admin.tabConfig'), icon: Settings },
@@ -2470,6 +2574,343 @@ export function AdminDashboardPage() {
             </div>
           )}
         </div>
+      )}
+
+      {/* ═══════════════════════════════════════ */}
+      {/* TAB: SCHOOL                            */}
+      {/* ═══════════════════════════════════════ */}
+      {tab === 'school' && (
+        <>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold dark:text-white flex items-center gap-2">
+              <GraduationCap size={20} />
+              Управление Школой мастеров
+            </h2>
+            <button
+              onClick={() => { setSchoolShowAdd(true); setSchoolEditCourse(null); setSchoolForm({}); }}
+              className="btn-primary text-sm"
+            >
+              <Plus size={16} className="mr-1" /> Добавить курс
+            </button>
+          </div>
+
+          {/* Add / Edit course form */}
+          {(schoolShowAdd || schoolEditCourse) && (
+            <div className="card dark:bg-gray-800 dark:ring-gray-700 mb-4">
+              <h3 className="font-semibold mb-3 dark:text-white">
+                {schoolEditCourse ? 'Редактировать курс' : 'Новый курс'}
+              </h3>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium mb-1 dark:text-gray-300">Название (RU) *</label>
+                  <input
+                    value={schoolForm.title || ''}
+                    onChange={(e) => setSchoolForm((p: any) => ({ ...p, title: e.target.value }))}
+                    className="input-field w-full"
+                    placeholder="Основы безопасности"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1 dark:text-gray-300">Название (UZ)</label>
+                  <input
+                    value={schoolForm.titleUz || ''}
+                    onChange={(e) => setSchoolForm((p: any) => ({ ...p, titleUz: e.target.value }))}
+                    className="input-field w-full"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1 dark:text-gray-300">Описание</label>
+                  <textarea
+                    value={schoolForm.description || ''}
+                    onChange={(e) => setSchoolForm((p: any) => ({ ...p, description: e.target.value }))}
+                    className="input-field w-full"
+                    rows={2}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1 dark:text-gray-300">Содержание (текст урока)</label>
+                  <textarea
+                    value={schoolForm.content || ''}
+                    onChange={(e) => setSchoolForm((p: any) => ({ ...p, content: e.target.value }))}
+                    className="input-field w-full"
+                    rows={4}
+                    placeholder="Подробное содержание урока..."
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium mb-1 dark:text-gray-300">Ссылка на видео</label>
+                    <input
+                      value={schoolForm.videoUrl || ''}
+                      onChange={(e) => setSchoolForm((p: any) => ({ ...p, videoUrl: e.target.value }))}
+                      className="input-field w-full"
+                      placeholder="https://youtube.com/..."
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1 dark:text-gray-300">Длительность (мин)</label>
+                    <input
+                      type="number"
+                      value={schoolForm.durationMinutes || ''}
+                      onChange={(e) => setSchoolForm((p: any) => ({ ...p, durationMinutes: parseInt(e.target.value) || undefined }))}
+                      className="input-field w-full"
+                      placeholder="30"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium mb-1 dark:text-gray-300">Проходной балл %</label>
+                    <input
+                      type="number"
+                      value={schoolForm.passingScore ?? 70}
+                      onChange={(e) => setSchoolForm((p: any) => ({ ...p, passingScore: parseInt(e.target.value) || 70 }))}
+                      className="input-field w-full"
+                      min={1}
+                      max={100}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1 dark:text-gray-300">Порядок</label>
+                    <input
+                      type="number"
+                      value={schoolForm.sortOrder ?? 0}
+                      onChange={(e) => setSchoolForm((p: any) => ({ ...p, sortOrder: parseInt(e.target.value) || 0 }))}
+                      className="input-field w-full"
+                    />
+                  </div>
+                  <div className="flex items-end gap-4">
+                    <label className="flex items-center gap-2 text-sm dark:text-gray-300">
+                      <input
+                        type="checkbox"
+                        checked={schoolForm.isRequired || false}
+                        onChange={(e) => setSchoolForm((p: any) => ({ ...p, isRequired: e.target.checked }))}
+                      />
+                      Обязательный
+                    </label>
+                    <label className="flex items-center gap-2 text-sm dark:text-gray-300">
+                      <input
+                        type="checkbox"
+                        checked={schoolForm.isActive !== false}
+                        onChange={(e) => setSchoolForm((p: any) => ({ ...p, isActive: e.target.checked }))}
+                      />
+                      Активный
+                    </label>
+                  </div>
+                </div>
+                <div className="flex gap-2 mt-3">
+                  <button onClick={handleSchoolSaveCourse} className="btn-primary text-sm">
+                    <Save size={16} className="mr-1" /> Сохранить
+                  </button>
+                  <button onClick={() => { setSchoolShowAdd(false); setSchoolEditCourse(null); setSchoolForm({}); }} className="btn-secondary text-sm">
+                    Отмена
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Courses list */}
+          {schoolLoading ? (
+            <LoadingSpinner />
+          ) : schoolCourses.length === 0 ? (
+            <div className="card dark:bg-gray-800 dark:ring-gray-700 text-center py-8">
+              <BookOpen size={48} className="mx-auto text-gray-300 dark:text-gray-600 mb-3" />
+              <p className="text-gray-500 dark:text-gray-400">Курсов пока нет. Добавьте первый курс.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {schoolCourses.map((course: any) => (
+                <div key={course.id} className="card dark:bg-gray-800 dark:ring-gray-700">
+                  <div className="flex items-start justify-between mb-2">
+                    <div>
+                      <h3 className="font-semibold dark:text-white">{course.title}</h3>
+                      {course.titleUz && <p className="text-sm text-gray-500">{course.titleUz}</p>}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {course.isRequired && (
+                        <span className="text-xs px-2 py-0.5 rounded bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">Обяз.</span>
+                      )}
+                      {!course.isActive && (
+                        <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-500 dark:bg-gray-700">Скрыт</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400 mb-3">
+                    <span>⏱ {course.durationMinutes || '—'} мин</span>
+                    <span>📝 Вопросов: {course._count?.questions || 0}</span>
+                    <span>👥 Прошли: {course._count?.progress || 0}</span>
+                    <span>🎯 Порог: {course.passingScore || 70}%</span>
+                    {course.videoUrl && <span>🎬 Видео</span>}
+                    {course.category && <span>📂 {course.category.name}</span>}
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        setSchoolEditCourse(course);
+                        setSchoolShowAdd(false);
+                        setSchoolForm({
+                          title: course.title,
+                          titleUz: course.titleUz || '',
+                          description: course.description || '',
+                          descriptionUz: course.descriptionUz || '',
+                          content: course.content || '',
+                          videoUrl: course.videoUrl || '',
+                          durationMinutes: course.durationMinutes || '',
+                          passingScore: course.passingScore || 70,
+                          sortOrder: course.sortOrder || 0,
+                          isRequired: course.isRequired,
+                          isActive: course.isActive,
+                          categoryId: course.categoryId || '',
+                        });
+                      }}
+                      className="text-xs px-3 py-1 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 hover:bg-blue-200"
+                    >
+                      <Edit3 size={12} className="inline mr-1" /> Редактировать
+                    </button>
+                    <button
+                      onClick={() => loadSchoolQuestions(course.id)}
+                      className="text-xs px-3 py-1 rounded bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 hover:bg-purple-200"
+                    >
+                      <HelpCircle size={12} className="inline mr-1" /> Вопросы ({course._count?.questions || 0})
+                    </button>
+                    <button
+                      onClick={() => handleSchoolDeleteCourse(course.id)}
+                      className="text-xs px-3 py-1 rounded bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 hover:bg-red-200"
+                    >
+                      <Trash2 size={12} className="inline mr-1" /> Удалить
+                    </button>
+                  </div>
+
+                  {/* Questions panel for this course */}
+                  {schoolQuestionsFor === course.id && (
+                    <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="font-medium dark:text-white text-sm">Вопросы теста</h4>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => { setSchoolShowAddQ(true); setSchoolQForm({ options: ['', '', '', ''], correctIndex: 0 }); }}
+                            className="text-xs px-2 py-1 rounded bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                          >
+                            <Plus size={12} className="inline mr-1" /> Добавить вопрос
+                          </button>
+                          <button
+                            onClick={() => setSchoolQuestionsFor(null)}
+                            className="text-xs px-2 py-1 rounded bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400"
+                          >
+                            Свернуть
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Add question form */}
+                      {schoolShowAddQ && (
+                        <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3 mb-3 space-y-2">
+                          <input
+                            value={schoolQForm.question || ''}
+                            onChange={(e) => setSchoolQForm((p: any) => ({ ...p, question: e.target.value }))}
+                            className="input-field w-full text-sm"
+                            placeholder="Текст вопроса (RU)"
+                          />
+                          <input
+                            value={schoolQForm.questionUz || ''}
+                            onChange={(e) => setSchoolQForm((p: any) => ({ ...p, questionUz: e.target.value }))}
+                            className="input-field w-full text-sm"
+                            placeholder="Текст вопроса (UZ) — необязательно"
+                          />
+                          <p className="text-xs text-gray-500 mt-1">Варианты ответов (выберите правильный):</p>
+                          {(schoolQForm.options || ['', '', '', '']).map((opt: string, idx: number) => (
+                            <div key={idx} className="flex items-center gap-2">
+                              <input
+                                type="radio"
+                                name="correctAnswer"
+                                checked={schoolQForm.correctIndex === idx}
+                                onChange={() => setSchoolQForm((p: any) => ({ ...p, correctIndex: idx }))}
+                                className="accent-green-600"
+                              />
+                              <input
+                                value={opt}
+                                onChange={(e) => {
+                                  const newOpts = [...(schoolQForm.options || ['', '', '', ''])];
+                                  newOpts[idx] = e.target.value;
+                                  setSchoolQForm((p: any) => ({ ...p, options: newOpts }));
+                                }}
+                                className="input-field flex-1 text-sm"
+                                placeholder={`Вариант ${String.fromCharCode(65 + idx)}`}
+                              />
+                            </div>
+                          ))}
+                          <div className="flex gap-2 mt-2">
+                            <button
+                              onClick={() => handleSchoolSaveQuestion(course.id)}
+                              className="text-xs px-3 py-1.5 rounded bg-green-600 text-white hover:bg-green-700"
+                            >
+                              Сохранить вопрос
+                            </button>
+                            <button
+                              onClick={() => {
+                                const newOpts = [...(schoolQForm.options || ['', '', '', '']), ''];
+                                setSchoolQForm((p: any) => ({ ...p, options: newOpts }));
+                              }}
+                              className="text-xs px-3 py-1.5 rounded bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300"
+                            >
+                              + Вариант
+                            </button>
+                            <button
+                              onClick={() => setSchoolShowAddQ(false)}
+                              className="text-xs px-3 py-1.5 rounded bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300"
+                            >
+                              Отмена
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {schoolQLoading ? (
+                        <p className="text-sm text-gray-500">Загрузка...</p>
+                      ) : schoolQuestions.length === 0 ? (
+                        <p className="text-sm text-gray-500 dark:text-gray-400">Нет вопросов. Добавьте первый вопрос для теста.</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {schoolQuestions.map((q: any, qIdx: number) => (
+                            <div key={q.id} className="bg-gray-50 dark:bg-gray-900 rounded p-2.5">
+                              <div className="flex items-start justify-between">
+                                <p className="text-sm dark:text-gray-200">
+                                  <span className="font-bold text-primary-600">{qIdx + 1}.</span> {q.question}
+                                </p>
+                                <button
+                                  onClick={() => handleSchoolDeleteQuestion(q.id)}
+                                  className="text-red-500 hover:text-red-700 ml-2 flex-shrink-0"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
+                              <div className="mt-1.5 ml-4 grid grid-cols-2 gap-1">
+                                {(q.options as string[]).map((opt: string, optIdx: number) => (
+                                  <span
+                                    key={optIdx}
+                                    className={`text-xs px-2 py-0.5 rounded ${
+                                      optIdx === q.correctIndex
+                                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 font-semibold'
+                                        : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
+                                    }`}
+                                  >
+                                    {String.fromCharCode(65 + optIdx)}) {opt}
+                                    {optIdx === q.correctIndex && ' ✓'}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       {/* ═══════════════════════════════════════ */}

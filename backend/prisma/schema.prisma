@@ -519,20 +519,43 @@ model SchoolCourse {
   sortOrder       Int      @default(0) @map("sort_order")
   isRequired      Boolean  @default(false) @map("is_required")
   isActive        Boolean  @default(true) @map("is_active")
+  passingScore    Int      @default(70) @map("passing_score")
   createdAt       DateTime @default(now()) @map("created_at")
 
-  category Category? @relation(fields: [categoryId], references: [id])
-  progress CourseProgress[]
+  category  Category?      @relation(fields: [categoryId], references: [id])
+  progress  CourseProgress[]
+  questions QuizQuestion[]
 
   @@map("school_courses")
 }
 
+model QuizQuestion {
+  id              String   @id @default(uuid())
+  courseId         String   @map("course_id")
+  question         String
+  questionUz       String?  @map("question_uz")
+  options          Json     // ["вариант1","вариант2","вариант3","вариант4"]
+  optionsUz        Json?    @map("options_uz")
+  correctIndex     Int      @map("correct_index") // индекс правильного ответа (0-based)
+  sortOrder        Int      @default(0) @map("sort_order")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  course SchoolCourse @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@map("quiz_questions")
+}
+
 model CourseProgress {
-  id          String    @id @default(uuid())
-  userId      String    @map("user_id")
-  courseId     String    @map("course_id")
-  completed   Boolean   @default(false)
-  completedAt DateTime? @map("completed_at")
+  id                String    @id @default(uuid())
+  userId            String    @map("user_id")
+  courseId           String    @map("course_id")
+  completed         Boolean   @default(false)
+  completedAt       DateTime? @map("completed_at")
+  videoWatchedSec   Int       @default(0) @map("video_watched_sec")
+  videoCompleted    Boolean   @default(false) @map("video_completed")
+  quizScore         Int?      @map("quiz_score")
+  quizPassedAt      DateTime? @map("quiz_passed_at")
+  quizAttempts      Int       @default(0) @map("quiz_attempts")
 
   user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   course SchoolCourse @relation(fields: [courseId], references: [id], onDelete: Cascade)
