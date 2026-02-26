@@ -92,7 +92,7 @@ router.post('/', async (req: Request, res: Response) => {
     }
 
     const parsed = createSchema.parse(req.body);
-    const item = await portfolioService.createPortfolioItem(userId, parsed);
+    const item = await portfolioService.createPortfolioItem(userId, parsed as any);
 
     res.status(201).json({ success: true, data: item });
   } catch (error: any) {

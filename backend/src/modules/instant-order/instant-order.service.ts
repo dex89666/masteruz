@@ -122,7 +122,7 @@ export class InstantOrderService {
               tierLabel: variant.tierLabel,
               taskIds: variant.taskIds,
               materials: variant.materials,
-              estimatedPrice: Math.round(variant.estimatedPrice),
+              estimatedPrice: Math.min(Math.round(variant.estimatedPrice), 9_999_999_999),
               estimatedDays: variant.estimatedDays,
               confidence: variant.confidence,
               prompt: (combinedDescription || '').substring(0, 2000),

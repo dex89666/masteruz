@@ -79,7 +79,7 @@ export async function saveUploadedFile(file: Express.Multer.File): Promise<strin
               'x-content-type': file.mimetype,
               'x-cache-control-max-age': '31536000',
             },
-            body: file.buffer,
+            body: new Uint8Array(file.buffer),
           }
         );
         

@@ -55,7 +55,7 @@ const moderateSchema = z.object({
 router.post('/analyze', authenticate, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const data = analyzeSchema.parse(req.body);
-    const result = await instantOrderService.analyzePhotos(req.user!.userId, data);
+    const result = await instantOrderService.analyzePhotos(req.user!.userId, data as any);
     res.json({ success: true, data: result });
   } catch (error: any) {
     // Подробное логирование для отладки
@@ -76,7 +76,7 @@ router.post('/analyze', authenticate, async (req: Request, res: Response, next: 
 router.post('/create', authenticate, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const data = createFromTemplateSchema.parse(req.body);
-    const order = await instantOrderService.createFromTemplate(req.user!.userId, data);
+    const order = await instantOrderService.createFromTemplate(req.user!.userId, data as any);
     res.status(201).json({ success: true, data: order });
   } catch (error) {
     next(error);

@@ -14,6 +14,7 @@ export interface JwtPayload {
   userId: string;
   telegramId: number;
   role: UserRole;
+  phone?: string;
 }
 
 // Расширение типа Request

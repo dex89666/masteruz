@@ -57,7 +57,7 @@ const createEstimateSchema = z.object({
 router.post('/', authenticate, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const data = createEstimationSchema.parse(req.body);
-    const order = await estimationService.createEstimationOrder(req.user!.userId, data);
+    const order = await estimationService.createEstimationOrder(req.user!.userId, data as any);
     res.status(201).json({ success: true, data: order });
   } catch (error) {
     next(error);
@@ -123,7 +123,7 @@ router.put('/:orderId/accept', authenticate, async (req: Request, res: Response,
 router.post('/:orderId/estimate', authenticate, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const data = createEstimateSchema.parse(req.body);
-    const estimate = await estimationService.createEstimate(req.params.orderId, req.user!.userId, data);
+    const estimate = await estimationService.createEstimate(req.params.orderId, req.user!.userId, data as any);
     res.status(201).json({ success: true, data: estimate });
   } catch (error) {
     next(error);
