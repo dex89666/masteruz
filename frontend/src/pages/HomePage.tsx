@@ -91,9 +91,9 @@ export function HomePage() {
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] bg-orange-500/10 rounded-full blur-3xl" />
         <div className="absolute top-0 right-0 w-80 h-80 bg-orange-600/5 rounded-full blur-2xl" />
 
-        {/* Hero photo — right side, vertically centered */}
-        <div className="absolute right-4 md:right-8 lg:right-12 top-1/2 -translate-y-1/2 w-[200px] h-[260px] md:w-[360px] md:h-[450px] lg:w-[480px] lg:h-[580px] opacity-80 pointer-events-none select-none">
-          <img src="/hero-master.jpg" alt="" className="w-full h-full object-cover object-top rounded-2xl" aria-hidden="true" />
+        {/* Hero photo — mobile: small in top-left corner; desktop: right side centered */}
+        <div className="absolute left-3 top-3 w-[80px] h-[100px] md:left-auto md:top-1/2 md:right-8 lg:right-12 md:-translate-y-1/2 md:w-[360px] md:h-[450px] lg:w-[480px] lg:h-[580px] opacity-70 md:opacity-80 pointer-events-none select-none z-0">
+          <img src="/hero-master.jpg" alt="" className="w-full h-full object-cover object-top rounded-xl md:rounded-2xl shadow-lg" aria-hidden="true" />
         </div>
 
         <div className="max-w-5xl mx-auto px-4 sm:px-6 relative z-10">
