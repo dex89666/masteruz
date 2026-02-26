@@ -185,6 +185,16 @@ export function AdminDashboardPage() {
   const [aiModerationOrders, setAiModerationOrders] = useState<any[]>([]);
   const [aiModerationLoading, setAiModerationLoading] = useState(false);
 
+  // Balance management modal state
+  const [balanceModal, setBalanceModal] = useState<{ userId: string; userName: string } | null>(null);
+  const [balanceAmount, setBalanceAmount] = useState('');
+  const [balanceReason, setBalanceReason] = useState('');
+  const [balanceAction, setBalanceAction] = useState<'topup' | 'withdraw'>('topup');
+  const [balanceLoading, setBalanceLoading] = useState(false);
+  const [balanceCurrentUser, setBalanceCurrentUser] = useState<number>(0);
+  const [balanceTransactions, setBalanceTransactions] = useState<any[]>([]);
+  const [balanceTxLoading, setBalanceTxLoading] = useState(false);
+
 
   // Guard: only ADMIN / MANAGER
   useEffect(() => {
@@ -733,6 +743,61 @@ export function AdminDashboardPage() {
     }
   }
 
+  // ─── Balance Management Functions ──────
+  async function openBalanceModal(userId: string, userName: string) {
+    setBalanceModal({ userId, userName });
+    setBalanceAmount('');
+    setBalanceReason('');
+    setBalanceAction('topup');
+    setBalanceLoading(false);
+
+    // Загружаем баланс и транзакции параллельно
+    try {
+      setBalanceTxLoading(true);
+      const [balRes, txRes] = await Promise.all([
+        adminApi.getUserBalance(userId),
+        adminApi.getUserTransactions(userId, 1, 20),
+      ]);
+      setBalanceCurrentUser(balRes.data.data?.balance || 0);
+      setBalanceTransactions(txRes.data.data || []);
+    } catch {
+      toast.error('Ошибка загрузки баланса');
+    } finally {
+      setBalanceTxLoading(false);
+    }
+  }
+
+  async function handleBalanceOperation() {
+    if (!balanceModal) return;
+    const amt = Number(balanceAmount);
+    if (!amt || amt <= 0) { toast.error('Введите корректную сумму'); return; }
+
+    setBalanceLoading(true);
+    try {
+      if (balanceAction === 'topup') {
+        await adminApi.topUpUserBalance(balanceModal.userId, amt, balanceReason || undefined);
+        toast.success(`✅ Зачислено ${amt.toLocaleString('ru')} сум`);
+      } else {
+        await adminApi.withdrawUserBalance(balanceModal.userId, amt, balanceReason || undefined);
+        toast.success(`✅ Списано ${amt.toLocaleString('ru')} сум`);
+      }
+      // Обновляем баланс и транзакции
+      const [balRes, txRes] = await Promise.all([
+        adminApi.getUserBalance(balanceModal.userId),
+        adminApi.getUserTransactions(balanceModal.userId, 1, 20),
+      ]);
+      setBalanceCurrentUser(balRes.data.data?.balance || 0);
+      setBalanceTransactions(txRes.data.data || []);
+      setBalanceAmount('');
+      setBalanceReason('');
+      loadUsers(); // обновляем список пользователей
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error?.message || 'Ошибка операции');
+    } finally {
+      setBalanceLoading(false);
+    }
+  }
+
   async function handleSaveConfig(key: string) {
     try {
       await adminApi.updateConfig(key, editValue);
@@ -1092,12 +1157,23 @@ export function AdminDashboardPage() {
                       <div className="flex gap-3 text-[10px] text-gray-400 dark:text-gray-500 mt-1">
                         <span>📦 {u._count?.clientOrders || 0} / {u._count?.masterOrders || 0}</span>
                         <span>⭐ {u._count?.reviewsReceived || 0}</span>
+                        <span>💰 {Number(u.balance || 0).toLocaleString('ru')} сум</span>
                         <span>{new Date(u.createdAt).toLocaleDateString()}</span>
                       </div>
                     </div>
 
                     {/* Actions */}
                     <div className="flex flex-col gap-1 flex-shrink-0">
+                      {/* Balance button */}
+                      {(user?.role === 'ADMIN') && (
+                        <button
+                          onClick={() => openBalanceModal(u.id, `${u.profile?.firstName || ''} ${u.profile?.lastName || ''}`.trim() || u.username || u.id.slice(0, 8))}
+                          className="p-1.5 rounded-lg bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/50 transition-colors"
+                          title="Управление балансом"
+                        >
+                          <DollarSign size={14} />
+                        </button>
+                      )}
                       {/* Role change (only ADMIN) */}
                       {user?.role === 'ADMIN' && u.id !== user?.id && (
                         <select
@@ -2552,6 +2628,163 @@ export function AdminDashboardPage() {
               )}
             </>
           )}
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════ */}
+      {/* MODAL: Balance Management               */}
+      {/* ═══════════════════════════════════════ */}
+      {balanceModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4" onClick={() => setBalanceModal(null)}>
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+              <div>
+                <h2 className="text-lg font-bold dark:text-white">💰 Управление балансом</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">{balanceModal.userName}</p>
+              </div>
+              <button onClick={() => setBalanceModal(null)} className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+                <XCircle size={20} className="text-gray-400" />
+              </button>
+            </div>
+
+            {/* Current balance */}
+            <div className="p-4 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Текущий баланс</p>
+              <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">
+                {balanceCurrentUser.toLocaleString('ru')} сум
+              </p>
+            </div>
+
+            {/* Action form */}
+            <div className="p-4 space-y-3">
+              {/* Action toggle */}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setBalanceAction('topup')}
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+                    balanceAction === 'topup'
+                      ? 'bg-green-500 text-white shadow-lg shadow-green-500/30'
+                      : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
+                  }`}
+                >
+                  ➕ Зачислить
+                </button>
+                <button
+                  onClick={() => setBalanceAction('withdraw')}
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+                    balanceAction === 'withdraw'
+                      ? 'bg-red-500 text-white shadow-lg shadow-red-500/30'
+                      : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
+                  }`}
+                >
+                  ➖ Списать
+                </button>
+              </div>
+
+              {/* Amount */}
+              <div>
+                <label className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">Сумма (сум)</label>
+                <input
+                  type="number"
+                  className="input text-lg font-bold"
+                  placeholder="100000"
+                  value={balanceAmount}
+                  onChange={e => setBalanceAmount(e.target.value)}
+                  min="1"
+                />
+                {/* Quick amounts */}
+                <div className="flex gap-1.5 mt-2">
+                  {[50000, 100000, 500000, 1000000].map(amt => (
+                    <button
+                      key={amt}
+                      onClick={() => setBalanceAmount(String(amt))}
+                      className="text-[10px] px-2 py-1 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                    >
+                      {(amt / 1000)}K
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Reason */}
+              <div>
+                <label className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">Причина (необязательно)</label>
+                <input
+                  type="text"
+                  className="input text-sm"
+                  placeholder="Например: Тестовое пополнение"
+                  value={balanceReason}
+                  onChange={e => setBalanceReason(e.target.value)}
+                />
+              </div>
+
+              {/* Submit */}
+              <button
+                onClick={handleBalanceOperation}
+                disabled={balanceLoading || !balanceAmount || Number(balanceAmount) <= 0}
+                className={`w-full py-3 rounded-xl text-sm font-bold text-white transition-all disabled:opacity-50 ${
+                  balanceAction === 'topup'
+                    ? 'bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700'
+                    : 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700'
+                }`}
+              >
+                {balanceLoading ? '⏳ Обработка...' : balanceAction === 'topup'
+                  ? `✅ Зачислить ${Number(balanceAmount || 0).toLocaleString('ru')} сум`
+                  : `🔴 Списать ${Number(balanceAmount || 0).toLocaleString('ru')} сум`
+                }
+              </button>
+            </div>
+
+            {/* Transaction history */}
+            <div className="border-t border-gray-200 dark:border-gray-700 p-4">
+              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+                📋 История транзакций
+              </h3>
+              {balanceTxLoading ? (
+                <div className="text-center py-4 text-gray-400 text-sm">Загрузка...</div>
+              ) : balanceTransactions.length === 0 ? (
+                <div className="text-center py-4 text-gray-400 text-sm">Нет транзакций</div>
+              ) : (
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {balanceTransactions.map((tx: any) => {
+                    const isPositive = Number(tx.amount) > 0;
+                    const typeLabels: Record<string, string> = {
+                      TOPUP: '💳 Пополнение',
+                      ADMIN_TOPUP: '👑 Адм. зачисление',
+                      ADMIN_WITHDRAW: '👑 Адм. списание',
+                      ESCROW_HOLD: '🔒 Эскроу (блокировка)',
+                      ESCROW_RELEASE: '🔓 Эскроу (разблокировка)',
+                      PENALTY: '⚠️ Штраф',
+                      REFUND: '↩️ Возврат',
+                      COMMISSION: '📊 Комиссия',
+                      PAYOUT: '💸 Выплата',
+                      ESTIMATION_FEE: '🔍 Оплата выезда',
+                      ESTIMATE_PAYOUT: '🔍 Выплата за оценку',
+                    };
+                    return (
+                      <div key={tx.id} className="flex items-center justify-between py-2 px-3 rounded-lg bg-gray-50 dark:bg-gray-700/50">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-medium dark:text-white truncate">
+                            {typeLabels[tx.type] || tx.type}
+                          </p>
+                          {tx.description && (
+                            <p className="text-[10px] text-gray-400 truncate">{tx.description}</p>
+                          )}
+                          <p className="text-[10px] text-gray-400">
+                            {new Date(tx.createdAt).toLocaleString('ru')}
+                          </p>
+                        </div>
+                        <div className={`text-sm font-bold ml-2 whitespace-nowrap ${isPositive ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                          {isPositive ? '+' : ''}{Number(tx.amount).toLocaleString('ru')} сум
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>

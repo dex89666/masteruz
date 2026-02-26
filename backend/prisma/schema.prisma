@@ -1056,6 +1056,8 @@ enum BalanceTransactionType {
   PAYOUT          // Выплата мастеру
   ESTIMATION_FEE  // Оплата за выезд на оценку
   ESTIMATE_PAYOUT // Выплата мастеру за оценку
+  ADMIN_TOPUP     // Админское зачисление средств
+  ADMIN_WITHDRAW  // Админское списание средств
 }
 
 model BalanceTransaction {

@@ -17,6 +17,8 @@ const TxType = {
   REFUND: 'REFUND',
   COMMISSION: 'COMMISSION',
   PAYOUT: 'PAYOUT',
+  ADMIN_TOPUP: 'ADMIN_TOPUP',
+  ADMIN_WITHDRAW: 'ADMIN_WITHDRAW',
 } as const;
 
 type PrismaTx = Prisma.TransactionClient;
@@ -71,6 +73,88 @@ export class BalanceService {
     });
 
     logger.info({ userId, amount }, 'Баланс пополнен');
+    return result;
+  }
+
+  /**
+   * Админское зачисление средств пользователю
+   */
+  async adminTopUp(userId: string, amount: number, adminId: string, reason?: string) {
+    if (amount <= 0) throw ApiError.badRequest('Сумма должна быть больше 0');
+
+    const result = await prisma.$transaction(async (tx: PrismaTx) => {
+      const user = await tx.user.findUnique({
+        where: { id: userId },
+        select: { balance: true, username: true },
+      });
+      if (!user) throw ApiError.notFound('Пользователь не найден');
+
+      const balanceBefore = toNum(user.balance);
+      const balanceAfter = moneyAdd(balanceBefore, amount);
+
+      const [updatedUser, transaction] = await Promise.all([
+        tx.user.update({
+          where: { id: userId },
+          data: { balance: balanceAfter },
+        }),
+        tx.balanceTransaction.create({
+          data: {
+            userId,
+            type: TxType.ADMIN_TOPUP as any,
+            amount,
+            balanceBefore,
+            balanceAfter,
+            description: reason || `Зачисление администратором (${adminId})`,
+            metadata: { adminId, reason: reason || 'Зачисление администратором' } as any,
+          },
+        }),
+      ]);
+
+      return { balance: toNum(updatedUser.balance), transaction };
+    });
+
+    logger.info({ userId, amount, adminId, reason }, 'Админ зачислил средства');
+    return result;
+  }
+
+  /**
+   * Админское списание средств с пользователя
+   */
+  async adminWithdraw(userId: string, amount: number, adminId: string, reason?: string) {
+    if (amount <= 0) throw ApiError.badRequest('Сумма должна быть больше 0');
+
+    const result = await prisma.$transaction(async (tx: PrismaTx) => {
+      const user = await tx.user.findUnique({
+        where: { id: userId },
+        select: { balance: true, username: true },
+      });
+      if (!user) throw ApiError.notFound('Пользователь не найден');
+
+      const balanceBefore = toNum(user.balance);
+      const balanceAfter = moneySub(balanceBefore, amount);
+
+      const [updatedUser, transaction] = await Promise.all([
+        tx.user.update({
+          where: { id: userId },
+          data: { balance: balanceAfter },
+        }),
+        tx.balanceTransaction.create({
+          data: {
+            userId,
+            type: TxType.ADMIN_WITHDRAW as any,
+            amount: -amount,
+            balanceBefore,
+            balanceAfter,
+            description: reason || `Списание администратором (${adminId})`,
+            metadata: { adminId, reason: reason || 'Списание администратором' } as any,
+          },
+        }),
+      ]);
+
+      return { balance: toNum(updatedUser.balance), transaction };
+    });
+
+    logger.info({ userId, amount, adminId, reason }, 'Админ списал средства');
     return result;
   }
 

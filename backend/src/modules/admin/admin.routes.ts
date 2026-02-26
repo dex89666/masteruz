@@ -7,6 +7,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { adminService } from './admin.service.js';
 import { authenticate, authorize } from '../../middleware/auth.js';
 import { prisma } from '../../config/database.js';
+import { balanceService } from '../balance/balance.service.js';
 
 const router = Router();
 
@@ -85,6 +86,70 @@ router.put('/users/:id/role', authorize('ADMIN'), async (req: Request, res: Resp
       },
     });
     res.json({ success: true, data: { id: user.id, username: user.username, role: user.role, firstName: user.profile?.firstName } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ═══ УПРАВЛЕНИЕ БАЛАНСОМ ПОЛЬЗОВАТЕЛЕЙ ═══
+
+// Получить баланс пользователя
+router.get('/users/:id/balance', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const balance = await balanceService.getBalance(req.params.id);
+    res.json({ success: true, data: { balance } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// История транзакций пользователя
+router.get('/users/:id/transactions', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 50;
+    const result = await balanceService.getTransactions(req.params.id, page, limit);
+    res.json({ success: true, ...result });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Зачислить средства пользователю (только ADMIN)
+router.post('/users/:id/balance/topup', authorize('ADMIN'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { amount, reason } = req.body;
+    if (!amount || Number(amount) <= 0) {
+      res.status(400).json({ success: false, error: { message: 'Сумма должна быть больше 0' } });
+      return;
+    }
+    const result = await balanceService.adminTopUp(
+      req.params.id,
+      Number(amount),
+      req.user!.userId,
+      reason
+    );
+    res.json({ success: true, data: result });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Списать средства с пользователя (только ADMIN)
+router.post('/users/:id/balance/withdraw', authorize('ADMIN'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { amount, reason } = req.body;
+    if (!amount || Number(amount) <= 0) {
+      res.status(400).json({ success: false, error: { message: 'Сумма должна быть больше 0' } });
+      return;
+    }
+    const result = await balanceService.adminWithdraw(
+      req.params.id,
+      Number(amount),
+      req.user!.userId,
+      reason
+    );
+    res.json({ success: true, data: result });
   } catch (error) {
     next(error);
   }

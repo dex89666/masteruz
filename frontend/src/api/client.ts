@@ -566,6 +566,19 @@ export const adminApi = {
   changeUserRole: (id: string, role: string) =>
     api.put<ApiResponse<any>>(`/admin/users/${id}/role`, { role }),
 
+  // ─── Управление балансом пользователей ────
+  getUserBalance: (id: string) =>
+    api.get<ApiResponse<{ balance: number }>>(`/admin/users/${id}/balance`),
+
+  getUserTransactions: (id: string, page?: number, limit?: number) =>
+    api.get<PaginatedResponse<any>>(`/admin/users/${id}/transactions`, { params: { page, limit } }),
+
+  topUpUserBalance: (id: string, amount: number, reason?: string) =>
+    api.post<ApiResponse<any>>(`/admin/users/${id}/balance/topup`, { amount, reason }),
+
+  withdrawUserBalance: (id: string, amount: number, reason?: string) =>
+    api.post<ApiResponse<any>>(`/admin/users/${id}/balance/withdraw`, { amount, reason }),
+
   getOrders: (params?: any) =>
     api.get<PaginatedResponse<any>>('/admin/orders', { params }),
 

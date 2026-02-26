@@ -524,7 +524,9 @@ export type BalanceTransactionType =
   | 'COMMISSION'
   | 'PAYOUT'
   | 'ESTIMATION_FEE'
-  | 'ESTIMATE_PAYOUT';
+  | 'ESTIMATE_PAYOUT'
+  | 'ADMIN_TOPUP'
+  | 'ADMIN_WITHDRAW';
 
 export interface BalanceTransaction {
   id: string;
