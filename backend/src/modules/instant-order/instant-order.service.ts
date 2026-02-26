@@ -134,8 +134,16 @@ export class InstantOrderService {
         })
       );
     } catch (dbError: any) {
-      logger.error({ error: dbError?.message, code: dbError?.code }, 'Ошибка сохранения AI-шаблона в БД');
-      throw ApiError.internal('Ошибка при создании вариантов. Попробуйте ещё раз.');
+      logger.error(
+        { error: dbError?.message, code: dbError?.code, meta: dbError?.meta, stack: dbError?.stack?.substring(0, 500) },
+        'Ошибка сохранения AI-шаблона в БД'
+      );
+      // Prisma P2021 = table does not exist, P2002 = unique constraint
+      if (dbError?.code === 'P2021') {
+        throw ApiError.badRequest('Таблица AI-шаблонов не создана. Необходимо выполнить миграцию БД.');
+      }
+      const detail = dbError?.meta?.cause || dbError?.code || dbError?.message || 'Unknown DB error';
+      throw ApiError.badRequest(`Ошибка при создании вариантов (${detail}). Попробуйте ещё раз.`);
     }
 
     logger.info(

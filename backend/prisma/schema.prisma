@@ -948,7 +948,7 @@ model AiOrderTemplate {
   tierLabel       String   @map("tier_label")          // "Хороший" / "Отличный" / "Премиум"
   taskIds         String[] @default([]) @map("task_ids")  // ID задач из каталога
   materials       Json     @default("[]")                // [{name, quantity, unit, unitPrice, total}]
-  estimatedPrice  Decimal  @map("estimated_price") @db.Decimal(12, 2) // Итоговая цена варианта
+  estimatedPrice  Float    @map("estimated_price")     // Итоговая цена варианта
   estimatedDays   Int      @map("estimated_days")        // Срок выполнения (дни)
   confidence      Float    @default(0.8)                 // Уверенность AI (0-1)
   prompt          String?                                // Промпт, использованный для анализа
