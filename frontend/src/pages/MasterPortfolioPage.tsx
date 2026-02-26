@@ -5,14 +5,14 @@
 
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { portfolioApi } from '../api/client';
+import { portfolioApi, photosApi } from '../api/client';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { EmptyState } from '../components/EmptyState';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { useAuthStore, useAppStore } from '../store';
 import { useTranslation } from '../i18n';
 import {
-  Plus, Trash2, Edit3, Image,
+  Plus, Trash2, Edit3, Image, Camera, Upload,
   X, Check, Heart, FolderOpen, ArrowLeft,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -37,6 +37,8 @@ export function MasterPortfolioPage() {
   const [formImageUrl, setFormImageUrl] = useState('');
   const [formCategory, setFormCategory] = useState('');
   const [saving, setSaving] = useState(false);
+  const [formUploading, setFormUploading] = useState(false);
+  const [formImagePreview, setFormImagePreview] = useState('');
 
   useEffect(() => {
     loadData();
@@ -63,6 +65,7 @@ export function MasterPortfolioPage() {
     setFormTitle('');
     setFormDesc('');
     setFormImageUrl('');
+    setFormImagePreview('');
     setFormCategory('');
     setShowForm(true);
   }
@@ -72,8 +75,77 @@ export function MasterPortfolioPage() {
     setFormTitle(item.title);
     setFormDesc(item.description || '');
     setFormImageUrl(item.imageUrl);
+    setFormImagePreview(item.imageUrl);
     setFormCategory(item.categoryId || '');
     setShowForm(true);
+  }
+
+  async function handlePhotoUpload(file: File) {
+    setFormUploading(true);
+    try {
+      // Show local preview immediately
+      const localUrl = URL.createObjectURL(file);
+      setFormImagePreview(localUrl);
+
+      // Compress if needed
+      let uploadFile = file;
+      if (file.size > 500 * 1024) {
+        try {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d')!;
+          const img = new window.Image();
+          await new Promise<void>((resolve, reject) => {
+            img.onload = () => resolve();
+            img.onerror = reject;
+            img.src = localUrl;
+          });
+          const maxSize = 1200;
+          let w = img.width, h = img.height;
+          if (w > maxSize || h > maxSize) {
+            if (w > h) { h = Math.round(h * maxSize / w); w = maxSize; }
+            else { w = Math.round(w * maxSize / h); h = maxSize; }
+          }
+          canvas.width = w; canvas.height = h;
+          ctx.drawImage(img, 0, 0, w, h);
+          const blob = await new Promise<Blob>((res) => canvas.toBlob(b => res(b!), 'image/jpeg', 0.8));
+          uploadFile = new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg' });
+        } catch { /* use original */ }
+      }
+
+      // Upload to server
+      const formData = new FormData();
+      formData.append('photo', uploadFile);
+      const res = await photosApi.upload(formData);
+      const url = res.data.data?.url;
+      if (url) {
+        setFormImageUrl(url);
+        setFormImagePreview(url.startsWith('data:') ? url : url);
+        toast.success('Фото загружено');
+      } else {
+        // Fallback to base64
+        const reader = new FileReader();
+        reader.onload = () => {
+          const dataUrl = reader.result as string;
+          setFormImageUrl(dataUrl);
+          setFormImagePreview(dataUrl);
+        };
+        reader.readAsDataURL(uploadFile);
+        toast.success('Фото загружено (локально)');
+      }
+    } catch (err) {
+      console.error('Photo upload error:', err);
+      // Fallback: read as base64
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = reader.result as string;
+        setFormImageUrl(dataUrl);
+        setFormImagePreview(dataUrl);
+      };
+      reader.readAsDataURL(file);
+      toast.success('Фото загружено (локально)');
+    } finally {
+      setFormUploading(false);
+    }
   }
 
   async function handleSave() {
@@ -304,28 +376,66 @@ export function MasterPortfolioPage() {
             </div>
 
             <div className="p-4 space-y-4">
-              {/* Image URL preview */}
+              {/* Photo upload */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  {t('portfolio.imageUrl')} *
+                  Фото работы *
                 </label>
-                <input
-                  type="url"
-                  value={formImageUrl}
-                  onChange={(e) => setFormImageUrl(e.target.value)}
-                  className="input-field dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                  placeholder="https://example.com/photo.jpg"
-                />
-                {formImageUrl && (
-                  <div className="mt-2 relative rounded-xl overflow-hidden aspect-video bg-gray-100 dark:bg-gray-700">
+                {formImagePreview ? (
+                  <div className="relative rounded-xl overflow-hidden aspect-video bg-gray-100 dark:bg-gray-700">
                     <img
-                      src={formImageUrl}
+                      src={formImagePreview}
                       alt="Preview"
                       className="w-full h-full object-cover"
                       onError={(e) => {
                         (e.target as HTMLImageElement).style.display = 'none';
                       }}
                     />
+                    <button
+                      onClick={() => { setFormImageUrl(''); setFormImagePreview(''); }}
+                      className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-black/80 text-white rounded-full transition-colors"
+                    >
+                      <X size={16} />
+                    </button>
+                    {formUploading && (
+                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                        <div className="w-8 h-8 border-3 border-white border-t-transparent rounded-full animate-spin" />
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    {/* Gallery button */}
+                    <label className="flex-1 flex flex-col items-center justify-center gap-2 py-6 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50 hover:border-primary-400 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors cursor-pointer">
+                      <Upload size={28} className="text-gray-400" />
+                      <span className="text-sm text-gray-500 dark:text-gray-400">Из галереи</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handlePhotoUpload(file);
+                          e.target.value = '';
+                        }}
+                      />
+                    </label>
+                    {/* Camera button */}
+                    <label className="flex-1 flex flex-col items-center justify-center gap-2 py-6 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50 hover:border-primary-400 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors cursor-pointer">
+                      <Camera size={28} className="text-gray-400" />
+                      <span className="text-sm text-gray-500 dark:text-gray-400">Камера</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handlePhotoUpload(file);
+                          e.target.value = '';
+                        }}
+                      />
+                    </label>
                   </div>
                 )}
               </div>
@@ -389,7 +499,7 @@ export function MasterPortfolioPage() {
               </button>
               <button
                 onClick={handleSave}
-                disabled={saving || !formTitle.trim() || !formImageUrl.trim()}
+                disabled={saving || formUploading || !formTitle.trim() || !formImageUrl}
                 className="btn-primary flex-1 flex items-center justify-center gap-2"
               >
                 {saving ? (

@@ -10,17 +10,23 @@ import * as portfolioService from './portfolio.service';
 const router = Router();
 
 // ─── Валидация ────────────────────────────────
+// Accept both regular URLs and data: URLs (base64 photos)
+const imageUrlSchema = z.string().refine(
+  (val) => val.startsWith('http://') || val.startsWith('https://') || val.startsWith('data:image/'),
+  { message: 'Must be a valid URL or base64 image' }
+);
+
 const createSchema = z.object({
   title: z.string().min(2).max(200),
   description: z.string().max(1000).optional(),
-  imageUrl: z.string().url(),
+  imageUrl: imageUrlSchema,
   categoryId: z.string().uuid().optional(),
 });
 
 const updateSchema = z.object({
   title: z.string().min(2).max(200).optional(),
   description: z.string().max(1000).optional(),
-  imageUrl: z.string().url().optional(),
+  imageUrl: imageUrlSchema.optional(),
   categoryId: z.string().uuid().nullable().optional(),
   sortOrder: z.number().int().min(0).optional(),
 });
