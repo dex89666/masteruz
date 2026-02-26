@@ -1,7 +1,7 @@
 -- CreateTable: quiz_questions
 CREATE TABLE "quiz_questions" (
-    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
-    "course_id" UUID NOT NULL,
+    "id" TEXT NOT NULL,
+    "course_id" TEXT NOT NULL,
     "question" TEXT NOT NULL,
     "question_uz" TEXT,
     "options" JSONB NOT NULL,
