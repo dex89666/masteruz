@@ -22,8 +22,8 @@ const VISIT_FEE_COMMISSION_RATE = 10;
 // ─── Коэффициенты для уровней AI ──────────────
 const TIER_MULTIPLIERS: Record<string, { price: number; days: number; label: string }> = {
   GOOD: { price: 1.0, days: 1.3, label: 'Хороший — стандарт' },
-  BETTER: { price: 1.4, days: 1.0, label: 'Отличный — оптимальный' },
-  BEST: { price: 2.0, days: 0.8, label: 'Премиум — максимум качества' },
+  BETTER: { price: 1.15, days: 1.0, label: 'Отличный — оптимальный' },
+  BEST: { price: 1.3, days: 0.8, label: 'Премиум — максимум качества' },
 };
 
 export class InstantOrderService {
@@ -574,20 +574,21 @@ export class InstantOrderService {
     // Сортируем: сначала по релевантности (desc), потом по цене (asc)
     scored.sort((a, b) => b.relevance - a.relevance || a.price - b.price);
 
-    // Берём наиболее релевантные задачи
+    // Берём наиболее релевантные задачи (макс 8 — чтобы цена не улетала)
     const relevant = scored.filter(s => s.relevance > 0);
-    const topTasks = relevant.length > 0 ? relevant : scored; // Если нет совпадений — все задачи
+    const topTasks = (relevant.length > 0 ? relevant : scored).slice(0, 8);
 
     // GOOD: 1-2 самые релевантные задачи (минимальный объём)
     const goodCount = Math.max(1, Math.min(2, Math.ceil(topTasks.length * 0.3)));
     const goodTasks = topTasks.slice(0, goodCount).map(s => s.task);
 
-    // BETTER: 2-4 задачи (оптимальный объём)
-    const betterCount = Math.max(2, Math.min(4, Math.ceil(topTasks.length * 0.6)));
+    // BETTER: 2-3 задачи (оптимальный объём)
+    const betterCount = Math.max(2, Math.min(3, Math.ceil(topTasks.length * 0.5)));
     const betterTasks = topTasks.slice(0, betterCount).map(s => s.task);
 
-    // BEST: все релевантные задачи
-    const bestTasks = topTasks.map(s => s.task);
+    // BEST: до 5 наиболее релевантных задач
+    const bestCount = Math.min(5, topTasks.length);
+    const bestTasks = topTasks.slice(0, bestCount).map(s => s.task);
 
     // ─── Точный расчёт стоимости ─────────────────────────
     const calculateWorkPrice = (tasks: any[]) =>
@@ -618,8 +619,8 @@ export class InstantOrderService {
       const workPrice = calculateWorkPrice(tasks);
       const materials: any[] = [];
 
-      // Базовые расходники: 10% от стоимости работ
-      const baseAmount = Math.round(workPrice * 0.10);
+      // Базовые расходники: 5% от стоимости работ
+      const baseAmount = Math.round(workPrice * 0.05);
       materials.push({
         name: 'Расходные материалы',
         quantity: 1, unit: 'компл.',
@@ -627,8 +628,8 @@ export class InstantOrderService {
       });
 
       if (tier === 'BETTER' || tier === 'BEST') {
-        // Качественные материалы: 15% от стоимости работ
-        const qualityAmount = Math.round(workPrice * 0.15);
+        // Качественные материалы: 8% от стоимости работ
+        const qualityAmount = Math.round(workPrice * 0.08);
         materials.push({
           name: 'Качественные комплектующие',
           quantity: 1, unit: 'компл.',
@@ -637,8 +638,8 @@ export class InstantOrderService {
       }
 
       if (tier === 'BEST') {
-        // Премиум материалы: 20% от стоимости работ
-        const premiumAmount = Math.round(workPrice * 0.20);
+        // Премиум материалы: 10% от стоимости работ
+        const premiumAmount = Math.round(workPrice * 0.10);
         materials.push({
           name: 'Премиум материалы и гарантия',
           quantity: 1, unit: 'компл.',
@@ -674,11 +675,23 @@ export class InstantOrderService {
     };
 
     return {
-      variants: [
-        buildVariant(goodTasks, 'GOOD'),
-        buildVariant(betterTasks, 'BETTER'),
-        buildVariant(bestTasks, 'BEST'),
-      ],
+      variants: (() => {
+        const good = buildVariant(goodTasks, 'GOOD');
+        const better = buildVariant(betterTasks, 'BETTER');
+        const best = buildVariant(bestTasks, 'BEST');
+
+        // Защита: BETTER не более 2x от GOOD, BEST не более 3x от GOOD
+        const maxBetter = Math.round(good.estimatedPrice * 2);
+        const maxBest = Math.round(good.estimatedPrice * 3);
+        if (better.estimatedPrice > maxBetter) better.estimatedPrice = maxBetter;
+        if (best.estimatedPrice > maxBest) best.estimatedPrice = maxBest;
+        // BETTER не может быть дороже BEST
+        if (better.estimatedPrice > best.estimatedPrice) {
+          better.estimatedPrice = Math.round(best.estimatedPrice * 0.75);
+        }
+
+        return [good, better, best];
+      })(),
     };
   }
 
