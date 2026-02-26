@@ -156,7 +156,17 @@ export function AdminDashboardPage() {
   const [flaggedMessages, setFlaggedMessages] = useState<any[]>([]);
   const [blacklist, setBlacklist] = useState<any[]>([]);
   const [moderationLoading, setModerationLoading] = useState(false);
-  const [moderationSubTab, setModerationSubTab] = useState<'estimates' | 'messages' | 'blacklist' | 'aiOrders'>('aiOrders');
+  const [moderationSubTab, setModerationSubTab] = useState<'estimates' | 'messages' | 'blacklist' | 'aiOrders' | 'chatArchive'>('aiOrders');
+
+  // Chat archive state
+  const [chatArchive, setChatArchive] = useState<any[]>([]);
+  const [chatArchiveTotal, setChatArchiveTotal] = useState(0);
+  const [chatArchivePage, setChatArchivePage] = useState(1);
+  const [chatArchiveSearch, setChatArchiveSearch] = useState('');
+  const [chatArchiveLoading, setChatArchiveLoading] = useState(false);
+  const [chatArchiveViewOrderId, setChatArchiveViewOrderId] = useState<string | null>(null);
+  const [chatArchiveMessages, setChatArchiveMessages] = useState<any[]>([]);
+  const [chatArchiveMsgLoading, setChatArchiveMsgLoading] = useState(false);
 
   // Support chat tab state
   const [supportChats, setSupportChats] = useState<any[]>([]);
@@ -315,6 +325,42 @@ export function AdminDashboardPage() {
       loadModerationData();
     } catch { toast.error('Ошибка'); }
   }
+
+  // ─── Chat Archive Functions ────────────────
+  async function loadChatArchive() {
+    setChatArchiveLoading(true);
+    try {
+      const res = await chatApi.getArchive({ page: chatArchivePage, search: chatArchiveSearch });
+      setChatArchive(res.data.data || []);
+      setChatArchiveTotal(res.data.total || 0);
+    } catch (e) {
+      console.error(e);
+      toast.error('Ошибка загрузки архива чатов');
+    } finally {
+      setChatArchiveLoading(false);
+    }
+  }
+
+  async function loadChatArchiveMessages(orderId: string) {
+    setChatArchiveMsgLoading(true);
+    setChatArchiveViewOrderId(orderId);
+    try {
+      const res = await chatApi.getMessages(orderId);
+      setChatArchiveMessages(res.data.data || []);
+    } catch (e) {
+      console.error(e);
+      toast.error('Ошибка загрузки сообщений');
+    } finally {
+      setChatArchiveMsgLoading(false);
+    }
+  }
+
+  // Load chat archive when sub-tab changes or page/search changes
+  useEffect(() => {
+    if (tab === 'moderation' && moderationSubTab === 'chatArchive') {
+      loadChatArchive();
+    }
+  }, [moderationSubTab, chatArchivePage, chatArchiveSearch]);
 
   // ─── Support Chat Functions ────────────────
   async function loadSupportChats() {
@@ -1704,6 +1750,7 @@ export function AdminDashboardPage() {
               { key: 'estimates' as const, label: `Сметы (${pendingEstimates.length})`, icon: '📋' },
               { key: 'messages' as const, label: `Сообщения (${flaggedMessages.length})`, icon: '💬' },
               { key: 'blacklist' as const, label: `Чёрный список (${blacklist.length})`, icon: '🚫' },
+              { key: 'chatArchive' as const, label: 'Архив чатов', icon: '📂' },
             ].map(st => (
               <button
                 key={st.key}
@@ -1993,6 +2040,138 @@ export function AdminDashboardPage() {
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* Chat Archive */}
+          {moderationSubTab === 'chatArchive' && (
+            <div className="space-y-3">
+              {/* Search */}
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Поиск по названию или ID заказа..."
+                    value={chatArchiveSearch}
+                    onChange={(e) => { setChatArchiveSearch(e.target.value); setChatArchivePage(1); }}
+                    className="input pl-9 text-sm"
+                  />
+                </div>
+                <button
+                  onClick={loadChatArchive}
+                  className="p-2 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
+                >
+                  <RefreshCw size={16} />
+                </button>
+              </div>
+
+              {chatArchiveLoading && <LoadingSpinner />}
+
+              {/* Viewing a specific chat */}
+              {chatArchiveViewOrderId && (
+                <div className="card border-2 border-blue-300 dark:border-blue-700">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-bold text-sm dark:text-white flex items-center gap-2">
+                      <MessageCircle size={16} className="text-blue-500" />
+                      Переписка по заказу #{chatArchiveViewOrderId.slice(0, 8)}
+                    </h3>
+                    <button
+                      onClick={() => { setChatArchiveViewOrderId(null); setChatArchiveMessages([]); }}
+                      className="text-xs px-3 py-1.5 bg-gray-200 dark:bg-gray-700 rounded-lg"
+                    >
+                      ← Назад к списку
+                    </button>
+                  </div>
+                  {chatArchiveMsgLoading && <LoadingSpinner />}
+                  {!chatArchiveMsgLoading && chatArchiveMessages.length === 0 && (
+                    <p className="text-center text-gray-400 text-sm py-4">Нет сообщений</p>
+                  )}
+                  <div className="max-h-[500px] overflow-y-auto space-y-2">
+                    {chatArchiveMessages.map((msg: any) => (
+                      <div key={msg.id} className={`p-2.5 rounded-xl text-sm ${msg.isBlocked ? 'bg-red-50 dark:bg-red-900/20' : msg.isFlagged ? 'bg-orange-50 dark:bg-orange-900/20' : 'bg-gray-50 dark:bg-gray-800'}`}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-semibold text-xs text-gray-700 dark:text-gray-300">
+                            {msg.sender?.firstName || 'Пользователь'}
+                            {msg.isSystem && <span className="ml-1 text-blue-500">(система)</span>}
+                          </span>
+                          <span className="text-xs text-gray-400">{new Date(msg.createdAt).toLocaleString('ru')}</span>
+                        </div>
+                        <p className="text-gray-800 dark:text-gray-200">{msg.text}</p>
+                        {msg.imageUrl && (
+                          <img src={msg.imageUrl} alt="Фото" className="mt-1 max-h-32 rounded-lg" />
+                        )}
+                        {msg.isFlagged && (
+                          <p className="text-xs text-orange-500 mt-1">🚩 {msg.flagReason}</p>
+                        )}
+                        {msg.isBlocked && (
+                          <p className="text-xs text-red-500 mt-1">🚫 Заблокировано</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Archive list */}
+              {!chatArchiveViewOrderId && !chatArchiveLoading && (
+                <>
+                  {chatArchive.length === 0 && (
+                    <div className="text-center py-8 text-gray-400">
+                      <MessageCircle size={40} className="mx-auto mb-2" />
+                      <p>Нет чатов</p>
+                    </div>
+                  )}
+                  {chatArchive.map((item: any) => (
+                    <div key={item.orderId} className="card hover:shadow-md transition-shadow cursor-pointer" onClick={() => loadChatArchiveMessages(item.orderId)}>
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-sm dark:text-white truncate">{item.title}</p>
+                          <p className="text-xs text-gray-400 mt-0.5">#{item.orderId.slice(0, 8)}</p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0 ml-2">
+                          <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-2 py-0.5 rounded-full font-medium">
+                            💬 {item.messageCount}
+                          </span>
+                          <StatusBadge status={item.status} />
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
+                        <span>👤 {item.client?.name || '—'}</span>
+                        <span>🔧 {item.master?.name || '—'}</span>
+                      </div>
+                      {item.lastMessage && (
+                        <p className="text-xs text-gray-400 mt-2 truncate">
+                          Последнее: {item.lastMessage.senderName}: {item.lastMessage.text}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+
+                  {/* Pagination */}
+                  {chatArchiveTotal > 20 && (
+                    <div className="flex items-center justify-center gap-2 mt-4">
+                      <button
+                        disabled={chatArchivePage <= 1}
+                        onClick={() => setChatArchivePage(p => Math.max(1, p - 1))}
+                        className="p-2 rounded-lg bg-gray-100 dark:bg-gray-800 disabled:opacity-50"
+                      >
+                        <ChevronLeft size={16} />
+                      </button>
+                      <span className="text-sm text-gray-500">
+                        {chatArchivePage} / {Math.ceil(chatArchiveTotal / 20)}
+                      </span>
+                      <button
+                        disabled={chatArchivePage >= Math.ceil(chatArchiveTotal / 20)}
+                        onClick={() => setChatArchivePage(p => p + 1)}
+                        className="p-2 rounded-lg bg-gray-100 dark:bg-gray-800 disabled:opacity-50"
+                      >
+                        <ChevronRight size={16} />
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           )}
         </div>

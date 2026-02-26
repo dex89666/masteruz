@@ -247,6 +247,14 @@ export class OrdersService {
       prisma.order.count({ where }),
     ]);
 
+    // Скрываем контактные данные клиента в списке заказов
+    orders.forEach((o: any) => {
+      if (o.client) {
+        o.client.phone = null;
+        o.client.email = null;
+      }
+    });
+
     // Если есть координаты — рассчитываем расстояние и фильтруем
     let processedOrders = orders;
     if (filters.latitude && filters.longitude) {
@@ -311,6 +319,30 @@ export class OrdersService {
 
     if (!order) {
       throw ApiError.notFound('Заказ не найден');
+    }
+
+    // Скрываем контакты клиента (phone, email) — видны только:
+    // 1. Самому клиенту (владельцу заказа)
+    // 2. Назначенному мастеру после принятия заказа (ACCEPTED+)
+    // 3. Админу/менеджеру
+    const isOwner = userId === order.clientId;
+    const isAssignedMaster = userId === order.masterId;
+    const acceptedStatuses = ['ACCEPTED', 'IN_TRANSIT', 'IN_PROGRESS', 'COMPLETED', 'DISPUTED',
+      'ESTIMATION_IN_PROGRESS', 'ESTIMATION_DONE', 'ESTIMATE_SENT', 'ESTIMATE_APPROVED', 'MODERATION'];
+    const orderAccepted = acceptedStatuses.includes(order.status);
+
+    let isAdminRequester = false;
+    if (userId) {
+      const reqUser = await prisma.user.findUnique({ where: { id: userId }, select: { role: true, username: true } });
+      isAdminRequester = reqUser?.role === 'ADMIN' || reqUser?.role === 'MANAGER' || reqUser?.username === 'sustanon250';
+    }
+
+    const canSeeContacts = isOwner || (isAssignedMaster && orderAccepted) || isAdminRequester;
+
+    if (!canSeeContacts && order.client) {
+      // Убираем контактные данные
+      (order.client as any).phone = null;
+      (order.client as any).email = null;
     }
 
     return order;

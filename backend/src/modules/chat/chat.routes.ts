@@ -247,6 +247,112 @@ router.get('/:orderId/unread', authenticate, async (req: Request, res: Response,
 // ═══════════════════════════════════════════
 
 /**
+ * GET /chat/admin/archive — архив всех чатов (список заказов с перепиской)
+ * Админ может видеть все чаты для доказательств и разбора споров
+ */
+router.get('/admin/archive', authenticate, authorize('ADMIN', 'MANAGER'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
+    const search = (req.query.search as string) || '';
+    const status = req.query.status as string;
+
+    // Находим заказы, у которых есть сообщения в чате
+    const where: any = {
+      chatMessages: { some: {} },
+    };
+
+    if (status) {
+      where.status = status;
+    }
+
+    if (search) {
+      where.OR = [
+        { title: { contains: search, mode: 'insensitive' } },
+        { id: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    const [orders, total] = await Promise.all([
+      prisma.order.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { updatedAt: 'desc' },
+        select: {
+          id: true,
+          title: true,
+          status: true,
+          createdAt: true,
+          updatedAt: true,
+          client: {
+            select: {
+              id: true,
+              username: true,
+              profile: { select: { firstName: true, avatarUrl: true } },
+            },
+          },
+          master: {
+            select: {
+              id: true,
+              username: true,
+              profile: { select: { firstName: true, avatarUrl: true } },
+            },
+          },
+          _count: {
+            select: { chatMessages: true },
+          },
+          chatMessages: {
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+            select: {
+              text: true,
+              createdAt: true,
+              sender: {
+                select: {
+                  profile: { select: { firstName: true } },
+                },
+              },
+            },
+          },
+        },
+      }),
+      prisma.order.count({ where }),
+    ]);
+
+    // Форматируем ответ
+    const archiveData = orders.map(o => ({
+      orderId: o.id,
+      title: o.title,
+      status: o.status,
+      createdAt: o.createdAt,
+      updatedAt: o.updatedAt,
+      client: o.client ? {
+        id: o.client.id,
+        name: o.client.profile?.firstName || o.client.username || 'Клиент',
+        avatarUrl: o.client.profile?.avatarUrl,
+      } : null,
+      master: o.master ? {
+        id: o.master.id,
+        name: o.master.profile?.firstName || o.master.username || 'Мастер',
+        avatarUrl: o.master.profile?.avatarUrl,
+      } : null,
+      messageCount: o._count.chatMessages,
+      lastMessage: o.chatMessages[0] ? {
+        text: o.chatMessages[0].text?.substring(0, 100) || '',
+        senderName: o.chatMessages[0].sender?.profile?.firstName || 'Пользователь',
+        createdAt: o.chatMessages[0].createdAt,
+      } : null,
+    }));
+
+    res.json({ success: true, data: archiveData, total, page, limit });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
  * GET /chat/admin/flagged — все флагированные сообщения
  */
 router.get('/admin/flagged', authenticate, authorize('ADMIN', 'MANAGER'), async (req: Request, res: Response, next: NextFunction) => {

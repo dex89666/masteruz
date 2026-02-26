@@ -292,6 +292,10 @@ export const chatApi = {
 
   unflagMessage: (messageId: string) =>
     api.put<ApiResponse<any>>(`/chat/admin/${messageId}/unflag`),
+
+  // Admin: архив всех чатов
+  getArchive: (params?: { page?: number; search?: string; status?: string }) =>
+    api.get<any>('/chat/admin/archive', { params }),
 };
 
 // ─── Estimation API (Выезд на оценку + смета) ──
