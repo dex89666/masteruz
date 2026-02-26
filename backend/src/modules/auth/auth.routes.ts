@@ -116,6 +116,7 @@ router.post('/switch-role', authenticate, async (req, res, next) => {
     const tokens = authService.generateTokensPublic({
       userId: updated.id,
       role: updated.role,
+      telegramId: (req as any).user?.telegramId || 0,
       phone: updated.phone || '',
     });
 

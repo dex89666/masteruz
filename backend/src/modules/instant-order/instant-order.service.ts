@@ -587,27 +587,65 @@ export class InstantOrderService {
   /**
    * Подбор задач из БД-каталога, соответствующих решению из каталога расценок.
    * Используется для привязки реальных task IDs к smart-варианту.
+   * 
+   * Возвращает только 1 наиболее релевантную задачу (избегаем лишних).
+   * Используем строгое совпадение: ищем ТОЧНЫЕ ключевые фразы, а не отдельные слова.
    */
-  private matchTasksToSolution(allTasks: any[], solutionTitle: string, solutionDesc: string): string[] {
-    const combined = (solutionTitle + ' ' + solutionDesc).toLowerCase();
-    const words = combined.split(/\s+/).filter(w => w.length > 3);
+  private matchTasksToSolution(allTasks: any[], solutionTitle: string, _solutionDesc: string): string[] {
+    const title = solutionTitle.toLowerCase();
     
+    // Извлекаем ключевые фразы из названия решения (целые осмысленные фразы)
+    // Например: "Замена повреждённого участка трубы" → ключевая фраза "замен" + "труб"
+    const keyPhrases: string[] = [];
+    
+    // Определяем ключевые слова-маркеры действия
+    const actionWords = ['замен', 'ремонт', 'установк', 'монтаж', 'демонтаж', 'чистк', 'уборк', 'поклейк', 'покраск', 'штукатурк', 'укладк'];
+    // Определяем ключевые объекты (что именно чинится)
+    const objectWords = ['труб', 'кран', 'смесител', 'унитаз', 'сифон', 'канализац', 'розетк', 'выключател', 'проводк',
+      'люстр', 'светильник', 'мебел', 'шкаф', 'кухн', 'дверь', 'двер', 'окн', 'стекл',
+      'стен', 'потолок', 'потолк', 'пол', 'плитк', 'обо', 'ламинат',
+      'стиральн', 'посудомо', 'холодильник', 'кондиционер',
+      'газ', 'котёл', 'котел', 'бойлер', 'водонагреват'];
+    
+    // Находим какие объекты упоминаются в решении
+    const matchedObjects = objectWords.filter(obj => title.includes(obj));
+    
+    if (matchedObjects.length === 0) {
+      // Если объект не определён, используем всё название как фразу
+      keyPhrases.push(title);
+    } else {
+      keyPhrases.push(...matchedObjects);
+    }
+    
+    // Оцениваем задачи — но строго: задача должна содержать ТЕ ЖЕ объекты
     const scored = allTasks.map((task: any) => {
       const taskName = (task.name || '').toLowerCase();
-      const taskDesc = (task.description || '').toLowerCase();
       let score = 0;
-      for (const word of words) {
-        if (taskName.includes(word)) score += 3;
-        if (taskDesc.includes(word)) score += 1;
+      
+      // Бонус за совпадение объектов — это ГЛАВНЫЙ критерий
+      for (const phrase of keyPhrases) {
+        if (taskName.includes(phrase)) score += 10;
       }
-      return { id: task.id, score };
+      
+      // Штраф если задача содержит ДРУГИЕ объекты (не из нашего решения)
+      const taskObjects = objectWords.filter(obj => taskName.includes(obj));
+      for (const obj of taskObjects) {
+        if (!matchedObjects.includes(obj) && matchedObjects.length > 0) {
+          score -= 5; // Штраф за лишний объект — "Замена сифона" не подходит к "Замена трубы"
+        }
+      }
+      
+      return { id: task.id, name: taskName, score };
     });
 
-    return scored
-      .filter(s => s.score > 0)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 3)
-      .map(s => s.id);
+    // Берём только ОДНУ лучшую задачу с положительным скором
+    const best = scored.filter(s => s.score > 0).sort((a, b) => b.score - a.score);
+    
+    if (best.length > 0) {
+      return [best[0].id];
+    }
+    
+    return [];
   }
 
   /**

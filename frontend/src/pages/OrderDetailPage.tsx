@@ -341,16 +341,19 @@ export function OrderDetailPage() {
       )}
 
       {/* Фотографии заказа — видны всем */}
-      {order.images && order.images.length > 0 && (
+      {order.images && order.images.filter((img: string) => img.startsWith('http') || img.startsWith('data:')).length > 0 && (
         <div className="card mb-4">
           <h2 className="text-sm text-gray-500 dark:text-gray-400 mb-2">📷 Фотографии заказа</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-            {order.images.map((img: string, idx: number) => (
-              <a key={idx} href={img} target="_blank" rel="noopener noreferrer" className="block">
+            {order.images.filter((img: string) => img.startsWith('http') || img.startsWith('data:')).map((img: string, idx: number) => (
+              <a key={idx} href={img.startsWith('data:') ? undefined : img} target="_blank" rel="noopener noreferrer" className="block">
                 <img
                   src={img}
                   alt={`Фото ${idx + 1}`}
                   className="w-full h-32 object-cover rounded-lg border border-gray-200 dark:border-gray-700 hover:opacity-90 transition-opacity cursor-pointer"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = 'none';
+                  }}
                 />
               </a>
             ))}

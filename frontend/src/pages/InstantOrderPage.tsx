@@ -293,24 +293,29 @@ export function InstantOrderPage() {
           formData.append('photo', file);
           const res = await photosApi.upload(formData);
           const url = res.data.data?.url;
-          if (url && !url.startsWith('data:')) {
-            // Только настоящие URL (не base64) — они компактные
+          if (url) {
+            // Принимаем любой URL — обычный или base64 data URL
             uploadedUrls.push(url);
-          } else if (url) {
-            // base64 data URL слишком большой для повторной отправки —
-            // сохраняем маркер, настоящий base64 сохраним при создании заказа
-            uploadedUrls.push(`photo-uploaded-${uploadedUrls.length + 1}`);
           }
         } catch (uploadErr) {
           console.warn('Ошибка загрузки фото на сервер:', uploadErr);
         }
       }
 
-      // Если серверная загрузка не удалась — используем маркеры
-      // (AI-анализ не использует реальные фото, только описание и категорию)
+      // Если серверная загрузка не удалась — генерируем base64 из файлов напрямую
       if (uploadedUrls.length === 0 && imageFiles.length > 0) {
-        for (let i = 0; i < imageFiles.length; i++) {
-          uploadedUrls.push(`photo-pending-${i + 1}`);
+        for (const file of imageFiles) {
+          try {
+            const dataUrl = await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(reader.result as string);
+              reader.onerror = reject;
+              reader.readAsDataURL(file);
+            });
+            uploadedUrls.push(dataUrl);
+          } catch {
+            uploadedUrls.push(`photo-pending-${uploadedUrls.length + 1}`);
+          }
         }
       }
 
@@ -362,14 +367,30 @@ export function InstantOrderPage() {
           formData.append('photo', file);
           const res = await photosApi.upload(formData);
           const url = res.data.data?.url;
-          if (url && !url.startsWith('data:')) {
+          if (url) {
+            // Принимаем любой URL — обычный или base64 data URL
             orderImages.push(url);
           }
         } catch {
           console.warn('Ошибка загрузки фото при создании заказа');
         }
       }
-      // Если загрузка не удалась, используем пустой массив — заказ создастся без фото
+      // Если серверная загрузка не удалась — генерируем base64 из файлов
+      if (orderImages.length === 0 && imageFiles.length > 0) {
+        for (const file of imageFiles) {
+          try {
+            const dataUrl = await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(reader.result as string);
+              reader.onerror = reject;
+              reader.readAsDataURL(file);
+            });
+            orderImages.push(dataUrl);
+          } catch {
+            // пропускаем файл
+          }
+        }
+      }
       const deadlineStr = timing === 'date' && deadline ? `${deadline}${deadlineTime ? 'T' + deadlineTime : ''}` : undefined;
 
       const result = await instantOrderApi.create({
@@ -380,7 +401,7 @@ export function InstantOrderPage() {
         voiceDescription: voiceText || undefined,
         address,
         city: city || undefined,
-        images: orderImages.length > 0 ? orderImages : ['photo-pending'],
+        images: orderImages.length > 0 ? orderImages : [],
         deadline: deadlineStr,
         isUrgent,
         offerAccepted,
