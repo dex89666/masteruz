@@ -116,26 +116,22 @@ export class NotificationService {
         include: { category: true },
       });
 
-      if (!order) return;
-
-      const orderHasGeo = order.latitude && order.longitude;
-
-      // Находим мастеров — с геолокацией для гео-подбора
-      const masterWhere: any = {
-        role: 'MASTER',
-        isActive: true,
-        masterProfile: {
-          isAvailable: true,
-        },
-      };
-
-      // Если у заказа нет координат — ищем по городу
-      if (!orderHasGeo && order.city) {
-        masterWhere.profile = { city: order.city };
+      if (!order) {
+        logger.warn({ orderId }, 'notifyMastersNewOrder: заказ не найден');
+        return;
       }
 
+      const orderHasGeo = !!(order.latitude && order.longitude);
+
+      // Находим всех активных доступных мастеров
       const masters = await prisma.user.findMany({
-        where: masterWhere,
+        where: {
+          role: 'MASTER',
+          isActive: true,
+          masterProfile: {
+            isAvailable: true,
+          },
+        },
         select: {
           id: true,
           telegramId: true,
@@ -145,8 +141,14 @@ export class NotificationService {
         take: 200,
       });
 
-      // Гео-фильтрация: если у заказа есть координаты — считаем расстояние
-      // и отправляем только мастерам в пределах их maxDistanceKm (или 30 км по умолчанию)
+      logger.info({ orderId, totalMasters: masters.length, orderHasGeo, orderCity: order.city }, 'notifyMastersNewOrder: найдено мастеров');
+
+      if (masters.length === 0) {
+        logger.warn({ orderId }, 'notifyMastersNewOrder: нет активных мастеров');
+        return;
+      }
+
+      // Считаем расстояние если у заказа есть координаты
       const mastersWithDistance = masters.map((m) => {
         let distance: number | null = null;
         if (orderHasGeo && m.profile?.latitude && m.profile?.longitude) {
@@ -157,20 +159,33 @@ export class NotificationService {
         return { ...m, distance };
       });
 
-      // Фильтруем: если есть гео — только ближайшие; иначе — все по городу (до 50)
-      const filteredMasters = orderHasGeo
-        ? mastersWithDistance
-            .filter((m) => {
-              if (m.distance === null) {
-                // У мастера нет координат — проверяем город
-                return m.profile?.city === order.city;
-              }
+      // Фильтрация:
+      // 1) Если у заказа есть гео — приоритет ближайшим, но город-фолбэк тоже
+      // 2) Если у заказа есть город (без гео) — по городу
+      // 3) Если ни гео ни города — отправляем ВСЕМ (до 50)
+      let filteredMasters;
+      if (orderHasGeo) {
+        filteredMasters = mastersWithDistance
+          .filter((m) => {
+            if (m.distance !== null) {
               const maxKm = m.masterProfile?.maxDistanceKm || 30;
               return m.distance <= maxKm;
-            })
-            .sort((a, b) => (a.distance ?? 999) - (b.distance ?? 999))
-            .slice(0, 50)
-        : mastersWithDistance.slice(0, 50);
+            }
+            // У мастера нет координат — фолбэк на город
+            return !order.city || m.profile?.city === order.city;
+          })
+          .sort((a, b) => (a.distance ?? 999) - (b.distance ?? 999))
+          .slice(0, 50);
+      } else if (order.city) {
+        filteredMasters = mastersWithDistance
+          .filter((m) => m.profile?.city === order.city)
+          .slice(0, 50);
+      } else {
+        // Нет ни гео ни города — отправляем всем
+        filteredMasters = mastersWithDistance.slice(0, 50);
+      }
+
+      logger.info({ orderId, filteredCount: filteredMasters.length }, 'notifyMastersNewOrder: после фильтрации');
 
       // ─── Параллельная рассылка (Promise.allSettled) ───
       const results = await Promise.allSettled(

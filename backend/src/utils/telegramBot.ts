@@ -16,7 +16,7 @@ const _fetch = (globalThis as any).fetch as (
 const BOT_API = `https://api.telegram.org/bot${config.telegram.botToken}`;
 
 interface SendMessageOptions {
-  chatId: number | string;
+  chatId: number | string | bigint;
   text: string;
   parseMode?: 'HTML' | 'Markdown' | 'MarkdownV2';
   replyMarkup?: any;
@@ -115,7 +115,7 @@ export async function notifyMasterOrderApproved(params: {
   isUrgent: boolean;
   tasks: string[];
 }): Promise<void> {
-  const chatId = Number(params.masterTelegramId);
+  const chatId = String(params.masterTelegramId);
 
   // Формируем полный адрес
   const addressParts = [
@@ -179,7 +179,7 @@ export async function notifyMasterNewOrder(params: {
   categoryName: string;
   distance?: number | null;
 }): Promise<void> {
-  const chatId = Number(params.masterTelegramId);
+  const chatId = String(params.masterTelegramId);
 
   const locationParts = [params.city, params.district].filter(Boolean);
   const locationLabel = locationParts.join(', ') || 'Не указан';
@@ -189,9 +189,7 @@ export async function notifyMasterNewOrder(params: {
   // Deep link: opens the order directly inside Telegram Mini App
   const miniAppUrl = config.telegram.miniAppUrl || 'https://masteruz-ecru.vercel.app';
   const botUsername = config.telegram.botUsername;
-  const webAppLink = botUsername
-    ? `https://t.me/${botUsername}/app?startapp=order_${params.orderId}`
-    : `${miniAppUrl}/orders/${params.orderId}`;
+  const orderUrl = `${miniAppUrl}/orders/${params.orderId}`;
 
   const message = `
 🆕 <b>${urgentLabel}Новый заказ в вашем районе!</b>
@@ -204,12 +202,20 @@ export async function notifyMasterNewOrder(params: {
 👉 Нажмите кнопку ниже, чтобы посмотреть заказ и откликнуться
 `.trim();
 
-  const replyMarkup = botUsername ? {
-    inline_keyboard: [
-      [{ text: '📋 Посмотреть заказ', web_app: { url: `${miniAppUrl}/orders/${params.orderId}` } }],
-      [{ text: '✅ Откликнуться', web_app: { url: `${miniAppUrl}/orders/${params.orderId}` } }],
-    ]
-  } : undefined;
+  // Кнопки: web_app если есть botUsername, иначе обычные url-кнопки
+  const replyMarkup = botUsername
+    ? {
+        inline_keyboard: [
+          [{ text: '📋 Посмотреть заказ', web_app: { url: orderUrl } }],
+          [{ text: '✅ Откликнуться', web_app: { url: orderUrl } }],
+        ],
+      }
+    : {
+        inline_keyboard: [
+          [{ text: '📋 Посмотреть заказ', url: orderUrl }],
+          [{ text: '✅ Откликнуться', url: orderUrl }],
+        ],
+      };
 
   await sendTelegramMessage({ chatId, text: message, replyMarkup });
 }
@@ -223,7 +229,7 @@ export async function notifyMasterResponseAccepted(params: {
   orderId: string;
   price: number;
 }): Promise<void> {
-  const chatId = Number(params.masterTelegramId);
+  const chatId = String(params.masterTelegramId);
 
   const message = `
 🎉 <b>Ваш отклик выбран!</b>

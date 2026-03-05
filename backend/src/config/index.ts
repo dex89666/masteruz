@@ -40,8 +40,8 @@ export const config = {
   // Telegram
   telegram: {
     botToken: process.env.TELEGRAM_BOT_TOKEN || '',
-    botUsername: process.env.TELEGRAM_BOT_USERNAME || '',
-    miniAppUrl: process.env.TELEGRAM_MINI_APP_URL || '',
+    botUsername: (process.env.TELEGRAM_BOT_USERNAME || process.env.TELEGRAM_BOT_NAME || '').replace(/^@/, ''),
+    miniAppUrl: process.env.TELEGRAM_MINI_APP_URL || 'https://masteruz-ecru.vercel.app',
   },
 
   // Yandex Maps
