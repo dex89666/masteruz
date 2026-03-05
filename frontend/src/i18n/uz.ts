@@ -691,6 +691,11 @@ const uz = {
     viewProfile: 'Profil',
     online: 'Onlayn',
     offline: 'Oflayn',
+    lastSeen: 'Oxirgi marta',
+    justNow: 'hozirgina',
+    minutesAgo: 'daq. oldin',
+    hoursAgo: 'soat oldin',
+    daysAgo: 'kun oldin',
   },
 
   // ─── Buyurtma taymlayn ──────────────

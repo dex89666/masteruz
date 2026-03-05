@@ -45,6 +45,18 @@ export function MasterCard({ master, isFavorite = false, showFavorite = false, o
   const mp = master.masterProfile;
   const profile = master.profile;
 
+  function formatLastSeen(lastSeenAt: string | null): string {
+    if (!lastSeenAt) return '';
+    const diff = Date.now() - new Date(lastSeenAt).getTime();
+    const minutes = Math.floor(diff / 60000);
+    if (minutes < 1) return t('masterCard.justNow');
+    if (minutes < 60) return `${minutes} ${t('masterCard.minutesAgo')}`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours} ${t('masterCard.hoursAgo')}`;
+    const days = Math.floor(hours / 24);
+    return `${days} ${t('masterCard.daysAgo')}`;
+  }
+
   async function handleToggleFavorite(e: React.MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
@@ -166,6 +178,11 @@ export function MasterCard({ master, isFavorite = false, showFavorite = false, o
                   ? t('masterCard.available')
                   : t('masterCard.busy')}
               </span>
+              {!mp.isOnline && mp.lastSeenAt && (
+                <span className="text-[10px] text-gray-400 dark:text-gray-500">
+                  {t('masterCard.lastSeen')} {formatLastSeen(mp.lastSeenAt)}
+                </span>
+              )}
             </div>
           )}
         </div>

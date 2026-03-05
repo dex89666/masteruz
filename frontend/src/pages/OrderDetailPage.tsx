@@ -63,6 +63,18 @@ export function OrderDetailPage() {
   const isOwner = order?.clientId === user?.id;
   const isAssignedMaster = order?.masterId === user?.id;
 
+  function formatLastSeen(lastSeenAt: string | null): string {
+    if (!lastSeenAt) return '';
+    const diff = Date.now() - new Date(lastSeenAt).getTime();
+    const minutes = Math.floor(diff / 60000);
+    if (minutes < 1) return t('masterCard.justNow');
+    if (minutes < 60) return `${minutes} ${t('masterCard.minutesAgo')}`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours} ${t('masterCard.hoursAgo')}`;
+    const days = Math.floor(hours / 24);
+    return `${days} ${t('masterCard.daysAgo')}`;
+  }
+
   useEffect(() => {
     if (id) loadOrder();
   }, [id]);
@@ -85,18 +97,13 @@ export function OrderDetailPage() {
   }
 
   async function handleRespond() {
-    if (!responseText.trim()) {
-      toast.error(t('orderDetail.writeMessage'));
-      return;
-    }
     setSubmitting(true);
     try {
       await ordersApi.respond(id!, {
-        message: responseText,
+        message: '',
         priceOffer: responsePrice ? Number(responsePrice) : undefined,
       });
       toast.success(t('orderDetail.responseSent'));
-      setResponseText('');
       setResponsePrice('');
       loadOrder();
     } catch (error: any) {
@@ -800,13 +807,22 @@ export function OrderDetailPage() {
               <div key={resp.id} className="card">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
-                    {resp.master?.profile?.avatarUrl ? (
-                      <img src={resp.master.profile.avatarUrl} className="w-10 h-10 rounded-full object-cover" alt="" />
-                    ) : (
-                      <div className="w-10 h-10 rounded-full bg-primary-100 dark:bg-primary-900/40 flex items-center justify-center">
-                        <User size={20} className="text-primary-600 dark:text-primary-400" />
-                      </div>
-                    )}
+                    <div className="relative">
+                      {resp.master?.profile?.avatarUrl ? (
+                        <img src={resp.master.profile.avatarUrl} className="w-10 h-10 rounded-full object-cover" alt="" />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-primary-100 dark:bg-primary-900/40 flex items-center justify-center">
+                          <User size={20} className="text-primary-600 dark:text-primary-400" />
+                        </div>
+                      )}
+                      {resp.master?.masterProfile && (
+                        <span className={`absolute -bottom-0.5 -right-0.5 block w-3 h-3 rounded-full border-2 border-white dark:border-gray-800 ${
+                          resp.master.masterProfile.isOnline
+                            ? 'bg-green-500 animate-pulse'
+                            : 'bg-gray-400 dark:bg-gray-600'
+                        }`} />
+                      )}
+                    </div>
                     <div>
                       <p className="font-medium dark:text-white">{resp.master?.profile?.firstName || t('orderDetail.master')}</p>
                       {resp.master?.masterProfile && (
@@ -815,6 +831,13 @@ export function OrderDetailPage() {
                           {resp.master.masterProfile.rating?.toFixed(1) || '—'}
                           <span className="mx-1">·</span>
                           {resp.master.masterProfile.completedOrders || 0} {t('orderDetail.ordersCount')}
+                          {resp.master.masterProfile.isOnline ? (
+                            <span className="ml-2 text-green-600 dark:text-green-400 text-xs">🟢 {t('masterCard.online')}</span>
+                          ) : resp.master.masterProfile.lastSeenAt ? (
+                            <span className="ml-2 text-gray-400 dark:text-gray-500 text-xs">
+                              {t('masterCard.lastSeen')} {formatLastSeen(resp.master.masterProfile.lastSeenAt)}
+                            </span>
+                          ) : null}
                         </div>
                       )}
                     </div>
@@ -825,7 +848,7 @@ export function OrderDetailPage() {
                     </span>
                   )}
                 </div>
-                <p className="text-gray-700 dark:text-gray-300 mt-2">{resp.message}</p>
+                {resp.message && <p className="text-gray-700 dark:text-gray-300 mt-2">{resp.message}</p>}
                 {isOwner && order.status === 'PUBLISHED' && resp.status === 'PENDING' && (
                   <button onClick={() => handleAssignMaster(resp.masterId)} className="btn-primary mt-3 text-sm">
                     {t('orderDetail.chooseMaster')}
@@ -841,13 +864,6 @@ export function OrderDetailPage() {
       {isMaster && order.status === 'PUBLISHED' && !isOwner && (
         <div className="card">
           <h3 className="font-semibold mb-3 dark:text-white">{t('orderDetail.respondTitle')}</h3>
-          <textarea
-            className="textarea mb-3"
-            rows={3}
-            placeholder={t('orderDetail.respondPlaceholder')}
-            value={responseText}
-            onChange={(e) => setResponseText(e.target.value)}
-          />
           <div className="flex gap-3 items-end">
             <div className="flex-1">
               <label className="text-sm text-gray-600 dark:text-gray-400 mb-1 block">{t('orderDetail.yourPrice')}</label>

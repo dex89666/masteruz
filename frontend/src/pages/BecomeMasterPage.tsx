@@ -1,18 +1,16 @@
 // ============================================
-// MasterUz — Become Master Page (3-step)
+// MasterUz — Become Master Page (2-step)
 // Шаг 1: Заполнение профиля
 // Шаг 2: Выбор категорий услуг (чекбоксы)
-// Шаг 3: Оплата регистрационного взноса 400 000 сум
 // ============================================
 
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { usersApi, catalogApi } from '../api/client';
 import { useAuthStore } from '../store';
-import { RegistrationPaymentModal } from '../components/RegistrationPaymentModal';
 import {
   ArrowLeft, Wrench, Star, DollarSign, BookOpen,
-  Shield, CheckCircle, CreditCard, ChevronRight, Layers,
+  Shield, CheckCircle, ChevronRight, Layers,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useTranslation } from '../i18n';
@@ -25,8 +23,7 @@ export function BecomeMasterPage() {
     experience: '',
   });
   const [submitting, setSubmitting] = useState(false);
-  const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [step, setStep] = useState<1 | 2>(1);
 
   // Категории и подкатегории
   const [categories, setCategories] = useState<any[]>([]);
@@ -36,19 +33,16 @@ export function BecomeMasterPage() {
   const [loadingCategories, setLoadingCategories] = useState(false);
   const [savingCategories, setSavingCategories] = useState(false);
 
-  // Если у пользователя уже есть masterProfile но нет регистрации — сразу step 3
+  // Если мастер уже зарегистрирован — перенаправляем
   const alreadyMaster = user?.role === 'MASTER';
-  const registrationPaid = user?.masterProfile?.registrationPaid;
 
-  // Если мастер уже зарегистрирован и оплачен — перенаправляем
   useEffect(() => {
-    if (alreadyMaster && registrationPaid) {
+    if (alreadyMaster) {
       navigate('/dashboard', { replace: true });
     }
-  }, [alreadyMaster, registrationPaid, navigate]);
+  }, [alreadyMaster, navigate]);
 
-  // Если мастер зарегистрирован но не оплачен — показать step 3
-  const currentStep = alreadyMaster && !registrationPaid ? 3 : step;
+  const currentStep = step;
 
   // Загрузка категорий при переходе на шаг 2
   useEffect(() => {
@@ -158,27 +152,12 @@ export function BecomeMasterPage() {
     try {
       await usersApi.updateMasterCategories(selectedCategoryIds);
       toast.success(t('becomeMasterPage.categoriesSaved'));
-      setStep(3);
+      navigate('/dashboard');
     } catch (error: any) {
       toast.error(error.response?.data?.message || t('common.error'));
     } finally {
       setSavingCategories(false);
     }
-  }
-
-  function handlePaymentSuccess() {
-    if (user) {
-      const state = useAuthStore.getState();
-      const updatedUser = {
-        ...user,
-        masterProfile: user.masterProfile
-          ? { ...user.masterProfile, registrationPaid: true }
-          : null,
-      };
-      setAuth(updatedUser as any, state.accessToken!, state.refreshToken!);
-    }
-    toast.success(t('becomeMasterPage.regFeeSuccess'));
-    navigate('/dashboard');
   }
 
   return (
@@ -190,12 +169,11 @@ export function BecomeMasterPage() {
 
       <h1 className="page-title">{t('becomeMasterPage.title')}</h1>
 
-      {/* Step indicator — 3 шага */}
+      {/* Step indicator — 2 шага */}
       <div className="flex items-center gap-2 mb-6 overflow-x-auto">
         {[
           { num: 1, label: t('becomeMasterPage.step1') },
           { num: 2, label: t('becomeMasterPage.step2') },
-          { num: 3, label: t('becomeMasterPage.step3') },
         ].map((s, i) => (
           <div key={s.num} className="flex items-center gap-2 shrink-0">
             {i > 0 && <div className="w-6 h-0.5 bg-gray-200 dark:bg-gray-700" />}
@@ -260,33 +238,6 @@ export function BecomeMasterPage() {
               min={0}
               max={50}
             />
-          </div>
-
-          {/* Кнопка «Обучение» — отдельный крупный блок */}
-          <Link
-            to="/school"
-            className="flex items-center gap-3 p-4 bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 border-2 border-purple-200 dark:border-purple-800 rounded-xl hover:shadow-md hover:-translate-y-0.5 transition-all"
-          >
-            <div className="w-12 h-12 rounded-xl bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center shrink-0">
-              <BookOpen size={24} className="text-purple-600 dark:text-purple-400" />
-            </div>
-            <div className="flex-1">
-              <p className="font-semibold text-purple-800 dark:text-purple-300 text-sm">{t('becomeMasterPage.trainingTitle')}</p>
-              <p className="text-xs text-purple-600 dark:text-purple-400">{t('becomeMasterPage.schoolNote')}</p>
-            </div>
-            <ChevronRight size={20} className="text-purple-400 shrink-0" />
-          </Link>
-
-          <div className="bg-amber-50 dark:bg-amber-900/20 p-4 rounded-xl border border-amber-200 dark:border-amber-800">
-            <div className="flex items-center gap-2 mb-2">
-              <Shield size={18} className="text-amber-600 dark:text-amber-400" />
-              <p className="font-semibold text-sm text-amber-800 dark:text-amber-300">
-                {t('becomeMasterPage.regFeeTitle')}: {t('becomeMasterPage.regFeeAmount')}
-              </p>
-            </div>
-            <p className="text-xs text-amber-700 dark:text-amber-400">
-              {t('becomeMasterPage.regFeeDesc')}
-            </p>
           </div>
 
           <button
@@ -451,67 +402,6 @@ export function BecomeMasterPage() {
         </div>
       )}
 
-      {/* ── Step 3: Registration Fee Payment ── */}
-      {currentStep === 3 && (
-        <div className="space-y-5">
-          {/* Success banners for steps 1 & 2 */}
-          <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-4 flex items-center gap-3">
-            <CheckCircle size={24} className="text-green-500 shrink-0" />
-            <div>
-              <p className="font-semibold text-green-800 dark:text-green-300 text-sm">
-                {t('becomeMasterPage.step1')} ✅ · {t('becomeMasterPage.step2')} ✅
-              </p>
-              <p className="text-xs text-green-600 dark:text-green-400">
-                {t('becomeMasterPage.stepsCompleted')}
-              </p>
-            </div>
-          </div>
-
-          {/* Registration fee card */}
-          <div className="card dark:bg-gray-800 dark:ring-gray-700 p-6 text-center">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-green-100 to-emerald-100 dark:from-green-900/30 dark:to-emerald-900/20 flex items-center justify-center mx-auto mb-4">
-              <CreditCard size={32} className="text-green-600 dark:text-green-400" />
-            </div>
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-1">
-              {t('becomeMasterPage.regFeeTitle')}
-            </h2>
-            <p className="text-3xl font-extrabold text-green-600 dark:text-green-400 mb-3">
-              {t('becomeMasterPage.regFeeAmount')}
-            </p>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-6 max-w-sm mx-auto">
-              {t('becomeMasterPage.regFeeDesc')}
-            </p>
-
-            {/* Why needed */}
-            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 mb-6 text-left">
-              <p className="text-sm font-semibold text-amber-800 dark:text-amber-300 mb-3">
-                {t('becomeMasterPage.regFeeWhy')}
-              </p>
-              <ul className="space-y-2 text-xs text-amber-700 dark:text-amber-400">
-                <li className="flex items-center gap-2">✅ {t('becomeMasterPage.regFeeReason1')}</li>
-                <li className="flex items-center gap-2">🛡️ {t('becomeMasterPage.regFeeReason2')}</li>
-                <li className="flex items-center gap-2">⭐ {t('becomeMasterPage.regFeeReason3')}</li>
-                <li className="flex items-center gap-2">💰 {t('becomeMasterPage.regFeeReason4')}</li>
-              </ul>
-            </div>
-
-            <button
-              onClick={() => setShowPaymentModal(true)}
-              className="btn-primary w-full py-3.5 text-lg bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 shadow-lg shadow-green-200 dark:shadow-green-900/30"
-            >
-              <CreditCard size={20} className="mr-2" />
-              {t('becomeMasterPage.regFeePayBtn')}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Payment Modal */}
-      <RegistrationPaymentModal
-        isOpen={showPaymentModal}
-        onClose={() => setShowPaymentModal(false)}
-        onSuccess={handlePaymentSuccess}
-      />
     </div>
   );
 }

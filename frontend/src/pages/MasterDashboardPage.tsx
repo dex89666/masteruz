@@ -126,48 +126,6 @@ export function MasterDashboardPage() {
 
   if (loading) return <DashboardSkeleton />;
 
-  // Если регистрационный взнос не оплачен — показать блокирующий баннер
-  if (mp && !mp.registrationPaid) {
-    return (
-      <div className="page-container pb-20">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            {t('masterDashboard.hello')}, {profile?.firstName || t('masterDashboard.master')}! 👋
-          </h1>
-        </div>
-
-        <div className="card dark:bg-gray-800 dark:ring-gray-700 p-6 text-center">
-          <div className="w-16 h-16 rounded-2xl bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center mx-auto mb-4">
-            <CreditCard size={32} className="text-amber-600 dark:text-amber-400" />
-          </div>
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
-            {t('becomeMasterPage.regFeePending')}
-          </h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-            {t('becomeMasterPage.regFeePendingDesc')}
-          </p>
-
-          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 mb-6 text-left">
-            <ul className="space-y-2 text-xs text-amber-700 dark:text-amber-400">
-              <li className="flex items-center gap-2">✅ {t('becomeMasterPage.regFeeReason1')}</li>
-              <li className="flex items-center gap-2">🛡️ {t('becomeMasterPage.regFeeReason2')}</li>
-              <li className="flex items-center gap-2">⭐ {t('becomeMasterPage.regFeeReason3')}</li>
-              <li className="flex items-center gap-2">💰 {t('becomeMasterPage.regFeeReason4')}</li>
-            </ul>
-          </div>
-
-          <Link
-            to="/become-master"
-            className="btn-primary w-full py-3.5 text-lg bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700"
-          >
-            <CreditCard size={20} className="mr-2" />
-            {t('becomeMasterPage.regFeePayBtn')}
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="page-container pb-20">
       {/* Баннер возврата в Админ-панель */}

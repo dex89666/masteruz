@@ -234,21 +234,6 @@ export function ProfilePage() {
               {t('profile.experience')} {masterProfile.experience} {t('profile.yearsShort')}
             </div>
           )}
-
-          {!masterProfile.schoolCompleted && (
-            <Link
-              to="/school"
-              className="flex items-center justify-between mt-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800"
-            >
-              <div className="flex items-center">
-                <BookOpen size={18} className="text-yellow-600 dark:text-yellow-400 mr-2" />
-                <span className="text-sm text-yellow-800 dark:text-yellow-300">
-                  {t('profile.schoolBanner')}
-                </span>
-              </div>
-              <ChevronRight size={16} className="text-yellow-600 dark:text-yellow-400" />
-            </Link>
-          )}
         </div>
       )}
 

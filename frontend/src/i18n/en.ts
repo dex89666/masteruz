@@ -691,6 +691,11 @@ const en = {
     viewProfile: 'Profile',
     online: 'Online',
     offline: 'Offline',
+    lastSeen: 'Last seen',
+    justNow: 'just now',
+    minutesAgo: 'min ago',
+    hoursAgo: 'h ago',
+    daysAgo: 'd ago',
   },
 
   // ─── Order Timeline ────────────────

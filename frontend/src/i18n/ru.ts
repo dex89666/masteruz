@@ -693,6 +693,11 @@ const ru = {
     specializations: 'Специализации',
     serviceCategories: 'Категории услуг',
     viewProfile: 'Профиль',
+    lastSeen: 'Был в сети',
+    justNow: 'только что',
+    minutesAgo: 'мин. назад',
+    hoursAgo: 'ч. назад',
+    daysAgo: 'дн. назад',
   },
 
   // ─── Таймлайн заказа ────────────────────
