@@ -490,6 +490,11 @@ const uz = {
     urgentOrders: 'Shoshilinch buyurtmalar',
     onlineDesc: 'Siz mijozlarga ko\'rinasiz va buyurtma olasiz',
     offlineDesc: 'Buyurtma olish uchun ilovani yoqing',
+    shareLocation: 'Joylashuvingizni ulashing',
+    shareLocationDesc: 'Yaqin mijozlardan buyurtma olish uchun',
+    shareLocationBtn: 'Ulashish',
+    locationShared: 'Joylashuv faol',
+    locationSharedDesc: 'Buyurtmalar joylashuvingiz bo\'yicha tanlanadi',
   },
 
   // ─── Buyurtmalarim ─────────────────────

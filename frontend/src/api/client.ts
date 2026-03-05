@@ -120,8 +120,8 @@ export const usersApi = {
 
 // ─── Online Status API ──────────────────────
 export const onlineStatusApi = {
-  heartbeat: () =>
-    api.post<ApiResponse<any>>('/users/heartbeat'),
+  heartbeat: (latitude?: number, longitude?: number) =>
+    api.post<ApiResponse<any>>('/users/heartbeat', { latitude, longitude }),
 
   goOffline: () =>
     api.post<ApiResponse<any>>('/users/go-offline'),

@@ -340,9 +340,30 @@ export class OrdersService {
     const canSeeContacts = isOwner || (isAssignedMaster && orderAccepted) || isAdminRequester;
 
     if (!canSeeContacts && order.client) {
-      // Убираем контактные данные
+      // Убираем контактные данные клиента
       (order.client as any).phone = null;
       (order.client as any).email = null;
+    }
+
+    // Скрываем контакты мастера от клиента до принятия заказа
+    // Контакты мастера видны только: назначенному мастеру (себе), клиенту после ACCEPTED, админу
+    if (!isAdminRequester && order.master) {
+      const clientCanSeeMasterContacts = isOwner && orderAccepted;
+      const isMasterSelf = userId === order.masterId;
+      if (!clientCanSeeMasterContacts && !isMasterSelf) {
+        (order.master as any).phone = null;
+        (order.master as any).email = null;
+      }
+    }
+
+    // Скрываем контакты мастеров в откликах (до назначения)
+    if (order.responses) {
+      for (const resp of order.responses as any[]) {
+        if (resp.master && !isAdminRequester) {
+          (resp.master as any).phone = null;
+          (resp.master as any).email = null;
+        }
+      }
     }
 
     return order;

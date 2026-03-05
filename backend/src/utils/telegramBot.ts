@@ -177,12 +177,14 @@ export async function notifyMasterNewOrder(params: {
   price: number;
   isUrgent: boolean;
   categoryName: string;
+  distance?: number | null;
 }): Promise<void> {
   const chatId = Number(params.masterTelegramId);
 
   const locationParts = [params.city, params.district].filter(Boolean);
   const locationLabel = locationParts.join(', ') || 'Не указан';
   const urgentLabel = params.isUrgent ? '🚨 СРОЧНЫЙ ' : '';
+  const distanceLabel = params.distance != null ? `\n📏 <b>Расстояние:</b> ${params.distance} км от вас` : '';
 
   // Deep link: opens the order directly inside Telegram Mini App
   const miniAppUrl = config.telegram.miniAppUrl || 'https://masteruz-ecru.vercel.app';
@@ -197,15 +199,16 @@ export async function notifyMasterNewOrder(params: {
 📋 <b>${params.orderTitle}</b>
 🏷 <b>Категория:</b> ${params.categoryName}
 💰 <b>Бюджет:</b> ${params.price.toLocaleString('ru')} сум
-📍 <b>Местоположение:</b> ${locationLabel}
+📍 <b>Местоположение:</b> ${locationLabel}${distanceLabel}
 
-👉 <a href="${webAppLink}">Посмотреть и откликнуться</a>
+👉 Нажмите кнопку ниже, чтобы посмотреть заказ и откликнуться
 `.trim();
 
   const replyMarkup = botUsername ? {
-    inline_keyboard: [[
-      { text: '📋 Посмотреть заказ', web_app: { url: `${miniAppUrl}/orders/${params.orderId}` } }
-    ]]
+    inline_keyboard: [
+      [{ text: '📋 Посмотреть заказ', web_app: { url: `${miniAppUrl}/orders/${params.orderId}` } }],
+      [{ text: '✅ Откликнуться', web_app: { url: `${miniAppUrl}/orders/${params.orderId}` } }],
+    ]
   } : undefined;
 
   await sendTelegramMessage({ chatId, text: message, replyMarkup });

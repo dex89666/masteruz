@@ -490,6 +490,11 @@ const en = {
     urgentOrders: 'Urgent Orders',
     onlineDesc: 'Clients can see you and send orders',
     offlineDesc: 'Open the app to receive orders',
+    shareLocation: 'Share your location',
+    shareLocationDesc: 'To receive orders from nearby clients',
+    shareLocationBtn: 'Share',
+    locationShared: 'Location is active',
+    locationSharedDesc: 'Orders are matched based on your location',
   },
 
   // ─── My Orders ─────────────────────────

@@ -9,7 +9,7 @@ import { ordersApi, paymentsApi, portfolioApi, authApi } from '../api/client';
 import { OrderCard } from '../components/OrderCard';
 import { DashboardSkeleton } from '../components/PageSkeletons';
 import { useAuthStore } from '../store';
-import { useFormatPrice } from '../hooks';
+import { useFormatPrice, useGeolocation } from '../hooks';
 import { useTranslation } from '../i18n';
 import toast from 'react-hot-toast';
 import {
@@ -30,6 +30,7 @@ import {
   WifiOff,
   Image,
   ShieldCheck,
+  MapPin,
 } from 'lucide-react';
 import type { Order } from '../types';
 
@@ -48,6 +49,7 @@ export function MasterDashboardPage() {
 
   const mp = user?.masterProfile;
   const profile = user?.profile;
+  const { location: geoLocation, requestLocation, loading: geoLoading } = useGeolocation();
 
   // Админ-статус определяется из бэкенда (поле isAdminUser)
   const isAdminUser = user?.isAdminUser === true;
@@ -186,6 +188,46 @@ export function MasterDashboardPage() {
           mp?.isOnline ? 'bg-green-500 animate-pulse' : 'bg-gray-400'
         }`} />
       </div>
+
+      {/* Баннер геолокации */}
+      {mp?.isOnline && !geoLocation && (
+        <div className="card mb-4 flex items-center gap-3 bg-gradient-to-r from-blue-50 to-sky-50 border-blue-200 dark:from-blue-900/20 dark:to-sky-900/10 dark:border-blue-800">
+          <div className="w-10 h-10 rounded-full flex items-center justify-center bg-blue-100 dark:bg-blue-900/40">
+            <MapPin size={20} className="text-blue-600 dark:text-blue-400" />
+          </div>
+          <div className="flex-1">
+            <p className="font-semibold text-sm text-blue-800 dark:text-blue-300">
+              {t('masterDashboard.shareLocation')}
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {t('masterDashboard.shareLocationDesc')}
+            </p>
+          </div>
+          <button
+            onClick={requestLocation}
+            disabled={geoLoading}
+            className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition-colors disabled:opacity-50"
+          >
+            {geoLoading ? '...' : t('masterDashboard.shareLocationBtn')}
+          </button>
+        </div>
+      )}
+      {mp?.isOnline && geoLocation && (
+        <div className="card mb-4 flex items-center gap-3 bg-gradient-to-r from-green-50 to-teal-50 border-green-200 dark:from-green-900/20 dark:to-teal-900/10 dark:border-green-800">
+          <div className="w-10 h-10 rounded-full flex items-center justify-center bg-green-100 dark:bg-green-900/40">
+            <MapPin size={20} className="text-green-600 dark:text-green-400" />
+          </div>
+          <div className="flex-1">
+            <p className="font-semibold text-sm text-green-800 dark:text-green-300">
+              {t('masterDashboard.locationShared')}
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {t('masterDashboard.locationSharedDesc')}
+            </p>
+          </div>
+          <span className="w-3 h-3 rounded-full bg-green-500" />
+        </div>
+      )}
 
       {/* Срочные заказы */}
       {urgentOrders.length > 0 && (

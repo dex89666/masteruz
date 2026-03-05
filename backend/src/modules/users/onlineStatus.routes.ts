@@ -23,6 +23,7 @@ router.post('/heartbeat', authenticate, async (req: Request, res: Response, next
   try {
     const userId = req.user!.userId;
     const redis = getRedis();
+    const { latitude, longitude } = req.body || {};
 
     // Устанавливаем ключ с TTL — при истечении мастер автоматически считается оффлайн
     await Promise.all([
@@ -30,16 +31,31 @@ router.post('/heartbeat', authenticate, async (req: Request, res: Response, next
       redis.sadd(ONLINE_SET_KEY, userId),
     ]);
 
+    // Сохраняем геопозицию мастера если передана
+    if (latitude && longitude && typeof latitude === 'number' && typeof longitude === 'number') {
+      prisma.userProfile.updateMany({
+        where: { userId },
+        data: { latitude, longitude },
+      }).catch((err: any) => logger.error({ err }, 'Ошибка сохранения геопозиции'));
+    }
+
     res.json({ success: true, data: { online: true } });
   } catch (error) {
     logger.error({ error }, 'Heartbeat error, falling back to Prisma');
     // Fallback: если Redis недоступен, используем Prisma
     try {
       const userId = req.user!.userId;
+      const { latitude, longitude } = req.body || {};
       await prisma.masterProfile.updateMany({
         where: { userId },
         data: { isOnline: true, lastSeenAt: new Date() },
       });
+      if (latitude && longitude) {
+        await prisma.userProfile.updateMany({
+          where: { userId },
+          data: { latitude, longitude },
+        });
+      }
       res.json({ success: true, data: { online: true } });
     } catch (err) {
       next(err);

@@ -272,13 +272,29 @@ export function useOnlineStatus() {
     // Только для мастеров
     if (!user || user.role !== 'MASTER') return;
 
+    // Функция отправки heartbeat с геолокацией
+    function sendHeartbeat() {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            onlineStatusApi.heartbeat(pos.coords.latitude, pos.coords.longitude).catch(() => {});
+          },
+          () => {
+            // Если геолокация недоступна — отправляем без координат
+            onlineStatusApi.heartbeat().catch(() => {});
+          },
+          { enableHighAccuracy: true, timeout: 5000 }
+        );
+      } else {
+        onlineStatusApi.heartbeat().catch(() => {});
+      }
+    }
+
     // Первый heartbeat сразу
-    onlineStatusApi.heartbeat().catch(() => {});
+    sendHeartbeat();
 
     // Затем каждые 30 секунд
-    intervalRef.current = setInterval(() => {
-      onlineStatusApi.heartbeat().catch(() => {});
-    }, 30000);
+    intervalRef.current = setInterval(sendHeartbeat, 30000);
 
     // При закрытии/уходе со страницы — уходим в оффлайн
     function handleBeforeUnload() {
@@ -296,7 +312,7 @@ export function useOnlineStatus() {
       if (document.hidden) {
         onlineStatusApi.goOffline().catch(() => {});
       } else {
-        onlineStatusApi.heartbeat().catch(() => {});
+        sendHeartbeat();
       }
     }
 

@@ -6,7 +6,7 @@
 import { prisma } from '../config/database.js';
 import { sendTelegramMessage, notifyMasterOrderApproved, notifyMasterNewOrder, notifyMasterResponseAccepted } from '../utils/telegramBot.js';
 import { logger } from '../utils/logger.js';
-import { toNum } from '../utils/helpers.js';
+import { toNum, calculateDistance } from '../utils/helpers.js';
 
 export class NotificationService {
   /**
@@ -118,7 +118,9 @@ export class NotificationService {
 
       if (!order) return;
 
-      // Находим мастеров в этом городе или со специализацией в этой категории
+      const orderHasGeo = order.latitude && order.longitude;
+
+      // Находим мастеров — с геолокацией для гео-подбора
       const masterWhere: any = {
         role: 'MASTER',
         isActive: true,
@@ -127,7 +129,8 @@ export class NotificationService {
         },
       };
 
-      if (order.city) {
+      // Если у заказа нет координат — ищем по городу
+      if (!orderHasGeo && order.city) {
         masterWhere.profile = { city: order.city };
       }
 
@@ -136,24 +139,56 @@ export class NotificationService {
         select: {
           id: true,
           telegramId: true,
+          profile: { select: { latitude: true, longitude: true, city: true } },
+          masterProfile: { select: { maxDistanceKm: true } },
         },
-        take: 50, // Ограничиваем количество рассылок
+        take: 200,
       });
+
+      // Гео-фильтрация: если у заказа есть координаты — считаем расстояние
+      // и отправляем только мастерам в пределах их maxDistanceKm (или 30 км по умолчанию)
+      const mastersWithDistance = masters.map((m) => {
+        let distance: number | null = null;
+        if (orderHasGeo && m.profile?.latitude && m.profile?.longitude) {
+          distance = Math.round(
+            calculateDistance(order.latitude!, order.longitude!, m.profile.latitude, m.profile.longitude) * 10
+          ) / 10;
+        }
+        return { ...m, distance };
+      });
+
+      // Фильтруем: если есть гео — только ближайшие; иначе — все по городу (до 50)
+      const filteredMasters = orderHasGeo
+        ? mastersWithDistance
+            .filter((m) => {
+              if (m.distance === null) {
+                // У мастера нет координат — проверяем город
+                return m.profile?.city === order.city;
+              }
+              const maxKm = m.masterProfile?.maxDistanceKm || 30;
+              return m.distance <= maxKm;
+            })
+            .sort((a, b) => (a.distance ?? 999) - (b.distance ?? 999))
+            .slice(0, 50)
+        : mastersWithDistance.slice(0, 50);
 
       // ─── Параллельная рассылка (Promise.allSettled) ───
       const results = await Promise.allSettled(
-        masters.map(async (master) => {
+        filteredMasters.map(async (master) => {
+          const distLabel = master.distance !== null ? ` • ${master.distance} км от вас` : '';
+
           // In-app уведомление
           await this.createNotification({
             userId: master.id,
             type: 'new_order',
             title: order.isUrgent ? '🚨 Новый срочный заказ!' : '🆕 Новый заказ!',
-            message: `${order.title} — ${toNum(order.price).toLocaleString('ru')} сум${order.city ? ` • ${order.city}` : ''}${order.district ? `, ${order.district}` : ''}`,
+            message: `${order.title} — ${toNum(order.price).toLocaleString('ru')} сум${order.city ? ` • ${order.city}` : ''}${order.district ? `, ${order.district}` : ''}${distLabel}`,
             data: {
               orderId: order.id,
               city: order.city,
               district: order.district,
               isUrgent: order.isUrgent,
+              distance: master.distance,
             },
           });
 
@@ -168,16 +203,17 @@ export class NotificationService {
             price: toNum(order.price),
             isUrgent: order.isUrgent,
             categoryName: order.category?.name || '',
+            distance: master.distance,
           });
         })
       );
 
       const failed = results.filter((r) => r.status === 'rejected');
       if (failed.length > 0) {
-        logger.warn({ orderId, failedCount: failed.length, totalCount: masters.length }, 'Некоторые уведомления не доставлены');
+        logger.warn({ orderId, failedCount: failed.length, totalCount: filteredMasters.length }, 'Некоторые уведомления не доставлены');
       }
 
-      logger.info({ orderId, mastersNotified: masters.length - failed.length, totalMasters: masters.length }, 'Мастера уведомлены о новом заказе');
+      logger.info({ orderId, mastersNotified: filteredMasters.length - failed.length, totalMasters: filteredMasters.length }, 'Мастера уведомлены о новом заказе (гео-подбор)');
     } catch (error) {
       logger.error({ error, orderId }, 'Ошибка уведомления мастеров о новом заказе');
     }
