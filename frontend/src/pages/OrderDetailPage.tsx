@@ -35,7 +35,6 @@ export function OrderDetailPage() {
 
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
-  const [responseText, setResponseText] = useState('');
   const [responsePrice, setResponsePrice] = useState('');
   const [submitting, setSubmitting] = useState(false);
 

@@ -10,7 +10,7 @@ import { useTranslation } from '../i18n';
 import { ProfileSkeleton } from '../components/PageSkeletons';
 import {
   User, Phone, MapPin, Star, Award, Copy, Share2,
-  LogOut, Settings, BookOpen, Shield, ChevronRight,
+  LogOut, Settings, Shield, ChevronRight,
   Briefcase, Clock, CreditCard, Camera, Wallet, PlusCircle,
   ShieldCheck, Users, Wrench,
 } from 'lucide-react';
