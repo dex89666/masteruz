@@ -4,13 +4,13 @@
 
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { usersApi } from '../api/client';
+import { usersApi, catalogApi } from '../api/client';
 import { useAuthStore } from '../store';
 import { useTranslation } from '../i18n';
 import { useLargeText } from '../hooks';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import {
-  ArrowLeft, Save, User, FileText, Type,
+  ArrowLeft, Save, User, FileText, Type, Layers, ChevronDown, Check,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -19,7 +19,7 @@ const CITY_KEYS = ['Tashkent', 'Samarkand', 'Bukhara', 'Namangan', 'Andijan', 'F
 export function ProfileSettingsPage() {
   const navigate = useNavigate();
   const { user, setUser } = useAuthStore();
-  const { t } = useTranslation();
+  const { t, language } = useTranslation();
   const { largeText, toggleLargeText } = useLargeText();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -44,7 +44,11 @@ export function ProfileSettingsPage() {
     bio: '',
   });
 
-  const [newSpec, setNewSpec] = useState('');
+  // Категории из каталога
+  const [categories, setCategories] = useState<any[]>([]);
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
+  const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
+  const [loadingCategories, setLoadingCategories] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -53,6 +57,52 @@ export function ProfileSettingsPage() {
     }
     loadProfile();
   }, [user]);
+
+  // Загрузка категорий для мастера
+  useEffect(() => {
+    if (isMaster) {
+      loadCategories();
+    }
+  }, [isMaster]);
+
+  async function loadCategories() {
+    setLoadingCategories(true);
+    try {
+      const [catRes, myCatRes] = await Promise.all([
+        catalogApi.getCategories(),
+        usersApi.getMasterCategories(),
+      ]);
+      setCategories(catRes.data.data || []);
+      const myIds = (myCatRes.data.data || []).map((mc: any) => mc.categoryId || mc.id);
+      setSelectedCategoryIds(myIds);
+    } catch {
+      // ignore
+    } finally {
+      setLoadingCategories(false);
+    }
+  }
+
+  function toggleCategory(categoryId: string) {
+    setSelectedCategoryIds((prev) =>
+      prev.includes(categoryId)
+        ? prev.filter((id) => id !== categoryId)
+        : [...prev, categoryId]
+    );
+  }
+
+  function toggleExpandCategory(categoryId: string) {
+    setExpandedCategories((prev) =>
+      prev.includes(categoryId)
+        ? prev.filter((id) => id !== categoryId)
+        : [...prev, categoryId]
+    );
+  }
+
+  function getCategoryName(cat: any) {
+    if (language === 'uz' && cat.nameUz) return cat.nameUz;
+    if (language === 'en' && cat.nameEn) return cat.nameEn;
+    return cat.name;
+  }
 
   async function loadProfile() {
     try {
@@ -110,6 +160,10 @@ export function ProfileSettingsPage() {
           isAvailable: masterForm.isAvailable,
           bio: masterForm.bio || undefined,
         });
+        // Сохраняем выбранные категории
+        if (selectedCategoryIds.length > 0) {
+          await usersApi.updateMasterCategories(selectedCategoryIds);
+        }
       }
 
       // Refresh user data in store
@@ -124,21 +178,6 @@ export function ProfileSettingsPage() {
     } finally {
       setSaving(false);
     }
-  }
-
-  function addSpecialization() {
-    const spec = newSpec.trim();
-    if (spec && !masterForm.specializations.includes(spec)) {
-      setMasterForm({ ...masterForm, specializations: [...masterForm.specializations, spec] });
-      setNewSpec('');
-    }
-  }
-
-  function removeSpecialization(spec: string) {
-    setMasterForm({
-      ...masterForm,
-      specializations: masterForm.specializations.filter((s) => s !== spec),
-    });
   }
 
   if (!user) return null;
@@ -257,33 +296,75 @@ export function ProfileSettingsPage() {
             {t('settings.masterSettings')}
           </h2>
 
+          {/* Категории услуг */}
           <div className="mb-4">
-            <label className="label">{t('settings.specializations')}</label>
-            <div className="flex flex-wrap gap-2 mb-2">
-              {masterForm.specializations.map((spec) => (
-                <span
-                  key={spec}
-                  className="badge bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400 cursor-pointer hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-600 dark:hover:text-red-400 transition-colors"
-                  onClick={() => removeSpecialization(spec)}
-                  title={t('common.delete')}
-                >
-                  {spec} ×
-                </span>
-              ))}
-            </div>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                className="input flex-1"
-                placeholder={t('settings.addSpecialization')}
-                value={newSpec}
-                onChange={(e) => setNewSpec(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addSpecialization())}
-              />
-              <button onClick={addSpecialization} className="btn-secondary text-sm px-3">
-                +
-              </button>
-            </div>
+            <label className="label flex items-center gap-2">
+              <Layers size={16} className="text-primary-600 dark:text-primary-400" />
+              {t('settings.specializations')}
+            </label>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+              Выберите категории, в которых вы работаете
+            </p>
+
+            {loadingCategories ? (
+              <div className="space-y-2">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="h-12 bg-gray-100 dark:bg-gray-800 rounded-xl animate-pulse" />
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                {categories.map((cat) => {
+                  const isSelected = selectedCategoryIds.includes(cat.id);
+                  const isExpanded = expandedCategories.includes(cat.id);
+                  const subcategories = cat.subcategories || [];
+                  return (
+                    <div key={cat.id}>
+                      <div
+                        className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all border-2 ${
+                          isSelected
+                            ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20 dark:border-primary-600'
+                            : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                        }`}
+                        onClick={() => toggleCategory(cat.id)}
+                      >
+                        <div className={`w-5 h-5 rounded flex items-center justify-center shrink-0 transition-colors ${
+                          isSelected
+                            ? 'bg-primary-500 text-white'
+                            : 'border-2 border-gray-300 dark:border-gray-600'
+                        }`}>
+                          {isSelected && <Check size={14} />}
+                        </div>
+                        <span className={`flex-1 text-sm font-medium ${
+                          isSelected ? 'text-primary-700 dark:text-primary-300' : 'text-gray-700 dark:text-gray-300'
+                        }`}>
+                          {cat.icon && <span className="mr-1.5">{cat.icon}</span>}
+                          {getCategoryName(cat)}
+                        </span>
+                        {subcategories.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); toggleExpandCategory(cat.id); }}
+                            className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                          >
+                            <ChevronDown size={16} className={`transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                          </button>
+                        )}
+                      </div>
+                      {isExpanded && subcategories.length > 0 && (
+                        <div className="ml-8 mt-1 space-y-1 mb-1">
+                          {subcategories.map((sub: any) => (
+                            <div key={sub.id} className="text-xs text-gray-500 dark:text-gray-400 py-1 px-2">
+                              {getCategoryName(sub)}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-4 mb-4">
