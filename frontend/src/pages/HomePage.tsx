@@ -87,13 +87,11 @@ export function HomePage() {
     <div className="min-h-screen">
 
       {/* ═══ БЛОК 1: Hero — Создать заказ + Стать мастером ═══ */}
-      <section className="bg-gradient-to-br from-gray-900 via-gray-800 to-orange-900 text-white py-12 md:py-20 relative overflow-hidden">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] bg-orange-500/10 rounded-full blur-3xl" />
-        <div className="absolute top-0 right-0 w-80 h-80 bg-orange-600/5 rounded-full blur-2xl" />
-
-        {/* Hero photo — mobile: small in top-left corner; desktop: right side centered */}
-        <div className="absolute left-3 top-3 w-[80px] h-[100px] md:left-auto md:top-1/2 md:right-8 lg:right-12 md:-translate-y-1/2 md:w-[360px] md:h-[450px] lg:w-[480px] lg:h-[580px] opacity-70 md:opacity-80 pointer-events-none select-none z-0">
-          <img src="/hero-master.jpg" alt="" className="w-full h-full object-cover object-top rounded-xl md:rounded-2xl shadow-lg" aria-hidden="true" />
+      <section className="text-white py-12 md:py-20 relative overflow-hidden min-h-[90vh] flex items-center">
+        {/* Full-screen background photo */}
+        <div className="absolute inset-0 z-0">
+          <img src="/hero-master.jpg" alt="" className="w-full h-full object-cover object-[center_15%]" aria-hidden="true" />
+          <div className="absolute inset-0 bg-gradient-to-b from-gray-900/70 via-gray-900/50 to-gray-900/80" />
         </div>
 
         <div className="max-w-5xl mx-auto px-4 sm:px-6 relative z-10">
@@ -156,7 +154,7 @@ export function HomePage() {
             {categories.map((cat: any) => {
               const colors = CATEGORY_COLORS[cat.slug] || { bg: 'bg-gray-50 dark:bg-gray-800', text: 'text-gray-600 dark:text-gray-400', border: 'border-gray-200 dark:border-gray-700' };
               return (
-                <Link key={cat.slug} to={`/catalog/${cat.slug}`}
+                <Link key={cat.slug} to={`/instant-order?category=${cat.id || cat.slug}`}
                   className={`group relative overflow-hidden rounded-2xl border-2 ${colors.border} ${colors.bg} p-5 md:p-6 text-center transition-all hover:shadow-lg hover:-translate-y-1 hover:scale-[1.02] min-h-[100px]`}>
                   <span className="text-4xl md:text-5xl block mb-2.5 group-hover:scale-110 transition-transform">{cat.icon || '📁'}</span>
                   <span className={`text-sm md:text-base font-semibold ${colors.text} leading-tight block`}>{cat.name}</span>

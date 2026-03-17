@@ -288,14 +288,6 @@ export function CartPage() {
             </div>
           )}
 
-          <div className="flex justify-between text-gray-600 dark:text-gray-400">
-            <span className="flex items-center gap-1">
-              <AlertCircle size={12} />
-              {t('cart.commission')} ({COMMISSION_RATE}%)
-            </span>
-            <span>{formatPrice(commission)}</span>
-          </div>
-
           <div className="border-t border-gray-100 dark:border-gray-700 pt-2 mt-2">
             <div className="flex justify-between font-bold text-lg text-gray-900 dark:text-white">
               <span>{t('cart.total')}</span>

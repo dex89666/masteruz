@@ -2,7 +2,7 @@
 // MasterUz — Разработка (контакт)
 // ============================================
 
-import { Code2, Phone, Mail, MessageCircle, ExternalLink } from 'lucide-react';
+import { Code2, Phone, Mail, MessageCircle, ExternalLink, Globe } from 'lucide-react';
 
 export function DevelopmentPage() {
   return (
@@ -59,7 +59,7 @@ export function DevelopmentPage() {
             </a>
 
             <a
-              href="https://t.me/sustanon250"
+              href="https://t.me/vladimir_bsh"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-4 p-4 bg-sky-50 dark:bg-sky-900/20 rounded-xl hover:bg-sky-100 dark:hover:bg-sky-900/30 transition-colors group"
@@ -68,8 +68,24 @@ export function DevelopmentPage() {
                 <MessageCircle size={20} className="text-white" />
               </div>
               <div>
-                <p className="font-semibold text-gray-900 dark:text-white">@sustanon250</p>
+                <p className="font-semibold text-gray-900 dark:text-white">@vladimir_bsh</p>
                 <p className="text-sm text-gray-500 dark:text-gray-400">Telegram</p>
+              </div>
+              <ExternalLink size={16} className="text-gray-400 ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
+            </a>
+
+            <a
+              href="https://vladlabcorp.uz"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-4 p-4 bg-purple-50 dark:bg-purple-900/20 rounded-xl hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors group"
+            >
+              <div className="w-10 h-10 bg-purple-500 rounded-full flex items-center justify-center shrink-0">
+                <Globe size={20} className="text-white" />
+              </div>
+              <div>
+                <p className="font-semibold text-gray-900 dark:text-white">vladlabcorp.uz</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Веб-сайт</p>
               </div>
               <ExternalLink size={16} className="text-gray-400 ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
             </a>

@@ -301,9 +301,6 @@ export class InstantOrderService {
 
     await balanceService.holdFunds(clientId, escrowAmount, 'pending');
 
-    // Определяем, нужна ли модерация (есть доп. пожелания)
-    const hasModerationWishes = !!data.additionalWishes && data.additionalWishes.trim().length > 0;
-
     try {
       const order = await prisma.order.create({
         data: {
@@ -317,14 +314,14 @@ export class InstantOrderService {
           visitFee,
           escrowAmount,
           offerAccepted: true,
-          status: hasModerationWishes ? OrderStatus.MODERATION : OrderStatus.PUBLISHED,
+          status: OrderStatus.PUBLISHED,
           isUrgent,
           urgentMultiplier,
           // AI-специфичные поля
           isInstantAiOrder: true,
           aiTemplateId: template.id,
           additionalWishes: data.additionalWishes || null,
-          moderationRequired: hasModerationWishes,
+          moderationRequired: false,
           voiceDescription: data.voiceDescription || null,
           // Адрес
           address: data.address,
@@ -355,20 +352,14 @@ export class InstantOrderService {
       });
 
       logger.info(
-        { orderId: order.id, clientId, tier: template.tier, price: effectivePrice, moderation: hasModerationWishes },
+        { orderId: order.id, clientId, tier: template.tier, price: effectivePrice },
         '🚀 Instant AI Order создан'
       );
 
-      // Уведомления
-      if (hasModerationWishes) {
-        // Уведомляем менеджеров о модерации
-        logger.info({ orderId: order.id }, 'Заказ отправлен на модерацию (доп. пожелания)');
-      } else {
-        // Уведомляем мастеров о новом заказе
-        notificationService.notifyMastersNewOrder(order.id).catch((err) => {
-          logger.error({ error: err }, 'Ошибка уведомления мастеров');
-        });
-      }
+      // Уведомляем мастеров о новом заказе
+      notificationService.notifyMastersNewOrder(order.id).catch((err) => {
+        logger.error({ error: err }, 'Ошибка уведомления мастеров');
+      });
 
       return order;
     } catch (error) {

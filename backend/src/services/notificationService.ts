@@ -123,13 +123,18 @@ export class NotificationService {
 
       const orderHasGeo = !!(order.latitude && order.longitude);
 
-      // Находим всех активных доступных мастеров
+      // Находим активных мастеров, у которых есть категория этого заказа
       const masters = await prisma.user.findMany({
         where: {
           role: 'MASTER',
           isActive: true,
           masterProfile: {
             isAvailable: true,
+            masterCategories: {
+              some: {
+                categoryId: order.categoryId,
+              },
+            },
           },
         },
         select: {

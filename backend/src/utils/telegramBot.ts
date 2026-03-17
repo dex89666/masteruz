@@ -199,21 +199,22 @@ export async function notifyMasterNewOrder(params: {
 💰 <b>Бюджет:</b> ${params.price.toLocaleString('ru')} сум
 📍 <b>Местоположение:</b> ${locationLabel}${distanceLabel}
 
-👉 Нажмите кнопку ниже, чтобы посмотреть заказ и откликнуться
+👉 Нажмите кнопку ниже, чтобы подтвердить заявку
 `.trim();
 
-  // Кнопки: web_app если есть botUsername, иначе обычные url-кнопки
+  // Inline-кнопки: «Подтвердить заявку» (открывает заказ в Mini App) + «Посмотреть заказ»
+  const respondUrl = `${miniAppUrl}/orders/${params.orderId}?action=respond`;
   const replyMarkup = botUsername
     ? {
         inline_keyboard: [
+          [{ text: '✅ Подтвердить заявку', web_app: { url: respondUrl } }],
           [{ text: '📋 Посмотреть заказ', web_app: { url: orderUrl } }],
-          [{ text: '✅ Откликнуться', web_app: { url: orderUrl } }],
         ],
       }
     : {
         inline_keyboard: [
+          [{ text: '✅ Подтвердить заявку', url: respondUrl }],
           [{ text: '📋 Посмотреть заказ', url: orderUrl }],
-          [{ text: '✅ Откликнуться', url: orderUrl }],
         ],
       };
 

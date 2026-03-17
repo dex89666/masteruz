@@ -109,7 +109,15 @@ export function InstantOrderPage() {
     catalogApi.getCategories()
       .then((res) => {
         const cats = res.data.data || [];
-        if (cats.length > 0) setCategories(cats);
+        if (cats.length > 0) {
+          setCategories(cats);
+          // Auto-select category from URL param (?category=id_or_slug)
+          const catParam = searchParams.get('category');
+          if (catParam) {
+            const found = cats.find((c: Category) => c.id === catParam || (c as any).slug === catParam);
+            if (found) setSelectedCategoryId(found.id);
+          }
+        }
       })
       .catch(() => {});
   }, []);

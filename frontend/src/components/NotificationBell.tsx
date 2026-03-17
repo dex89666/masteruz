@@ -2,29 +2,73 @@
 // MasterUz — Notification Bell (колокольчик уведомлений)
 // ============================================
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Bell, CheckCheck, Trash2, MessageSquare, ShieldCheck, Camera, X } from 'lucide-react';
+import { Bell, CheckCheck, Trash2, MessageSquare, ShieldCheck, Camera, X, Briefcase } from 'lucide-react';
 import { notificationsApi } from '../api/client';
 import { useTranslation } from '../i18n';
+import { useAuthStore } from '../store';
 import type { Notification } from '../types';
+import toast from 'react-hot-toast';
 
 const ICON_MAP: Record<string, any> = {
   CHAT_MESSAGE: MessageSquare,
   ORDER_PHOTO: Camera,
   GUARANTEE_CREATED: ShieldCheck,
   GUARANTEE_CLAIMED: ShieldCheck,
+  new_order: Briefcase,
   default: Bell,
 };
 
 export function NotificationBell() {
   const { t, locale } = useTranslation();
   const navigate = useNavigate();
+  const { user } = useAuthStore();
   const [open, setOpen] = useState(false);
   const [unread, setUnread] = useState(0);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const lastSeenCountRef = useRef<number>(0);
+  const initializedRef = useRef(false);
+
+  // Показать всплывающее окно для новых заказов
+  const showNewOrderPopup = useCallback((n: Notification) => {
+    const data = n.data as any;
+    toast(
+      (toastInstance) => (
+        <div
+          className="flex items-start gap-3 cursor-pointer max-w-sm"
+          onClick={() => {
+            toast.dismiss(toastInstance.id);
+            if (data?.orderId) navigate(`/orders/${data.orderId}`);
+          }}
+        >
+          <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-full shrink-0">
+            <Briefcase size={20} className="text-orange-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-sm text-gray-900 dark:text-white">{n.title}</p>
+            <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5 line-clamp-2">{n.message}</p>
+            <p className="text-xs text-orange-600 dark:text-orange-400 font-medium mt-1">
+              Нажмите, чтобы откликнуться →
+            </p>
+          </div>
+        </div>
+      ),
+      {
+        duration: 10000,
+        position: 'top-center',
+        style: {
+          padding: '12px 16px',
+          borderRadius: '16px',
+          boxShadow: '0 8px 30px rgba(0,0,0,0.12)',
+          border: '2px solid #f97316',
+          maxWidth: '400px',
+        },
+      }
+    );
+  }, [navigate]);
 
   // Загрузка непрочитанных — при маунте и каждые 30 сек
   useEffect(() => {
@@ -32,6 +76,30 @@ export function NotificationBell() {
     const interval = setInterval(fetchUnread, 30_000);
     return () => clearInterval(interval);
   }, []);
+
+  // Polling для новых уведомлений — каждые 15 сек для мастеров
+  useEffect(() => {
+    if (user?.role !== 'MASTER') return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await notificationsApi.getAll(1);
+        const items: Notification[] = res.data.data?.notifications || res.data.data || [];
+        if (!Array.isArray(items) || items.length === 0) return;
+        // Находим новые уведомления типа "new_order"
+        const newOrders = items.filter(
+          (n) => n.type === 'new_order' && !n.isRead
+        );
+        if (initializedRef.current && newOrders.length > lastSeenCountRef.current) {
+          // Показываем popup для самого нового заказа
+          const newest = newOrders[0];
+          if (newest) showNewOrderPopup(newest);
+        }
+        lastSeenCountRef.current = newOrders.length;
+        initializedRef.current = true;
+      } catch {}
+    }, 15_000);
+    return () => clearInterval(interval);
+  }, [user?.role, showNewOrderPopup]);
 
   // Клик вне — закрываем
   useEffect(() => {
