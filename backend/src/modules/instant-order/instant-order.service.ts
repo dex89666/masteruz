@@ -646,6 +646,9 @@ export class InstantOrderService {
   private generateVariantsFallback(category: any, allTasks: any[], description: string, images: string[]) {
     const lower = description.toLowerCase();
 
+    // Стемминг: обрезаем русские окончания для нечёткого поиска
+    const stem = (word: string) => word.replace(/(ами|ями|ов|ев|ей|ой|ий|ый|ая|яя|ое|ее|ие|ые|ую|юю|ого|его|ому|ему|ость|ам|ям|ах|ях|ен|ан|\u0443|ю|а|я|и|ы|о|е|ь)$/i, '');
+
     // ─── Ранжируем задачи по релевантности к описанию ─────
     const scored = allTasks.map((task: any) => {
       const taskName = (task.name || '').toLowerCase();
@@ -655,16 +658,18 @@ export class InstantOrderService {
       // Проверяем совпадение ключевых слов описания с названием/описанием задачи
       const descWords = lower.split(/\s+/).filter(w => w.length > 2);
       for (const word of descWords) {
-        if (taskName.includes(word)) relevance += 3;
-        if (taskDesc.includes(word)) relevance += 1;
+        const s = stem(word);
+        if (s.length >= 3 && taskName.includes(s)) relevance += 3;
+        if (s.length >= 3 && taskDesc.includes(s)) relevance += 1;
       }
-      // Проверяем обратное: слова задачи в описании пользователя
+      // Проверяем обратное: корни слов задачи в описании пользователя
       const taskWords = taskName.split(/\s+/).filter((w: string) => w.length > 3);
       for (const word of taskWords) {
-        if (lower.includes(word)) relevance += 2;
+        const s = stem(word);
+        if (s.length >= 3 && lower.includes(s)) relevance += 2;
       }
 
-      return { task, relevance, price: task.minPrice ?? 50000 };
+      return { task, relevance, price: Number(task.minPrice) || 50000 };
     });
 
     // Сортируем: сначала по релевантности (desc), потом по цене (asc)
@@ -688,7 +693,7 @@ export class InstantOrderService {
 
     // ─── Точный расчёт стоимости ─────────────────────────
     const calculateWorkPrice = (tasks: any[]) =>
-      tasks.reduce((sum: number, t: any) => sum + (t.minPrice ?? 50000), 0);
+      tasks.reduce((sum: number, t: any) => sum + (Number(t.minPrice) || 50000), 0);
 
     const calculateDays = (tasks: any[], multiplier: number) => {
       // Парсим estimatedTime: "30-60 мин" → 0.75 часа → 0.1 дня

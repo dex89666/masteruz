@@ -1413,14 +1413,32 @@ export function findProblemByDescription(
   if (!catalog) return null;
 
   const lower = description.toLowerCase();
+  // Простой стемминг: обрезаем русские окончания (розетку/розетки/розеткой → розетк)
+  const stem = (w: string) => w.replace(/(ами|ями|ов|ев|ей|ой|ий|ый|ая|яя|ое|ее|ие|ые|ую|юю|ого|его|ому|ему|ость|ам|ям|ах|ях|ен|ан|\u0443|ю|а|я|и|ы|о|е|ь)$/i, '');
+
   let bestMatch: ProblemSolution | null = null;
   let bestScore = 0;
 
   for (const problem of catalog.problems) {
     let score = 0;
     for (const kw of problem.keywords) {
-      if (lower.includes(kw.toLowerCase())) {
-        score += kw.length; // Длинные совпадения важнее
+      const kwLower = kw.toLowerCase();
+      // Точное совпадение
+      if (lower.includes(kwLower)) {
+        score += kw.length;
+        continue;
+      }
+      // Нечёткое: сравниваем корни слов
+      const kwStem = stem(kwLower);
+      if (kwStem.length >= 3) {
+        const descWords = lower.split(/\s+/);
+        for (const dw of descWords) {
+          const dwStem = stem(dw);
+          if (dwStem.length >= 3 && (dwStem.startsWith(kwStem) || kwStem.startsWith(dwStem))) {
+            score += kwStem.length;
+            break;
+          }
+        }
       }
     }
     if (score > bestScore) {
