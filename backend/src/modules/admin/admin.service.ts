@@ -8,6 +8,7 @@ import { ApiError } from '../../utils/ApiError.js';
 import { getPagination, paginatedResponse } from '../../utils/helpers.js';
 import { OrderStatus, PaymentStatus } from '@prisma/client';
 import { logger } from '../../utils/logger.js';
+import { auditService } from '../../services/auditService.js';
 
 export class AdminService {
   /**
@@ -178,6 +179,14 @@ export class AdminService {
       `Пользователь ${newStatus ? 'разблокирован' : 'заблокирован'}`
     );
 
+    await auditService.log({
+      actorId: adminId,
+      action: newStatus ? 'unblock_user' : 'block_user',
+      entityType: 'User',
+      entityId: userId,
+      details: { reason, newStatus },
+    });
+
     return { userId, isActive: newStatus };
   }
 
@@ -296,6 +305,14 @@ export class AdminService {
     });
 
     logger.info({ adminId, key, value }, 'Конфигурация обновлена');
+
+    await auditService.log({
+      actorId: adminId,
+      action: 'update_config',
+      entityType: 'PlatformConfig',
+      entityId: key,
+      details: { value, description },
+    });
 
     return config;
   }

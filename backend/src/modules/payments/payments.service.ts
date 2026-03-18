@@ -15,55 +15,63 @@ import crypto from 'crypto';
 export class PaymentsService {
   /**
    * Обработка успешной оплаты комиссии:
-   * — помечает заказ как commission_paid
-   * — отправляет Telegram push мастеру с данными клиента
+   * Атомарная транзакция: статус платежа + флаг заказа
    */
   private async onCommissionPaid(paymentId: string) {
     try {
+      await prisma.$transaction(async (tx) => {
+        const payment = await tx.payment.findUnique({
+          where: { id: paymentId },
+          select: { orderId: true, type: true },
+        });
+
+        if (!payment?.orderId || payment.type !== PaymentType.ORDER_COMMISSION) return;
+
+        await tx.order.update({
+          where: { id: payment.orderId },
+          data: { commissionPaid: true },
+        });
+      });
+
+      // Уведомление — вне транзакции (fire-and-forget)
       const payment = await prisma.payment.findUnique({
         where: { id: paymentId },
-        select: { orderId: true, type: true },
+        select: { orderId: true },
       });
+      if (payment?.orderId) {
+        await notificationService.notifyMasterAssigned(payment.orderId);
+      }
 
-      if (!payment?.orderId || payment.type !== PaymentType.ORDER_COMMISSION) return;
-
-      // Помечаем заказ: комиссия оплачена
-      await prisma.order.update({
-        where: { id: payment.orderId },
-        data: { commissionPaid: true },
-      });
-
-      // Отправляем мастеру данные клиента (телефон, адрес, геолокацию) через Telegram
-      await notificationService.notifyMasterAssigned(payment.orderId);
-
-      logger.info({ paymentId, orderId: payment.orderId }, 'Комиссия оплачена → мастер уведомлён');
+      logger.info({ paymentId }, 'Комиссия оплачена → мастер уведомлён');
     } catch (error) {
       logger.error({ error, paymentId }, 'Ошибка обработки оплаты комиссии');
     }
   }
 
   /**
-   * Обработка успешной оплаты регистрационного взноса мастера (400 000 сум)
+   * Обработка успешной оплаты регистрационного взноса мастера
+   * Атомарная транзакция: статус платежа + активация профиля
    */
   private async onRegistrationFeePaid(paymentId: string) {
     try {
-      const payment = await prisma.payment.findUnique({
-        where: { id: paymentId },
-        select: { userId: true, type: true },
+      await prisma.$transaction(async (tx) => {
+        const payment = await tx.payment.findUnique({
+          where: { id: paymentId },
+          select: { userId: true, type: true },
+        });
+
+        if (!payment || payment.type !== PaymentType.REGISTRATION_FEE) return;
+
+        await tx.masterProfile.update({
+          where: { userId: payment.userId },
+          data: {
+            registrationPaid: true,
+            registrationPaidAt: new Date(),
+          },
+        });
       });
 
-      if (!payment || payment.type !== PaymentType.REGISTRATION_FEE) return;
-
-      // Активируем мастерский профиль
-      await prisma.masterProfile.update({
-        where: { userId: payment.userId },
-        data: {
-          registrationPaid: true,
-          registrationPaidAt: new Date(),
-        },
-      });
-
-      logger.info({ paymentId, userId: payment.userId }, 'Регистрационный взнос оплачен → мастер активирован');
+      logger.info({ paymentId }, 'Регистрационный взнос оплачен → мастер активирован');
     } catch (error) {
       logger.error({ error, paymentId }, 'Ошибка обработки регистрационного взноса');
     }
@@ -241,6 +249,12 @@ export class PaymentsService {
       throw ApiError.notFound('Платёж не найден');
     }
 
+    // Идемпотентность: повторный webhook для уже обработанного платежа
+    if (payment.status === PaymentStatus.COMPLETED) {
+      logger.info({ paymentId: payment.id }, 'Click webhook: платёж уже обработан, пропуск');
+      return { success: true };
+    }
+
     if (clickError === '0') {
       await prisma.payment.update({
         where: { id: payment.id },
@@ -308,6 +322,17 @@ export class PaymentsService {
       }
 
       case 'PerformTransaction': {
+        // Идемпотентность: проверяем, не обработан ли уже
+        const existing = await prisma.payment.findUnique({
+          where: { providerTxId: params.id },
+        });
+        if (existing?.status === PaymentStatus.COMPLETED) {
+          logger.info({ paymentId: existing.id }, 'Payme PerformTransaction: платёж уже обработан, пропуск');
+          return {
+            result: { perform_time: Date.now(), transaction: existing.id, state: 2 },
+          };
+        }
+
         const payment = await prisma.payment.update({
           where: { providerTxId: params.id },
           data: { status: PaymentStatus.COMPLETED },
@@ -315,7 +340,6 @@ export class PaymentsService {
 
         logger.info({ paymentId: payment.id }, 'Payme платёж подтверждён');
 
-        // Обработка по типу платежа
         await this.onPaymentCompleted(payment.id);
 
         return {
@@ -350,6 +374,13 @@ export class PaymentsService {
    * Обработка платежа Telegram Stars
    */
   async handleTelegramStarsPayment(paymentId: string, telegramPaymentId: string) {
+    // Идемпотентность: проверяем, не обработан ли уже
+    const existing = await prisma.payment.findUnique({ where: { id: paymentId } });
+    if (existing?.status === PaymentStatus.COMPLETED) {
+      logger.info({ paymentId }, 'Telegram Stars: платёж уже обработан, пропуск');
+      return existing;
+    }
+
     const payment = await prisma.payment.update({
       where: { id: paymentId },
       data: {
@@ -360,7 +391,6 @@ export class PaymentsService {
 
     logger.info({ paymentId: payment.id }, 'Telegram Stars платёж подтверждён');
 
-    // Обработка по типу платежа
     await this.onPaymentCompleted(payment.id);
 
     return payment;

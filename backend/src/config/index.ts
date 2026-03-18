@@ -42,6 +42,7 @@ export const config = {
     botToken: process.env.TELEGRAM_BOT_TOKEN || '',
     botUsername: (process.env.TELEGRAM_BOT_USERNAME || process.env.TELEGRAM_BOT_NAME || '').replace(/^@/, ''),
     miniAppUrl: process.env.TELEGRAM_MINI_APP_URL || 'https://masteruz-ecru.vercel.app',
+    adminChatId: process.env.ADMIN_TELEGRAM_CHAT_ID || '',
   },
 
   // Yandex Maps

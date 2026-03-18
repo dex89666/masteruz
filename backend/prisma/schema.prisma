@@ -161,6 +161,7 @@ model User {
   supportChatsAsUser  SupportChat[]    @relation("SupportChatUser")
   supportChatsAsAdmin SupportChat[]    @relation("SupportChatAdmin")
   supportMessages     SupportMessage[] @relation("SupportMsgSender")
+  auditLogs           AuditLog[]
 
   @@map("users")
 }
@@ -411,6 +412,8 @@ model Order {
   @@index([categoryId])
   @@index([clientId])
   @@index([masterId])
+  @@index([clientId, status])
+  @@index([masterId, status])
   @@index([aiTemplateId])
   @@map("orders")
 }
@@ -474,6 +477,7 @@ model Payment {
   user  User   @relation(fields: [userId], references: [id])
 
   @@index([status])
+  @@index([userId, createdAt])
   @@index([provider, providerTxId])
   @@map("payments")
 }
@@ -581,6 +585,7 @@ model Notification {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, isRead])
+  @@index([userId, createdAt])
   @@map("notifications")
 }
 
@@ -609,6 +614,7 @@ model Blacklist {
   user      User @relation("BlockedUser", fields: [userId], references: [id])
   blockedBy User @relation("BlockedByUser", fields: [blockedById], references: [id])
 
+  @@index([userId])
   @@index([violationType])
   @@map("blacklist")
 }
@@ -1098,6 +1104,29 @@ model BalanceTransaction {
   user User @relation(fields: [userId], references: [id])
 
   @@index([userId, createdAt])
+  @@index([userId, type])
   @@index([orderId])
   @@map("balance_transactions")
+}
+
+// ════════════════════════════════════════════════
+// АУДИТ-ЛОГ АДМИНИСТРАТИВНЫХ ДЕЙСТВИЙ
+// ════════════════════════════════════════════════
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  actorId     String   @map("actor_id")          // Кто выполнил действие
+  action      String                              // ban_user, manual_balance, config_change, resolve_dispute, etc.
+  entityType  String   @map("entity_type")        // User, Order, Payment, etc.
+  entityId    String   @map("entity_id")          // ID сущности
+  details     Json?                               // Подробности действия
+  ipAddress   String?  @map("ip_address")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  actor User @relation(fields: [actorId], references: [id])
+
+  @@index([actorId, createdAt])
+  @@index([entityType, entityId])
+  @@index([action, createdAt])
+  @@map("audit_logs")
 }

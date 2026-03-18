@@ -84,7 +84,7 @@ if (!isVercelEnv) {
   // Rate Limiting — глобальный лимит
   const globalLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 минут
-    max: 200, // Максимум 200 запросов с одного IP
+    max: 1000, // Максимум 1000 запросов с одного IP (SPA делает 5-10 вызовов/страницу)
     message: {
       success: false,
       error: { message: 'Слишком много запросов, попробуйте позже', statusCode: 429 },
@@ -94,7 +94,7 @@ if (!isVercelEnv) {
   });
   app.use('/api/', globalLimiter);
 
-  // Rate Limiting — строгий лимит для авторизации
+  // Rate Limiting — строгий лимит для авторизации (только login-эндпоинты)
   const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 10, // Максимум 10 попыток за 15 минут
@@ -104,6 +104,11 @@ if (!isVercelEnv) {
     },
     standardHeaders: true,
     legacyHeaders: false,
+    skip: (req) => {
+      // /auth/me и /auth/switch-role не считаются login-попытками
+      const path = req.path;
+      return path === '/me' || path === '/switch-role' || path === '/refresh';
+    },
   });
   app.use('/api/auth', authLimiter);
 
@@ -117,6 +122,20 @@ if (!isVercelEnv) {
     },
   });
   app.use('/api/orders', createOrderLimiter);
+
+  // Rate Limiting — строгий лимит для финансовых операций (платежи, баланс)
+  const financeLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 минут
+    max: 30, // Максимум 30 запросов за 15 минут
+    message: {
+      success: false,
+      error: { message: 'Превышен лимит финансовых операций', statusCode: 429 },
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+  app.use('/api/payments', financeLimiter);
+  app.use('/api/balance', financeLimiter);
 
   // Rate Limiting — лимит для заявок на партнёрство (антиспам)
   const partnerRequestLimiter = rateLimit({
@@ -135,6 +154,7 @@ if (!isVercelEnv) {
     // Динамический импорт — вызывается один раз при первом cold start
     let globalRL: any = null;
     let authRL: any = null;
+    let financeRL: any = null;
 
     const initUpstashRL = async () => {
       if (globalRL) return;
@@ -146,10 +166,10 @@ if (!isVercelEnv) {
           token: process.env.UPSTASH_REDIS_REST_TOKEN!,
         };
 
-        // Глобальный лимит: 200 запросов / 15 минут
+        // Глобальный лимит: 1000 запросов / 15 минут (SPA делает 5-10 вызовов/страницу)
         globalRL = new Ratelimit({
           redis: upstashRedisForRL as any,
-          limiter: Ratelimit.slidingWindow(200, '15 m'),
+          limiter: Ratelimit.slidingWindow(1000, '15 m'),
           prefix: 'rl:global',
           analytics: false,
         });
@@ -161,14 +181,26 @@ if (!isVercelEnv) {
           prefix: 'rl:auth',
           analytics: false,
         });
+
+        // Финансовый лимит: 30 запросов / 15 минут
+        financeRL = new Ratelimit({
+          redis: upstashRedisForRL as any,
+          limiter: Ratelimit.slidingWindow(30, '15 m'),
+          prefix: 'rl:finance',
+          analytics: false,
+        });
       } catch (err) {
         logger.error({ err }, 'Failed to init Upstash Rate Limit');
       }
     };
 
-    // Middleware для Vercel rate limiting — auth
+    // Middleware для Vercel rate limiting — auth (только login-эндпоинты)
     app.use('/api/auth', async (req, res, next) => {
       try {
+        // /auth/me, /auth/switch-role, /auth/refresh — не считаются login-попытками
+        const path = req.path;
+        if (path === '/me' || path === '/switch-role' || path === '/refresh') return next();
+
         await initUpstashRL();
         if (!authRL) return next();
         const ip = req.headers['x-forwarded-for']?.toString().split(',')[0] || req.ip || 'unknown';
@@ -182,9 +214,31 @@ if (!isVercelEnv) {
         }
         next();
       } catch {
-        next(); // Если Upstash недоступен — пропускаем
+        next();
       }
     });
+
+    // Middleware для Vercel rate limiting — финансовые эндпоинты
+    const financeRLMiddleware = async (req: any, res: any, next: any) => {
+      try {
+        await initUpstashRL();
+        if (!financeRL) return next();
+        const ip = req.headers['x-forwarded-for']?.toString().split(',')[0] || req.ip || 'unknown';
+        const { success, remaining } = await financeRL.limit(ip);
+        res.setHeader('X-RateLimit-Remaining', remaining.toString());
+        if (!success) {
+          return res.status(429).json({
+            success: false,
+            error: { message: 'Превышен лимит финансовых операций', statusCode: 429 },
+          });
+        }
+        next();
+      } catch {
+        next();
+      }
+    };
+    app.use('/api/payments', financeRLMiddleware);
+    app.use('/api/balance', financeRLMiddleware);
 
     // Middleware для Vercel rate limiting — global
     app.use('/api/', async (req, res, next) => {

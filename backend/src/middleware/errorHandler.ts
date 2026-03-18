@@ -9,6 +9,7 @@ import { logger } from '../utils/logger.js';
 import { config } from '../config/index.js';
 import { ZodError } from 'zod';
 import { Prisma } from '@prisma/client';
+import { reportError } from '../services/errorMonitor.js';
 
 export function errorHandler(
   err: Error & { type?: string; status?: number },
@@ -87,6 +88,14 @@ export function errorHandler(
 
   // Неожиданные ошибки
   logger.error({ err }, 'Непредвиденная ошибка');
+
+  // Алерт в Telegram (fire-and-forget)
+  reportError({
+    error: err,
+    method: _req.method,
+    url: _req.originalUrl,
+    userId: (_req as any).user?.id,
+  });
 
   res.status(500).json({
     success: false,

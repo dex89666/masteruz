@@ -260,59 +260,110 @@ export function useScrollProgress() {
   return progress;
 }
 
+const ONLINE_MODE_KEY = 'masteruz-online-mode';
+
 /**
- * Хук для отслеживания онлайн-статуса мастера
- * Отправляет heartbeat каждые 30 секунд, пока мастер в приложении
+ * Хук для управления онлайн-статусом мастера.
+ * Мастер сам решает, когда быть онлайн (toggle на дашборде).
+ * Heartbeat отправляется каждые 30 секунд, пока режим включён.
  */
 export function useOnlineStatus() {
-  const { user } = useAuthStore();
+  const { user, setUser } = useAuthStore();
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [isOnline, setIsOnline] = useState(() => localStorage.getItem(ONLINE_MODE_KEY) === 'true');
+  const [toggling, setToggling] = useState(false);
 
-  useEffect(() => {
-    // Только для мастеров
-    if (!user || user.role !== 'MASTER') return;
+  const isMaster = user?.role === 'MASTER';
 
-    // Функция отправки heartbeat с геолокацией
-    function sendHeartbeat() {
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            onlineStatusApi.heartbeat(pos.coords.latitude, pos.coords.longitude).catch(() => {});
-          },
-          () => {
-            // Если геолокация недоступна — отправляем без координат
-            onlineStatusApi.heartbeat().catch(() => {});
-          },
-          { enableHighAccuracy: true, timeout: 5000 }
-        );
-      } else {
-        onlineStatusApi.heartbeat().catch(() => {});
-      }
+  // Heartbeat с геолокацией
+  const sendHeartbeat = useCallback(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => onlineStatusApi.heartbeat(pos.coords.latitude, pos.coords.longitude).catch(() => {}),
+        () => onlineStatusApi.heartbeat().catch(() => {}),
+        { enableHighAccuracy: true, timeout: 5000 },
+      );
+    } else {
+      onlineStatusApi.heartbeat().catch(() => {});
     }
+  }, []);
 
-    // Первый heartbeat сразу
+  // Запуск heartbeat-цикла
+  const startHeartbeat = useCallback(() => {
     sendHeartbeat();
+    intervalRef.current = setInterval(sendHeartbeat, 30_000);
+  }, [sendHeartbeat]);
 
-    // Затем каждые 30 секунд
-    intervalRef.current = setInterval(sendHeartbeat, 30000);
+  // Остановка heartbeat-цикла
+  const stopHeartbeat = useCallback(() => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+  }, []);
 
-    // При закрытии/уходе со страницы — уходим в оффлайн
+  // Включить онлайн-режим
+  const goOnline = useCallback(async () => {
+    if (!isMaster || toggling) return;
+    setToggling(true);
+    try {
+      await onlineStatusApi.heartbeat();
+      localStorage.setItem(ONLINE_MODE_KEY, 'true');
+      setIsOnline(true);
+      if (user?.masterProfile) {
+        setUser({ ...user, masterProfile: { ...user.masterProfile, isOnline: true } });
+      }
+      startHeartbeat();
+    } finally {
+      setToggling(false);
+    }
+  }, [isMaster, toggling, user, setUser, startHeartbeat]);
+
+  // Выключить онлайн-режим
+  const goOffline = useCallback(async () => {
+    if (!isMaster || toggling) return;
+    setToggling(true);
+    try {
+      stopHeartbeat();
+      await onlineStatusApi.goOffline();
+      localStorage.setItem(ONLINE_MODE_KEY, 'false');
+      setIsOnline(false);
+      if (user?.masterProfile) {
+        setUser({ ...user, masterProfile: { ...user.masterProfile, isOnline: false } });
+      }
+    } finally {
+      setToggling(false);
+    }
+  }, [isMaster, toggling, user, setUser, stopHeartbeat]);
+
+  // Toggle (для удобства UI)
+  const toggleOnline = useCallback(() => {
+    return isOnline ? goOffline() : goOnline();
+  }, [isOnline, goOnline, goOffline]);
+
+  // Автозапуск heartbeat при загрузке, если мастер ранее был онлайн
+  useEffect(() => {
+    if (!isMaster) return;
+    if (!isOnline) return;
+
+    startHeartbeat();
+
     function handleBeforeUnload() {
-      // navigator.sendBeacon для надёжности
       const token = localStorage.getItem('accessToken');
       if (token) {
         navigator.sendBeacon?.(
           `${import.meta.env.VITE_API_URL || '/api'}/users/go-offline`,
-          new Blob([JSON.stringify({})], { type: 'application/json' })
+          new Blob([JSON.stringify({})], { type: 'application/json' }),
         );
       }
     }
 
     function handleVisibilityChange() {
       if (document.hidden) {
+        stopHeartbeat();
         onlineStatusApi.goOffline().catch(() => {});
       } else {
-        sendHeartbeat();
+        startHeartbeat();
       }
     }
 
@@ -320,10 +371,20 @@ export function useOnlineStatus() {
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
+      stopHeartbeat();
       window.removeEventListener('beforeunload', handleBeforeUnload);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       onlineStatusApi.goOffline().catch(() => {});
     };
-  }, [user]);
+  }, [isMaster, isOnline, startHeartbeat, stopHeartbeat]);
+
+  // Синхронизация с masterProfile из сервера
+  useEffect(() => {
+    if (user?.masterProfile) {
+      setIsOnline(!!user.masterProfile.isOnline);
+      localStorage.setItem(ONLINE_MODE_KEY, user.masterProfile.isOnline ? 'true' : 'false');
+    }
+  }, [user?.masterProfile?.isOnline]);
+
+  return { isOnline, toggling, toggleOnline, goOnline, goOffline };
 }

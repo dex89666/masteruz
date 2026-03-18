@@ -4,6 +4,7 @@
 // ============================================
 
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import { prisma } from '../../config/database.js';
 import { config } from '../../config/index.js';
 import { getRedis } from '../../config/redis.js';
@@ -319,11 +320,13 @@ export class AuthService {
   }
 
   private generateTokens(payload: JwtPayload): { accessToken: string; refreshToken: string } {
-    const accessToken = jwt.sign(payload, config.jwt.secret, {
+    const jti = crypto.randomUUID();
+
+    const accessToken = jwt.sign({ ...payload, jti }, config.jwt.secret, {
       expiresIn: config.jwt.expiresIn,
     } as jwt.SignOptions);
 
-    const refreshToken = jwt.sign(payload, config.jwt.refreshSecret, {
+    const refreshToken = jwt.sign({ ...payload, jti: crypto.randomUUID() }, config.jwt.refreshSecret, {
       expiresIn: config.jwt.refreshExpiresIn,
     } as jwt.SignOptions);
 

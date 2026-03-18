@@ -31,6 +31,21 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
+    // Retry при сетевых ошибках и 429 (exponential backoff, max 2 повтора)
+    const retryCount = originalRequest._retryCount || 0;
+    const isRetryable =
+      !error.response || error.response.status === 429 || error.response.status >= 500;
+    const isIdempotent = ['get', 'head', 'options'].includes(
+      (originalRequest.method || '').toLowerCase()
+    );
+
+    if (isRetryable && isIdempotent && retryCount < 2) {
+      originalRequest._retryCount = retryCount + 1;
+      const delay = Math.min(1000 * 2 ** retryCount, 4000);
+      await new Promise((r) => setTimeout(r, delay));
+      return api(originalRequest);
+    }
+
     // Если 401 и это не повтор — пробуем обновить токен
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;

@@ -80,20 +80,25 @@ export class OrdersService {
     // Полная сумма для эскроу: цена заказа + стоимость выезда
     const escrowAmount = effectivePrice + visitFee;
 
-    // ─── Проверка баланса и блокировка средств ────
-    const clientBalance = await balanceService.getBalance(clientId);
-    if (clientBalance < escrowAmount) {
-      throw ApiError.badRequest(
-        `Недостаточно средств. Баланс: ${clientBalance.toLocaleString('ru')} сум, ` +
-        `необходимо: ${escrowAmount.toLocaleString('ru')} сум`
-      );
-    }
+    // ─── Атомарная транзакция: проверка баланса + блокировка + создание заказа ────
+    const order = await prisma.$transaction(async (tx) => {
+      // Блокирующее чтение баланса внутри транзакции
+      const client = await tx.user.findUnique({
+        where: { id: clientId },
+        select: { balance: true },
+      });
+      if (!client) throw ApiError.notFound('Пользователь не найден');
 
-    // Блокируем средства
-    await balanceService.holdFunds(clientId, escrowAmount, 'pending');
+      const balance = toNum(client.balance);
+      if (balance < escrowAmount) {
+        throw ApiError.badRequest(
+          `Недостаточно средств. Баланс: ${balance.toLocaleString('ru')} сум, ` +
+          `необходимо: ${escrowAmount.toLocaleString('ru')} сум`
+        );
+      }
 
-    try {
-      const order = await prisma.order.create({
+      // Создаём заказ
+      const newOrder = await tx.order.create({
         data: {
           clientId,
           categoryId: data.categoryId,
@@ -128,27 +133,37 @@ export class OrdersService {
         },
       });
 
-      // Обновляем orderId в транзакции эскроу
-      await prisma.balanceTransaction.updateMany({
-        where: { userId: clientId, orderId: 'pending', type: 'ESCROW_HOLD' },
-        data: { orderId: order.id },
-      });
+      // Списываем баланс и создаём запись аудита — всё в одной транзакции
+      const balanceAfter = moneySub(balance, escrowAmount);
+      await Promise.all([
+        tx.user.update({
+          where: { id: clientId },
+          data: { balance: balanceAfter },
+        }),
+        tx.balanceTransaction.create({
+          data: {
+            userId: clientId,
+            type: 'ESCROW_HOLD',
+            amount: -escrowAmount,
+            balanceBefore: balance,
+            balanceAfter,
+            orderId: newOrder.id,
+            description: 'Блокировка средств по заказу',
+          },
+        }),
+      ]);
 
-      logger.info({ orderId: order.id, clientId, isUrgent, escrowAmount }, 'Заказ создан, средства заблокированы');
+      return newOrder;
+    });
 
-      notificationService.notifyMastersNewOrder(order.id).catch((err) => {
-        logger.error({ error: err }, 'Ошибка уведомления мастеров');
-      });
+    logger.info({ orderId: order.id, clientId, isUrgent, escrowAmount }, 'Заказ создан, средства заблокированы');
 
-      return order;
-    } catch (error) {
-      // Если создание не удалось — возвращаем средства
-      await prisma.user.update({
-        where: { id: clientId },
-        data: { balance: { increment: escrowAmount } },
-      });
-      throw error;
-    }
+    // Уведомления — fire-and-forget, вне транзакции
+    notificationService.notifyMastersNewOrder(order.id).catch((err) => {
+      logger.error({ error: err }, 'Ошибка уведомления мастеров');
+    });
+
+    return order;
   }
 
   /**
@@ -610,29 +625,87 @@ export class OrdersService {
 
   /**
    * Финализация заказа: оба подтвердили → COMPLETED + выплата
+   * Атомарная транзакция: статус + выплата мастеру + счётчик
    */
   private async finalizeOrder(orderId: string) {
-    const order = await prisma.order.update({
+    const order = await prisma.order.findUnique({
       where: { id: orderId },
-      data: {
-        status: OrderStatus.COMPLETED,
-        completedAt: new Date(),
+      select: {
+        id: true, escrowAmount: true, clientId: true, masterId: true,
+        price: true, commissionAmount: true, visitFee: true,
       },
     });
+    if (!order) throw ApiError.notFound('Заказ не найден');
+    if (!order.masterId) throw ApiError.badRequest('Мастер не назначен');
 
-    // Переводим средства мастеру
-    await balanceService.releaseFunds(orderId);
+    const escrow = toNum(order.escrowAmount);
+    const commission = toNum(order.commissionAmount);
+    const masterPayout = moneySub(escrow, commission);
 
-    // Обновляем счётчик
-    if (order.masterId) {
-      await prisma.masterProfile.update({
-        where: { userId: order.masterId },
-        data: { completedOrders: { increment: 1 } },
+    await prisma.$transaction(async (tx) => {
+      // 1. Обновляем статус заказа
+      await tx.order.update({
+        where: { id: orderId },
+        data: {
+          status: OrderStatus.COMPLETED,
+          completedAt: new Date(),
+          escrowAmount: 0,
+          commissionPaid: true,
+        },
       });
-    }
 
-    logger.info({ orderId }, 'Заказ финализирован, средства переведены');
-    return order;
+      // 2. Начисляем мастеру (если есть что начислять)
+      if (escrow > 0) {
+        const master = await tx.user.findUnique({
+          where: { id: order.masterId! },
+          select: { balance: true },
+        });
+        if (!master) throw ApiError.notFound('Мастер не найден');
+
+        const masterBalanceBefore = toNum(master.balance);
+        const masterBalanceAfter = moneyAdd(masterBalanceBefore, masterPayout);
+
+        await Promise.all([
+          tx.user.update({
+            where: { id: order.masterId! },
+            data: { balance: masterBalanceAfter },
+          }),
+          tx.balanceTransaction.create({
+            data: {
+              userId: order.masterId!,
+              type: 'PAYOUT',
+              amount: masterPayout,
+              balanceBefore: masterBalanceBefore,
+              balanceAfter: masterBalanceAfter,
+              orderId,
+              description: 'Оплата за выполненный заказ',
+            },
+          }),
+          tx.balanceTransaction.create({
+            data: {
+              userId: order.masterId!,
+              type: 'COMMISSION',
+              amount: -commission,
+              balanceBefore: masterBalanceAfter,
+              balanceAfter: masterBalanceAfter,
+              orderId,
+              description: `Комиссия платформы (${commission} сум)`,
+            },
+          }),
+        ]);
+      }
+
+      // 3. Обновляем счётчик завершённых заказов
+      if (order.masterId) {
+        await tx.masterProfile.update({
+          where: { userId: order.masterId },
+          data: { completedOrders: { increment: 1 } },
+        });
+      }
+    });
+
+    logger.info({ orderId, masterPayout, commission }, 'Заказ финализирован, средства переведены');
+    return { orderId };
   }
 
   /**
@@ -687,29 +760,83 @@ export class OrdersService {
       penaltyAmount = PENALTY_MASTER_CANCEL;
     }
 
-    await prisma.order.update({
-      where: { id: orderId },
-      data: {
-        status: OrderStatus.CANCELLED,
-        cancelledAt: new Date(),
-        cancelReason: reason || null,
-        cancelledBy,
-        penaltyAmount,
-      },
+    // ─── Атомарная транзакция: отмена + возврат эскроу + штраф ────
+    await prisma.$transaction(async (tx) => {
+      // 1. Обновляем статус заказа
+      await tx.order.update({
+        where: { id: orderId },
+        data: {
+          status: OrderStatus.CANCELLED,
+          cancelledAt: new Date(),
+          cancelReason: reason || null,
+          cancelledBy,
+          penaltyAmount,
+        },
+      });
+
+      // 2. Возвращаем эскроу клиенту
+      const escrowAmt = toNum(order.escrowAmount);
+      if (escrowAmt > 0) {
+        const client = await tx.user.findUnique({
+          where: { id: order.clientId },
+          select: { balance: true },
+        });
+        if (client) {
+          const balBefore = toNum(client.balance);
+          const balAfter = moneyAdd(balBefore, escrowAmt);
+          await Promise.all([
+            tx.user.update({
+              where: { id: order.clientId },
+              data: { balance: balAfter },
+            }),
+            tx.balanceTransaction.create({
+              data: {
+                userId: order.clientId,
+                type: 'REFUND',
+                amount: escrowAmt,
+                balanceBefore: balBefore,
+                balanceAfter: balAfter,
+                orderId,
+                description: 'Возврат средств при отмене заказа',
+              },
+            }),
+            tx.order.update({
+              where: { id: orderId },
+              data: { escrowAmount: 0 },
+            }),
+          ]);
+        }
+      }
+
+      // 3. Списываем штраф (если есть)
+      if (penaltyAmount > 0) {
+        const penaltyUser = await tx.user.findUnique({
+          where: { id: userId },
+          select: { balance: true },
+        });
+        if (penaltyUser) {
+          const pBefore = toNum(penaltyUser.balance);
+          const pAfter = moneySub(pBefore, penaltyAmount);
+          await Promise.all([
+            tx.user.update({
+              where: { id: userId },
+              data: { balance: pAfter },
+            }),
+            tx.balanceTransaction.create({
+              data: {
+                userId,
+                type: 'PENALTY',
+                amount: -penaltyAmount,
+                balanceBefore: pBefore,
+                balanceAfter: pAfter,
+                orderId,
+                description: `Штраф за отмену (${cancelledBy === 'CLIENT' ? 'клиент' : 'мастер'}): ${penaltyAmount.toLocaleString('ru')} сум`,
+              },
+            }),
+          ]);
+        }
+      }
     });
-
-    // Возвращаем эскроу клиенту
-    if (toNum(order.escrowAmount) > 0) {
-      await balanceService.refundFunds(orderId);
-    }
-
-    // Списываем штраф
-    if (penaltyAmount > 0) {
-      await balanceService.chargePenalty(
-        userId, penaltyAmount, orderId,
-        `Штраф за отмену (${cancelledBy === 'CLIENT' ? 'клиент' : 'мастер'}): ${penaltyAmount.toLocaleString('ru')} сум`
-      );
-    }
 
     logger.info({ orderId, userId, cancelledBy, penaltyAmount }, 'Заказ отменён');
     return { orderId, cancelledBy, penaltyAmount, reason };
@@ -746,25 +873,62 @@ export class OrdersService {
 
     switch (resolution) {
       case 'refund_client':
-        await balanceService.refundFunds(orderId);
-        await prisma.order.update({
-          where: { id: orderId },
-          data: { status: OrderStatus.CANCELLED, cancelledAt: new Date(), cancelReason: note || 'Спор решён в пользу клиента', cancelledBy: 'ADMIN' },
+        await prisma.$transaction(async (tx) => {
+          // Возврат эскроу
+          const escrowAmt = toNum(order.escrowAmount);
+          if (escrowAmt > 0) {
+            const client = await tx.user.findUnique({ where: { id: order.clientId }, select: { balance: true } });
+            if (client) {
+              const balBefore = toNum(client.balance);
+              const balAfter = moneyAdd(balBefore, escrowAmt);
+              await Promise.all([
+                tx.user.update({ where: { id: order.clientId }, data: { balance: balAfter } }),
+                tx.balanceTransaction.create({
+                  data: { userId: order.clientId, type: 'REFUND', amount: escrowAmt, balanceBefore: balBefore, balanceAfter: balAfter, orderId, description: 'Возврат по спору (в пользу клиента)' },
+                }),
+              ]);
+            }
+          }
+          await tx.order.update({
+            where: { id: orderId },
+            data: { status: OrderStatus.CANCELLED, cancelledAt: new Date(), cancelReason: note || 'Спор решён в пользу клиента', cancelledBy: 'ADMIN', escrowAmount: 0 },
+          });
         });
         break;
 
       case 'pay_master':
-        await balanceService.releaseFunds(orderId);
-        await prisma.order.update({
-          where: { id: orderId },
-          data: { status: OrderStatus.COMPLETED, completedAt: new Date() },
-        });
-        if (order.masterId) {
-          await prisma.masterProfile.update({
-            where: { userId: order.masterId },
-            data: { completedOrders: { increment: 1 } },
+        await prisma.$transaction(async (tx) => {
+          const escrow = toNum(order.escrowAmount);
+          const commission = toNum(order.commissionAmount);
+          const masterPayout = moneySub(escrow, commission);
+
+          if (escrow > 0 && order.masterId) {
+            const master = await tx.user.findUnique({ where: { id: order.masterId }, select: { balance: true } });
+            if (master) {
+              const balBefore = toNum(master.balance);
+              const balAfter = moneyAdd(balBefore, masterPayout);
+              await Promise.all([
+                tx.user.update({ where: { id: order.masterId }, data: { balance: balAfter } }),
+                tx.balanceTransaction.create({
+                  data: { userId: order.masterId, type: 'PAYOUT', amount: masterPayout, balanceBefore: balBefore, balanceAfter: balAfter, orderId, description: 'Оплата по спору (в пользу мастера)' },
+                }),
+                tx.balanceTransaction.create({
+                  data: { userId: order.masterId, type: 'COMMISSION', amount: -commission, balanceBefore: balAfter, balanceAfter: balAfter, orderId, description: `Комиссия платформы (${commission} сум)` },
+                }),
+              ]);
+            }
+          }
+          await tx.order.update({
+            where: { id: orderId },
+            data: { status: OrderStatus.COMPLETED, completedAt: new Date(), escrowAmount: 0, commissionPaid: true },
           });
-        }
+          if (order.masterId) {
+            await tx.masterProfile.update({
+              where: { userId: order.masterId },
+              data: { completedOrders: { increment: 1 } },
+            });
+          }
+        });
         break;
 
       case 'split':

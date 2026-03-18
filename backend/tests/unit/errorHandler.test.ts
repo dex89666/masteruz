@@ -9,7 +9,15 @@ import { ZodError, ZodIssue } from 'zod';
 
 // Мокаем конфиг
 vi.mock('../../src/config/index.js', () => ({
-  config: { env: 'test' },
+  config: {
+    env: 'test',
+    telegram: { botToken: '', adminChatId: '' },
+  },
+}));
+
+// Мокаем errorMonitor (чтобы не тянул Redis / Telegram)
+vi.mock('../../src/services/errorMonitor.js', () => ({
+  reportError: vi.fn(),
 }));
 
 import { errorHandler, notFoundHandler } from '../../src/middleware/errorHandler.js';

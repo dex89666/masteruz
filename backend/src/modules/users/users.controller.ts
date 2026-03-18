@@ -13,7 +13,21 @@ export class UsersController {
   async getProfile(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const user = await usersService.getMasterProfile(req.user!.userId);
-      res.json({ success: true, data: user });
+
+      // Добавляем isAdminUser для корректной работы переключения ролей на фронтенде
+      let isAdminUser = user.role === 'ADMIN' || user.role === 'MANAGER' || user.username === 'sustanon250';
+      if (!isAdminUser) {
+        try {
+          const { prisma } = await import('../../config/database.js');
+          const adminConfig = await prisma.platformConfig.findUnique({ where: { key: 'admin_user_ids' } });
+          if (adminConfig) {
+            const adminIds = adminConfig.value.split(',').map((s: string) => s.trim());
+            isAdminUser = adminIds.includes(user.id);
+          }
+        } catch {}
+      }
+
+      res.json({ success: true, data: { ...user, telegramId: Number(user.telegramId), isAdminUser } });
     } catch (error) {
       next(error);
     }

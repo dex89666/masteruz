@@ -24,6 +24,9 @@ vi.mock('../../src/config/database.js', () => ({
     user: {
       findUnique: vi.fn(),
     },
+    platformConfig: {
+      findUnique: vi.fn().mockResolvedValue(null),
+    },
   },
 }));
 
@@ -85,24 +88,24 @@ describe('authenticate middleware', () => {
 });
 
 describe('authorize middleware', () => {
-  it('пропускает пользователя с разрешённой ролью', () => {
+  it('пропускает пользователя с разрешённой ролью', async () => {
     const req = { user: { userId: '1', telegramId: 123, role: 'ADMIN' } } as any;
     const next = vi.fn();
-    authorize('ADMIN', 'MANAGER')(req, mockRes, next);
+    await authorize('ADMIN', 'MANAGER')(req, mockRes, next);
     expect(next).toHaveBeenCalledWith(); // без ошибки
   });
 
-  it('отклоняет пользователя с неподходящей ролью', () => {
+  it('отклоняет пользователя с неподходящей ролью', async () => {
     const req = { user: { userId: '1', telegramId: 123, role: 'CLIENT' } } as any;
     const next = vi.fn();
-    authorize('ADMIN', 'MANAGER')(req, mockRes, next);
+    await authorize('ADMIN', 'MANAGER')(req, mockRes, next);
     expect(next).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 403 }));
   });
 
-  it('отклоняет неавторизованный запрос', () => {
+  it('отклоняет неавторизованный запрос', async () => {
     const req = { user: undefined } as any;
     const next = vi.fn();
-    authorize('ADMIN')(req, mockRes, next);
+    await authorize('ADMIN')(req, mockRes, next);
     expect(next).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 401 }));
   });
 });

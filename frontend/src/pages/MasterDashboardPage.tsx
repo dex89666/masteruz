@@ -9,7 +9,7 @@ import { ordersApi, paymentsApi, portfolioApi, authApi } from '../api/client';
 import { OrderCard } from '../components/OrderCard';
 import { DashboardSkeleton } from '../components/PageSkeletons';
 import { useAuthStore } from '../store';
-import { useFormatPrice, useGeolocation } from '../hooks';
+import { useFormatPrice, useGeolocation, useOnlineStatus } from '../hooks';
 import { useTranslation } from '../i18n';
 import toast from 'react-hot-toast';
 import {
@@ -50,6 +50,7 @@ export function MasterDashboardPage() {
   const mp = user?.masterProfile;
   const profile = user?.profile;
   const { location: geoLocation, requestLocation, loading: geoLoading } = useGeolocation();
+  const { isOnline, toggling, toggleOnline } = useOnlineStatus();
 
   // Админ-статус определяется из бэкенда (поле isAdminUser)
   const isAdminUser = user?.isAdminUser === true;
@@ -154,43 +155,52 @@ export function MasterDashboardPage() {
         <p className="text-gray-500 dark:text-gray-400 mt-1">{t('masterDashboard.subtitle')}</p>
       </div>
 
-      {/* Онлайн-статус виджет */}
-      <div className={`card mb-4 flex items-center gap-3 ${
-        mp?.isOnline
-          ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-200 dark:from-green-900/20 dark:to-emerald-900/10 dark:border-green-800'
-          : 'bg-gradient-to-r from-gray-50 to-gray-100 border-gray-200 dark:from-gray-800/50 dark:to-gray-700/30 dark:border-gray-600'
-      }`}>
-        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-          mp?.isOnline
+      {/* Онлайн-статус — кликабельный toggle */}
+      <button
+        onClick={toggleOnline}
+        disabled={toggling}
+        className={`card mb-4 w-full flex items-center gap-3 transition-all duration-300 cursor-pointer active:scale-[0.98] disabled:opacity-60 ${
+          isOnline
+            ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-200 dark:from-green-900/20 dark:to-emerald-900/10 dark:border-green-800'
+            : 'bg-gradient-to-r from-gray-50 to-gray-100 border-gray-200 dark:from-gray-800/50 dark:to-gray-700/30 dark:border-gray-600'
+        }`}
+      >
+        <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors duration-300 ${
+          isOnline
             ? 'bg-green-100 dark:bg-green-900/40'
             : 'bg-gray-200 dark:bg-gray-700'
         }`}>
-          {mp?.isOnline ? (
+          {isOnline ? (
             <Wifi size={20} className="text-green-600 dark:text-green-400" />
           ) : (
             <WifiOff size={20} className="text-gray-500 dark:text-gray-400" />
           )}
         </div>
-        <div className="flex-1">
-          <p className={`font-semibold text-sm ${
-            mp?.isOnline ? 'text-green-800 dark:text-green-300' : 'text-gray-600 dark:text-gray-400'
+        <div className="flex-1 text-left">
+          <p className={`font-semibold text-sm transition-colors duration-300 ${
+            isOnline ? 'text-green-800 dark:text-green-300' : 'text-gray-600 dark:text-gray-400'
           }`}>
-            {mp?.isOnline ? t('masterCard.online') : t('masterCard.offline')}
+            {isOnline ? t('masterCard.online') : t('masterCard.offline')}
           </p>
           <p className="text-xs text-gray-500 dark:text-gray-400">
-            {mp?.isOnline
+            {isOnline
               ? t('masterDashboard.onlineDesc')
               : t('masterDashboard.offlineDesc')
             }
           </p>
         </div>
-        <span className={`w-3 h-3 rounded-full ${
-          mp?.isOnline ? 'bg-green-500 animate-pulse' : 'bg-gray-400'
-        }`} />
-      </div>
+        {/* Toggle-переключатель */}
+        <div className={`relative w-12 h-7 rounded-full transition-colors duration-300 ${
+          isOnline ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'
+        }`}>
+          <div className={`absolute top-0.5 w-6 h-6 rounded-full bg-white shadow-md transition-transform duration-300 ${
+            isOnline ? 'translate-x-5' : 'translate-x-0.5'
+          }`} />
+        </div>
+      </button>
 
       {/* Баннер геолокации */}
-      {mp?.isOnline && !geoLocation && (
+      {isOnline && !geoLocation && (
         <div className="card mb-4 flex items-center gap-3 bg-gradient-to-r from-blue-50 to-sky-50 border-blue-200 dark:from-blue-900/20 dark:to-sky-900/10 dark:border-blue-800">
           <div className="w-10 h-10 rounded-full flex items-center justify-center bg-blue-100 dark:bg-blue-900/40">
             <MapPin size={20} className="text-blue-600 dark:text-blue-400" />
@@ -212,7 +222,7 @@ export function MasterDashboardPage() {
           </button>
         </div>
       )}
-      {mp?.isOnline && geoLocation && (
+      {isOnline && geoLocation && (
         <div className="card mb-4 flex items-center gap-3 bg-gradient-to-r from-green-50 to-teal-50 border-green-200 dark:from-green-900/20 dark:to-teal-900/10 dark:border-green-800">
           <div className="w-10 h-10 rounded-full flex items-center justify-center bg-green-100 dark:bg-green-900/40">
             <MapPin size={20} className="text-green-600 dark:text-green-400" />
