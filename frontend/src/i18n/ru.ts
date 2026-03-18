@@ -1117,6 +1117,11 @@ const ru = {
     type_REFUND: 'Возврат',
     type_COMMISSION: 'Комиссия',
     type_PAYOUT: 'Вывод',
+    type_ESTIMATION_FEE: 'Плата за оценку',
+    type_ESTIMATE_PAYOUT: 'Выплата за оценку',
+    type_ADMIN_TOPUP: 'Пополнение админом',
+    type_ADMIN_WITHDRAW: 'Списание админом',
+    type_REFERRAL_BONUS: 'Реферальный бонус',
     goToBalance: 'Перейти к балансу',
   },
 

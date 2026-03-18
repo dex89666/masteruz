@@ -19,6 +19,7 @@ const TxType = {
   PAYOUT: 'PAYOUT',
   ADMIN_TOPUP: 'ADMIN_TOPUP',
   ADMIN_WITHDRAW: 'ADMIN_WITHDRAW',
+  REFERRAL_BONUS: 'REFERRAL_BONUS',
 } as const;
 
 type PrismaTx = Prisma.TransactionClient;
@@ -413,6 +414,46 @@ export class BalanceService {
     });
 
     logger.info({ userId, amount, orderId, reason }, 'Штраф списан');
+  }
+
+  /**
+   * Начислить реферальный бонус на баланс пользователя
+   */
+  async referralBonus(userId: string, amount: number, description?: string) {
+    if (amount <= 0) return;
+
+    const result = await prisma.$transaction(async (tx: PrismaTx) => {
+      const user = await tx.user.findUnique({
+        where: { id: userId },
+        select: { balance: true },
+      });
+      if (!user) throw ApiError.notFound('Пользователь не найден');
+
+      const balanceBefore = toNum(user.balance);
+      const balanceAfter = moneyAdd(balanceBefore, amount);
+
+      const [updatedUser, transaction] = await Promise.all([
+        tx.user.update({
+          where: { id: userId },
+          data: { balance: balanceAfter },
+        }),
+        tx.balanceTransaction.create({
+          data: {
+            userId,
+            type: TxType.REFERRAL_BONUS as any,
+            amount,
+            balanceBefore,
+            balanceAfter,
+            description: description || 'Реферальный бонус',
+          },
+        }),
+      ]);
+
+      return { balance: toNum(updatedUser.balance), transaction };
+    });
+
+    logger.info({ userId, amount }, 'Реферальный бонус зачислен');
+    return result;
   }
 
   /**

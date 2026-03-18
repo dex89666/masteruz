@@ -26,6 +26,24 @@ router.post('/create', authenticate, async (req: Request, res: Response, next: N
   }
 });
 
+// Пополнение баланса через платёжную систему (Click / Payme / Telegram Stars)
+router.post('/balance-topup', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { amount, provider } = req.body;
+    if (!amount || !provider) {
+      return res.status(400).json({ success: false, error: { message: 'Укажите сумму и провайдер', statusCode: 400 } });
+    }
+    const result = await paymentsService.createBalanceTopupPayment(
+      req.user!.userId,
+      Number(amount),
+      provider
+    );
+    res.json({ success: true, data: result });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Создание платежа за регистрационный взнос мастера (400 000 сум)
 router.post('/registration-fee', authenticate, async (req: Request, res: Response, next: NextFunction) => {
   try {

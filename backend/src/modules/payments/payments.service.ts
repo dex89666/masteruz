@@ -10,6 +10,7 @@ import { config } from '../../config/index.js';
 import { logger } from '../../utils/logger.js';
 import { toNum } from '../../utils/helpers.js';
 import { notificationService } from '../../services/notificationService.js';
+import { balanceService } from '../balance/balance.service.js';
 import crypto from 'crypto';
 
 export class PaymentsService {
@@ -78,6 +79,30 @@ export class PaymentsService {
   }
 
   /**
+   * Обработка успешного пополнения баланса
+   */
+  private async onBalanceTopUpPaid(paymentId: string) {
+    try {
+      const payment = await prisma.payment.findUnique({
+        where: { id: paymentId },
+        select: { userId: true, amount: true, provider: true },
+      });
+
+      if (!payment) return;
+
+      await balanceService.topUp(
+        payment.userId,
+        toNum(payment.amount),
+        `Пополнение через ${payment.provider}`
+      );
+
+      logger.info({ paymentId, userId: payment.userId, amount: toNum(payment.amount) }, 'Баланс пополнен через платёжную систему');
+    } catch (error) {
+      logger.error({ error, paymentId }, 'Ошибка зачисления баланса после оплаты');
+    }
+  }
+
+  /**
    * Вызов обработчика по типу платежа после успешной оплаты
    */
   private async onPaymentCompleted(paymentId: string) {
@@ -95,7 +120,60 @@ export class PaymentsService {
       case PaymentType.REGISTRATION_FEE:
         await this.onRegistrationFeePaid(paymentId);
         break;
+      case PaymentType.BALANCE_TOPUP:
+        await this.onBalanceTopUpPaid(paymentId);
+        break;
     }
+  }
+
+  /**
+   * Создание платежа для пополнения баланса (Click / Payme / Telegram Stars)
+   */
+  async createBalanceTopupPayment(userId: string, amount: number, provider: PaymentProvider) {
+    if (amount < 10000) {
+      throw ApiError.badRequest('Минимальная сумма пополнения — 10 000 сум');
+    }
+    if (amount > 100000000) {
+      throw ApiError.badRequest('Максимальная сумма пополнения — 100 000 000 сум');
+    }
+
+    const payment = await prisma.payment.create({
+      data: {
+        userId,
+        amount,
+        type: PaymentType.BALANCE_TOPUP,
+        provider,
+        status: PaymentStatus.PENDING,
+      },
+    });
+
+    let paymentData: any;
+
+    switch (provider) {
+      case PaymentProvider.CLICK:
+        paymentData = this.generateClickPayment(payment.id, amount);
+        break;
+      case PaymentProvider.PAYME:
+        paymentData = this.generatePaymePayment(payment.id, amount);
+        break;
+      case PaymentProvider.TELEGRAM_STARS:
+        // Для Stars — конвертируем сумму в Stars (1 Star ≈ 1300 сум)
+        const starsAmount = Math.max(1, Math.ceil(amount / 1300));
+        paymentData = {
+          paymentId: payment.id,
+          amount,
+          starsAmount,
+          title: `Пополнение баланса MasterUz`,
+          description: `Пополнение на ${amount.toLocaleString('ru')} сум`,
+        };
+        break;
+      default:
+        throw ApiError.badRequest('Неподдерживаемый провайдер платежей');
+    }
+
+    logger.info({ paymentId: payment.id, provider, amount, userId }, 'Платёж на пополнение баланса создан');
+
+    return { payment, paymentData };
   }
 
   /**

@@ -1103,6 +1103,11 @@ const en = {
     type_REFUND: 'Refund',
     type_COMMISSION: 'Commission',
     type_PAYOUT: 'Payout',
+    type_ESTIMATION_FEE: 'Estimation fee',
+    type_ESTIMATE_PAYOUT: 'Estimation payout',
+    type_ADMIN_TOPUP: 'Admin top-up',
+    type_ADMIN_WITHDRAW: 'Admin withdrawal',
+    type_REFERRAL_BONUS: 'Referral bonus',
     goToBalance: 'Go to balance',
   },
 

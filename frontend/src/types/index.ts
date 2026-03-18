@@ -560,7 +560,8 @@ export type BalanceTransactionType =
   | 'ESTIMATION_FEE'
   | 'ESTIMATE_PAYOUT'
   | 'ADMIN_TOPUP'
-  | 'ADMIN_WITHDRAW';
+  | 'ADMIN_WITHDRAW'
+  | 'REFERRAL_BONUS';
 
 export interface BalanceTransaction {
   id: string;

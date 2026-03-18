@@ -1087,6 +1087,7 @@ enum BalanceTransactionType {
   ESTIMATE_PAYOUT // Выплата мастеру за оценку
   ADMIN_TOPUP     // Админское зачисление средств
   ADMIN_WITHDRAW  // Админское списание средств
+  REFERRAL_BONUS  // Реферальный бонус
 }
 
 model BalanceTransaction {

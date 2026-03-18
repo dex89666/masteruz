@@ -9,6 +9,7 @@ import { ReferralStatus, ReferralType } from '@prisma/client';
 import { config } from '../../config/index.js';
 import { logger } from '../../utils/logger.js';
 import { toNum, moneyMul, moneyDiv } from '../../utils/helpers.js';
+import { balanceService } from '../balance/balance.service.js';
 
 export class ReferralsService {
   /**
@@ -151,16 +152,27 @@ export class ReferralsService {
     // Начисляем бонус рефереру
     const bonusAmount = moneyDiv(moneyMul(toNum(order.commissionAmount), toNum(referral.bonusRate)), 100);
 
+    if (bonusAmount <= 0) return;
+
+    // Обновляем запись реферала
     await prisma.referral.update({
       where: { id: referral.id },
       data: {
         bonusAmount: { increment: bonusAmount },
+        status: ReferralStatus.PAID,
       },
     });
 
+    // Зачисляем бонус на баланс реферера
+    await balanceService.referralBonus(
+      referral.referrerId,
+      bonusAmount,
+      `Реферальный бонус за заказ #${orderId.slice(0, 8)}`
+    );
+
     logger.info(
-      { referralId: referral.id, bonusAmount, orderId },
-      'Реферальный бонус начислен'
+      { referralId: referral.id, referrerId: referral.referrerId, bonusAmount, orderId },
+      'Реферальный бонус начислен на баланс'
     );
   }
 }

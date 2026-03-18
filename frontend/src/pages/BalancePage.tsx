@@ -13,7 +13,7 @@ import { useTranslation } from '../i18n';
 import {
   Wallet, Plus, ArrowUpCircle, ArrowDownCircle, Lock,
   RefreshCw, AlertTriangle, CreditCard, ChevronDown,
-  TrendingDown, Receipt
+  TrendingDown, Receipt, Gift
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { BalanceTransaction, BalanceTransactionType } from '../types';
@@ -33,6 +33,7 @@ const typeIcons: Record<BalanceTransactionType, typeof Wallet> = {
   ESTIMATE_PAYOUT: ArrowDownCircle,
   ADMIN_TOPUP: ArrowUpCircle,
   ADMIN_WITHDRAW: ArrowDownCircle,
+  REFERRAL_BONUS: Gift,
 };
 
 const typeColors: Record<BalanceTransactionType, string> = {
@@ -47,6 +48,7 @@ const typeColors: Record<BalanceTransactionType, string> = {
   ESTIMATE_PAYOUT: 'text-teal-500 dark:text-teal-400 bg-teal-50 dark:bg-teal-900/30',
   ADMIN_TOPUP: 'text-amber-500 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30',
   ADMIN_WITHDRAW: 'text-rose-500 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/30',
+  REFERRAL_BONUS: 'text-cyan-500 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-900/30',
 };
 
 const amountSign: Record<BalanceTransactionType, '+' | '-'> = {
@@ -61,6 +63,7 @@ const amountSign: Record<BalanceTransactionType, '+' | '-'> = {
   ESTIMATE_PAYOUT: '+',
   ADMIN_TOPUP: '+',
   ADMIN_WITHDRAW: '-',
+  REFERRAL_BONUS: '+',
 };
 
 export function BalancePage() {
@@ -125,12 +128,23 @@ export function BalancePage() {
     setTopUpLoading(true);
     try {
       const res = await balanceApi.topUp(amount, provider);
-      setBalance(res.data.data.newBalance);
-      if (user) setUser({ ...user, balance: res.data.data.newBalance });
-      toast.success(t('balance.topUpSuccess'));
-      setShowTopUp(false);
-      setTopUpAmount('');
-      loadData();
+      const paymentData = res.data.data?.paymentData;
+
+      if (provider === 'TELEGRAM_STARS' && paymentData?.starsAmount) {
+        toast.success(`Оплатите ${paymentData.starsAmount} ⭐ Stars через Telegram бот`);
+        setShowTopUp(false);
+        setTopUpAmount('');
+      } else if (paymentData?.url) {
+        window.open(paymentData.url, '_blank');
+        toast.success('Перенаправляем на страницу оплаты...');
+        setShowTopUp(false);
+        setTopUpAmount('');
+      } else {
+        toast.success(t('balance.topUpSuccess'));
+        setShowTopUp(false);
+        setTopUpAmount('');
+        loadData();
+      }
     } catch (error: any) {
       toast.error(error.response?.data?.message || t('common.error'));
     } finally {

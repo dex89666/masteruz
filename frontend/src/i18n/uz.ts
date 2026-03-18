@@ -1103,6 +1103,11 @@ const uz = {
     type_REFUND: 'Qaytarish',
     type_COMMISSION: 'Komissiya',
     type_PAYOUT: 'Chiqarish',
+    type_ESTIMATION_FEE: 'Baholash uchun to\'lov',
+    type_ESTIMATE_PAYOUT: 'Baholash uchun to\'lov',
+    type_ADMIN_TOPUP: 'Admin tomonidan to\'ldirish',
+    type_ADMIN_WITHDRAW: 'Admin tomonidan yechish',
+    type_REFERRAL_BONUS: 'Referal bonus',
     goToBalance: 'Balansga o\'tish',
   },
 

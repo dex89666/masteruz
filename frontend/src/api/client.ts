@@ -199,7 +199,7 @@ export const balanceApi = {
     api.get<ApiResponse<{ balance: number }>>('/balance'),
 
   topUp: (amount: number, provider?: string) =>
-    api.post<ApiResponse<any>>('/balance/topup', { amount, provider }),
+    api.post<ApiResponse<any>>('/payments/balance-topup', { amount, provider }),
 
   getTransactions: (page?: number, limit?: number) =>
     api.get<PaginatedResponse<any>>('/balance/transactions', { params: { page, limit } }),
