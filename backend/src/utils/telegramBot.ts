@@ -149,10 +149,18 @@ ${taskList}
 📞 <b>Телефон клиента:</b> ${params.clientPhone || 'Не указан'}
 👤 <b>Клиент:</b> ${params.clientName}
 
-🔗 <a href="${config.telegram.miniAppUrl || 'https://masteruz.uz'}/orders/${params.orderId}">Открыть заказ</a>
+🔗 Открыть заказ
 `.trim();
 
-  await sendTelegramMessage({ chatId, text: message });
+  const miniAppUrl = config.telegram.miniAppUrl || 'https://masteruz-ecru.vercel.app';
+  const orderUrl = `${miniAppUrl}/orders/${params.orderId}`;
+  const replyMarkup = {
+    inline_keyboard: [
+      [{ text: '📋 Открыть заказ', web_app: { url: orderUrl } }],
+    ],
+  };
+
+  await sendTelegramMessage({ chatId, text: message, replyMarkup });
 
   // Отправляем геолокацию отдельным сообщением, если есть координаты
   if (params.latitude && params.longitude) {
@@ -239,9 +247,15 @@ export async function notifyMasterResponseAccepted(params: {
 💰 <b>Стоимость:</b> ${params.price.toLocaleString('ru')} сум
 
 Оплатите комиссию платформы, чтобы получить контакты клиента и приступить к работе.
-
-🔗 <a href="${config.telegram.miniAppUrl || 'https://masteruz.uz'}/orders/${params.orderId}">Открыть заказ</a>
 `.trim();
 
-  await sendTelegramMessage({ chatId, text: message });
+  const miniAppUrl = config.telegram.miniAppUrl || 'https://masteruz-ecru.vercel.app';
+  const orderUrl = `${miniAppUrl}/orders/${params.orderId}`;
+  const replyMarkup = {
+    inline_keyboard: [
+      [{ text: '📋 Открыть заказ', web_app: { url: orderUrl } }],
+    ],
+  };
+
+  await sendTelegramMessage({ chatId, text: message, replyMarkup });
 }
