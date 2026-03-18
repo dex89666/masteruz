@@ -1413,8 +1413,23 @@ export function findProblemByDescription(
   if (!catalog) return null;
 
   const lower = description.toLowerCase();
+  const descWords = lower.split(/\s+/).filter(w => w.length > 1);
   // Простой стемминг: обрезаем русские окончания (розетку/розетки/розеткой → розетк)
   const stem = (w: string) => w.replace(/(ами|ями|ов|ев|ей|ой|ий|ый|ая|яя|ое|ее|ие|ые|ую|юю|ого|его|ому|ему|ость|ам|ям|ах|ях|ен|ан|\u0443|ю|а|я|и|ы|о|е|ь)$/i, '');
+  const descStems = descWords.map(w => stem(w));
+
+  // Сравнение стеммов с учётом беглых гласных (потолок↔потолке, замок↔замке)
+  const stemMatch = (a: string, b: string): boolean => {
+    if (a.startsWith(b) || b.startsWith(a)) return true;
+    // Для длинных стеммов (≥5) допускаем 1 символ разницы
+    const minLen = Math.min(a.length, b.length);
+    if (minLen >= 5) {
+      let cp = 0;
+      while (cp < a.length && cp < b.length && a[cp] === b[cp]) cp++;
+      if (cp >= minLen - 1) return true;
+    }
+    return false;
+  };
 
   let bestMatch: ProblemSolution | null = null;
   let bestScore = 0;
@@ -1423,21 +1438,36 @@ export function findProblemByDescription(
     let score = 0;
     for (const kw of problem.keywords) {
       const kwLower = kw.toLowerCase();
-      // Точное совпадение
+      // Точное совпадение (подстрока в описании)
       if (lower.includes(kwLower)) {
         score += kw.length;
         continue;
       }
-      // Нечёткое: сравниваем корни слов
-      const kwStem = stem(kwLower);
-      if (kwStem.length >= 3) {
-        const descWords = lower.split(/\s+/);
-        for (const dw of descWords) {
-          const dwStem = stem(dw);
-          if (dwStem.length >= 3 && (dwStem.startsWith(kwStem) || kwStem.startsWith(dwStem))) {
-            score += kwStem.length;
-            break;
+      // Нечёткое: для мультисловных ключевых слов проверяем каждое слово отдельно
+      const kwWords = kwLower.split(/\s+/).filter(w => w.length > 2);
+      if (kwWords.length === 0) continue;
+
+      if (kwWords.length === 1) {
+        // Однословное: сравниваем стеммы
+        const kwStem = stem(kwWords[0]);
+        if (kwStem.length >= 3) {
+          for (const ds of descStems) {
+            if (ds.length >= 3 && stemMatch(ds, kwStem)) {
+              score += kwStem.length;
+              break;
+            }
           }
+        }
+      } else {
+        // Мультисловное: ВСЕ значимые слова должны совпасть по стемму
+        const kwStems = kwWords.map(w => stem(w)).filter(s => s.length >= 3);
+        if (kwStems.length === 0) continue;
+        const allMatch = kwStems.every(ks =>
+          descStems.some(ds => ds.length >= 3 && stemMatch(ds, ks))
+        );
+        if (allMatch) {
+          // Бонус пропорционален количеству совпавших слов, но меньше чем длина всей фразы
+          score += kwStems.reduce((s, ks) => s + ks.length, 0);
         }
       }
     }
