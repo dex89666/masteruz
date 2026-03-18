@@ -67,7 +67,7 @@ const amountSign: Record<BalanceTransactionType, '+' | '-'> = {
 };
 
 export function BalancePage() {
-  const { user, setUser } = useAuthStore();
+  const { user } = useAuthStore();
   const formatPrice = useFormatPrice();
   const { t, locale } = useTranslation();
 
