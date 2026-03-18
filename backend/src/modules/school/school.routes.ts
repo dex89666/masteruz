@@ -5,7 +5,7 @@
 
 import { Router, Request, Response, NextFunction } from 'express';
 import { schoolService } from './school.service.js';
-import { authenticate, optionalAuth } from '../../middleware/auth.js';
+import { authenticate, optionalAuth, authorize } from '../../middleware/auth.js';
 
 const router = Router();
 
@@ -83,11 +83,8 @@ router.post('/courses/:id/complete', authenticate, async (req: Request, res: Res
 // ADMIN: CRUD курсов
 // ═══════════════════════════════════════════
 
-router.get('/admin/courses', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.get('/admin/courses', authenticate, authorize('ADMIN', 'MANAGER'), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    if (req.user!.role !== 'ADMIN' && req.user!.role !== 'MANAGER') {
-      return res.status(403).json({ success: false, message: 'Доступ запрещён' });
-    }
     const courses = await schoolService.adminGetCourses();
     res.json({ success: true, data: courses });
   } catch (error) {
@@ -95,11 +92,8 @@ router.get('/admin/courses', authenticate, async (req: Request, res: Response, n
   }
 });
 
-router.post('/admin/courses', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.post('/admin/courses', authenticate, authorize('ADMIN', 'MANAGER'), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    if (req.user!.role !== 'ADMIN' && req.user!.role !== 'MANAGER') {
-      return res.status(403).json({ success: false, message: 'Доступ запрещён' });
-    }
     const course = await schoolService.adminCreateCourse(req.body);
     res.json({ success: true, data: course });
   } catch (error) {
@@ -107,11 +101,8 @@ router.post('/admin/courses', authenticate, async (req: Request, res: Response, 
   }
 });
 
-router.put('/admin/courses/:id', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.put('/admin/courses/:id', authenticate, authorize('ADMIN', 'MANAGER'), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    if (req.user!.role !== 'ADMIN' && req.user!.role !== 'MANAGER') {
-      return res.status(403).json({ success: false, message: 'Доступ запрещён' });
-    }
     const course = await schoolService.adminUpdateCourse(req.params.id, req.body);
     res.json({ success: true, data: course });
   } catch (error) {
@@ -119,11 +110,8 @@ router.put('/admin/courses/:id', authenticate, async (req: Request, res: Respons
   }
 });
 
-router.delete('/admin/courses/:id', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.delete('/admin/courses/:id', authenticate, authorize('ADMIN', 'MANAGER'), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    if (req.user!.role !== 'ADMIN' && req.user!.role !== 'MANAGER') {
-      return res.status(403).json({ success: false, message: 'Доступ запрещён' });
-    }
     const result = await schoolService.adminDeleteCourse(req.params.id);
     res.json({ success: true, data: result });
   } catch (error) {
@@ -135,11 +123,8 @@ router.delete('/admin/courses/:id', authenticate, async (req: Request, res: Resp
 // ADMIN: CRUD вопросов квиза
 // ═══════════════════════════════════════════
 
-router.get('/admin/courses/:id/questions', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.get('/admin/courses/:id/questions', authenticate, authorize('ADMIN', 'MANAGER'), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    if (req.user!.role !== 'ADMIN' && req.user!.role !== 'MANAGER') {
-      return res.status(403).json({ success: false, message: 'Доступ запрещён' });
-    }
     const questions = await schoolService.adminGetQuestions(req.params.id);
     res.json({ success: true, data: questions });
   } catch (error) {
@@ -147,11 +132,8 @@ router.get('/admin/courses/:id/questions', authenticate, async (req: Request, re
   }
 });
 
-router.post('/admin/courses/:id/questions', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.post('/admin/courses/:id/questions', authenticate, authorize('ADMIN', 'MANAGER'), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    if (req.user!.role !== 'ADMIN' && req.user!.role !== 'MANAGER') {
-      return res.status(403).json({ success: false, message: 'Доступ запрещён' });
-    }
     const question = await schoolService.adminCreateQuestion(req.params.id, req.body);
     res.json({ success: true, data: question });
   } catch (error) {
@@ -159,11 +141,8 @@ router.post('/admin/courses/:id/questions', authenticate, async (req: Request, r
   }
 });
 
-router.put('/admin/questions/:id', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.put('/admin/questions/:id', authenticate, authorize('ADMIN', 'MANAGER'), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    if (req.user!.role !== 'ADMIN' && req.user!.role !== 'MANAGER') {
-      return res.status(403).json({ success: false, message: 'Доступ запрещён' });
-    }
     const question = await schoolService.adminUpdateQuestion(req.params.id, req.body);
     res.json({ success: true, data: question });
   } catch (error) {
@@ -171,11 +150,8 @@ router.put('/admin/questions/:id', authenticate, async (req: Request, res: Respo
   }
 });
 
-router.delete('/admin/questions/:id', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.delete('/admin/questions/:id', authenticate, authorize('ADMIN', 'MANAGER'), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    if (req.user!.role !== 'ADMIN' && req.user!.role !== 'MANAGER') {
-      return res.status(403).json({ success: false, message: 'Доступ запрещён' });
-    }
     const result = await schoolService.adminDeleteQuestion(req.params.id);
     res.json({ success: true, data: result });
   } catch (error) {

@@ -6,6 +6,7 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import * as portfolioService from './portfolio.service';
+import { authenticate } from '../../middleware/auth.js';
 
 const router = Router();
 
@@ -51,10 +52,9 @@ router.get('/master/:masterId', async (req: Request, res: Response) => {
 });
 
 // ─── GET /portfolio/stats — статистика моего портфолио ──
-router.get('/stats', async (req: Request, res: Response) => {
+router.get('/stats', authenticate, async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user?.id;
-    if (!userId) return res.status(401).json({ success: false, error: { message: 'Unauthorized', statusCode: 401 } });
+    const userId = req.user!.userId;
 
     const stats = await portfolioService.getPortfolioStats(userId);
     res.json({ success: true, data: stats });
@@ -86,11 +86,11 @@ router.get('/:id', async (req: Request, res: Response) => {
 });
 
 // ─── POST /portfolio — создать элемент (мастер) ──
-router.post('/', async (req: Request, res: Response) => {
+router.post('/', authenticate, async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user?.id;
-    const userRole = (req as any).user?.role;
-    if (!userId || userRole !== 'MASTER') {
+    const userId = req.user!.userId;
+    const userRole = req.user!.role;
+    if (userRole !== 'MASTER') {
       return res.status(403).json({
         success: false,
         error: { message: 'Only masters can manage portfolio', statusCode: 403 },
@@ -116,11 +116,11 @@ router.post('/', async (req: Request, res: Response) => {
 });
 
 // ─── PUT /portfolio/:id — обновить элемент ────
-router.put('/:id', async (req: Request, res: Response) => {
+router.put('/:id', authenticate, async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user?.id;
-    const userRole = (req as any).user?.role;
-    if (!userId || userRole !== 'MASTER') {
+    const userId = req.user!.userId;
+    const userRole = req.user!.role;
+    if (userRole !== 'MASTER') {
       return res.status(403).json({
         success: false,
         error: { message: 'Only masters can manage portfolio', statusCode: 403 },
@@ -152,11 +152,11 @@ router.put('/:id', async (req: Request, res: Response) => {
 });
 
 // ─── DELETE /portfolio/:id — удалить элемент ──
-router.delete('/:id', async (req: Request, res: Response) => {
+router.delete('/:id', authenticate, async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user?.id;
-    const userRole = (req as any).user?.role;
-    if (!userId || userRole !== 'MASTER') {
+    const userId = req.user!.userId;
+    const userRole = req.user!.role;
+    if (userRole !== 'MASTER') {
       return res.status(403).json({
         success: false,
         error: { message: 'Only masters can manage portfolio', statusCode: 403 },
