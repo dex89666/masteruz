@@ -8,6 +8,7 @@ import { catalogApi } from '../api/client';
 import { useTranslation } from '../i18n';
 import { useCartStore } from '../store/cartStore';
 import { ArrowLeft, ChevronRight, ShoppingCart } from 'lucide-react';
+import CategoryIcon from '../components/CategoryIcon';
 import type { Category, Subcategory } from '../types';
 
 export function CatalogPage() {
@@ -64,7 +65,7 @@ export function CatalogPage() {
         </button>
         <div>
           <h1 className="text-xl font-bold dark:text-white flex items-center gap-2">
-            {category.icon && <span className="text-2xl">{category.icon}</span>}
+            {category.icon && <CategoryIcon name={category.icon} size="md" />}
             {getName(category)}
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -89,7 +90,7 @@ export function CatalogPage() {
               className="flex items-center justify-between p-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 hover:shadow-md hover:border-primary-200 dark:hover:border-primary-700 transition-all group"
             >
               <div className="flex items-center gap-3 flex-1 min-w-0">
-                {sub.icon && <span className="text-2xl flex-shrink-0">{sub.icon}</span>}
+                {sub.icon && <div className="flex-shrink-0"><CategoryIcon name={sub.icon} size="sm" /></div>}
                 <div className="min-w-0">
                   <h3 className="font-medium text-gray-900 dark:text-white group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors truncate">
                     {getName(sub)}

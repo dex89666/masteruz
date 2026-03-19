@@ -5,6 +5,7 @@
 
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Wrench } from 'lucide-react';
 import { ordersApi } from '../api/client';
 import { OrderCard } from '../components/OrderCard';
 import { LoadingSpinner } from '../components/LoadingSpinner';
@@ -97,7 +98,7 @@ export function MyOrdersPage() {
       {/* Orders */}
       {filteredOrders.length === 0 ? (
         <div className="text-center py-16">
-          <span className="text-5xl block mb-4">{isMaster ? '🔧' : '📋'}</span>
+          <Wrench size={48} className="text-gray-300 dark:text-gray-600 mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">
             {t('myOrders.noOrders')}
           </h3>

@@ -7,6 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import { turnkeyApi } from '../api/client';
 import { useTranslation } from '../i18n';
 import { LoadingSpinner } from '../components/LoadingSpinner';
+import { Building2, Home as HomeIcon, Building, Store, MapPin, Calendar, DollarSign } from 'lucide-react';
 
 const statusColors: Record<string, string> = {
   INQUIRY: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
@@ -41,7 +42,7 @@ export function MyTurnkeyProjectsPage() {
 
         {!projects || projects.length === 0 ? (
           <div className="text-center py-16">
-            <div className="text-5xl mb-4">🏗️</div>
+            <Building size={48} className="text-gray-300 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300">{t('turnkey.noProjects')}</h3>
             <p className="text-gray-500 dark:text-gray-400 mt-1 mb-4">{t('turnkey.noProjectsDesc')}</p>
             <Link to="/turnkey" className="inline-block px-6 py-2 bg-purple-500 text-white rounded-xl hover:bg-purple-600 transition">
@@ -62,9 +63,9 @@ export function MyTurnkeyProjectsPage() {
                     <div>
                       <h3 className="font-bold text-gray-900 dark:text-white">{project.title}</h3>
                       <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-                        {project.propertyType === 'apartment' ? '🏢' :
-                         project.propertyType === 'house' ? '🏠' :
-                         project.propertyType === 'office' ? '🏬' : '🏪'}
+                        {project.propertyType === 'apartment' ? <Building2 size={14} className="inline" /> :
+                         project.propertyType === 'house' ? <HomeIcon size={14} className="inline" /> :
+                         project.propertyType === 'office' ? <Building size={14} className="inline" /> : <Store size={14} className="inline" />}
                         {' '}{project.area ? `${project.area} м²` : ''} {project.rooms ? `• ${project.rooms} ${t('turnkey.roomsShort')}` : ''}
                       </p>
                     </div>
@@ -85,9 +86,9 @@ export function MyTurnkeyProjectsPage() {
                   </div>
 
                   <div className="flex items-center gap-4 mt-3 text-xs text-gray-500 dark:text-gray-400">
-                    {project.totalPrice && <span>💰 {project.totalPrice.toLocaleString()} {t('common.currency')}</span>}
-                    {project.address && <span>📍 {project.address}</span>}
-                    <span>📅 {new Date(project.createdAt).toLocaleDateString()}</span>
+                    {project.totalPrice && <span><DollarSign size={12} className="inline" /> {project.totalPrice.toLocaleString()} {t('common.currency')}</span>}
+                    {project.address && <span><MapPin size={12} className="inline" /> {project.address}</span>}
+                    <span><Calendar size={12} className="inline" /> {new Date(project.createdAt).toLocaleDateString()}</span>
                   </div>
                 </Link>
               );

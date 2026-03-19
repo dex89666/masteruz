@@ -88,10 +88,10 @@ const en = {
 
   // ─── Roles ──────────────────────────────
   roles: {
-    CLIENT: '👤 Client',
-    MASTER: '🔧 Master',
-    ADMIN: '👑 Admin',
-    MANAGER: '📋 Manager',
+    CLIENT: 'Client',
+    MASTER: 'Master',
+    ADMIN: 'Admin',
+    MANAGER: 'Manager',
   },
 
   // ─── Categories ─────────────────────────
@@ -146,7 +146,7 @@ const en = {
 
   // ─── Home page ──────────────────────────
   home: {
-    heroTitle: '⚡ MasterUz',
+    heroTitle: 'MasterUz',
     heroSubtitle: 'Something broke? We fix it!',
     heroDesc: "One price. One click. No surprises. Plumber, electrician, repairs — verified pros with a guarantee.",
     findMaster: 'Find a master',
@@ -179,7 +179,7 @@ const en = {
     stat_guarantee: 'Days guarantee',
     topMasters: 'Top Masters',
     viewAll: 'View all',
-    urgentOrdersHome: '⚡ Urgent Orders',
+    urgentOrdersHome: 'Urgent Orders',
     urgentOrdersHomeDesc: 'Orders with +40% premium for urgency',
     viewAllUrgent: 'All urgent',
   },
@@ -222,7 +222,7 @@ const en = {
     onMap: 'On map',
     urgent: 'Urgent',
     urgentLabel: 'Urgent order',
-    urgentOnly: '⚡ Urgent',
+    urgentOnly: 'Urgent',
     allDistricts: 'All districts',
     allSubcategories: 'All services',
     district: 'District',
@@ -280,7 +280,7 @@ const en = {
     photos: 'Photos (up to 5)',
     publish: 'Publish order',
     creating: 'Creating...',
-    coordsDetermined: '📍 Coordinates determined:',
+    coordsDetermined: 'Coordinates determined:',
     loginRequired: 'Log in to create an order',
     maxPhotos: 'Maximum 5 photos',
     enterTitle: 'Enter order title',
@@ -388,7 +388,7 @@ const en = {
     regFeeReason3: 'Improves service quality',
     regFeeReason4: 'Pays for itself with the first order',
     regFeePayBtn: 'Pay 400,000 UZS',
-    regFeeSuccess: 'Payment successful! 🎉',
+    regFeeSuccess: 'Payment successful!',
     regFeeProcessing: 'Processing payment...',
     regFeeRedirected: 'Redirecting to payment page...',
     regFeePending: 'Registration fee pending',
@@ -420,7 +420,7 @@ const en = {
     watchVideo: 'Watch video',
     completeCourse: 'Complete course',
     completing: 'Completing...',
-    courseCompleted: 'Course completed! 🎉',
+    courseCompleted: 'Course completed!',
     yourProgress: 'Your progress',
     requiredOf: 'required',
     allCompleted: 'All required courses completed! You can get verified.',
@@ -861,8 +861,8 @@ const en = {
     thankYou: 'Thank you for your review!',
     thankYouDesc: 'Your review will help other clients choose a master',
     backToOrders: 'Back to my orders',
-    rating5: 'Excellent! 🌟',
-    rating4: 'Good 👍',
+    rating5: 'Excellent!',
+    rating4: 'Good',
     rating3: 'Average',
     rating2: 'Poor',
     rating1: 'Terrible',
@@ -1329,8 +1329,8 @@ const en = {
     analyzingDesc: 'Detecting work type, selecting tasks and materials, calculating cost.',
     chooseVariant: 'Choose a variant:',
     tierGood: '⭐ Good — standard',
-    tierBetter: '⚡ Better — optimal',
-    tierBest: '👑 Best — maximum quality',
+    tierBetter: 'Better — optimal',
+    tierBest: 'Best — maximum quality',
     recommended: 'RECOMMENDED',
     confidence: 'confidence',
     tasks: 'tasks',
@@ -1359,7 +1359,7 @@ const en = {
     voiceRecorded: 'Voice recorded! Description recognized.',
     recording: 'Recording... Describe the problem by voice',
     stopRecording: 'Stop recording...',
-    ctaButton: '📸 Create order in 30 seconds',
+    ctaButton: 'Create order in 30 seconds',
   },
 
   // ─── Linked Cards ───────────────────────

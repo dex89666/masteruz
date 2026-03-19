@@ -8,6 +8,7 @@ import { catalogApi } from '../api/client';
 import { useTranslation } from '../i18n';
 import { useCartStore } from '../store/cartStore';
 import { ArrowLeft, ShoppingCart, Plus, Minus, Clock, Check } from 'lucide-react';
+import CategoryIcon from '../components/CategoryIcon';
 import type { Subcategory, Task } from '../types';
 
 export function SubcategoryPage() {
@@ -108,7 +109,7 @@ export function SubcategoryPage() {
         </button>
         <div>
           <h1 className="text-xl font-bold dark:text-white flex items-center gap-2">
-            {subcategory.icon && <span className="text-2xl">{subcategory.icon}</span>}
+            {subcategory.icon && <CategoryIcon name={subcategory.icon} size="md" />}
             {getName(subcategory)}
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">

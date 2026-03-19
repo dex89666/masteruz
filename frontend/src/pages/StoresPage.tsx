@@ -8,6 +8,7 @@ import { useQuery } from '@tanstack/react-query';
 import { storesApi } from '../api/client';
 import { useTranslation } from '../i18n';
 import { LoadingSpinner } from '../components/LoadingSpinner';
+import { Store, Package } from 'lucide-react';
 
 export function StoresPage() {
   const { t } = useTranslation();
@@ -36,7 +37,7 @@ export function StoresPage() {
       <div className="bg-gradient-to-r from-orange-500 to-amber-500 text-white py-12 px-4">
         <div className="max-w-6xl mx-auto text-center">
           <h1 className="text-3xl md:text-4xl font-bold mb-3">
-            🤝 Партнёры и магазины
+            Партнёры и магазины
           </h1>
           <p className="text-lg opacity-90 mb-6">Стройматериалы, техника, кондиционеры, окна и многое другое</p>
 
@@ -76,7 +77,7 @@ export function StoresPage() {
                   : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-orange-50 dark:hover:bg-gray-700'
               }`}
             >
-              {cat.icon} {cat.name}
+              {cat.name}
             </button>
           ))}
         </div>
@@ -102,7 +103,7 @@ export function StoresPage() {
           <div className="flex justify-center py-12"><LoadingSpinner /></div>
         ) : stores.length === 0 ? (
           <div className="text-center py-12">
-            <div className="text-5xl mb-4">🏪</div>
+            <div className="text-5xl mb-4 text-gray-300"><Store size={48} className="mx-auto" /></div>
             <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300">{t('stores.noStores')}</h3>
             <p className="text-gray-500 mt-1">{t('stores.noStoresDesc')}</p>
           </div>
@@ -119,11 +120,11 @@ export function StoresPage() {
                   {store.coverUrl ? (
                     <img src={store.coverUrl} alt={store.name} className="w-full h-full object-cover" />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center text-5xl">🏪</div>
+                    <div className="w-full h-full flex items-center justify-center"><Store size={48} className="text-gray-300" /></div>
                   )}
                   {store.isVerified && (
                     <span className="absolute top-3 right-3 bg-green-500 text-white text-xs px-2 py-1 rounded-full flex items-center gap-1">
-                      ✓ {t('common.verified')}
+                      {t('common.verified')}
                     </span>
                   )}
                   {store.discountForMasters && (
@@ -139,7 +140,7 @@ export function StoresPage() {
                     {store.logoUrl ? (
                       <img src={store.logoUrl} alt="" className="w-10 h-10 rounded-lg object-cover" />
                     ) : (
-                      <div className="w-10 h-10 bg-orange-100 dark:bg-gray-700 rounded-lg flex items-center justify-center text-xl">🧱</div>
+                      <div className="w-10 h-10 bg-orange-100 dark:bg-gray-700 rounded-lg flex items-center justify-center"><Package size={20} className="text-orange-500" /></div>
                     )}
                     <div>
                       <h3 className="font-bold text-gray-900 dark:text-white group-hover:text-orange-500 transition">
@@ -155,17 +156,17 @@ export function StoresPage() {
 
                   <div className="flex items-center justify-between text-sm">
                     <div className="flex items-center gap-1 text-amber-500">
-                      ⭐ {store.rating.toFixed(1)}
+                      {store.rating.toFixed(1)}
                       <span className="text-gray-400">({store._count?.reviews || 0})</span>
                     </div>
                     <div className="text-gray-500 dark:text-gray-400">
-                      📦 {store._count?.products || 0} {t('stores.products')}
+                      {store._count?.products || 0} {t('stores.products')}
                     </div>
                   </div>
 
                   {store.deliveryAvailable && (
                     <div className="mt-2 text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
-                      🚚 {t('stores.deliveryAvailable')}
+                      {t('stores.deliveryAvailable')}
                     </div>
                   )}
                 </div>

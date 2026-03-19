@@ -109,7 +109,7 @@ export function OrderChat({ orderId, isParticipant }: OrderChatProps) {
                   <div key={msg.id} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
                     {/* Модерационный флаг */}
                     {msg.isFlagged && !msg.isBlocked && (
-                      <div className="text-xs text-orange-500 mb-0.5 px-2">⚠️ {msg.flagReason || 'Сообщение на проверке'}</div>
+                      <div className="text-xs text-orange-500 mb-0.5 px-2">{msg.flagReason || 'Сообщение на проверке'}</div>
                     )}
                     <div
                       className={`max-w-[80%] rounded-2xl px-3.5 py-2 text-sm shadow-sm ${

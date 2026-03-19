@@ -219,7 +219,7 @@ export function MasterPortfolioPage() {
               <ArrowLeft size={20} />
             </Link>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-              📸 {t('portfolio.title')}
+              {t('portfolio.title')}
             </h1>
           </div>
           <p className="text-sm text-gray-500 dark:text-gray-400 ml-7">{t('portfolio.subtitle')}</p>
@@ -292,7 +292,7 @@ export function MasterPortfolioPage() {
       {/* Portfolio Grid */}
       {filteredItems.length === 0 ? (
         <EmptyState
-          icon="📸"
+          icon="Camera"
           title={t('portfolio.empty')}
           description={t('portfolio.emptyDesc')}
           action={{

@@ -7,7 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import { turnkeyApi } from '../api/client';
 import { useTranslation } from '../i18n';
 import { LoadingSpinner } from '../components/LoadingSpinner';
-import { ArrowLeft, Calendar, MapPin, Ruler, DoorOpen, Paintbrush, Sofa, CheckCircle2, Circle, Clock } from 'lucide-react';
+import { ArrowLeft, Calendar, MapPin, Ruler, DoorOpen, Paintbrush, Sofa, CheckCircle2, Circle, Clock, Building2, Home as HomeIcon, Building, Store, Ban, Paperclip, RulerIcon, Palette, Camera } from 'lucide-react';
 
 const statusColors: Record<string, string> = {
   INQUIRY: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
@@ -19,11 +19,11 @@ const statusColors: Record<string, string> = {
   CANCELLED: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
 };
 
-const propertyTypeIcons: Record<string, string> = {
-  apartment: '🏢',
-  house: '🏠',
-  office: '🏬',
-  commercial: '🏪',
+const propertyTypeIcons: Record<string, any> = {
+  apartment: Building2,
+  house: HomeIcon,
+  office: Building,
+  commercial: Store,
 };
 
 export function TurnkeyProjectDetailPage() {
@@ -43,7 +43,7 @@ export function TurnkeyProjectDetailPage() {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
         <div className="text-center">
-          <div className="text-5xl mb-4">🚫</div>
+          <Ban size={48} className="text-gray-400 mx-auto mb-4" />
           <h2 className="text-xl font-bold text-gray-700 dark:text-gray-300 mb-2">
             {t('common.notFound')}
           </h2>
@@ -85,7 +85,7 @@ export function TurnkeyProjectDetailPage() {
           {/* Info grid */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4">
             <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-              <span className="text-lg">{propertyTypeIcons[project.propertyType] || '🏠'}</span>
+              {(() => { const Icon = propertyTypeIcons[project.propertyType] || HomeIcon; return <Icon size={20} />; })()}
               <span>{t(`turnkey.${project.propertyType}` as any)}</span>
             </div>
             {project.area && (
@@ -230,7 +230,7 @@ export function TurnkeyProjectDetailPage() {
                       <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{stage.description}</p>
                     )}
                     <div className="flex gap-3 mt-1 text-xs text-gray-400 dark:text-gray-500">
-                      {stage.startDate && <span>🗓 {new Date(stage.startDate).toLocaleDateString()}</span>}
+                      {stage.startDate && <span><Calendar size={12} className="inline" /> {new Date(stage.startDate).toLocaleDateString()}</span>}
                       {stage.endDate && <span>→ {new Date(stage.endDate).toLocaleDateString()}</span>}
                     </div>
                   </div>
@@ -243,18 +243,18 @@ export function TurnkeyProjectDetailPage() {
         {/* Floor plan / Design project links */}
         {(project.floorPlanUrl || project.designProjectUrl) && (
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6 mb-6">
-            <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">📎 Документы</h2>
+            <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4"><Paperclip size={18} className="inline" /> Документы</h2>
             <div className="flex flex-wrap gap-3">
               {project.floorPlanUrl && (
                 <a href={project.floorPlanUrl} target="_blank" rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition">
-                  📐 Планировка
+                  <RulerIcon size={16} className="inline" /> Планировка
                 </a>
               )}
               {project.designProjectUrl && (
                 <a href={project.designProjectUrl} target="_blank" rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition">
-                  🎨 Дизайн-проект
+                  <Palette size={16} className="inline" /> Дизайн-проект
                 </a>
               )}
             </div>
@@ -264,7 +264,7 @@ export function TurnkeyProjectDetailPage() {
         {/* Images */}
         {project.images && project.images.length > 0 && (
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6">
-            <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">📷 Фотографии</h2>
+            <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4"><Camera size={18} className="inline" /> Фотографии</h2>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {project.images.map((url: string, i: number) => (
                 <img key={i} src={url} alt={`Фото ${i + 1}`}

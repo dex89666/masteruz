@@ -144,7 +144,7 @@ export function SupportChatPage() {
           <div className="flex-1">
             <h2 className="font-semibold text-gray-900 line-clamp-1">{selectedChat.subject}</h2>
             <p className="text-xs text-gray-500">
-              {selectedChat.isClosed ? '🔒 Чат закрыт' : '🟢 Активный чат'}
+              {selectedChat.isClosed ? 'Чат закрыт' : 'Активный чат'}
             </p>
           </div>
         </div>
@@ -213,7 +213,7 @@ export function SupportChatPage() {
           </div>
         ) : (
           <div className="p-4 border-t bg-gray-100 text-center text-sm text-gray-500">
-            🔒 Этот чат закрыт. Если нужна помощь, дождитесь нового сообщения от поддержки.
+            Этот чат закрыт. Если нужна помощь, дождитесь нового сообщения от поддержки.
           </div>
         )}
       </div>

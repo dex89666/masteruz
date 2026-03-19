@@ -4,6 +4,7 @@
 
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { ClipboardList } from 'lucide-react';
 import { ordersApi, catalogApi } from '../api/client';
 import { OrderCard } from '../components/OrderCard';
 import { OrdersListSkeleton } from '../components/PageSkeletons';
@@ -175,7 +176,6 @@ export function OrdersListPage() {
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
               }`}
             >
-              <span>{cat.icon}</span>
               {getCatName(cat)}
             </button>
           ))}
@@ -206,7 +206,7 @@ export function OrdersListPage() {
                     : 'bg-white text-gray-500 border-gray-200 hover:border-primary-300 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600'
                 }`}
               >
-                {sub.icon && <span>{sub.icon}</span>}
+                {sub.icon && <span className="text-xs">{sub.icon}</span>}
                 {getSubName(sub)}
               </button>
             ))}
@@ -299,7 +299,7 @@ export function OrdersListPage() {
         <OrdersListSkeleton count={6} />
       ) : orders.length === 0 ? (
         <div className="text-center py-16">
-          <span className="text-5xl block mb-4">📋</span>
+          <ClipboardList size={48} className="text-gray-300 dark:text-gray-600 mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">{t('orders.noOrders')}</h3>
           <p className="text-gray-500 dark:text-gray-400 mb-6">{t('orders.noOrdersDesc')}</p>
           {isAuthenticated && (

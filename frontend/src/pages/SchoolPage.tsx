@@ -118,7 +118,7 @@ export function SchoolPage() {
       const data = res.data.data;
       if (data.videoCompleted) {
         hapticNotification?.('success');
-        toast.success('Видео просмотрено! ✅');
+        toast.success('Видео просмотрено!');
         await loadData();
       }
       return data;
@@ -186,7 +186,7 @@ export function SchoolPage() {
 
       if (result.passed) {
         hapticNotification?.('success');
-        toast.success(`Тест пройден! Результат: ${result.score}% 🎉`);
+        toast.success(`Тест пройден! Результат: ${result.score}%`);
       } else {
         hapticNotification?.('error');
         toast.error(`Не пройден. Результат: ${result.score}%. Нужно ${result.passingScore}%`);
@@ -205,7 +205,7 @@ export function SchoolPage() {
     try {
       await schoolApi.completeCourse(courseId);
       hapticNotification?.('success');
-      toast.success('Курс завершён! 🎉');
+      toast.success('Курс завершён!');
       await loadData();
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Ошибка');
@@ -248,7 +248,7 @@ export function SchoolPage() {
               <div className="w-20 h-20 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center mx-auto mb-4">
                 <Award size={40} className="text-green-600 dark:text-green-400" />
               </div>
-              <h2 className="text-2xl font-bold text-green-600 dark:text-green-400 mb-2">Тест пройден! 🎉</h2>
+              <h2 className="text-2xl font-bold text-green-600 dark:text-green-400 mb-2">Тест пройден!</h2>
             </>
           ) : (
             <>
@@ -449,7 +449,7 @@ export function SchoolPage() {
             {vidCompleted ? (
               <div className="flex items-center text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 p-3 rounded-lg mb-3">
                 <CheckCircle size={18} className="mr-2" />
-                Видео просмотрено ✅
+                Видео просмотрено
               </div>
             ) : (
               <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 p-3 rounded-lg mb-3">

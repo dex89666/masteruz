@@ -88,10 +88,10 @@ const ru = {
 
   // ─── Роли ───────────────────────────────
   roles: {
-    CLIENT: '👤 Клиент',
-    MASTER: '🔧 Мастер',
-    ADMIN: '👑 Админ',
-    MANAGER: '📋 Менеджер',
+    CLIENT: 'Клиент',
+    MASTER: 'Мастер',
+    ADMIN: 'Админ',
+    MANAGER: 'Менеджер',
   },
 
   // ─── Категории ──────────────────────────
@@ -146,7 +146,7 @@ const ru = {
 
   // ─── Главная страница ───────────────────
   home: {
-    heroTitle: '⚡ MasterUz',
+    heroTitle: 'MasterUz',
     heroSubtitle: 'Сломалось? Решим!',
     heroDesc: 'Одна цена. Один клик. Никаких сюрпризов. Сантехник, электрик, ремонт — проверенные специалисты с гарантией.',
     findMaster: 'Найти мастера',
@@ -179,7 +179,7 @@ const ru = {
     stat_guarantee: 'Дней гарантии',
     topMasters: 'Лучшие мастера',
     viewAll: 'Смотреть все',
-    urgentOrdersHome: '⚡ Срочные заказы',
+    urgentOrdersHome: 'Срочные заказы',
     urgentOrdersHomeDesc: 'Заказы с повышенной оплатой +40% за срочность',
     viewAllUrgent: 'Все срочные',
   },
@@ -222,7 +222,7 @@ const ru = {
     onMap: 'На карте',
     urgent: 'Срочно',
     urgentLabel: 'Срочный заказ',
-    urgentOnly: '⚡ Срочные',
+    urgentOnly: 'Срочные',
     allDistricts: 'Все районы',
     allSubcategories: 'Все услуги',
     district: 'Район',
@@ -280,7 +280,7 @@ const ru = {
     photos: 'Фотографии (до 5)',
     publish: 'Опубликовать заказ',
     creating: 'Создание...',
-    coordsDetermined: '📍 Координаты определены:',
+    coordsDetermined: 'Координаты определены:',
     loginRequired: 'Войдите, чтобы создать заказ',
     maxPhotos: 'Максимум 5 фотографий',
     enterTitle: 'Укажите название заказа',
@@ -308,7 +308,7 @@ const ru = {
     urgentOrder: 'Срочный заказ',
     urgentDesc: 'Приоритет + надбавка 40% к стоимости',
     urgentPriceNote: 'Стоимость увеличивается на 40% за срочность. Мастера получат уведомление в первую очередь.',
-    publishUrgent: '⚡ Опубликовать срочно',
+    publishUrgent: 'Опубликовать срочно',
     // Адрес
     district: 'Район',
     districtPlaceholder: 'Например: Мирзо-Улугбекский',
@@ -390,7 +390,7 @@ const ru = {
     regFeeReason3: 'Повышаем качество сервиса',
     regFeeReason4: 'Взнос окупается с первого заказа',
     regFeePayBtn: 'Оплатить 400 000 сум',
-    regFeeSuccess: 'Оплата прошла успешно! 🎉',
+    regFeeSuccess: 'Оплата прошла успешно!',
     regFeeProcessing: 'Обработка оплаты...',
     regFeeRedirected: 'Перенаправление на страницу оплаты...',
     regFeePending: 'Ожидается оплата регистрационного взноса',
@@ -422,7 +422,7 @@ const ru = {
     watchVideo: 'Смотреть видео',
     completeCourse: 'Завершить курс',
     completing: 'Завершение...',
-    courseCompleted: 'Курс завершён! 🎉',
+    courseCompleted: 'Курс завершён!',
     yourProgress: 'Ваш прогресс',
     requiredOf: 'обязательных',
     allCompleted: 'Все обязательные курсы пройдены! Вы можете получить верификацию.',
@@ -865,8 +865,8 @@ const ru = {
     thankYou: 'Спасибо за отзыв!',
     thankYouDesc: 'Ваш отзыв поможет другим клиентам выбрать мастера',
     backToOrders: 'К моим заказам',
-    rating5: 'Превосходно! 🌟',
-    rating4: 'Хорошо 👍',
+    rating5: 'Превосходно!',
+    rating4: 'Хорошо',
     rating3: 'Нормально',
     rating2: 'Плохо',
     rating1: 'Ужасно',
@@ -1349,8 +1349,8 @@ const ru = {
     analyzingDesc: 'Определяем тип работ, подбираем задачи и материалы, считаем стоимость.',
     chooseVariant: 'Выберите вариант:',
     tierGood: '⭐ Хороший — стандарт',
-    tierBetter: '⚡ Отличный — оптимальный',
-    tierBest: '👑 Премиум — максимум качества',
+    tierBetter: 'Отличный — оптимальный',
+    tierBest: 'Премиум — максимум качества',
     recommended: 'РЕКОМЕНДУЕМ',
     confidence: 'уверенность',
     tasks: 'работ',
@@ -1379,7 +1379,7 @@ const ru = {
     voiceRecorded: 'Голос записан! Описание распознано.',
     recording: 'Запись... Опишите проблему голосом',
     stopRecording: 'Остановить запись...',
-    ctaButton: '📸 Создать заказ за 30 секунд',
+    ctaButton: 'Создать заказ за 30 секунд',
   },
 
   // ─── Привязанные карты ──────────────────

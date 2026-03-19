@@ -6,7 +6,7 @@
 import { useState } from 'react';
 import { useTranslation } from '../i18n';
 import {
-  Search, Shield, Star, Zap, ChevronRight, ChevronLeft, Check
+  Search, Shield, Star, Zap, ChevronRight, ChevronLeft, Check, Wrench
 } from 'lucide-react';
 
 interface OnboardingProps {
@@ -16,7 +16,7 @@ interface OnboardingProps {
 const STEPS = [
   {
     key: 'welcome',
-    icon: '🔧',
+    icon: Wrench,
     gradient: 'from-primary-500 to-primary-700',
   },
   {
@@ -64,7 +64,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
     onComplete();
   }
 
-  const IconComp = typeof currentStep.icon === 'string' ? null : currentStep.icon;
+  const IconComp = currentStep.icon;
 
   return (
     <div className="fixed inset-0 z-50 bg-white flex flex-col">
@@ -82,11 +82,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
       <div className="flex-1 flex flex-col items-center justify-center px-8 text-center">
         {/* Icon */}
         <div className={`w-24 h-24 rounded-3xl bg-gradient-to-br ${currentStep.gradient} flex items-center justify-center mb-8 shadow-xl animate-scale-in`}>
-          {IconComp ? (
-            <IconComp size={48} className="text-white" />
-          ) : (
-            <span className="text-5xl">{currentStep.icon as string}</span>
-          )}
+          <IconComp size={48} className="text-white" />
         </div>
 
         {/* Title */}

@@ -22,7 +22,7 @@ import { useTranslation } from '../i18n';
 import {
   MapPin, Clock, DollarSign, User, Phone,
   CheckCircle, XCircle, MessageSquare, Star, Send, AlertTriangle,
-  Zap, CreditCard, Navigation, Map, Truck, Shield, ThumbsUp, Ban, Scale
+  Zap, CreditCard, Navigation, Map, Truck, Shield, ThumbsUp, Ban, Scale, Check, Search
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { Order, OrderResponse, OrderPhoto } from '../types';
@@ -90,16 +90,16 @@ export function OrderDetailPage() {
     loadOrder();
     // Показываем попап при подтверждении другой стороной
     if (event === 'master_confirmed' && isOwner) {
-      toast(t('antiFraud.masterConfirmedNotify'), { icon: '✅', duration: 6000 });
+      toast(t('antiFraud.masterConfirmedNotify'), { duration: 6000 });
     }
     if (event === 'client_confirmed' && isAssignedMaster) {
-      toast(t('antiFraud.clientConfirmedNotify'), { icon: '✅', duration: 6000 });
+      toast(t('antiFraud.clientConfirmedNotify'), { duration: 6000 });
     }
     if (event === 'order_completed') {
       toast.success(t('antiFraud.orderCompleted'), { duration: 6000 });
     }
     if (event === 'master_assigned') {
-      toast(t('antiFraud.masterAssignedNotify'), { icon: '🔔', duration: 5000 });
+      toast(t('antiFraud.masterAssignedNotify'), { duration: 5000 });
     }
   }, [id, isOwner, isAssignedMaster]);
 
@@ -349,7 +349,7 @@ export function OrderDetailPage() {
         <div className="card mb-4">
           <span className="text-sm text-gray-500 dark:text-gray-400">{t('orders.category')}</span>
           <p className="font-medium dark:text-white">
-            {order.category.icon} {order.category.name}
+            {order.category.name}
           </p>
         </div>
       )}
@@ -361,14 +361,14 @@ export function OrderDetailPage() {
           <div className="space-y-2">
             {order.orderTasks.map((ot) => (
               <div key={ot.id} className="flex items-start gap-2 text-sm bg-green-50 dark:bg-green-900/20 px-3 py-2 rounded-lg">
-                <span className="text-green-600 dark:text-green-400 mt-0.5">✓</span>
+                <span className="text-green-600 dark:text-green-400 mt-0.5"><Check size={14} /></span>
                 <div>
                   <p className="font-medium text-gray-800 dark:text-gray-200">{ot.task?.name}</p>
                   {ot.task?.description && (
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{ot.task.description}</p>
                   )}
                   {ot.task?.estimatedTime && (
-                    <p className="text-xs text-primary-600 dark:text-primary-400 mt-0.5">⏱ {ot.task.estimatedTime}</p>
+                    <p className="text-xs text-primary-600 dark:text-primary-400 mt-0.5">{ot.task.estimatedTime}</p>
                   )}
                 </div>
               </div>
@@ -380,7 +380,7 @@ export function OrderDetailPage() {
       {/* Фотографии заказа — видны всем */}
       {order.images && order.images.filter((img: string) => img.startsWith('http') || img.startsWith('data:')).length > 0 && (
         <div className="card mb-4">
-          <h2 className="text-sm text-gray-500 dark:text-gray-400 mb-2">📷 Фотографии заказа</h2>
+          <h2 className="text-sm text-gray-500 dark:text-gray-400 mb-2">Фотографии заказа</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {order.images.filter((img: string) => img.startsWith('http') || img.startsWith('data:')).map((img: string, idx: number) => (
               <a key={idx} href={img.startsWith('data:') ? undefined : img} target="_blank" rel="noopener noreferrer" className="block">
@@ -426,7 +426,7 @@ export function OrderDetailPage() {
                     onClick={() => { setAdminCommentDraft(order.adminComment || ''); setEditingAdminComment(true); }}
                     className="text-xs text-purple-500 hover:text-purple-700 dark:hover:text-purple-300"
                   >
-                    {order.adminComment ? '✏️' : '+ Добавить'}
+                    {order.adminComment ? 'Изменить' : '+ Добавить'}
                   </button>
                 )}
               </div>
@@ -474,7 +474,7 @@ export function OrderDetailPage() {
         <div className="card mb-4 border-2 border-cyan-300 dark:border-cyan-700 bg-cyan-50/50 dark:bg-cyan-900/10">
           <div className="flex items-center gap-3 mb-3">
             <div className="w-10 h-10 bg-cyan-100 dark:bg-cyan-900/40 rounded-xl flex items-center justify-center">
-              <span className="text-lg">🔍</span>
+              <span className="text-lg"><Search size={20} /></span>
             </div>
             <div>
               <h3 className="font-bold text-gray-900 dark:text-white">Заказ на оценку</h3>
@@ -496,7 +496,7 @@ export function OrderDetailPage() {
               }}
               className="w-full py-3 bg-cyan-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-cyan-700"
             >
-              ✅ Принять заказ на оценку (комиссия 30 000 сум)
+              Принять заказ на оценку (комиссия 30 000 сум)
             </button>
           )}
 
@@ -506,7 +506,7 @@ export function OrderDetailPage() {
               to={`/estimation/${order.id}/form`}
               className="w-full py-3 bg-primary-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-primary-700"
             >
-              📋 {order.status === 'ESTIMATION_IN_PROGRESS' ? 'Составить смету' : 'Редактировать смету'}
+              {order.status === 'ESTIMATION_IN_PROGRESS' ? 'Составить смету' : 'Редактировать смету'}
             </Link>
           )}
 
@@ -516,22 +516,22 @@ export function OrderDetailPage() {
               to={`/estimation/${order.id}/estimate`}
               className="w-full py-3 bg-green-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-green-700 mt-2"
             >
-              📋 Посмотреть смету
+              Посмотреть смету
             </Link>
           )}
 
           {/* Статус-сообщения */}
           {order.status === 'ESTIMATION_IN_PROGRESS' && isOwner && (
-            <p className="text-sm text-cyan-700 dark:text-cyan-400 mt-2">⏳ Мастер выехал. Ожидайте замеры и смету.</p>
+            <p className="text-sm text-cyan-700 dark:text-cyan-400 mt-2">Мастер выехал. Ожидайте замеры и смету.</p>
           )}
           {order.status === 'ESTIMATE_APPROVED' && (
-            <p className="text-sm text-green-700 dark:text-green-400 mt-2">✅ Смета одобрена. Ожидание модерации.</p>
+            <p className="text-sm text-green-700 dark:text-green-400 mt-2">Смета одобрена. Ожидание модерации.</p>
           )}
           {order.status === 'MODERATION' && (
-            <p className="text-sm text-violet-700 dark:text-violet-400 mt-2">🛡️ Смета на модерации. Администратор проверяет.</p>
+            <p className="text-sm text-violet-700 dark:text-violet-400 mt-2">Смета на модерации. Администратор проверяет.</p>
           )}
           {order.status === 'ESTIMATE_REJECTED' && (
-            <p className="text-sm text-red-600 dark:text-red-400 mt-2">❌ Смета отклонена клиентом. Мастер получил 120 000 сум за выезд.</p>
+            <p className="text-sm text-red-600 dark:text-red-400 mt-2">Смета отклонена клиентом. Мастер получил 120 000 сум за выезд.</p>
           )}
         </div>
       )}
@@ -786,7 +786,7 @@ export function OrderDetailPage() {
                 Удерживается автоматически при завершении заказа ({formatPrice(order.commissionAmount, t('common.currency'))})
               </p>
               <p className="text-xs text-green-600 dark:text-green-400 mt-1">
-                💰 Вы получите: {formatPrice(Number(order.escrowAmount) - Number(order.commissionAmount), t('common.currency'))}
+                Вы получите: {formatPrice(Number(order.escrowAmount) - Number(order.commissionAmount), t('common.currency'))}
               </p>
             </div>
           </div>
@@ -857,7 +857,7 @@ export function OrderDetailPage() {
                   <Navigation size={18} />
                 </div>
                 <div className="flex-1">
-                  <p className="font-semibold">🚗 Яндекс.Навигатор</p>
+                  <p className="font-semibold">Яндекс.Навигатор</p>
                   <p className="text-xs text-white/80">Проложить маршрут к клиенту</p>
                 </div>
                 <Map size={16} className="opacity-60" />
@@ -884,7 +884,7 @@ export function OrderDetailPage() {
           {/* Описание заказа для мастера — полное */}
           {order.description && (
             <div className="mt-3 p-3 rounded-xl bg-white dark:bg-gray-800">
-              <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">📝 Описание заказа</p>
+              <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">Описание заказа</p>
               <p className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-line">{order.description}</p>
             </div>
           )}
@@ -892,7 +892,7 @@ export function OrderDetailPage() {
           {/* Фотографии заказа для мастера */}
           {order.images && order.images.filter((img: string) => img.startsWith('http') || img.startsWith('data:')).length > 0 && (
             <div className="mt-3 p-3 rounded-xl bg-white dark:bg-gray-800">
-              <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">📷 Фотографии заказа</p>
+              <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">Фотографии заказа</p>
               <div className="grid grid-cols-3 gap-2">
                 {order.images.filter((img: string) => img.startsWith('http') || img.startsWith('data:')).map((img: string, idx: number) => (
                   <a key={idx} href={img.startsWith('data:') ? undefined : img} target="_blank" rel="noopener noreferrer" className="block">
@@ -989,7 +989,7 @@ export function OrderDetailPage() {
                           <span className="mx-1">·</span>
                           {resp.master.masterProfile.completedOrders || 0} {t('orderDetail.ordersCount')}
                           {resp.master.masterProfile.isOnline ? (
-                            <span className="ml-2 text-green-600 dark:text-green-400 text-xs">🟢 {t('masterCard.online')}</span>
+                            <span className="ml-2 text-green-600 dark:text-green-400 text-xs">{t('masterCard.online')}</span>
                           ) : resp.master.masterProfile.lastSeenAt ? (
                             <span className="ml-2 text-gray-400 dark:text-gray-500 text-xs">
                               {t('masterCard.lastSeen')} {formatLastSeen(resp.master.masterProfile.lastSeenAt)}

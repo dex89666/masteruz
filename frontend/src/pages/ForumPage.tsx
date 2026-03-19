@@ -4,7 +4,7 @@ import { forumApi } from '../api/client';
 import { useAuthStore } from '../store';
 import { useTranslation } from '../i18n';
 import { LoadingSpinner } from '../components/LoadingSpinner';
-import { MessageSquare, Plus, Pin, Lock, ArrowLeft, Send, Trash2, Camera, Image, X } from 'lucide-react';
+import { MessageSquare, Plus, Pin, Lock, ArrowLeft, Send, Trash2, Camera, Image, X, Wrench } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 // ─── Компонент выбора фото (галерея + камера) ───
@@ -197,7 +197,7 @@ export function ForumPage() {
 
       {topics.length === 0 ? (
         <div className="text-center py-16">
-          <span className="text-5xl block mb-4">💬</span>
+          <MessageSquare size={40} className="text-gray-300 dark:text-gray-600 mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300">{t('forum.noTopics')}</h3>
         </div>
       ) : (
@@ -214,13 +214,13 @@ export function ForumPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    {topic.isPinned && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">📌</span>}
+                    {topic.isPinned && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"><Pin size={10} className="inline" /></span>}
                     {topic.isLocked && <Lock size={12} className="text-gray-400" />}
                     <h3 className="font-medium text-sm truncate dark:text-white">{topic.title}</h3>
                   </div>
                   <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    <span>🔧 {topic.author?.profile?.firstName || '?'}</span>
-                    <span>💬 {topic._count?.posts || 0}</span>
+                    <span><Wrench size={12} className="inline" /> {topic.author?.profile?.firstName || '?'}</span>
+                    <span><MessageSquare size={12} className="inline" /> {topic._count?.posts || 0}</span>
                     <span>{new Date(topic.createdAt).toLocaleDateString()}</span>
                   </div>
                 </div>
@@ -320,10 +320,10 @@ export function ForumTopicPage() {
       <div className="card mb-4 border-l-4 border-primary-500">
         <div className="flex items-center gap-2 mb-2">
           <span className="text-xs font-semibold text-primary-600 dark:text-primary-400">
-            🔧 {topic.author?.profile?.firstName || '?'}
+            <Wrench size={12} className="inline" /> {topic.author?.profile?.firstName || '?'}
           </span>
           <span className="text-xs text-gray-400">{new Date(topic.createdAt).toLocaleString()}</span>
-          {topic.isPinned && <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">📌</span>}
+          {topic.isPinned && <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"><Pin size={10} className="inline" /></span>}
           {topic.isLocked && <Lock size={12} className="text-gray-400" />}
         </div>
         <p className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap">{topic.content}</p>
@@ -337,7 +337,7 @@ export function ForumTopicPage() {
             <div key={post.id} className="card">
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
-                  🔧 {post.author?.profile?.firstName || '?'}
+                  <Wrench size={12} className="inline" /> {post.author?.profile?.firstName || '?'}
                 </span>
                 <span className="text-xs text-gray-400">{new Date(post.createdAt).toLocaleString()}</span>
               </div>

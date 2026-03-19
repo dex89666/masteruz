@@ -51,11 +51,11 @@ export function OrderTimeline({
   const { t } = useTranslation();
 
   const allSteps = [
-    { status: 'PUBLISHED', label: t('orderStatus.PUBLISHED'), icon: '📋' },
-    { status: 'ACCEPTED', label: t('orderStatus.ACCEPTED'), icon: '✅' },
-    { status: 'IN_TRANSIT', label: t('orderStatus.IN_TRANSIT'), icon: '🚗' },
-    { status: 'IN_PROGRESS', label: t('orderStatus.IN_PROGRESS'), icon: '🔧' },
-    { status: 'COMPLETED', label: t('orderStatus.COMPLETED'), icon: '🏆' },
+    { status: 'PUBLISHED', label: t('orderStatus.PUBLISHED'), icon: '' },
+    { status: 'ACCEPTED', label: t('orderStatus.ACCEPTED'), icon: '' },
+    { status: 'IN_TRANSIT', label: t('orderStatus.IN_TRANSIT'), icon: '' },
+    { status: 'IN_PROGRESS', label: t('orderStatus.IN_PROGRESS'), icon: '' },
+    { status: 'COMPLETED', label: t('orderStatus.COMPLETED'), icon: '' },
   ];
 
   const statusOrder = ['DRAFT', 'PUBLISHED', 'ACCEPTED', 'IN_TRANSIT', 'IN_PROGRESS', 'COMPLETED'];

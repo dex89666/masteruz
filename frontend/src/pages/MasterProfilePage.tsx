@@ -160,7 +160,7 @@ export function MasterProfilePage() {
           </div>
           <div className="card text-center p-3">
             <div className={`text-lg font-bold ${mp.isAvailable ? 'text-green-500' : 'text-red-400'}`}>
-              {mp.isAvailable ? '✅' : '⛔'}
+              {mp.isAvailable ? '' : ''}
             </div>
             <p className="text-xs text-gray-500 dark:text-gray-400">
               {mp.isAvailable ? t('masterCard.available') : t('masterCard.busy')}
@@ -187,7 +187,6 @@ export function MasterProfilePage() {
               if (!cat) return null;
               return (
                 <span key={cat.id} className="inline-flex items-center gap-1.5 badge bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400 text-sm">
-                  <span>{cat.icon}</span>
                   {cat.name}
                 </span>
               );

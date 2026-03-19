@@ -22,6 +22,7 @@ import {
   ChevronRight,
   Zap,
   Shield,
+  Check,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { Task } from '../types';
@@ -72,7 +73,7 @@ function StepIndicator({ current, total }: { current: number; total: number }) {
                 : 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
             }`}
           >
-            {step < current ? '✓' : step}
+            {step < current ? <Check size={14} /> : step}
           </div>
           {step < total && (
             <div
@@ -512,7 +513,7 @@ export function CreateOrderPage() {
                   key={task.id}
                   className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 bg-green-50 dark:bg-green-900/20 px-3 py-1.5 rounded-lg"
                 >
-                  <span className="text-green-600">✓</span>
+                  <span className="text-green-600"><Check size={14} className="inline" /></span>
                   <span className="flex-1">{getLocalName(task)}</span>
                   {task.minPrice != null && task.minPrice > 0 && (
                     <span className="text-xs font-medium text-green-700">
@@ -544,7 +545,7 @@ export function CreateOrderPage() {
           </h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* ⚡ Срочный заказ */}
+            {/* Срочный заказ */}
             <div className={`rounded-xl border-2 p-4 transition-all ${
               isUrgent
                 ? 'border-orange-400 bg-orange-50 dark:bg-orange-900/20 dark:border-orange-600'
@@ -584,7 +585,7 @@ export function CreateOrderPage() {
               {isUrgent && (
                 <div className="mt-3 pt-3 border-t border-orange-200 dark:border-orange-700">
                   <p className="text-sm text-orange-700 dark:text-orange-400 font-medium">
-                    ⚡ {t('createOrder.urgentPriceNote')}
+                    {t('createOrder.urgentPriceNote')}
                   </p>
                 </div>
               )}

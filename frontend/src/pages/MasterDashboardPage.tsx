@@ -140,7 +140,7 @@ export function MasterDashboardPage() {
         >
           <ShieldCheck size={22} />
           <div className="flex-1 text-left">
-            <p className="font-semibold text-sm">⚡ Вернуться в Админ-панель</p>
+            <p className="font-semibold text-sm">Вернуться в Админ-панель</p>
             <p className="text-[11px] text-purple-200">Переключиться обратно на роль Админа</p>
           </div>
           <ArrowRight size={18} className="text-purple-200" />
@@ -150,7 +150,7 @@ export function MasterDashboardPage() {
       {/* Приветствие */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-          {t('masterDashboard.hello')}, {profile?.firstName || t('masterDashboard.master')}! 👋
+          {t('masterDashboard.hello')}, {profile?.firstName || t('masterDashboard.master')}!
         </h1>
         <p className="text-gray-500 dark:text-gray-400 mt-1">{t('masterDashboard.subtitle')}</p>
       </div>
@@ -415,7 +415,7 @@ export function MasterDashboardPage() {
       {!user?.isVerified && (
         <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-xl p-4 mb-6">
           <p className="text-sm text-yellow-800 dark:text-yellow-300 font-medium mb-2">
-            ⚠️ {t('masterDashboard.notVerified')}
+            {t('masterDashboard.notVerified')}
           </p>
           <p className="text-xs text-yellow-600 dark:text-yellow-400 mb-3">
             {t('masterDashboard.notVerifiedDesc')}
@@ -452,7 +452,7 @@ export function MasterDashboardPage() {
       <div className="mb-6">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200">
-            🔥 {t('masterDashboard.newOrders')}
+            {t('masterDashboard.newOrders')}
           </h2>
           <Link to="/orders" className="text-sm text-primary-600 dark:text-primary-400 hover:text-primary-700 flex items-center gap-1">
             {t('masterDashboard.viewAll')}

@@ -109,7 +109,7 @@ export function CreateEstimationPage() {
           <ArrowLeft size={20} />
         </button>
         <div>
-          <h1 className="text-xl font-bold">🔍 Выезд на оценку</h1>
+          <h1 className="text-xl font-bold">Выезд на оценку</h1>
           <p className="text-sm text-gray-500">Мастер приедет, сделает замеры и составит смету</p>
         </div>
       </div>
@@ -157,7 +157,7 @@ export function CreateEstimationPage() {
           >
             <option value="">Выберите категорию</option>
             {categories.map(cat => (
-              <option key={cat.id} value={cat.id}>{cat.icon} {cat.name}</option>
+              <option key={cat.id} value={cat.id}>{cat.name}</option>
             ))}
           </select>
         </div>
@@ -328,7 +328,7 @@ export function CreateEstimationPage() {
 
         {/* Как это работает */}
         <div className="bg-gray-50 dark:bg-gray-800/50 rounded-2xl p-4 mt-4">
-          <h3 className="font-bold text-sm mb-3">📋 Как это работает:</h3>
+          <h3 className="font-bold text-sm mb-3">Как это работает:</h3>
           <ol className="text-sm text-gray-600 dark:text-gray-400 space-y-2">
             <li className="flex gap-2">
               <span className="w-5 h-5 bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-400 rounded-full flex items-center justify-center text-xs font-bold shrink-0">1</span>

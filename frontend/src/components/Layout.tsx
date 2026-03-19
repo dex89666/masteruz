@@ -130,7 +130,7 @@ export function Layout() {
           <div className="flex items-center justify-between h-14 md:h-16 gap-2">
             {/* Logo */}
             <Link to="/" className="flex items-center gap-2 shrink-0">
-              <span className="text-2xl">🔧</span>
+              <Wrench size={24} className="text-primary-600 dark:text-primary-400" />
               <span className="text-xl font-bold text-primary-600 dark:text-primary-400">MasterUz</span>
             </Link>
 
@@ -203,7 +203,7 @@ export function Layout() {
                   className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 whitespace-nowrap transition-colors"
                 >
                   <ShieldCheck size={15} />
-                  ⚡ Админ
+                  Админ
                 </button>
               )}
             </nav>
@@ -390,7 +390,7 @@ export function Layout() {
                   className="flex items-center gap-3 w-full px-4 py-3.5 rounded-xl text-sm font-medium text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20"
                 >
                   <ShieldCheck size={22} />
-                  ⚡ Вернуться в Админ-панель
+                  Вернуться в Админ-панель
                 </button>
               )}
 
@@ -441,7 +441,7 @@ export function Layout() {
             {/* Brand */}
             <div className="col-span-2 md:col-span-1">
               <Link to="/" className="flex items-center gap-2 mb-3">
-                <span className="text-2xl">🔧</span>
+                <Wrench size={24} className="text-primary-400" />
                 <span className="text-xl font-bold text-white">MasterUz</span>
               </Link>
               <p className="text-sm text-gray-400 leading-relaxed">

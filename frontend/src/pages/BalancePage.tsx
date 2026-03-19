@@ -131,7 +131,7 @@ export function BalancePage() {
       const paymentData = res.data.data?.paymentData;
 
       if (provider === 'TELEGRAM_STARS' && paymentData?.starsAmount) {
-        toast.success(`Оплатите ${paymentData.starsAmount} ⭐ Stars через Telegram бот`);
+        toast.success(`Оплатите ${paymentData.starsAmount} Stars через Telegram бот`);
         setShowTopUp(false);
         setTopUpAmount('');
       } else if (paymentData?.url) {
@@ -242,7 +242,7 @@ export function BalancePage() {
                       : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                   }`}
                 >
-                  {p === 'CLICK' ? '💳 Click' : p === 'PAYME' ? '💳 Payme' : '⭐ Stars'}
+                  {p === 'CLICK' ? 'Click' : p === 'PAYME' ? 'Payme' : 'Stars'}
                 </button>
               ))}
             </div>

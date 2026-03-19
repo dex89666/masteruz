@@ -89,26 +89,26 @@ export function PartnerRequestPage() {
               className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 outline-none">
               <option value="">{t('stores.selectCategory')}</option>
               {(categories || []).map((cat: any) => (
-                <option key={cat.slug} value={cat.slug}>{cat.icon} {cat.name}</option>
+                <option key={cat.slug} value={cat.slug}>{cat.name}</option>
               ))}
               {/* Расширенные категории партнёров */}
-              <option value="home-appliances">🏠 Бытовая техника</option>
-              <option value="conditioners">❄️ Кондиционеры и климат</option>
-              <option value="windows-shop">🪟 Окна и двери</option>
-              <option value="sanitary-shop">🚿 Сантехника</option>
-              <option value="lighting">💡 Освещение и электрика</option>
-              <option value="tools-shop">🔧 Инструменты</option>
-              <option value="garden-shop">🌿 Сад и ландшафт</option>
-              <option value="furniture-shop">🛋️ Мебель и фурнитура</option>
-              <option value="tiles-flooring">🪵 Плитка и напольные покрытия</option>
-              <option value="paint-shop">🎨 Краски и лаки</option>
-              <option value="other">📦 Другое</option>
+              <option value="home-appliances">Бытовая техника</option>
+              <option value="conditioners">Кондиционеры и климат</option>
+              <option value="windows-shop">Окна и двери</option>
+              <option value="sanitary-shop">Сантехника</option>
+              <option value="lighting">Освещение и электрика</option>
+              <option value="tools-shop">Инструменты</option>
+              <option value="garden-shop">Сад и ландшафт</option>
+              <option value="furniture-shop">Мебель и фурнитура</option>
+              <option value="tiles-flooring">Плитка и напольные покрытия</option>
+              <option value="paint-shop">Краски и лаки</option>
+              <option value="other">Другое</option>
             </select>
           </div>
 
           {/* Гарантия платформы */}
           <div className="bg-green-50 dark:bg-green-900/20 rounded-xl p-4 border border-green-200 dark:border-green-800">
-            <p className="text-sm font-medium text-green-800 dark:text-green-300 mb-1">🛡️ Гарантия MasterUz</p>
+            <p className="text-sm font-medium text-green-800 dark:text-green-300 mb-1">Гарантия MasterUz</p>
             <p className="text-xs text-green-700 dark:text-green-400">
               Все товары, заказанные через платформу, покрываются нашей гарантией качества.
               Клиенты получают защиту при покупке, а партнёры — дополнительный трафик и доверие.
@@ -141,10 +141,10 @@ export function PartnerRequestPage() {
           <div className="bg-orange-50 dark:bg-orange-900/20 rounded-xl p-4">
             <h3 className="font-semibold text-orange-800 dark:text-orange-300 mb-2">{t('stores.whyPartner')}</h3>
             <ul className="text-sm text-orange-700 dark:text-orange-400 space-y-1">
-              <li>✅ {t('stores.benefit1')}</li>
-              <li>✅ {t('stores.benefit2')}</li>
-              <li>✅ {t('stores.benefit3')}</li>
-              <li>✅ {t('stores.benefit4')}</li>
+              <li>{t('stores.benefit1')}</li>
+              <li>{t('stores.benefit2')}</li>
+              <li>{t('stores.benefit3')}</li>
+              <li>{t('stores.benefit4')}</li>
             </ul>
           </div>
 

@@ -88,10 +88,10 @@ const uz = {
 
   // ─── Rollar ─────────────────────────────
   roles: {
-    CLIENT: '👤 Mijoz',
-    MASTER: '🔧 Usta',
-    ADMIN: '👑 Admin',
-    MANAGER: '📋 Menejer',
+    CLIENT: 'Mijoz',
+    MASTER: 'Usta',
+    ADMIN: 'Admin',
+    MANAGER: 'Menejer',
   },
 
   // ─── Kategoriyalar ──────────────────────
@@ -146,7 +146,7 @@ const uz = {
 
   // ─── Bosh sahifa ────────────────────────
   home: {
-    heroTitle: '⚡ MasterUz',
+    heroTitle: 'MasterUz',
     heroSubtitle: "Buzildi? Hal qilamiz!",
     heroDesc: "Bitta narx. Bitta bosish. Kutilmagan xarajatlarsiz. Santexnik, elektrik, ta'mir — kafolat bilan tekshirilgan ustalar.",
     findMaster: 'Usta topish',
@@ -179,7 +179,7 @@ const uz = {
     stat_guarantee: 'Kun kafolat',
     topMasters: 'Eng yaxshi ustalar',
     viewAll: "Barchasini ko'rish",
-    urgentOrdersHome: '⚡ Shoshilinch buyurtmalar',
+    urgentOrdersHome: 'Shoshilinch buyurtmalar',
     urgentOrdersHomeDesc: "Shoshilinchlik uchun +40% qo'shimcha to'lovli buyurtmalar",
     viewAllUrgent: 'Barcha shoshilinch',
   },
@@ -222,7 +222,7 @@ const uz = {
     onMap: 'Xaritada',
     urgent: 'Shoshilinch',
     urgentLabel: 'Shoshilinch buyurtma',
-    urgentOnly: '⚡ Shoshilinch',
+    urgentOnly: 'Shoshilinch',
     allDistricts: 'Barcha tumanlar',
     allSubcategories: 'Barcha xizmatlar',
     district: 'Tuman',
@@ -280,7 +280,7 @@ const uz = {
     photos: 'Rasmlar (5 tagacha)',
     publish: 'Buyurtmani chop etish',
     creating: 'Yaratilmoqda...',
-    coordsDetermined: "📍 Koordinatalar aniqlandi:",
+    coordsDetermined: "Koordinatalar aniqlandi:",
     loginRequired: 'Buyurtma yaratish uchun tizimga kiring',
     maxPhotos: 'Maksimum 5 ta rasm',
     enterTitle: 'Buyurtma nomini kiriting',
@@ -388,7 +388,7 @@ const uz = {
     regFeeReason3: 'Xizmat sifatini oshiradi',
     regFeeReason4: "Birinchi buyurtma bilan o'zini oqlaydi",
     regFeePayBtn: "400 000 so'm to'lash",
-    regFeeSuccess: "To'lov muvaffaqiyatli! 🎉",
+    regFeeSuccess: "To'lov muvaffaqiyatli!",
     regFeeProcessing: "To'lov qayta ishlanmoqda...",
     regFeeRedirected: "To'lov sahifasiga yo'naltirilmoqda...",
     regFeePending: "Ro'yxatdan o'tish to'lovi kutilmoqda",
@@ -420,7 +420,7 @@ const uz = {
     watchVideo: "Videoni ko'rish",
     completeCourse: 'Kursni yakunlash',
     completing: 'Yakunlanmoqda...',
-    courseCompleted: 'Kurs yakunlandi! 🎉',
+    courseCompleted: 'Kurs yakunlandi!',
     yourProgress: 'Sizning taraqqiyotingiz',
     requiredOf: 'majburiy',
     allCompleted: "Barcha majburiy kurslar o'tildi! Siz tasdiqlash olishingiz mumkin.",
@@ -861,8 +861,8 @@ const uz = {
     thankYou: 'Sharh uchun rahmat!',
     thankYouDesc: 'Sizning sharhingiz boshqa mijozlarga usta tanlashda yordam beradi',
     backToOrders: 'Buyurtmalarimga',
-    rating5: "Ajoyib! 🌟",
-    rating4: "Yaxshi 👍",
+    rating5: "Ajoyib!",
+    rating4: "Yaxshi",
     rating3: "O'rtacha",
     rating2: 'Yomon',
     rating1: 'Dahshat',
@@ -1329,8 +1329,8 @@ const uz = {
     analyzingDesc: 'Ish turini aniqlaymiz, vazifalarni tanlaymiz, narxni hisoblaymiz.',
     chooseVariant: 'Variantni tanlang:',
     tierGood: '⭐ Yaxshi — standart',
-    tierBetter: '⚡ Ajoyib — optimal',
-    tierBest: '👑 Premium — eng yuqori sifat',
+    tierBetter: 'Ajoyib — optimal',
+    tierBest: 'Premium — eng yuqori sifat',
     recommended: 'TAVSIYA ETAMIZ',
     confidence: 'ishonch',
     tasks: 'ta ish',
@@ -1359,7 +1359,7 @@ const uz = {
     voiceRecorded: 'Ovoz yozib olindi! Tavsif aniqlandi.',
     recording: 'Yozib olinmoqda... Muammoni ovoz bilan tasvirlang',
     stopRecording: 'Yozishni toʻxtatish...',
-    ctaButton: '📸 30 sekundda buyurtma yaratish',
+    ctaButton: '30 sekundda buyurtma yaratish',
   },
 
   // ─── Ulangan kartalar ─────────────────────

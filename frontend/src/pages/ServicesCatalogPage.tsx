@@ -9,6 +9,7 @@ import { Link, useParams, useNavigate } from 'react-router-dom';
 import { catalogApi } from '../api/client';
 import { useTranslation } from '../i18n';
 import { ArrowLeft, ChevronRight, Layers } from 'lucide-react';
+import CategoryIcon from '../components/CategoryIcon';
 
 interface ChildCategory {
   id: string;
@@ -96,7 +97,7 @@ export function ServicesCatalogPage() {
         </button>
         <div>
           <h1 className="text-2xl md:text-3xl font-extrabold dark:text-white flex items-center gap-3">
-            {category.icon && <span className="text-3xl md:text-4xl">{category.icon}</span>}
+            {category.icon && <CategoryIcon name={category.icon} size="lg" />}
             {getName(category)}
           </h1>
           <p className="text-sm md:text-base text-gray-500 dark:text-gray-400 mt-1">
@@ -120,8 +121,8 @@ export function ServicesCatalogPage() {
               className="group flex items-center gap-4 p-5 md:p-6 bg-white dark:bg-gray-800 rounded-2xl border-2 border-gray-100 dark:border-gray-700 hover:border-primary-300 dark:hover:border-primary-600 hover:shadow-lg transition-all"
             >
               {/* Иконка — крупная */}
-              <div className="flex-shrink-0 w-16 h-16 md:w-20 md:h-20 rounded-2xl bg-primary-50 dark:bg-primary-900/30 flex items-center justify-center">
-                <span className="text-3xl md:text-4xl">{child.icon || '📁'}</span>
+              <div className="flex-shrink-0">
+                <CategoryIcon name={child.icon || 'Folder'} size="xl" />
               </div>
 
               {/* Текст */}

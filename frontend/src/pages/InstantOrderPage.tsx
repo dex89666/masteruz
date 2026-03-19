@@ -27,7 +27,7 @@ const TIER_CONFIG = {
     bg: 'bg-green-50 dark:bg-green-900/20',
     border: 'border-green-300 dark:border-green-700',
     badge: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
-    label: '⭐ Хороший',
+    label: 'Хороший',
   },
   BETTER: {
     icon: Zap,
@@ -35,7 +35,7 @@ const TIER_CONFIG = {
     bg: 'bg-blue-50 dark:bg-blue-900/20',
     border: 'border-blue-300 dark:border-blue-700',
     badge: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
-    label: '⚡ Отличный',
+    label: 'Отличный',
   },
   BEST: {
     icon: Crown,
@@ -43,7 +43,7 @@ const TIER_CONFIG = {
     bg: 'bg-amber-50 dark:bg-amber-900/20',
     border: 'border-amber-300 dark:border-amber-700',
     badge: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200',
-    label: '👑 Премиум',
+    label: 'Премиум',
   },
 };
 
@@ -262,7 +262,7 @@ export function InstantOrderPage() {
         if (result) {
           setVoiceText(result);
           setDescription(result);
-          toast.success('🎤 Голос распознан! Отредактируйте текст при необходимости.');
+          toast.success('Голос распознан! Отредактируйте текст при необходимости.');
         } else {
           toast.error('Не удалось распознать речь.');
         }
@@ -273,7 +273,7 @@ export function InstantOrderPage() {
       recognitionRef.current = recognition;
       recognition.start();
       setIsRecording(true);
-      toast('🎙️ Говорите... Текст появится в реальном времени', { duration: 2000 });
+      toast('Говорите... Текст появится в реальном времени', { duration: 2000 });
     } catch {
       toast.error('Не удалось получить доступ к микрофону');
     }
@@ -418,7 +418,7 @@ export function InstantOrderPage() {
       });
 
       const order = result.data.data;
-      toast.success(additionalWishes ? '✅ Заказ создан и отправлен на модерацию!' : '✅ Заказ создан и опубликован!');
+      toast.success(additionalWishes ? 'Заказ создан и отправлен на модерацию!' : 'Заказ создан и опубликован!');
       navigate(`/orders/${order.id}`);
     } catch (err: any) {
       const msg = err.response?.data?.error?.message || err.response?.data?.message || 'Ошибка создания заказа';
@@ -444,7 +444,7 @@ export function InstantOrderPage() {
       {isUrgent && (
         <div className="bg-red-600 text-white py-3 px-4 text-center font-bold text-sm md:text-base flex items-center justify-center gap-2">
           <AlertTriangle size={20} className="shrink-0" />
-          🚨 Срочный вызов — надбавка +40% за срочность
+          Срочный вызов — надбавка +40% за срочность
         </div>
       )}
 
@@ -455,10 +455,10 @@ export function InstantOrderPage() {
             <ArrowLeft size={18} className="mr-1" /> Назад
           </button>
           <h1 className="text-2xl md:text-3xl font-extrabold flex items-center gap-2">
-            <Sparkles size={28} /> {isUrgent ? '⚡ Срочный вызов мастера' : 'Создать заказ за 30 секунд'}
+            <Sparkles size={28} /> {isUrgent ? 'Срочный вызов мастера' : 'Создать заказ за 30 секунд'}
           </h1>
           <p className="text-white/80 mt-1 text-sm md:text-base">
-            📸 Загрузите фото → 🎤 опишите голосом → 🤖 AI подберёт варианты
+            Загрузите фото → опишите голосом → AI подберёт варианты
           </p>
 
           {/* ─── Step indicator ─── */}
@@ -616,7 +616,7 @@ export function InstantOrderPage() {
                       <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-400 rounded-full animate-pulse" />
                     </div>
                     <div className="flex flex-col items-start">
-                      <span>🎤 Нажмите и говорите</span>
+                      <span>Нажмите и говорите</span>
                       <span className="text-sm font-normal text-white/70">Голос автоматически станет текстом</span>
                     </div>
                   </>
@@ -646,7 +646,7 @@ export function InstantOrderPage() {
                 maxLength={2000}
               />
               {voiceText && (
-                <p className="text-xs text-gray-400 mt-1">✏️ Вы можете свободно редактировать распознанный текст</p>
+                <p className="text-xs text-gray-400 mt-1">Вы можете свободно редактировать распознанный текст</p>
               )}
             </div>
 
@@ -665,7 +665,7 @@ export function InstantOrderPage() {
                       : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                   }`}
                 >
-                  ⚡ Как можно скорее
+                  Как можно скорее
                 </button>
                 <button
                   onClick={() => setTiming('date')}
@@ -675,7 +675,7 @@ export function InstantOrderPage() {
                       : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                   }`}
                 >
-                  📅 Выбрать дату
+                  Выбрать дату
                 </button>
               </div>
               {timing === 'date' && (
@@ -737,7 +737,7 @@ export function InstantOrderPage() {
               className="w-full min-h-[60px] md:min-h-[64px] bg-gradient-to-r from-orange-400 to-amber-400 hover:from-orange-500 hover:to-amber-500 text-white rounded-2xl font-bold text-lg flex items-center justify-center gap-3 transition-all shadow-lg shadow-orange-400/25 border-2 border-orange-300"
             >
               <AlertTriangle size={22} />
-              🔍 Нужна индивидуальная оценка мастера
+              Нужна индивидуальная оценка мастера
             </Link>
           </div>
         )}
@@ -812,7 +812,7 @@ export function InstantOrderPage() {
                   >
                     {variant.tier === 'BETTER' && (
                       <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-blue-500 text-white text-xs font-bold px-4 py-1.5 rounded-full shadow-md">
-                        ⚡ РЕКОМЕНДУЕМ
+                        РЕКОМЕНДУЕМ
                       </div>
                     )}
 
@@ -879,7 +879,7 @@ export function InstantOrderPage() {
               className="w-full min-h-[60px] md:min-h-[64px] bg-gradient-to-r from-orange-400 to-amber-400 hover:from-orange-500 hover:to-amber-500 text-white rounded-2xl font-bold text-base md:text-lg flex items-center justify-center gap-3 transition-all shadow-lg shadow-orange-400/25 border-2 border-orange-300"
             >
               <AlertTriangle size={22} />
-              🔍 Это не подходит — нужна индивидуальная оценка
+              Это не подходит — нужна индивидуальная оценка
             </Link>
 
             <button
@@ -970,7 +970,7 @@ export function InstantOrderPage() {
                   className="w-6 h-6 rounded text-orange-500 focus:ring-orange-500"
                 />
                 <span className="dark:text-white text-base">
-                  ⚡ Срочный заказ <span className="text-sm text-orange-500">(+40% к цене)</span>
+                  Срочный заказ <span className="text-sm text-orange-500">(+40% к цене)</span>
                 </span>
               </label>
 
@@ -1028,7 +1028,7 @@ export function InstantOrderPage() {
               {creating ? (
                 <><Loader2 size={24} className="animate-spin" /> Создаём заказ...</>
               ) : (
-                <><CheckCircle size={24} /> Создать заказ {isUrgent && '⚡'}</>
+                <><CheckCircle size={24} /> Создать заказ</>
               )}
             </button>
 
@@ -1044,7 +1044,7 @@ export function InstantOrderPage() {
               className="w-full min-h-[60px] bg-gradient-to-r from-orange-400 to-amber-400 hover:from-orange-500 hover:to-amber-500 text-white rounded-2xl font-bold text-base md:text-lg flex items-center justify-center gap-3 transition-all shadow-lg shadow-orange-400/25 border-2 border-orange-300"
             >
               <AlertTriangle size={22} />
-              🔍 Нужна индивидуальная оценка мастера
+              Нужна индивидуальная оценка мастера
             </Link>
           </div>
         )}

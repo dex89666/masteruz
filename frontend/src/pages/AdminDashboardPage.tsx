@@ -790,10 +790,10 @@ export function AdminDashboardPage() {
     try {
       if (balanceAction === 'topup') {
         await adminApi.topUpUserBalance(balanceModal.userId, amt, balanceReason || undefined);
-        toast.success(`✅ Зачислено ${amt.toLocaleString('ru')} сум`);
+        toast.success(`Зачислено ${amt.toLocaleString('ru')} сум`);
       } else {
         await adminApi.withdrawUserBalance(balanceModal.userId, amt, balanceReason || undefined);
-        toast.success(`✅ Списано ${amt.toLocaleString('ru')} сум`);
+        toast.success(`Списано ${amt.toLocaleString('ru')} сум`);
       }
       // Обновляем баланс и транзакции
       const [balRes, txRes] = await Promise.all([
@@ -1131,7 +1131,7 @@ export function AdminDashboardPage() {
                             {m.user?.profile?.firstName || t('admin.noName')} {m.user?.profile?.lastName || ''}
                           </p>
                           <p className="text-xs text-gray-500 dark:text-gray-400">
-                            ⭐ {m.rating?.toFixed(1) || '0.0'} · {m.completedOrders || 0} {t('admin.statOrders').toLowerCase()}
+                            {m.rating?.toFixed(1) || '0.0'} · {m.completedOrders || 0} {t('admin.statOrders').toLowerCase()}
                           </p>
                         </div>
                         {m.user?.isVerified && (
@@ -1259,9 +1259,9 @@ export function AdminDashboardPage() {
                         {u.phone && <span>{u.phone}</span>}
                       </div>
                       <div className="flex gap-3 text-[10px] text-gray-400 dark:text-gray-500 mt-1">
-                        <span>📦 {u._count?.clientOrders || 0} / {u._count?.masterOrders || 0}</span>
-                        <span>⭐ {u._count?.reviewsReceived || 0}</span>
-                        <span>💰 {Number(u.balance || 0).toLocaleString('ru')} сум</span>
+                        <span>{u._count?.clientOrders || 0} / {u._count?.masterOrders || 0}</span>
+                        <span>{u._count?.reviewsReceived || 0} отз.</span>
+                        <span>{Number(u.balance || 0).toLocaleString('ru')} сум</span>
                         <span>{new Date(u.createdAt).toLocaleDateString()}</span>
                       </div>
                     </div>
@@ -1394,21 +1394,21 @@ export function AdminDashboardPage() {
                       <div className="flex items-center gap-2 mb-1">
                         {o.isUrgent && (
                           <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400">
-                            ⚡ URGENT
+                            URGENT
                           </span>
                         )}
                         <StatusBadge status={o.status} />
                       </div>
                       <p className="font-medium text-sm truncate dark:text-white">{o.title}</p>
                       <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        <span>👤 {o.client?.profile?.firstName || '?'}</span>
-                        {o.master && <span>🔧 {o.master?.profile?.firstName || '?'}</span>}
-                        <span>📁 {o.category?.name || ''}</span>
+                        <span>{o.client?.profile?.firstName || '?'}</span>
+                        {o.master && <span>{o.master?.profile?.firstName || '?'}</span>}
+                        <span>{o.category?.name || ''}</span>
                       </div>
                       <div className="flex items-center gap-3 text-[10px] text-gray-400 dark:text-gray-500 mt-1">
-                        <span>💬 {o._count?.responses || 0}</span>
-                        <span>⭐ {o._count?.reviews || 0}</span>
-                        {o.adminComment && <span className="text-purple-500">📝 коммент</span>}
+                        <span>{o._count?.responses || 0} откл.</span>
+                        <span>{o._count?.reviews || 0} отз.</span>
+                        {o.adminComment && <span className="text-purple-500">коммент</span>}
                         <span>{new Date(o.createdAt).toLocaleDateString()}</span>
                       </div>
                     </div>
@@ -1417,7 +1417,7 @@ export function AdminDashboardPage() {
                         {formatPrice(o.price, t('common.currency'))}
                       </p>
                       {o.commissionPaid && (
-                        <span className="text-[10px] text-green-600 dark:text-green-400">✅ комиссия</span>
+                        <span className="text-[10px] text-green-600 dark:text-green-400">комиссия</span>
                       )}
                     </div>
                   </div>
@@ -1519,7 +1519,7 @@ export function AdminDashboardPage() {
                           </span>
                         </div>
                         <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">
-                          {p.order?.title ? `📦 ${p.order.title}` : ''} · {new Date(p.createdAt).toLocaleString()}
+                          {p.order?.title ? `${p.order.title}` : ''} · {new Date(p.createdAt).toLocaleString()}
                         </p>
                       </div>
                       <div className="text-right flex-shrink-0">
@@ -1584,9 +1584,9 @@ export function AdminDashboardPage() {
                         </span>
                       </div>
                       <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-                        👤 {req.contactPerson} • 📞 {req.phone} • 📂 {req.storeCategory}
+                        {req.contactPerson} • {req.phone} • {req.storeCategory}
                       </p>
-                      {req.city && <p className="text-xs text-gray-400 dark:text-gray-500">📍 {req.city} {req.address || ''}</p>}
+                      {req.city && <p className="text-xs text-gray-400 dark:text-gray-500">{req.city} {req.address || ''}</p>}
                       {req.message && <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 italic">"{req.message}"</p>}
                       <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
                         {new Date(req.createdAt).toLocaleString()}
@@ -1674,17 +1674,16 @@ export function AdminDashboardPage() {
                           </span>
                         </div>
                         <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-                          {proj.propertyType === 'apartment' ? '🏢' : proj.propertyType === 'house' ? '🏠' : proj.propertyType === 'office' ? '🏬' : '🏪'}
-                          {' '}{proj.propertyType}
+                          {proj.propertyType}
                           {proj.area ? ` • ${proj.area} м²` : ''}
                           {proj.rooms ? ` • ${proj.rooms} ком.` : ''}
                         </p>
-                        {proj.address && <p className="text-xs text-gray-400 dark:text-gray-500">📍 {proj.address}{proj.city ? `, ${proj.city}` : ''}</p>}
+                        {proj.address && <p className="text-xs text-gray-400 dark:text-gray-500">{proj.address}{proj.city ? `, ${proj.city}` : ''}</p>}
                         <div className="flex items-center gap-3 text-xs text-gray-400 dark:text-gray-500 mt-1">
-                          {proj.totalPrice && <span>💰 {proj.totalPrice.toLocaleString()} UZS</span>}
-                          {proj.designIncluded && <span>🎨 Дизайн</span>}
-                          {proj.furnitureIncluded && <span>🪑 Мебель</span>}
-                          <span>📅 {new Date(proj.createdAt).toLocaleDateString()}</span>
+                          {proj.totalPrice && <span>{proj.totalPrice.toLocaleString()} UZS</span>}
+                          {proj.designIncluded && <span>Дизайн</span>}
+                          {proj.furnitureIncluded && <span>Мебель</span>}
+                          <span>{new Date(proj.createdAt).toLocaleDateString()}</span>
                         </div>
 
                         {/* Mini progress bar */}
@@ -1781,7 +1780,7 @@ export function AdminDashboardPage() {
                 <div key={cat.id} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
                   <div className="flex items-center gap-2 px-4 py-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-750" onClick={() => toggleCat(cat.id)}>
                     {expandedCats.has(cat.id) ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-                    <span className="text-lg mr-1">{cat.icon || '📁'}</span>
+                    <span className="text-lg mr-1">{cat.icon || 'Folder'}</span>
                     <span className="font-semibold flex-1 dark:text-white">
                       {cat.name}
                       {!cat.isActive && <span className="ml-2 text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full">скрыта</span>}
@@ -1801,7 +1800,7 @@ export function AdminDashboardPage() {
                         <div key={sub.id} className="border-t border-gray-50 dark:border-gray-700/50">
                           <div className="flex items-center gap-2 px-6 py-2.5 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-750" onClick={() => toggleSub(sub.id)}>
                             {expandedSubs.has(sub.id) ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                            <span className="mr-1">{sub.icon || '📂'}</span>
+                            <span className="mr-1">{sub.icon || 'FolderOpen'}</span>
                             <span className="font-medium flex-1 text-sm dark:text-gray-200">
                               {sub.name}
                               {!sub.isActive && <span className="ml-2 text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full">скрыта</span>}
@@ -1873,8 +1872,8 @@ export function AdminDashboardPage() {
                   </div>
                   {((showAddForm?.type || editingItem?.type) !== 'task') && (
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Иконка (emoji)</label>
-                      <input value={formData.icon || ''} onChange={(e) => setFormData({ ...formData, icon: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" placeholder="🔧" />
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Иконка (Lucide название)</label>
+                      <input value={formData.icon || ''} onChange={(e) => setFormData({ ...formData, icon: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" placeholder="Wrench" />
                     </div>
                   )}
                   {((showAddForm?.type || editingItem?.type) === 'task') && (
@@ -1927,11 +1926,11 @@ export function AdminDashboardPage() {
           {/* Sub-tabs */}
           <div className="flex gap-2 overflow-x-auto pb-1">
             {[
-              { key: 'aiOrders' as const, label: `AI-заказы (${aiModerationOrders.length})`, icon: '🤖' },
-              { key: 'estimates' as const, label: `Сметы (${pendingEstimates.length})`, icon: '📋' },
-              { key: 'messages' as const, label: `Сообщения (${flaggedMessages.length})`, icon: '💬' },
-              { key: 'blacklist' as const, label: `Чёрный список (${blacklist.length})`, icon: '🚫' },
-              { key: 'chatArchive' as const, label: 'Архив чатов', icon: '📂' },
+              { key: 'aiOrders' as const, label: `AI-заказы (${aiModerationOrders.length})`, icon: '' },
+              { key: 'estimates' as const, label: `Сметы (${pendingEstimates.length})`, icon: '' },
+              { key: 'messages' as const, label: `Сообщения (${flaggedMessages.length})`, icon: '' },
+              { key: 'blacklist' as const, label: `Чёрный список (${blacklist.length})`, icon: '' },
+              { key: 'chatArchive' as const, label: 'Архив чатов', icon: '' },
             ].map(st => (
               <button
                 key={st.key}
@@ -1982,7 +1981,7 @@ export function AdminDashboardPage() {
                     <div className="flex gap-2 overflow-x-auto pb-1">
                       {(order.images as string[]).slice(0, 5).map((img: string, i: number) => (
                         <div key={i} className="w-20 h-20 rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-700 flex-shrink-0">
-                          <img src={img} alt={`Фото ${i + 1}`} className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).src = 'https://placeholder.co/80x80?text=📷'; }} />
+                          <img src={img} alt={`Фото ${i + 1}`} className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).src = 'https://placeholder.co/80x80?text=img'; }} />
                         </div>
                       ))}
                     </div>
@@ -1997,7 +1996,7 @@ export function AdminDashboardPage() {
                   {/* Additional wishes */}
                   {order.additionalWishes && (
                     <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-3 border border-amber-200 dark:border-amber-800">
-                      <p className="text-xs text-amber-600 dark:text-amber-400 font-semibold mb-1">⚠️ Дополнительные пожелания клиента:</p>
+                      <p className="text-xs text-amber-600 dark:text-amber-400 font-semibold mb-1">Дополнительные пожелания клиента:</p>
                       <p className="text-sm text-amber-800 dark:text-amber-200">{order.additionalWishes}</p>
                     </div>
                   )}
@@ -2067,7 +2066,7 @@ export function AdminDashboardPage() {
                       <button
                         onClick={() => {
                           const note = prompt('Что нужно исправить?', 'Уточните описание или добавьте фото');
-                          if (note !== null) handleModerateAiOrder(order.id, false, '⚠️ На доработку: ' + (note || 'Требуется уточнение'));
+                          if (note !== null) handleModerateAiOrder(order.id, false, 'На доработку: ' + (note || 'Требуется уточнение'));
                         }}
                         className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-1.5 transition"
                       >
@@ -2283,10 +2282,10 @@ export function AdminDashboardPage() {
                           <img src={msg.imageUrl} alt="Фото" className="mt-1 max-h-32 rounded-lg" />
                         )}
                         {msg.isFlagged && (
-                          <p className="text-xs text-orange-500 mt-1">🚩 {msg.flagReason}</p>
+                          <p className="text-xs text-orange-500 mt-1">{msg.flagReason}</p>
                         )}
                         {msg.isBlocked && (
-                          <p className="text-xs text-red-500 mt-1">🚫 Заблокировано</p>
+                          <p className="text-xs text-red-500 mt-1">Заблокировано</p>
                         )}
                       </div>
                     ))}
@@ -2312,14 +2311,14 @@ export function AdminDashboardPage() {
                         </div>
                         <div className="flex items-center gap-2 shrink-0 ml-2">
                           <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-2 py-0.5 rounded-full font-medium">
-                            💬 {item.messageCount}
+                            {item.messageCount}
                           </span>
                           <StatusBadge status={item.status} />
                         </div>
                       </div>
                       <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
-                        <span>👤 {item.client?.name || '—'}</span>
-                        <span>🔧 {item.master?.name || '—'}</span>
+                        <span>{item.client?.name || '—'}</span>
+                        <span>{item.master?.name || '—'}</span>
                       </div>
                       {item.lastMessage && (
                         <p className="text-xs text-gray-400 mt-2 truncate">
@@ -2738,12 +2737,12 @@ export function AdminDashboardPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400 mb-3">
-                    <span>⏱ {course.durationMinutes || '—'} мин</span>
-                    <span>📝 Вопросов: {course._count?.questions || 0}</span>
-                    <span>👥 Прошли: {course._count?.progress || 0}</span>
-                    <span>🎯 Порог: {course.passingScore || 70}%</span>
-                    {course.videoUrl && <span>🎬 Видео</span>}
-                    {course.category && <span>📂 {course.category.name}</span>}
+                    <span>{course.durationMinutes || '—'} мин</span>
+                    <span>Вопросов: {course._count?.questions || 0}</span>
+                    <span>Прошли: {course._count?.progress || 0}</span>
+                    <span>Порог: {course.passingScore || 70}%</span>
+                    {course.videoUrl && <span>Видео</span>}
+                    {course.category && <span>{course.category.name}</span>}
                   </div>
                   <div className="flex gap-2">
                     <button
@@ -2897,7 +2896,7 @@ export function AdminDashboardPage() {
                                     }`}
                                   >
                                     {String.fromCharCode(65 + optIdx)}) {opt}
-                                    {optIdx === q.correctIndex && ' ✓'}
+                                    {optIdx === q.correctIndex && ' (OK)'}
                                   </span>
                                 ))}
                               </div>
@@ -3082,7 +3081,7 @@ export function AdminDashboardPage() {
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
               <div>
-                <h2 className="text-lg font-bold dark:text-white">💰 Управление балансом</h2>
+                <h2 className="text-lg font-bold dark:text-white">Управление балансом</h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400">{balanceModal.userName}</p>
               </div>
               <button onClick={() => setBalanceModal(null)} className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
@@ -3110,7 +3109,7 @@ export function AdminDashboardPage() {
                       : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
                   }`}
                 >
-                  ➕ Зачислить
+                  + Зачислить
                 </button>
                 <button
                   onClick={() => setBalanceAction('withdraw')}
@@ -3120,7 +3119,7 @@ export function AdminDashboardPage() {
                       : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
                   }`}
                 >
-                  ➖ Списать
+                  - Списать
                 </button>
               </div>
 
@@ -3171,9 +3170,9 @@ export function AdminDashboardPage() {
                     : 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700'
                 }`}
               >
-                {balanceLoading ? '⏳ Обработка...' : balanceAction === 'topup'
-                  ? `✅ Зачислить ${Number(balanceAmount || 0).toLocaleString('ru')} сум`
-                  : `🔴 Списать ${Number(balanceAmount || 0).toLocaleString('ru')} сум`
+                {balanceLoading ? 'Обработка...' : balanceAction === 'topup'
+                  ? `Зачислить ${Number(balanceAmount || 0).toLocaleString('ru')} сум`
+                  : `Списать ${Number(balanceAmount || 0).toLocaleString('ru')} сум`
                 }
               </button>
             </div>
@@ -3181,7 +3180,7 @@ export function AdminDashboardPage() {
             {/* Transaction history */}
             <div className="border-t border-gray-200 dark:border-gray-700 p-4">
               <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
-                📋 История транзакций
+                История транзакций
               </h3>
               {balanceTxLoading ? (
                 <div className="text-center py-4 text-gray-400 text-sm">Загрузка...</div>
@@ -3192,17 +3191,17 @@ export function AdminDashboardPage() {
                   {balanceTransactions.map((tx: any) => {
                     const isPositive = Number(tx.amount) > 0;
                     const typeLabels: Record<string, string> = {
-                      TOPUP: '💳 Пополнение',
-                      ADMIN_TOPUP: '👑 Адм. зачисление',
-                      ADMIN_WITHDRAW: '👑 Адм. списание',
-                      ESCROW_HOLD: '🔒 Эскроу (блокировка)',
-                      ESCROW_RELEASE: '🔓 Эскроу (разблокировка)',
-                      PENALTY: '⚠️ Штраф',
-                      REFUND: '↩️ Возврат',
-                      COMMISSION: '📊 Комиссия',
-                      PAYOUT: '💸 Выплата',
-                      ESTIMATION_FEE: '🔍 Оплата выезда',
-                      ESTIMATE_PAYOUT: '🔍 Выплата за оценку',
+                      TOPUP: 'Пополнение',
+                      ADMIN_TOPUP: 'Адм. зачисление',
+                      ADMIN_WITHDRAW: 'Адм. списание',
+                      ESCROW_HOLD: 'Эскроу (блокировка)',
+                      ESCROW_RELEASE: 'Эскроу (разблокировка)',
+                      PENALTY: 'Штраф',
+                      REFUND: 'Возврат',
+                      COMMISSION: 'Комиссия',
+                      PAYOUT: 'Выплата',
+                      ESTIMATION_FEE: 'Оплата выезда',
+                      ESTIMATE_PAYOUT: 'Выплата за оценку',
                     };
                     return (
                       <div key={tx.id} className="flex items-center justify-between py-2 px-3 rounded-lg bg-gray-50 dark:bg-gray-700/50">

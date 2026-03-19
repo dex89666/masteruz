@@ -211,10 +211,10 @@ export function CommissionPaymentModal({
               {t('commissionPayment.afterPayTitle')}
             </p>
             <ul className="text-xs text-green-700 dark:text-green-400 space-y-1">
-              <li>✅ {t('commissionPayment.afterPay1')}</li>
-              <li>📱 {t('commissionPayment.afterPay2')}</li>
-              <li>📍 {t('commissionPayment.afterPay3')}</li>
-              <li>💬 {t('commissionPayment.afterPay4')}</li>
+              <li>{t('commissionPayment.afterPay1')}</li>
+              <li>{t('commissionPayment.afterPay2')}</li>
+              <li>{t('commissionPayment.afterPay3')}</li>
+              <li>{t('commissionPayment.afterPay4')}</li>
             </ul>
           </div>
 

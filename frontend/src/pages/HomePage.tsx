@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 import {
   Search, Shield, Star, MapPin, Users, GraduationCap,
   ArrowRight, Zap, HelpCircle, Store, Hammer, Camera, Handshake, AlertTriangle, ClipboardList,
+  FileText, MessageSquare, CheckCircle,
 } from 'lucide-react';
 import { useAuthStore } from '../store';
 import { useTranslation } from '../i18n';
@@ -17,6 +18,7 @@ import { OrderCard } from '../components/OrderCard';
 import { AnimatedCounter } from '../components/AnimatedCounter';
 import { useFormatPrice } from '../hooks';
 import type { Order } from '../types';
+import CategoryIcon from '../components/CategoryIcon';
 
 // 6 родительских категорий с яркими градиентами (naimi.kz-style)
 const PARENT_CATEGORY_STYLES: Record<string, { gradient: string; border: string; iconBg: string }> = {
@@ -29,17 +31,17 @@ const PARENT_CATEGORY_STYLES: Record<string, { gradient: string; border: string;
 };
 
 const FALLBACK_PARENT_CATEGORIES = [
-  { icon: '🔨', slug: 'repair-finishing',      name: 'Ремонт и отделка',         childCount: 6 },
-  { icon: '🏗️', slug: 'construction-building', name: 'Строительство и монтаж',   childCount: 4 },
-  { icon: '🏠', slug: 'home-help',             name: 'Помощь по дому',           childCount: 2 },
-  { icon: '🪑', slug: 'crafts-manufacturing',  name: 'Изготовление и ремесло',   childCount: 2 },
-  { icon: '⚡', slug: 'tech-equipment',        name: 'Техника и оборудование',   childCount: 1 },
-  { icon: '🚚', slug: 'transport-logistics',   name: 'Перевозки и грузчики',     childCount: 1 },
+  { icon: 'Hammer', slug: 'repair-finishing',      name: 'Ремонт и отделка',         childCount: 6 },
+  { icon: 'HardHat', slug: 'construction-building', name: 'Строительство и монтаж',   childCount: 4 },
+  { icon: 'Home', slug: 'home-help',             name: 'Помощь по дому',           childCount: 2 },
+  { icon: 'Armchair', slug: 'crafts-manufacturing',  name: 'Изготовление и ремесло',   childCount: 2 },
+  { icon: 'Zap', slug: 'tech-equipment',        name: 'Техника и оборудование',   childCount: 1 },
+  { icon: 'Truck', slug: 'transport-logistics',   name: 'Перевозки и грузчики',     childCount: 1 },
 ];
 
 const FEATURE_ICONS = [Search, Shield, Star, MapPin] as const;
 const FEATURE_KEYS = ['search', 'safety', 'quality', 'nearby'] as const;
-const STEP_ICONS = ['📝', '💬', '✅'] as const;
+const STEP_LUCIDE = [FileText, MessageSquare, CheckCircle] as const;
 const STEP_KEYS = ['step1', 'step2', 'step3'] as const;
 
 export function HomePage() {
@@ -107,7 +109,7 @@ export function HomePage() {
               className="w-full flex flex-col items-center justify-center bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-bold px-8 py-7 rounded-2xl text-xl md:text-2xl transition-all shadow-xl shadow-orange-500/40 hover:shadow-orange-500/60 hover:scale-[1.02] ring-2 ring-orange-400/50 min-h-[80px]"
             >
               <span className="flex items-center gap-3"><Camera size={30} /> Создать заказ за 30 секунд</span>
-              <span className="text-sm md:text-base font-normal text-white/80 mt-2">📸 Фото + 🎤 голос = готовый заказ с ценой</span>
+              <span className="text-sm md:text-base font-normal text-white/80 mt-2">Фото + голос = готовый заказ с ценой</span>
             </Link>
 
             {/* ★ Кнопка «Срочный вызов» — красная, заметная */}
@@ -157,8 +159,8 @@ export function HomePage() {
                   {/* Gradient accent bar */}
                   <div className={`absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r ${styles.gradient}`} />
                   <div className="flex items-center gap-4">
-                    <div className={`flex-shrink-0 w-16 h-16 md:w-18 md:h-18 rounded-2xl ${styles.iconBg} flex items-center justify-center`}>
-                      <span className="text-3xl md:text-4xl group-hover:scale-110 transition-transform">{cat.icon || '📁'}</span>
+                    <div className="flex-shrink-0 group-hover:scale-110 transition-transform">
+                      <CategoryIcon name={cat.icon || 'Folder'} size="xl" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <h3 className="text-lg md:text-xl font-bold text-gray-900 dark:text-white group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors leading-tight">
@@ -209,7 +211,7 @@ export function HomePage() {
             <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-cyan-600 to-teal-700 text-white p-7 flex flex-col">
               <div className="relative z-10 flex-1">
                 <Search size={36} className="mb-3 opacity-80" />
-                <h3 className="text-xl font-bold mb-2">🔍 Выезд на оценку</h3>
+                <h3 className="text-xl font-bold mb-2">Выезд на оценку</h3>
                 <p className="text-cyan-100 mb-5 text-sm leading-relaxed">Мастер приедет, сделает замеры и составит точную смету.</p>
                 <div className="flex flex-wrap gap-2">
                   <Link to="/estimation/create" className="inline-flex items-center gap-1.5 bg-white text-cyan-700 font-semibold px-4 py-2 rounded-lg hover:bg-cyan-50 text-sm transition">Заказать <ArrowRight size={14} /></Link>
@@ -290,7 +292,7 @@ export function HomePage() {
           <div className="grid md:grid-cols-3 gap-8">
             {STEP_KEYS.map((key, i) => (
               <div key={key} className="text-center">
-                <div className="text-4xl mb-4">{STEP_ICONS[i]}</div>
+                {(() => { const StepIcon = STEP_LUCIDE[i]; return <StepIcon size={36} className="mx-auto text-primary-500" />; })()}
                 <div className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-primary-600 text-white text-sm font-bold mb-3">{i + 1}</div>
                 <h3 className="font-semibold mb-2 dark:text-white">{t(`home.${key}_title`)}</h3>
                 <p className="text-sm text-gray-500 dark:text-gray-400">{t(`home.${key}_desc`)}</p>

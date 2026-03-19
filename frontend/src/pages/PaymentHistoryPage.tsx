@@ -261,9 +261,9 @@ export function PaymentHistoryPage() {
                         </span>
                         {/* Provider */}
                         <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 font-medium">
-                          {payment.provider === 'TELEGRAM_STARS' ? '⭐ Stars' :
-                           payment.provider === 'CLICK' ? '💳 Click' :
-                           payment.provider === 'PAYME' ? '💳 Payme' :
+                          {payment.provider === 'TELEGRAM_STARS' ? 'Stars' :
+                           payment.provider === 'CLICK' ? 'Click' :
+                           payment.provider === 'PAYME' ? 'Payme' :
                            payment.provider}
                         </span>
                       </div>

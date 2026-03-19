@@ -9,6 +9,7 @@ import { turnkeyApi } from '../api/client';
 import { useTranslation } from '../i18n';
 import { useAuthStore } from '../store';
 import toast from 'react-hot-toast';
+import { icons, LucideIcon } from 'lucide-react';
 
 export function TurnkeyPage() {
   const { t } = useTranslation();
@@ -66,10 +67,10 @@ export function TurnkeyPage() {
   });
 
   const propertyTypes = [
-    { value: 'apartment', label: t('turnkey.apartment'), icon: '🏢' },
-    { value: 'house', label: t('turnkey.house'), icon: '🏠' },
-    { value: 'office', label: t('turnkey.office'), icon: '🏬' },
-    { value: 'commercial', label: t('turnkey.commercial'), icon: '🏪' },
+    { value: 'apartment', label: t('turnkey.apartment'), icon: 'Building2' },
+    { value: 'house', label: t('turnkey.house'), icon: 'Home' },
+    { value: 'office', label: t('turnkey.office'), icon: 'Landmark' },
+    { value: 'commercial', label: t('turnkey.commercial'), icon: 'Store' },
   ];
 
   return (
@@ -77,7 +78,7 @@ export function TurnkeyPage() {
       {/* Hero */}
       <div className="bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 text-white py-16 px-4">
         <div className="max-w-4xl mx-auto text-center">
-          <h1 className="text-3xl md:text-5xl font-bold mb-4">🏗️ {t('turnkey.title')}</h1>
+          <h1 className="text-3xl md:text-5xl font-bold mb-4">{t('turnkey.title')}</h1>
           <p className="text-lg md:text-xl opacity-90 mb-8 max-w-2xl mx-auto">{t('turnkey.subtitle')}</p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <button
@@ -99,13 +100,13 @@ export function TurnkeyPage() {
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6 text-center">{t('turnkey.howWeWork')}</h2>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             {[
-              { icon: '📋', title: t('turnkey.step1Title'), desc: t('turnkey.step1Desc') },
-              { icon: '📐', title: t('turnkey.step2Title'), desc: t('turnkey.step2Desc') },
-              { icon: '🔨', title: t('turnkey.step3Title'), desc: t('turnkey.step3Desc') },
-              { icon: '🔑', title: t('turnkey.step4Title'), desc: t('turnkey.step4Desc') },
+              { icon: 'ClipboardList', title: t('turnkey.step1Title'), desc: t('turnkey.step1Desc') },
+              { icon: 'RulerIcon', title: t('turnkey.step2Title'), desc: t('turnkey.step2Desc') },
+              { icon: 'Hammer', title: t('turnkey.step3Title'), desc: t('turnkey.step3Desc') },
+              { icon: 'Key', title: t('turnkey.step4Title'), desc: t('turnkey.step4Desc') },
             ].map((step, i) => (
               <div key={i} className="bg-white dark:bg-gray-800 rounded-2xl p-5 text-center shadow-sm relative">
-                <div className="text-3xl mb-2">{step.icon}</div>
+                {(() => { const Icon = (icons as Record<string, LucideIcon>)[step.icon]; return Icon ? <Icon size={28} className="mx-auto text-purple-500" /> : null; })()}
                 <div className="absolute -top-3 -left-1 w-7 h-7 bg-purple-500 text-white rounded-full flex items-center justify-center text-xs font-bold">{i + 1}</div>
                 <h3 className="font-semibold text-gray-900 dark:text-white text-sm mb-1">{step.title}</h3>
                 <p className="text-xs text-gray-500 dark:text-gray-400">{step.desc}</p>
@@ -119,26 +120,29 @@ export function TurnkeyPage() {
           <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">{t('turnkey.included')}</h2>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             {[
-              { icon: '📐', text: t('turnkey.inc1') },
-              { icon: '🧱', text: t('turnkey.inc2') },
-              { icon: '⚡', text: t('turnkey.inc3') },
-              { icon: '🚿', text: t('turnkey.inc4') },
-              { icon: '🎨', text: t('turnkey.inc5') },
-              { icon: '🧹', text: t('turnkey.inc6') },
-              { icon: '🛋️', text: t('turnkey.inc7') },
-              { icon: '📦', text: t('turnkey.inc8') },
-              { icon: '✅', text: t('turnkey.inc9') },
-            ].map((item, i) => (
-              <div key={i} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-                <span>{item.icon}</span> {item.text}
-              </div>
-            ))}
+              { icon: 'Ruler', text: t('turnkey.inc1') },
+              { icon: 'Layers', text: t('turnkey.inc2') },
+              { icon: 'Zap', text: t('turnkey.inc3') },
+              { icon: 'Droplets', text: t('turnkey.inc4') },
+              { icon: 'Palette', text: t('turnkey.inc5') },
+              { icon: 'Sparkles', text: t('turnkey.inc6') },
+              { icon: 'Sofa', text: t('turnkey.inc7') },
+              { icon: 'Package', text: t('turnkey.inc8') },
+              { icon: 'CheckCircle', text: t('turnkey.inc9') },
+            ].map((item, i) => {
+              const Icon = (icons as Record<string, LucideIcon>)[item.icon];
+              return (
+                <div key={i} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                  {Icon ? <Icon size={16} className="text-purple-500" /> : null} {item.text}
+                </div>
+              );
+            })}
           </div>
         </div>
 
         {/* Калькулятор */}
         <div id="calculator" className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6 mb-12">
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">🧮 {t('turnkey.calculator')}</h2>
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">{t('turnkey.calculator')}</h2>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <div>
@@ -164,12 +168,12 @@ export function TurnkeyPage() {
               <label className="flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" checked={calcForm.designIncluded} onChange={(e) => setCalcForm({ ...calcForm, designIncluded: e.target.checked })}
                   className="w-4 h-4 accent-purple-500" />
-                <span className="text-sm text-gray-700 dark:text-gray-300">🎨 {t('turnkey.withDesign')}</span>
+                <span className="text-sm text-gray-700 dark:text-gray-300">{t('turnkey.withDesign')}</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" checked={calcForm.furnitureIncluded} onChange={(e) => setCalcForm({ ...calcForm, furnitureIncluded: e.target.checked })}
                   className="w-4 h-4 accent-purple-500" />
-                <span className="text-sm text-gray-700 dark:text-gray-300">🛋️ {t('turnkey.withFurniture')}</span>
+                <span className="text-sm text-gray-700 dark:text-gray-300">{t('turnkey.withFurniture')}</span>
               </label>
             </div>
           </div>
@@ -209,7 +213,7 @@ export function TurnkeyPage() {
         {/* Форма заявки */}
         {showForm && (
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 mb-8 border-2 border-purple-200 dark:border-purple-800">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">📝 {t('turnkey.requestForm')}</h2>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">{t('turnkey.requestForm')}</h2>
 
             <div className="space-y-4">
               <div>
@@ -272,18 +276,18 @@ export function TurnkeyPage() {
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input type="checkbox" checked={form.designIncluded} onChange={(e) => setForm({ ...form, designIncluded: e.target.checked })}
                     className="w-4 h-4 accent-purple-500" />
-                  <span className="text-sm text-gray-700 dark:text-gray-300">🎨 {t('turnkey.includeDesign')}</span>
+                  <span className="text-sm text-gray-700 dark:text-gray-300">{t('turnkey.includeDesign')}</span>
                 </label>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input type="checkbox" checked={form.furnitureIncluded} onChange={(e) => setForm({ ...form, furnitureIncluded: e.target.checked })}
                     className="w-4 h-4 accent-purple-500" />
-                  <span className="text-sm text-gray-700 dark:text-gray-300">🛋️ {t('turnkey.includeFurniture')}</span>
+                  <span className="text-sm text-gray-700 dark:text-gray-300">{t('turnkey.includeFurniture')}</span>
                 </label>
               </div>
 
               {!isAuthenticated && (
                 <div className="bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300 p-3 rounded-xl text-sm">
-                  ⚠️ {t('cart.loginRequired')}
+                  {t('cart.loginRequired')}
                 </div>
               )}
 
@@ -301,17 +305,17 @@ export function TurnkeyPage() {
         {/* Навигация к связанным разделам */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
           <Link to="/catalog/interior-design" className="bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm hover:shadow-md transition group">
-            <div className="text-3xl mb-2">🎨</div>
+            {(() => { const P = (icons as Record<string, LucideIcon>)['Palette']; return P ? <P size={28} className="text-purple-500 mb-2" /> : null; })()}
             <h3 className="font-bold text-gray-900 dark:text-white group-hover:text-purple-500 transition">{t('turnkey.designLink')}</h3>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('turnkey.designLinkDesc')}</p>
           </Link>
           <Link to="/catalog/custom-furniture" className="bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm hover:shadow-md transition group">
-            <div className="text-3xl mb-2">🛋️</div>
+            {(() => { const S = (icons as Record<string, LucideIcon>)['Sofa']; return S ? <S size={28} className="text-purple-500 mb-2" /> : null; })()}
             <h3 className="font-bold text-gray-900 dark:text-white group-hover:text-purple-500 transition">{t('turnkey.furnitureLink')}</h3>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('turnkey.furnitureLinkDesc')}</p>
           </Link>
           <Link to="/stores" className="bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm hover:shadow-md transition group">
-            <div className="text-3xl mb-2">🧱</div>
+            {(() => { const B = (icons as Record<string, LucideIcon>)['Layers']; return B ? <B size={28} className="text-orange-500 mb-2" /> : null; })()}
             <h3 className="font-bold text-gray-900 dark:text-white group-hover:text-orange-500 transition">{t('turnkey.materialsLink')}</h3>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('turnkey.materialsLinkDesc')}</p>
           </Link>

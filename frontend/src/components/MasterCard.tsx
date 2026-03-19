@@ -173,7 +173,7 @@ export function MasterCard({ master, isFavorite = false, showFavorite = false, o
                   : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
               }`}>
                 {mp.isOnline
-                  ? `🟢 ${t('masterCard.online')}`
+                  ? t('masterCard.online')
                   : mp.isAvailable
                   ? t('masterCard.available')
                   : t('masterCard.busy')}

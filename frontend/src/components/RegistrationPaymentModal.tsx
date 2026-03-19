@@ -41,7 +41,7 @@ const providers: { id: Provider; name: string; icon: any; color: string; desc: s
     name: 'Telegram Stars',
     icon: Star,
     color: 'bg-yellow-50 text-yellow-600 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-800',
-    desc: 'Telegram Stars ⭐',
+    desc: 'Telegram Stars',
   },
 ];
 
@@ -136,7 +136,7 @@ export function RegistrationPaymentModal({
               {t('becomeMasterPage.regFeeAmount')}
             </p>
             <p className="text-xs text-green-600/60 dark:text-green-400/60 mt-1">
-              💰 {t('becomeMasterPage.regFeeReason4')}
+                            {t('becomeMasterPage.regFeeReason4')}
             </p>
           </div>
 

@@ -112,9 +112,9 @@ export function TermsOfServicePage() {
           <section>
             <h2 className="text-lg font-semibold dark:text-white mb-2">10. Контакты</h2>
             <ul className="list-none space-y-1">
-              <li>📧 Email: <a href="mailto:vladlabcorp@gmail.com" className="text-primary-600 dark:text-primary-400 hover:underline">vladlabcorp@gmail.com</a></li>
-              <li>📱 Telegram: <a href="https://t.me/masteruz_support" className="text-primary-600 dark:text-primary-400 hover:underline">@masteruz_support</a></li>
-              <li>📞 Телефон: <a href="tel:+998957005040" className="text-primary-600 dark:text-primary-400 hover:underline">+998 95 700-50-40</a></li>
+              <li>Email: <a href="mailto:vladlabcorp@gmail.com" className="text-primary-600 dark:text-primary-400 hover:underline">vladlabcorp@gmail.com</a></li>
+              <li>Telegram: <a href="https://t.me/masteruz_support" className="text-primary-600 dark:text-primary-400 hover:underline">@masteruz_support</a></li>
+              <li>Телефон: <a href="tel:+998957005040" className="text-primary-600 dark:text-primary-400 hover:underline">+998 95 700-50-40</a></li>
             </ul>
           </section>
         </div>

@@ -14,12 +14,12 @@ import type { Order } from '../types';
 import toast from 'react-hot-toast';
 
 const QUICK_COMMENTS = [
-  { key: 'excellent', emoji: '🌟' },
-  { key: 'quality', emoji: '👍' },
-  { key: 'fast', emoji: '⚡' },
-  { key: 'polite', emoji: '😊' },
-  { key: 'clean', emoji: '🧹' },
-  { key: 'recommend', emoji: '💯' },
+  { key: 'excellent', emoji: '' },
+  { key: 'quality', emoji: '' },
+  { key: 'fast', emoji: '' },
+  { key: 'polite', emoji: '' },
+  { key: 'clean', emoji: '' },
+  { key: 'recommend', emoji: '' },
 ];
 
 export function ReviewFormPage() {

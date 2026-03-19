@@ -3,7 +3,7 @@
 // ============================================
 
 import { Link } from 'react-router-dom';
-import { Home, ArrowLeft, Search } from 'lucide-react';
+import { Home, ArrowLeft, Search, Wrench } from 'lucide-react';
 import { useTranslation } from '../i18n';
 
 export function NotFoundPage() {
@@ -18,7 +18,7 @@ export function NotFoundPage() {
             404
           </div>
           <div className="absolute inset-0 flex items-center justify-center">
-            <div className="text-6xl animate-bounce">🔧</div>
+            <Wrench size={56} className="text-primary-500 animate-bounce" />
           </div>
         </div>
 

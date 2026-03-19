@@ -9,6 +9,7 @@ import { authApi } from '../api/client';
 import { useTelegram } from '../hooks';
 import { useTranslation } from '../i18n';
 import { LoadingSpinner } from '../components/LoadingSpinner';
+import { Wrench, Zap, Shield, Wallet } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export function LoginPage() {
@@ -105,7 +106,7 @@ export function LoginPage() {
         {/* Logo section */}
         <div className="mb-8">
           <div className="w-20 h-20 mx-auto mb-4 bg-gradient-to-br from-primary-500 to-primary-700 rounded-2xl flex items-center justify-center shadow-lg shadow-primary-500/30 animate-scale-in">
-            <span className="text-4xl">🔧</span>
+            <Wrench size={36} className="text-white" />
           </div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{t('auth.title')}</h1>
           <p className="text-gray-500 dark:text-gray-400">
@@ -117,19 +118,19 @@ export function LoginPage() {
         <div className="grid grid-cols-3 gap-3 mb-8">
           <div className="text-center">
             <div className="w-10 h-10 mx-auto mb-1.5 bg-blue-50 dark:bg-blue-900/30 rounded-xl flex items-center justify-center">
-              <span className="text-lg">⚡</span>
+              <Zap size={20} className="text-blue-500" />
             </div>
             <p className="text-[10px] text-gray-500 dark:text-gray-400 font-medium">{t('auth.featureFast')}</p>
           </div>
           <div className="text-center">
             <div className="w-10 h-10 mx-auto mb-1.5 bg-green-50 dark:bg-green-900/30 rounded-xl flex items-center justify-center">
-              <span className="text-lg">🛡️</span>
+              <Shield size={20} className="text-green-500" />
             </div>
             <p className="text-[10px] text-gray-500 dark:text-gray-400 font-medium">{t('auth.featureSafe')}</p>
           </div>
           <div className="text-center">
             <div className="w-10 h-10 mx-auto mb-1.5 bg-purple-50 dark:bg-purple-900/30 rounded-xl flex items-center justify-center">
-              <span className="text-lg">💰</span>
+              <Wallet size={20} className="text-purple-500" />
             </div>
             <p className="text-[10px] text-gray-500 dark:text-gray-400 font-medium">{t('auth.featurePrice')}</p>
           </div>

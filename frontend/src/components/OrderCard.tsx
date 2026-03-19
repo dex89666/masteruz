@@ -4,6 +4,7 @@
 
 import { Link } from 'react-router-dom';
 import { MapPin, Clock, MessageSquare, Wallet, Zap } from 'lucide-react';
+import CategoryIcon from './CategoryIcon';
 import { useTranslation } from '../i18n';
 import type { Order } from '../types';
 
@@ -41,7 +42,7 @@ export function OrderCard({ order, formatPrice, showNetEarnings }: OrderCardProp
       }`}>
         <div className="flex items-start justify-between mb-3">
           <div className="flex items-center gap-2">
-            <span className="text-lg">{order.category?.icon || '🛠️'}</span>
+            <CategoryIcon name={order.category?.icon || 'Wrench'} size="sm" />
             <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
               {order.category?.name}
             </span>

@@ -233,14 +233,14 @@ export function EstimateFormPage() {
           <ArrowLeft size={20} />
         </button>
         <div>
-          <h1 className="text-xl font-bold">📋 Составление сметы</h1>
+          <h1 className="text-xl font-bold">Составление сметы</h1>
           <p className="text-sm text-gray-500">Заказ #{orderId?.slice(0, 8)}</p>
         </div>
       </div>
 
       {estimate?.status === 'SENT' && (
         <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-xl text-sm text-blue-700 dark:text-blue-400 mb-4">
-          ✅ Смета отправлена клиенту. Ожидайте ответа.
+          Смета отправлена клиенту. Ожидайте ответа.
         </div>
       )}
 
@@ -456,7 +456,7 @@ export function EstimateFormPage() {
           <div className="flex flex-wrap gap-2">
             {videos.map((_v, idx) => (
               <div key={idx} className="relative w-20 h-20 rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
-                <span className="text-xs text-gray-500">🎥 #{idx + 1}</span>
+                <span className="text-xs text-gray-500">#{idx + 1}</span>
                 <button
                   onClick={() => setVideos(prev => prev.filter((_, i) => i !== idx))}
                   className="absolute top-0.5 right-0.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center"

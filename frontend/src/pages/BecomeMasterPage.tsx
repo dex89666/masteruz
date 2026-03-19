@@ -264,7 +264,7 @@ export function BecomeMasterPage() {
             <CheckCircle size={24} className="text-green-500 shrink-0" />
             <div>
               <p className="font-semibold text-green-800 dark:text-green-300 text-sm">
-                {t('becomeMasterPage.step1')} ✅
+                {t('becomeMasterPage.step1')}
               </p>
               <p className="text-xs text-green-600 dark:text-green-400">
                 {t('becomeMasterPage.profileCreated')}
