@@ -338,16 +338,6 @@ export function Layout() {
 
               {isMaster && (
                 <Link
-                  to="/orders"
-                  className="flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-semibold bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 ring-1 ring-green-200 dark:ring-green-800 hover:bg-green-100 dark:hover:bg-green-900/30"
-                >
-                  <Search size={22} />
-                  {t('nav.availableOrders')}
-                </Link>
-              )}
-
-              {isMaster && (
-                <Link
                   to="/forum"
                   className="flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
                 >
