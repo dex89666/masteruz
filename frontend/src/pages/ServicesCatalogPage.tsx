@@ -1,64 +1,28 @@
 // ============================================
 // MasterUz — Services Catalog Page (naimi.kz-style)
 // Родительская категория → список дочерних категорий
-// Premium UX для аудитории 50+: крупные карточки, чёткие иконки
+// Данные из кешированного хука — мгновенная навигация
 // ============================================
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
-import { catalogApi } from '../api/client';
 import { useTranslation } from '../i18n';
 import { ArrowLeft, ChevronRight, Layers } from 'lucide-react';
 import CategoryIcon from '../components/CategoryIcon';
-
-interface ChildCategory {
-  id: string;
-  slug: string;
-  name: string;
-  nameUz?: string | null;
-  nameEn?: string | null;
-  icon?: string | null;
-  _count?: { subcategories: number };
-  subcategories?: { id: string; name: string; nameUz?: string | null; nameEn?: string | null; slug: string; icon?: string | null; _count?: { tasks: number } }[];
-}
-
-interface ParentCategory {
-  id: string;
-  slug: string;
-  name: string;
-  nameUz?: string | null;
-  nameEn?: string | null;
-  icon?: string | null;
-  children?: ChildCategory[];
-}
+import { useParentCategory } from '../hooks/useCatalogData';
 
 export function ServicesCatalogPage() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
   const { t, language } = useTranslation();
-  const [category, setCategory] = useState<ParentCategory | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { category, isLoading } = useParentCategory(slug);
 
+  // Если это дочерняя категория (без children, с subcategories) — редирект на CatalogPage
   useEffect(() => {
-    if (!slug) return;
-    setLoading(true);
-    catalogApi.getCategoryWithSubs(slug)
-      .then((res) => {
-        const data = res.data.data;
-        if (!data) {
-          navigate('/');
-          return;
-        }
-        // Если это дочерняя категория (имеет subcategories, нет children) — переход на CatalogPage
-        if ((!data.children || data.children.length === 0) && data.subcategories?.length > 0) {
-          navigate(`/catalog/${slug}`, { replace: true });
-          return;
-        }
-        setCategory(data);
-      })
-      .catch(() => navigate('/'))
-      .finally(() => setLoading(false));
-  }, [slug, navigate]);
+    if (!isLoading && !category && slug) {
+      navigate(`/catalog/${slug}`, { replace: true });
+    }
+  }, [isLoading, category, slug, navigate]);
 
   function getName(item: { name: string; nameUz?: string | null; nameEn?: string | null }) {
     if (language === 'uz' && item.nameUz) return item.nameUz;
@@ -66,7 +30,7 @@ export function ServicesCatalogPage() {
     return item.name;
   }
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="page-container pb-20">
         <div className="animate-pulse space-y-4">
@@ -109,9 +73,9 @@ export function ServicesCatalogPage() {
       {/* Дочерние категории — крупные карточки */}
       <div className="space-y-4">
         {children.map((child) => {
-          const subcatCount = child._count?.subcategories || child.subcategories?.length || 0;
+          const subcatCount = child.subcategories?.length || 0;
           const totalTasks = child.subcategories?.reduce(
-            (sum, sub) => sum + (sub._count?.tasks || 0), 0
+            (sum, sub) => sum + (sub.tasks?.length || sub._count?.tasks || 0), 0
           ) || 0;
 
           return (

@@ -12,13 +12,15 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../store';
 import { useTranslation } from '../i18n';
-import { usersApi, ordersApi, catalogApi } from '../api/client';
+import { usersApi, ordersApi } from '../api/client';
 import { MasterCard } from '../components/MasterCard';
 import { OrderCard } from '../components/OrderCard';
 import { AnimatedCounter } from '../components/AnimatedCounter';
 import { useFormatPrice } from '../hooks';
 import type { Order } from '../types';
 import CategoryIcon from '../components/CategoryIcon';
+import { CatalogSearch } from '../components/CatalogSearch';
+import { useCatalogFull } from '../hooks/useCatalogData';
 
 // 6 родительских категорий с яркими градиентами (naimi.kz-style)
 const PARENT_CATEGORY_STYLES: Record<string, { gradient: string; border: string; iconBg: string }> = {
@@ -28,6 +30,16 @@ const PARENT_CATEGORY_STYLES: Record<string, { gradient: string; border: string;
   'crafts-manufacturing':  { gradient: 'from-amber-500 to-yellow-600',  border: 'border-amber-200 dark:border-amber-800',   iconBg: 'bg-amber-100 dark:bg-amber-900/40' },
   'tech-equipment':        { gradient: 'from-purple-500 to-violet-600', border: 'border-purple-200 dark:border-purple-800', iconBg: 'bg-purple-100 dark:bg-purple-900/40' },
   'transport-logistics':   { gradient: 'from-red-500 to-rose-600',      border: 'border-red-200 dark:border-red-800',       iconBg: 'bg-red-100 dark:bg-red-900/40' },
+};
+
+// Фотографии для родительских категорий (Unsplash, CC0)
+const CATEGORY_PHOTOS: Record<string, string> = {
+  'repair-finishing':      '/categories/repair-finishing.jpg',
+  'construction-building': '/categories/construction-building.jpg',
+  'home-help':             '/categories/home-help.jpg',
+  'crafts-manufacturing':  '/categories/crafts-manufacturing.jpg',
+  'tech-equipment':        '/categories/tech-equipment.jpg',
+  'transport-logistics':   '/categories/transport-logistics.jpg',
 };
 
 const FALLBACK_PARENT_CATEGORIES = [
@@ -50,18 +62,10 @@ export function HomePage() {
   const formatPrice = useFormatPrice();
   const [topMasters, setTopMasters] = useState<any[]>([]);
   const [urgentOrders, setUrgentOrders] = useState<Order[]>([]);
-  const [parentCategories, setParentCategories] = useState<any[]>(FALLBACK_PARENT_CATEGORIES);
+  const { data: catalogParents } = useCatalogFull();
+  const parentCategories = catalogParents && catalogParents.length > 0 ? catalogParents : FALLBACK_PARENT_CATEGORIES;
 
   useEffect(() => {
-    catalogApi.getCategories()
-      .then((res) => {
-        const cats = res.data.data || [];
-        // Фильтруем только родительские категории (без parentId)
-        const parents = cats.filter((c: any) => !c.parentId);
-        if (parents.length > 0) setParentCategories(parents);
-      })
-      .catch(() => {});
-
     usersApi.searchMasters({ limit: 6, sortBy: 'rating', sortOrder: 'desc' })
       .then((res) => setTopMasters(res.data.data || []))
       .catch(() => {});
@@ -78,8 +82,8 @@ export function HomePage() {
       <section className="text-white py-12 md:py-20 relative overflow-hidden min-h-[90vh] flex items-center">
         {/* Full-screen background photo */}
         <div className="absolute inset-0 z-0">
-          <img src="/hero-master.jpg" alt="" className="w-full h-full object-cover object-[center_15%]" aria-hidden="true" />
-          <div className="absolute inset-0 bg-gradient-to-b from-gray-900/70 via-gray-900/50 to-gray-900/80" />
+          <img src="/hero-master.jpg" alt="" className="w-full h-full object-cover object-center" aria-hidden="true" />
+          <div className="absolute inset-0 bg-gradient-to-b from-gray-900/40 via-gray-900/25 to-gray-900/60" />
         </div>
 
         <div className="max-w-5xl mx-auto px-4 sm:px-6 relative z-10">
@@ -149,30 +153,45 @@ export function HomePage() {
             <h2 className="text-2xl md:text-3xl font-extrabold dark:text-white mb-2">{t('categories.title')}</h2>
             <p className="text-gray-500 dark:text-gray-400 text-base">Выберите направление — найдём лучшего мастера</p>
           </div>
+          {/* Поиск по каталогу */}
+          <div className="mb-8">
+            <CatalogSearch />
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5">
             {parentCategories.map((cat: any) => {
               const styles = PARENT_CATEGORY_STYLES[cat.slug] || { gradient: 'from-gray-500 to-gray-600', border: 'border-gray-200 dark:border-gray-700', iconBg: 'bg-gray-100 dark:bg-gray-800' };
               const childCount = cat.children?.length || cat.childCount || 0;
+              const photoUrl = CATEGORY_PHOTOS[cat.slug];
               return (
                 <Link key={cat.slug} to={`/services/${cat.slug}`}
-                  className={`group relative overflow-hidden rounded-2xl border-2 ${styles.border} bg-white dark:bg-gray-800 p-6 md:p-7 transition-all hover:shadow-xl hover:-translate-y-1 hover:scale-[1.01] min-h-[130px]`}>
-                  {/* Gradient accent bar */}
-                  <div className={`absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r ${styles.gradient}`} />
-                  <div className="flex items-center gap-4">
-                    <div className="flex-shrink-0 group-hover:scale-110 transition-transform">
-                      <CategoryIcon name={cat.icon || 'Folder'} size="xl" />
+                  className="group relative overflow-hidden rounded-2xl min-h-[160px] transition-all hover:shadow-xl hover:-translate-y-1 hover:scale-[1.01]">
+                  {/* Photo background */}
+                  {photoUrl ? (
+                    <>
+                      <img src={photoUrl} alt="" className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy" />
+                      <div className={`absolute inset-0 bg-gradient-to-t ${styles.gradient} opacity-70`} />
+                    </>
+                  ) : (
+                    <div className={`absolute inset-0 bg-gradient-to-br ${styles.gradient}`} />
+                  )}
+                  {/* Content over photo */}
+                  <div className="relative z-10 p-6 md:p-7 flex flex-col justify-end h-full text-white">
+                    <div className="flex items-center gap-3">
+                      <div className="flex-shrink-0 bg-white/20 backdrop-blur-sm rounded-xl p-2 group-hover:scale-110 transition-transform">
+                        <CategoryIcon name={cat.icon || 'Folder'} size="lg" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-lg md:text-xl font-bold leading-tight drop-shadow-md">
+                          {cat.name}
+                        </h3>
+                        {childCount > 0 && (
+                          <p className="text-sm text-white/80 mt-0.5">
+                            {childCount} {childCount === 1 ? 'категория' : childCount < 5 ? 'категории' : 'категорий'}
+                          </p>
+                        )}
+                      </div>
+                      <ArrowRight size={20} className="flex-shrink-0 text-white/60 group-hover:text-white group-hover:translate-x-1 transition-all" />
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-lg md:text-xl font-bold text-gray-900 dark:text-white group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors leading-tight">
-                        {cat.name}
-                      </h3>
-                      {childCount > 0 && (
-                        <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
-                          {childCount} {childCount === 1 ? 'категория' : childCount < 5 ? 'категории' : 'категорий'}
-                        </p>
-                      )}
-                    </div>
-                    <ArrowRight size={20} className="flex-shrink-0 text-gray-300 dark:text-gray-600 group-hover:text-primary-500 transition-colors" />
                   </div>
                 </Link>
               );

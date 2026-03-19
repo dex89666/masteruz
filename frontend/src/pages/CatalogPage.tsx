@@ -1,38 +1,23 @@
 // ============================================
 // MasterUz — Catalog Page (Категория → Подкатегории)
+// Данные из кешированного хука — мгновенная навигация
 // ============================================
 
-import { useEffect, useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
-import { catalogApi } from '../api/client';
 import { useTranslation } from '../i18n';
 import { useCartStore } from '../store/cartStore';
 import { ArrowLeft, ChevronRight, ShoppingCart } from 'lucide-react';
 import CategoryIcon from '../components/CategoryIcon';
-import type { Category, Subcategory } from '../types';
+import { useChildCategory } from '../hooks/useCatalogData';
 
 export function CatalogPage() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
   const { t, language } = useTranslation();
-  const [category, setCategory] = useState<Category | null>(null);
-  const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { category, isLoading } = useChildCategory(slug);
+  const subcategories = category?.subcategories || [];
   const cartItems = useCartStore((s) => s.items);
   const totalItems = useCartStore((s) => s.getTotalItems());
-
-  useEffect(() => {
-    if (!slug) return;
-    setLoading(true);
-    catalogApi.getCategoryWithSubs(slug)
-      .then((res) => {
-        const data = res.data.data;
-        setCategory(data);
-        setSubcategories(data?.subcategories || []);
-      })
-      .catch(() => navigate('/'))
-      .finally(() => setLoading(false));
-  }, [slug]);
 
   function getName(item: { name: string; nameUz?: string | null; nameEn?: string | null }) {
     if (language === 'uz' && item.nameUz) return item.nameUz;
@@ -40,7 +25,7 @@ export function CatalogPage() {
     return item.name;
   }
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="page-container pb-20">
         <div className="animate-pulse space-y-4">

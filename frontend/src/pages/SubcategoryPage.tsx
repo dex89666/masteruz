@@ -1,24 +1,21 @@
 // ============================================
 // MasterUz — Subcategory Page (Задачи с количеством)
+// Данные из кешированного хука — мгновенная навигация
 // ============================================
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
-import { catalogApi } from '../api/client';
 import { useTranslation } from '../i18n';
 import { useCartStore } from '../store/cartStore';
 import { ArrowLeft, ShoppingCart, Plus, Minus, Clock, Check } from 'lucide-react';
 import CategoryIcon from '../components/CategoryIcon';
-import type { Subcategory, Task } from '../types';
+import { useSubcategory } from '../hooks/useCatalogData';
 
 export function SubcategoryPage() {
   const { categorySlug, subcategorySlug } = useParams<{ categorySlug: string; subcategorySlug: string }>();
   const navigate = useNavigate();
   const { t, language } = useTranslation();
-  const [subcategory, setSubcategory] = useState<Subcategory | null>(null);
-  const [categoryMeta, setCategoryMeta] = useState<{ name: string; nameUz: string | null; nameEn: string | null; icon: string | null } | null>(null);
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { subcategory, tasks, categoryMeta, isLoading } = useSubcategory(categorySlug, subcategorySlug);
   const [expandedTask, setExpandedTask] = useState<string | null>(null);
 
   const cartItems = useCartStore((s) => s.items);
@@ -27,22 +24,6 @@ export function SubcategoryPage() {
   const decrementQuantity = useCartStore((s) => s.decrementQuantity);
   const totalItems = useCartStore((s) => s.getTotalItems());
   const getSubtotal = useCartStore((s) => s.getSubtotal);
-
-  useEffect(() => {
-    if (!subcategorySlug || !categorySlug) return;
-    setLoading(true);
-
-    // Load category for meta info
-    catalogApi.getCategoryWithSubs(categorySlug).then((res) => {
-      const cat = res.data.data;
-      setCategoryMeta({ name: cat.name, nameUz: cat.nameUz, nameEn: cat.nameEn, icon: cat.icon });
-      const sub = (cat.subcategories || []).find((s: Subcategory) => s.slug === subcategorySlug);
-      if (sub) {
-        setSubcategory(sub);
-        setTasks(sub.tasks || []);
-      }
-    }).catch(() => navigate(-1)).finally(() => setLoading(false));
-  }, [categorySlug, subcategorySlug]);
 
   function getName(item: { name: string; nameUz?: string | null; nameEn?: string | null }) {
     if (language === 'uz' && item.nameUz) return item.nameUz;
@@ -66,17 +47,17 @@ export function SubcategoryPage() {
     return cartItems.find((i) => i.task.id === taskId)?.quantity || 0;
   }
 
-  function handleAdd(task: Task) {
+  function handleAdd(task: any) {
     if (!subcategory || !categoryMeta) return;
     addItem({
       task,
       categoryName: categoryMeta.name,
-      categoryNameUz: categoryMeta.nameUz,
-      categoryNameEn: categoryMeta.nameEn,
-      categoryIcon: categoryMeta.icon,
+      categoryNameUz: categoryMeta.nameUz ?? null,
+      categoryNameEn: categoryMeta.nameEn ?? null,
+      categoryIcon: categoryMeta.icon ?? null,
       subcategoryName: subcategory.name,
-      subcategoryNameUz: subcategory.nameUz,
-      subcategoryNameEn: subcategory.nameEn,
+      subcategoryNameUz: subcategory.nameUz ?? null,
+      subcategoryNameEn: subcategory.nameEn ?? null,
     });
   }
 
@@ -84,7 +65,7 @@ export function SubcategoryPage() {
     return new Intl.NumberFormat('ru-RU').format(price);
   }
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="page-container pb-20">
         <div className="animate-pulse space-y-4">

@@ -111,6 +111,7 @@ async function seed() {
             minPrice: taskDef.minPrice,
             sortOrder: ti + 1,
             subcategoryId: subcategory.id,
+            isActive: true,
           },
           create: {
             subcategoryId: subcategory.id,
