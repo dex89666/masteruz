@@ -167,6 +167,10 @@ export function ProfilePage() {
           <Wallet size={20} className="text-green-600 dark:text-green-400" />
           <span className="text-sm font-medium dark:text-white">{t('balance.title')}</span>
         </Link>
+        <Link to="/cards" className="card flex items-center gap-3 hover:shadow-md dark:hover:shadow-black/20 transition-shadow">
+          <CreditCard size={20} className="text-purple-600 dark:text-purple-400" />
+          <span className="text-sm font-medium dark:text-white">{t('cards.title')}</span>
+        </Link>
         {isMaster && (
           <Link to="/portfolio" className="card flex items-center gap-3 hover:shadow-md dark:hover:shadow-black/20 transition-shadow col-span-2">
             <Camera size={20} className="text-pink-600 dark:text-pink-400" />

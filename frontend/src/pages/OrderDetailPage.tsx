@@ -773,39 +773,28 @@ export function OrderDetailPage() {
         </div>
       )}
 
-      {/* Оплата комиссии для мастера */}
-      {isAssignedMaster && !order.commissionPaid && order.status === 'IN_PROGRESS' && (
-        <div className={`card mb-4 border-2 ${order.isUrgent ? 'border-orange-400 bg-orange-50/50 dark:bg-orange-900/10 dark:border-orange-600' : 'border-primary-400 bg-primary-50/50 dark:bg-primary-900/10 dark:border-primary-600'}`}>
+      {/* Информация о комиссии для мастера (автоматическая) */}
+      {isAssignedMaster && ['ACCEPTED', 'IN_TRANSIT', 'IN_PROGRESS'].includes(order.status) && (
+        <div className="card mb-4 bg-blue-50/50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-700">
           <div className="flex items-start gap-3">
-            <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${
-              order.isUrgent ? 'bg-orange-100 dark:bg-orange-900/40' : 'bg-primary-100 dark:bg-primary-900/40'
-            }`}>
-              <CreditCard size={22} className={order.isUrgent ? 'text-orange-600 dark:text-orange-400' : 'text-primary-600 dark:text-primary-400'} />
+            <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center shrink-0">
+              <CreditCard size={20} className="text-blue-600 dark:text-blue-400" />
             </div>
             <div className="flex-1">
-              <h3 className="font-bold text-gray-900 dark:text-white">{t('commissionPayment.title')}</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">{t('commissionPayment.desc')}</p>
-              <p className={`text-lg font-bold mt-2 ${order.isUrgent ? 'text-orange-600 dark:text-orange-400' : 'text-primary-600 dark:text-primary-400'}`}>
-                {formatPrice(order.commissionAmount, t('common.currency'))}
+              <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Комиссия платформы: {Number(order.commissionRate)}%</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                Удерживается автоматически при завершении заказа ({formatPrice(order.commissionAmount, t('common.currency'))})
+              </p>
+              <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+                💰 Вы получите: {formatPrice(Number(order.escrowAmount) - Number(order.commissionAmount), t('common.currency'))}
               </p>
             </div>
           </div>
-          <button
-            onClick={() => setShowPayment(true)}
-            className={`w-full mt-4 py-3 rounded-xl font-semibold text-white transition-all flex items-center justify-center gap-2 ${
-              order.isUrgent
-                ? 'bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600'
-                : 'bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700'
-            }`}
-          >
-            <CreditCard size={18} />
-            {t('commissionPayment.payBtn')} {formatPrice(order.commissionAmount, t('common.currency'))}
-          </button>
         </div>
       )}
 
-      {/* Данные клиента (видит мастер) */}
-      {isAssignedMaster && order.commissionPaid && order.client && (
+      {/* Данные клиента (видит мастер сразу после принятия заказа) */}
+      {isAssignedMaster && order.client && ['ACCEPTED', 'IN_TRANSIT', 'IN_PROGRESS', 'COMPLETED'].includes(order.status) && (
         <div className="card mb-4 bg-green-50/50 dark:bg-green-900/10 border-2 border-green-300 dark:border-green-700">
           <div className="flex items-center gap-2 mb-3">
             <CheckCircle size={18} className="text-green-600 dark:text-green-400" />

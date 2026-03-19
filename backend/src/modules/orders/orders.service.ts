@@ -507,6 +507,7 @@ export class OrdersService {
     }
 
     // PUBLISHED → ACCEPTED (не сразу IN_PROGRESS!)
+    // Комиссия теперь удерживается автоматически из эскроу при завершении
     const [updatedOrder] = await prisma.$transaction([
       prisma.order.update({
         where: { id: orderId },
@@ -514,6 +515,7 @@ export class OrdersService {
           masterId,
           status: OrderStatus.ACCEPTED,
           acceptedAt: new Date(),
+          commissionPaid: true, // Авто-комиссия: мастер не платит вручную
         },
         include: {
           master: { include: { profile: true } },

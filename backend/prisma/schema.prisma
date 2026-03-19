@@ -164,8 +164,31 @@ model User {
   auditLogs           AuditLog[]
   forumTopics         ForumTopic[]     @relation("ForumTopicAuthor")
   forumPosts          ForumPost[]      @relation("ForumPostAuthor")
+  linkedCards         LinkedCard[]
 
   @@map("users")
+}
+
+// ════════════════════════════════════════════════
+// ПРИВЯЗАННЫЕ КАРТЫ (для выплат мастерам и оплаты клиентами)
+// ════════════════════════════════════════════════
+
+model LinkedCard {
+  id           String   @id @default(uuid())
+  userId       String   @map("user_id")
+  cardNumber   String   @map("card_number")   // Маскированный: 8600 **** **** 1234
+  cardHolder   String?  @map("card_holder")   // Имя держателя
+  expiryMonth  Int?     @map("expiry_month")
+  expiryYear   Int?     @map("expiry_year")
+  provider     String   @default("UZCARD")    // UZCARD, HUMO, VISA, MASTERCARD
+  isDefault    Boolean  @default(false) @map("is_default")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("linked_cards")
 }
 
 model UserProfile {

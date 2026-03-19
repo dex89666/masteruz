@@ -62,6 +62,7 @@ const PublicOfferPage = lazy(() => import('./pages/PublicOfferPage').then(m => (
 const TermsOfServicePage = lazy(() => import('./pages/TermsOfServicePage').then(m => ({ default: m.TermsOfServicePage })));
 const ForumPage = lazy(() => import('./pages/ForumPage').then(m => ({ default: m.ForumPage })));
 const ForumTopicPage = lazy(() => import('./pages/ForumPage').then(m => ({ default: m.ForumTopicPage })));
+const LinkedCardsPage = lazy(() => import('./pages/LinkedCardsPage').then(m => ({ default: m.LinkedCardsPage })));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -239,6 +240,14 @@ function AppContent() {
           element={
             <ProtectedRoute>
               <ProfileSettingsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="cards"
+          element={
+            <ProtectedRoute>
+              <LinkedCardsPage />
             </ProtectedRoute>
           }
         />

@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-const FAQ_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8'] as const;
+const FAQ_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15'] as const;
 
 export function HelpSupportPage() {
   const { t } = useTranslation();

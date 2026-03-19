@@ -868,3 +868,18 @@ export const turnkeyApi = {
   updateStage: (id: string, data: { status?: string; progress?: number; startDate?: string; endDate?: string }) =>
     api.put<ApiResponse<any>>(`/turnkey/admin/stages/${id}`, data),
 };
+
+// ─── Linked Cards API (привязанные карты) ──────
+export const cardsApi = {
+  getAll: () =>
+    api.get<ApiResponse<any[]>>('/cards'),
+
+  add: (data: { cardNumber: string; cardHolder?: string; expiryMonth?: number; expiryYear?: number }) =>
+    api.post<ApiResponse<any>>('/cards', data),
+
+  setDefault: (id: string) =>
+    api.put<ApiResponse<any>>(`/cards/${id}/default`),
+
+  remove: (id: string) =>
+    api.delete<ApiResponse<any>>(`/cards/${id}`),
+};
