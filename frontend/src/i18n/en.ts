@@ -66,6 +66,24 @@ const en = {
     myOrders: 'My orders',
     favorites: 'Favorites',
     masters: 'Masters',
+    availableOrders: 'Available orders',
+    forum: 'Masters Forum',
+  },
+
+  // ─── Forum ──────────────────────────────
+  forum: {
+    title: 'Masters Forum',
+    newTopic: 'New Topic',
+    mastersOnly: 'Only masters can create topics and reply.',
+    topicTitle: 'Topic title',
+    topicContent: 'Message text...',
+    publish: 'Publish',
+    noTopics: 'No topics yet. Be the first!',
+    topicCreated: 'Topic created',
+    topicDeleted: 'Topic deleted',
+    topicNotFound: 'Topic not found',
+    replyPlaceholder: 'Write a reply...',
+    locked: 'Topic is closed for discussion',
   },
 
   // ─── Roles ──────────────────────────────
@@ -239,6 +257,7 @@ const en = {
     writeReview: 'Write a review',
     confirmCancel: 'Are you sure you want to cancel the order?',
     assignedMaster: 'Assigned master',
+    adminComment: 'Admin comment',
   },
 
   // ─── Create order ──────────────────────
@@ -1035,6 +1054,11 @@ const en = {
     autoConfirmWarning: '\u23f1 Auto-confirm in 1 hour unless a dispute is opened.',
     acceptWork: 'Accept work',
     clientConfirmed: 'You confirmed acceptance',
+    // SSE real-time notifications
+    masterConfirmedNotify: 'Master confirmed work completion! Please review and confirm.',
+    clientConfirmedNotify: 'Client confirmed work acceptance!',
+    orderCompleted: 'Order completed successfully! Funds transferred.',
+    masterAssignedNotify: 'Master assigned to order!',
     waitingMasterConfirm: 'Waiting for master confirmation',
     bothMustConfirm: 'Both parties must confirm work completion.',
     cancelConfirmTitle: 'Cancel order?',

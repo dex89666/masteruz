@@ -12,6 +12,7 @@ import type { CreateOrderInput, ListOrdersInput, OrderResponseInput } from './or
 import { logger } from '../../utils/logger.js';
 import { notificationService } from '../../services/notificationService.js';
 import { balanceService } from '../balance/balance.service.js';
+import { eventBus } from '../../services/eventBus.js';
 
 // ─── Конфиг штрафов ─────────────────────────
 const PENALTY_AFTER_ACCEPT = 20000;   // Штраф за отмену после принятия (20 000 сум)
@@ -448,6 +449,26 @@ export class OrdersService {
     });
 
     logger.info({ orderId, masterId }, 'Мастер откликнулся на заказ');
+
+    // Авто-назначение мастера (если включено в настройках)
+    try {
+      const autoAssignConfig = await prisma.platformConfig.findUnique({
+        where: { key: 'auto_assign_master' },
+      });
+      if (autoAssignConfig?.value === 'true') {
+        const order = await prisma.order.findUnique({
+          where: { id: orderId },
+          select: { clientId: true, status: true },
+        });
+        if (order && order.status === OrderStatus.PUBLISHED) {
+          logger.info({ orderId, masterId }, 'Авто-назначение мастера');
+          await this.assignMaster(orderId, order.clientId, masterId);
+        }
+      }
+    } catch (err) {
+      logger.error({ err, orderId, masterId }, 'Ошибка авто-назначения');
+    }
+
     return response;
   }
 
@@ -515,6 +536,15 @@ export class OrdersService {
 
     logger.info({ orderId, masterId, clientId }, 'Мастер принят → ACCEPTED');
 
+    // SSE: мастер назначен, уведомляем участников
+    eventBus.emit(orderId, 'master_assigned', {
+      orderId,
+      masterId,
+      clientId,
+      status: OrderStatus.ACCEPTED,
+      timestamp: new Date().toISOString(),
+    });
+
     // Уведомляем мастера о назначении
     notificationService.notifyMasterAssigned(orderId).catch((err) => {
       logger.error({ error: err }, 'Ошибка уведомления мастера о назначении');
@@ -562,6 +592,16 @@ export class OrdersService {
     });
 
     logger.info({ orderId, masterId, from: order.status, to: newStatus }, 'Статус обновлён мастером');
+
+    // SSE: уведомляем всех участников о смене статуса
+    eventBus.emit(orderId, 'status_changed', {
+      orderId,
+      status: newStatus,
+      previousStatus: order.status,
+      updatedBy: masterId,
+      timestamp: new Date().toISOString(),
+    });
+
     return updatedOrder;
   }
 
@@ -584,6 +624,15 @@ export class OrdersService {
     });
 
     logger.info({ orderId, masterId }, 'Мастер подтвердил выполнение');
+
+    // SSE: уведомляем обоих — мастер подтвердил, клиенту нужно подтвердить тоже
+    eventBus.emit(orderId, 'master_confirmed', {
+      orderId,
+      masterId,
+      masterConfirmedAt: result.masterConfirmedAt,
+      clientConfirmedAt: result.clientConfirmedAt,
+      timestamp: new Date().toISOString(),
+    });
 
     // Если клиент уже подтвердил — завершаем и выплачиваем
     if (result.clientConfirmedAt) {
@@ -614,6 +663,15 @@ export class OrdersService {
     });
 
     logger.info({ orderId, clientId }, 'Клиент подтвердил завершение');
+
+    // SSE: уведомляем обоих — клиент подтвердил
+    eventBus.emit(orderId, 'client_confirmed', {
+      orderId,
+      clientId,
+      masterConfirmedAt: result.masterConfirmedAt,
+      clientConfirmedAt: result.clientConfirmedAt,
+      timestamp: new Date().toISOString(),
+    });
 
     // Если мастер уже подтвердил — завершаем и выплачиваем
     if (result.masterConfirmedAt) {
@@ -705,6 +763,17 @@ export class OrdersService {
     });
 
     logger.info({ orderId, masterPayout, commission }, 'Заказ финализирован, средства переведены');
+
+    // SSE: заказ завершён, средства переведены
+    eventBus.emit(orderId, 'order_completed', {
+      orderId,
+      masterId: order.masterId,
+      clientId: order.clientId,
+      masterPayout,
+      commission,
+      timestamp: new Date().toISOString(),
+    });
+
     return { orderId };
   }
 

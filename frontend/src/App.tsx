@@ -60,6 +60,8 @@ const SupportChatPage = lazy(() => import('./pages/SupportChatPage').then(m => (
 const PrivacyPolicyPage = lazy(() => import('./pages/PrivacyPolicyPage').then(m => ({ default: m.PrivacyPolicyPage })));
 const PublicOfferPage = lazy(() => import('./pages/PublicOfferPage').then(m => ({ default: m.PublicOfferPage })));
 const TermsOfServicePage = lazy(() => import('./pages/TermsOfServicePage').then(m => ({ default: m.TermsOfServicePage })));
+const ForumPage = lazy(() => import('./pages/ForumPage').then(m => ({ default: m.ForumPage })));
+const ForumTopicPage = lazy(() => import('./pages/ForumPage').then(m => ({ default: m.ForumTopicPage })));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -128,6 +130,8 @@ function AppContent() {
         <Route path="privacy" element={<PrivacyPolicyPage />} />
         <Route path="public-offer" element={<PublicOfferPage />} />
         <Route path="terms" element={<TermsOfServicePage />} />
+        <Route path="forum" element={<ForumPage />} />
+        <Route path="forum/:id" element={<ForumTopicPage />} />
 
         {/* Estimation (оценка) routes */}
         <Route

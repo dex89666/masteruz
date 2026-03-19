@@ -46,6 +46,7 @@ import turnkeyRoutes from './modules/turnkey/turnkey.routes.js';
 import estimationRoutes from './modules/estimation/estimation.routes.js';
 import instantOrderRoutes from './modules/instant-order/instant-order.routes.js';
 import supportChatRoutes from './modules/support/support.routes.js';
+import forumRoutes from './modules/forum/forum.routes.js';
 
 const app = express();
 
@@ -324,6 +325,7 @@ app.use('/api/turnkey', turnkeyRoutes);
 app.use('/api/estimation', estimationRoutes);
 app.use('/api/instant-order', instantOrderRoutes);
 app.use('/api/support-chat', supportChatRoutes);
+app.use('/api/forum', forumRoutes);
 
 // ─── Healthcheck ───────────────────────────────
 

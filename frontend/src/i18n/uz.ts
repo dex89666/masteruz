@@ -66,6 +66,24 @@ const uz = {
     myOrders: 'Buyurtmalarim',
     favorites: 'Sevimlilar',
     masters: 'Ustalar',
+    availableOrders: 'Mavjud buyurtmalar',
+    forum: 'Ustalar forumi',
+  },
+
+  // ─── Форум ──────────────────────────────
+  forum: {
+    title: 'Ustalar forumi',
+    newTopic: 'Yangi mavzu',
+    mastersOnly: 'Faqat ustalar mavzu yaratishi va javob berishi mumkin.',
+    topicTitle: 'Mavzu sarlavhasi',
+    topicContent: 'Xabar matni...',
+    publish: 'Nashr qilish',
+    noTopics: 'Hali mavzular yo\'q. Birinchi bo\'ling!',
+    topicCreated: 'Mavzu yaratildi',
+    topicDeleted: 'Mavzu o\'chirildi',
+    topicNotFound: 'Mavzu topilmadi',
+    replyPlaceholder: 'Javob yozing...',
+    locked: 'Mavzu muhokama uchun yopilgan',
   },
 
   // ─── Rollar ─────────────────────────────
@@ -239,6 +257,7 @@ const uz = {
     writeReview: 'Sharh yozing',
     confirmCancel: 'Buyurtmani bekor qilishga ishonchingiz komilmi?',
     assignedMaster: 'Tayinlangan usta',
+    adminComment: 'Administrator izohi',
   },
 
   // ─── Buyurtma yaratish ──────────────────
@@ -1035,6 +1054,11 @@ const uz = {
     autoConfirmWarning: '⏱ Agar nizo ochmasa, 1 soatda avtotasdiqlash.',
     acceptWork: 'Ishni qabul qilish',
     clientConfirmed: 'Siz qabul qildingiz',
+    // SSE real-time bildirishnomalar
+    masterConfirmedNotify: 'Usta ishni bajarganini tasdiqladi! Tekshirib, tasdiqlang.',
+    clientConfirmedNotify: 'Mijoz ishni qabul qildi!',
+    orderCompleted: 'Buyurtma muvaffaqiyatli yakunlandi! Mablag\'lar o\'tkazildi.',
+    masterAssignedNotify: 'Usta buyurtmaga tayinlandi!',
     waitingMasterConfirm: 'Usta tasdig\'ini kutmoqda',
     bothMustConfirm: 'Ikkala tomon ham ishni tugatganini tasdiqlashi kerak.',
     cancelConfirmTitle: 'Buyurtmani bekor qilasizmi?',

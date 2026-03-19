@@ -162,6 +162,8 @@ model User {
   supportChatsAsAdmin SupportChat[]    @relation("SupportChatAdmin")
   supportMessages     SupportMessage[] @relation("SupportMsgSender")
   auditLogs           AuditLog[]
+  forumTopics         ForumTopic[]     @relation("ForumTopicAuthor")
+  forumPosts          ForumPost[]      @relation("ForumPostAuthor")
 
   @@map("users")
 }
@@ -377,6 +379,8 @@ model Order {
   additionalWishes String?     @map("additional_wishes")
   moderationRequired Boolean   @default(false) @map("moderation_required")
   voiceDescription String?     @map("voice_description")      // Текстовая расшифровка голоса
+  // Комментарий админа
+  adminComment     String?     @map("admin_comment")
   // Geo / адрес
   latitude         Float?
   longitude        Float?
@@ -1130,4 +1134,39 @@ model AuditLog {
   @@index([entityType, entityId])
   @@index([action, createdAt])
   @@map("audit_logs")
+}
+
+// ─── Форум мастеров ───────────────────────
+model ForumTopic {
+  id          String       @id @default(uuid())
+  title       String
+  content     String
+  authorId    String       @map("author_id")
+  isPinned    Boolean      @default(false) @map("is_pinned")
+  isLocked    Boolean      @default(false) @map("is_locked")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  author User        @relation("ForumTopicAuthor", fields: [authorId], references: [id])
+  posts  ForumPost[]
+
+  @@index([authorId])
+  @@index([createdAt])
+  @@map("forum_topics")
+}
+
+model ForumPost {
+  id        String   @id @default(uuid())
+  content   String
+  authorId  String   @map("author_id")
+  topicId   String   @map("topic_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  author User       @relation("ForumPostAuthor", fields: [authorId], references: [id])
+  topic  ForumTopic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@index([topicId, createdAt])
+  @@index([authorId])
+  @@map("forum_posts")
 }

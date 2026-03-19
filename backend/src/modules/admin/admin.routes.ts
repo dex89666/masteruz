@@ -171,6 +171,25 @@ router.get('/orders', async (req: Request, res: Response, next: NextFunction) =>
   }
 });
 
+// Комментарий админа к заказу
+router.put('/orders/:id/comment', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const { comment } = req.body;
+    if (typeof comment !== 'string') {
+      return res.status(400).json({ success: false, message: 'comment is required' });
+    }
+    const order = await prisma.order.update({
+      where: { id },
+      data: { adminComment: comment || null },
+      select: { id: true, adminComment: true },
+    });
+    res.json({ success: true, data: order });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Платежи
 router.get('/payments', async (req: Request, res: Response, next: NextFunction) => {
   try {

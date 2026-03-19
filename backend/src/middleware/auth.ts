@@ -31,12 +31,20 @@ declare global {
  */
 export function authenticate(req: Request, _res: Response, next: NextFunction): void {
   try {
+    let token: string | undefined;
+
     const authHeader = req.headers.authorization;
-    if (!authHeader?.startsWith('Bearer ')) {
+    if (authHeader?.startsWith('Bearer ')) {
+      token = authHeader.split(' ')[1];
+    } else if (typeof req.query.token === 'string') {
+      // SSE (EventSource) не поддерживает кастомные заголовки — принимаем token из query
+      token = req.query.token;
+    }
+
+    if (!token) {
       throw ApiError.unauthorized('Токен не предоставлен');
     }
 
-    const token = authHeader.split(' ')[1];
     const payload = jwt.verify(token, config.jwt.secret) as JwtPayload;
 
     req.user = payload;

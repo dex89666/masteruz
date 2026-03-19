@@ -168,6 +168,8 @@ export interface Order {
   additionalWishes: string | null;
   moderationRequired: boolean;
   voiceDescription: string | null;
+  // Admin
+  adminComment: string | null;
   // Geo
   latitude: number | null;
   longitude: number | null;

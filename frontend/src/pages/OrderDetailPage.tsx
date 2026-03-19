@@ -3,9 +3,9 @@
 // Двойное подтверждение / Статус-бар / Штрафы / Споры
 // ============================================
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ordersApi, reviewsApi, photosApi, estimationApi } from '../api/client';
+import { ordersApi, reviewsApi, photosApi, estimationApi, adminApi } from '../api/client';
 import { StarRating } from '../components/StarRating';
 import { OrderChat } from '../components/OrderChat';
 import { PhotoGallery } from '../components/PhotoGallery';
@@ -17,6 +17,7 @@ import { OrderDetailSkeleton } from '../components/PageSkeletons';
 import { CommissionPaymentModal } from '../components/CommissionPaymentModal';
 import { useAuthStore } from '../store';
 import { useFormatPrice } from '../hooks';
+import { useOrderEvents } from '../hooks/useOrderEvents';
 import { useTranslation } from '../i18n';
 import {
   MapPin, Clock, DollarSign, User, Phone,
@@ -57,6 +58,11 @@ export function OrderDetailPage() {
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
 
+  // Admin comment state
+  const [editingAdminComment, setEditingAdminComment] = useState(false);
+  const [adminCommentDraft, setAdminCommentDraft] = useState('');
+
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'MANAGER';
   const isMaster = user?.role === 'MASTER';
   const isClient = user?.role === 'CLIENT';
   const isOwner = order?.clientId === user?.id;
@@ -77,6 +83,31 @@ export function OrderDetailPage() {
   useEffect(() => {
     if (id) loadOrder();
   }, [id]);
+
+  // SSE real-time обновления — при любом событии перезагружаем заказ + показываем уведомление
+  const handleOrderEvent = useCallback((event: string) => {
+    if (!id) return;
+    loadOrder();
+    // Показываем попап при подтверждении другой стороной
+    if (event === 'master_confirmed' && isOwner) {
+      toast(t('antiFraud.masterConfirmedNotify'), { icon: '✅', duration: 6000 });
+    }
+    if (event === 'client_confirmed' && isAssignedMaster) {
+      toast(t('antiFraud.clientConfirmedNotify'), { icon: '✅', duration: 6000 });
+    }
+    if (event === 'order_completed') {
+      toast.success(t('antiFraud.orderCompleted'), { duration: 6000 });
+    }
+    if (event === 'master_assigned') {
+      toast(t('antiFraud.masterAssignedNotify'), { icon: '🔔', duration: 5000 });
+    }
+  }, [id, isOwner, isAssignedMaster]);
+
+  useOrderEvents({
+    orderId: id,
+    enabled: !loading && !!order,
+    onEvent: handleOrderEvent,
+  });
 
   async function loadOrder() {
     try {
@@ -379,6 +410,64 @@ export function OrderDetailPage() {
           clientConfirmedAt={order.clientConfirmedAt || undefined}
         />
       </div>
+
+      {/* Комментарий администратора */}
+      {(order.adminComment || isAdmin) && (
+        <div className="card mb-4 border border-purple-300 dark:border-purple-700 bg-purple-50/50 dark:bg-purple-900/10">
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-lg bg-purple-100 dark:bg-purple-900/40 flex items-center justify-center shrink-0">
+              <Shield size={18} className="text-purple-600 dark:text-purple-400" />
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-purple-600 dark:text-purple-400 uppercase">{t('orderDetail.adminComment')}</p>
+                {isAdmin && !editingAdminComment && (
+                  <button
+                    onClick={() => { setAdminCommentDraft(order.adminComment || ''); setEditingAdminComment(true); }}
+                    className="text-xs text-purple-500 hover:text-purple-700 dark:hover:text-purple-300"
+                  >
+                    {order.adminComment ? '✏️' : '+ Добавить'}
+                  </button>
+                )}
+              </div>
+              {editingAdminComment ? (
+                <div className="mt-2">
+                  <textarea
+                    value={adminCommentDraft}
+                    onChange={(e) => setAdminCommentDraft(e.target.value)}
+                    className="input text-sm w-full"
+                    rows={3}
+                    placeholder="Комментарий к заказу..."
+                  />
+                  <div className="flex gap-2 mt-2">
+                    <button
+                      onClick={async () => {
+                        try {
+                          await adminApi.updateOrderComment(id!, adminCommentDraft);
+                          setEditingAdminComment(false);
+                          loadOrder();
+                          toast.success('Комментарий сохранён');
+                        } catch { toast.error('Ошибка сохранения'); }
+                      }}
+                      className="px-3 py-1.5 text-xs rounded-lg bg-purple-500 text-white hover:bg-purple-600"
+                    >
+                      Сохранить
+                    </button>
+                    <button
+                      onClick={() => setEditingAdminComment(false)}
+                      className="px-3 py-1.5 text-xs rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
+                    >
+                      Отмена
+                    </button>
+                  </div>
+                </div>
+              ) : order.adminComment ? (
+                <p className="text-sm text-gray-800 dark:text-gray-200 mt-1">{order.adminComment}</p>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ═══════ БЛОК ОЦЕНКИ (Estimation Order) ═══════ */}
       {order.isEstimationOrder && (

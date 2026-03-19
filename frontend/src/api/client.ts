@@ -449,6 +449,27 @@ export const instantOrderApi = {
     api.put<ApiResponse<any>>(`/instant-order/admin/moderate/${orderId}`, { approved, note }),
 };
 
+// ─── Forum API (форум мастеров) ──────
+export const forumApi = {
+  getTopics: (page?: number) =>
+    api.get<PaginatedResponse<any>>('/forum/topics', { params: { page } }),
+
+  getTopic: (id: string, page?: number) =>
+    api.get<ApiResponse<any>>(`/forum/topics/${id}`, { params: { page } }),
+
+  createTopic: (title: string, content: string) =>
+    api.post<ApiResponse<any>>('/forum/topics', { title, content }),
+
+  createPost: (topicId: string, content: string) =>
+    api.post<ApiResponse<any>>(`/forum/topics/${topicId}/posts`, { content }),
+
+  deleteTopic: (id: string) =>
+    api.delete<ApiResponse<any>>(`/forum/topics/${id}`),
+
+  moderateTopic: (id: string, data: { isPinned?: boolean; isLocked?: boolean }) =>
+    api.put<ApiResponse<any>>(`/forum/topics/${id}/moderate`, data),
+};
+
 // ─── Support Chat API (чат поддержки) ──────
 export const supportChatApi = {
   // Мои чаты поддержки
@@ -627,6 +648,9 @@ export const adminApi = {
 
   getOrders: (params?: any) =>
     api.get<PaginatedResponse<any>>('/admin/orders', { params }),
+
+  updateOrderComment: (orderId: string, comment: string) =>
+    api.put<ApiResponse<any>>(`/admin/orders/${orderId}/comment`, { comment }),
 
   getPayments: (params?: any) =>
     api.get<PaginatedResponse<any>>('/admin/payments', { params }),

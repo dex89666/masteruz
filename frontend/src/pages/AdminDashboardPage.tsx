@@ -1408,6 +1408,7 @@ export function AdminDashboardPage() {
                       <div className="flex items-center gap-3 text-[10px] text-gray-400 dark:text-gray-500 mt-1">
                         <span>💬 {o._count?.responses || 0}</span>
                         <span>⭐ {o._count?.reviews || 0}</span>
+                        {o.adminComment && <span className="text-purple-500">📝 коммент</span>}
                         <span>{new Date(o.createdAt).toLocaleDateString()}</span>
                       </div>
                     </div>
