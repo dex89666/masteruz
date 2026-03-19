@@ -7,7 +7,7 @@ import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import {
   Search, Shield, Star, MapPin, Users, GraduationCap,
-  ArrowRight, Zap, HelpCircle, Store, Hammer, Camera, Handshake, AlertTriangle,
+  ArrowRight, Zap, HelpCircle, Store, Hammer, Camera, Handshake, AlertTriangle, ClipboardList,
 } from 'lucide-react';
 import { useAuthStore } from '../store';
 import { useTranslation } from '../i18n';
@@ -59,7 +59,7 @@ const STEP_ICONS = ['📝', '💬', '✅'] as const;
 const STEP_KEYS = ['step1', 'step2', 'step3'] as const;
 
 export function HomePage() {
-  useAuthStore();
+  const { user } = useAuthStore();
   const { t } = useTranslation();
   const formatPrice = useFormatPrice();
   const [topMasters, setTopMasters] = useState<any[]>([]);
@@ -133,6 +133,17 @@ export function HomePage() {
               <span>Авария? Срочный вызов</span>
               <span className="ml-1 text-sm font-normal bg-white/20 px-2 py-0.5 rounded-full">+40%</span>
             </Link>
+
+            {/* ★ Кнопка «Доступные заказы» — для мастеров */}
+            {(user?.role === 'MASTER' || user?.role === 'ADMIN' || user?.role === 'MANAGER') && (
+              <Link
+                to="/orders"
+                className="w-full flex items-center justify-center gap-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-bold px-8 py-5 rounded-2xl text-lg md:text-xl transition-all shadow-lg shadow-green-500/30 hover:shadow-green-500/50 hover:scale-[1.02] ring-2 ring-green-400/50 min-h-[64px]"
+              >
+                <ClipboardList size={26} className="shrink-0" />
+                <span>Доступные заказы</span>
+              </Link>
+            )}
           </div>
 
           <div className="flex justify-center gap-6 mt-8 text-sm text-gray-400">

@@ -1141,6 +1141,7 @@ model ForumTopic {
   id          String       @id @default(uuid())
   title       String
   content     String
+  images      String[]     @default([])
   authorId    String       @map("author_id")
   isPinned    Boolean      @default(false) @map("is_pinned")
   isLocked    Boolean      @default(false) @map("is_locked")
@@ -1158,6 +1159,7 @@ model ForumTopic {
 model ForumPost {
   id        String   @id @default(uuid())
   content   String
+  images    String[] @default([])
   authorId  String   @map("author_id")
   topicId   String   @map("topic_id")
   createdAt DateTime @default(now()) @map("created_at")

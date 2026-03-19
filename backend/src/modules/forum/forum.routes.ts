@@ -4,6 +4,7 @@ import { authenticate, authorize } from '../../middleware/auth.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { moderateMessage, censorMessage } from '../chat/chatModeration.js';
 import { logger } from '../../utils/logger.js';
+import { upload, saveUploadedFile } from '../../middleware/upload.js';
 
 const router = Router();
 
@@ -80,7 +81,7 @@ router.get('/topics/:id', async (req: Request, res: Response, next: NextFunction
 });
 
 // ─── Создать тему (POST /api/forum/topics) — только мастера ───
-router.post('/topics', async (req: Request, res: Response, next: NextFunction) => {
+router.post('/topics', upload.array('images', 5), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.user!.userId;
     const { title, content } = req.body;
@@ -105,10 +106,20 @@ router.post('/topics', async (req: Request, res: Response, next: NextFunction) =
       throw ApiError.badRequest('Сообщение содержит запрещённый контент');
     }
 
+    // Загрузка изображений
+    const imageUrls: string[] = [];
+    if (req.files && Array.isArray(req.files)) {
+      for (const file of req.files) {
+        const url = await saveUploadedFile(file);
+        imageUrls.push(url);
+      }
+    }
+
     const topic = await prisma.forumTopic.create({
       data: {
         title: censorMessage(title),
         content: censorMessage(content),
+        images: imageUrls,
         authorId: userId,
       },
       include: {
@@ -123,7 +134,7 @@ router.post('/topics', async (req: Request, res: Response, next: NextFunction) =
 });
 
 // ─── Ответ в теме (POST /api/forum/topics/:id/posts) — только мастера ───
-router.post('/topics/:id/posts', async (req: Request, res: Response, next: NextFunction) => {
+router.post('/topics/:id/posts', upload.array('images', 5), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.user!.userId;
     const { id: topicId } = req.params;
@@ -150,9 +161,19 @@ router.post('/topics/:id/posts', async (req: Request, res: Response, next: NextF
       throw ApiError.badRequest('Сообщение содержит запрещённый контент');
     }
 
+    // Загрузка изображений
+    const imageUrls: string[] = [];
+    if (req.files && Array.isArray(req.files)) {
+      for (const file of req.files) {
+        const url = await saveUploadedFile(file);
+        imageUrls.push(url);
+      }
+    }
+
     const post = await prisma.forumPost.create({
       data: {
         content: censorMessage(content),
+        images: imageUrls,
         authorId: userId,
         topicId,
       },

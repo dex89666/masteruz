@@ -565,6 +565,22 @@ export function OrderDetailPage() {
             <Truck size={18} />
             {t('antiFraud.iAmOnMyWay')}
           </button>
+          {/* Кнопка навигации */}
+          {order.latitude && order.longitude && (
+            <a
+              href={`yandexnavi://build_route_on_map?lat_to=${order.latitude}&lon_to=${order.longitude}`}
+              onClick={() => {
+                // Fallback для устройств без Яндекс.Навигатора
+                setTimeout(() => {
+                  window.open(`https://yandex.ru/maps/?rtext=~${order.latitude},${order.longitude}&rtt=auto`, '_blank');
+                }, 500);
+              }}
+              className="w-full mt-2 py-3 rounded-xl font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-900/30 hover:bg-indigo-200 dark:hover:bg-indigo-900/50 transition-all flex items-center justify-center gap-2 border border-indigo-200 dark:border-indigo-700"
+            >
+              <Navigation size={18} />
+              Открыть навигатор
+            </a>
+          )}
         </div>
       )}
 
@@ -587,6 +603,21 @@ export function OrderDetailPage() {
             <CheckCircle size={18} />
             {t('antiFraud.startWork')}
           </button>
+          {/* Кнопка навигации */}
+          {order.latitude && order.longitude && (
+            <a
+              href={`yandexnavi://build_route_on_map?lat_to=${order.latitude}&lon_to=${order.longitude}`}
+              onClick={() => {
+                setTimeout(() => {
+                  window.open(`https://yandex.ru/maps/?rtext=~${order.latitude},${order.longitude}&rtt=auto`, '_blank');
+                }, 500);
+              }}
+              className="w-full mt-2 py-3 rounded-xl font-semibold text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-900/30 hover:bg-purple-200 dark:hover:bg-purple-900/50 transition-all flex items-center justify-center gap-2 border border-purple-200 dark:border-purple-700"
+            >
+              <Navigation size={18} />
+              Открыть навигатор
+            </a>
+          )}
         </div>
       )}
 
@@ -822,21 +853,70 @@ export function OrderDetailPage() {
           )}
 
           {order.latitude && order.longitude && (
-            <a
-              href={`https://maps.google.com/?q=${order.latitude},${order.longitude}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-3 p-3 rounded-xl bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-            >
-              <div className="w-10 h-10 rounded-full bg-orange-100 dark:bg-orange-900/40 flex items-center justify-center">
-                <Navigation size={18} className="text-orange-600 dark:text-orange-400" />
+            <div className="space-y-2">
+              {/* Кнопка Яндекс.Навигатор */}
+              <a
+                href={`yandexnavi://build_route_on_map?lat_to=${order.latitude}&lon_to=${order.longitude}`}
+                onClick={() => {
+                  setTimeout(() => {
+                    window.open(`https://yandex.ru/maps/?rtext=~${order.latitude},${order.longitude}&rtt=auto`, '_blank');
+                  }, 500);
+                }}
+                className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-red-500 to-red-600 text-white hover:from-red-600 hover:to-red-700 transition-colors"
+              >
+                <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
+                  <Navigation size={18} />
+                </div>
+                <div className="flex-1">
+                  <p className="font-semibold">🚗 Яндекс.Навигатор</p>
+                  <p className="text-xs text-white/80">Проложить маршрут к клиенту</p>
+                </div>
+                <Map size={16} className="opacity-60" />
+              </a>
+
+              {/* Запасная ссылка на карту */}
+              <a
+                href={`https://yandex.ru/maps/?pt=${order.longitude},${order.latitude}&z=16&l=map`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-3 p-3 rounded-xl bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              >
+                <div className="w-10 h-10 rounded-full bg-orange-100 dark:bg-orange-900/40 flex items-center justify-center">
+                  <Map size={18} className="text-orange-600 dark:text-orange-400" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{t('commissionPayment.clientGeo')}</p>
+                  <p className="font-semibold text-gray-900 dark:text-white">Показать на карте</p>
+                </div>
+              </a>
+            </div>
+          )}
+
+          {/* Описание заказа для мастера — полное */}
+          {order.description && (
+            <div className="mt-3 p-3 rounded-xl bg-white dark:bg-gray-800">
+              <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">📝 Описание заказа</p>
+              <p className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-line">{order.description}</p>
+            </div>
+          )}
+
+          {/* Фотографии заказа для мастера */}
+          {order.images && order.images.filter((img: string) => img.startsWith('http') || img.startsWith('data:')).length > 0 && (
+            <div className="mt-3 p-3 rounded-xl bg-white dark:bg-gray-800">
+              <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">📷 Фотографии заказа</p>
+              <div className="grid grid-cols-3 gap-2">
+                {order.images.filter((img: string) => img.startsWith('http') || img.startsWith('data:')).map((img: string, idx: number) => (
+                  <a key={idx} href={img.startsWith('data:') ? undefined : img} target="_blank" rel="noopener noreferrer" className="block">
+                    <img
+                      src={img}
+                      alt={`Фото ${idx + 1}`}
+                      className="w-full h-24 object-cover rounded-lg border border-gray-200 dark:border-gray-700 hover:opacity-90 transition-opacity cursor-pointer"
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                    />
+                  </a>
+                ))}
               </div>
-              <div className="flex-1">
-                <p className="text-xs text-gray-500 dark:text-gray-400">{t('commissionPayment.clientGeo')}</p>
-                <p className="font-semibold text-gray-900 dark:text-white">{t('commissionPayment.openMap')}</p>
-              </div>
-              <Map size={16} className="text-gray-400" />
-            </a>
+            </div>
           )}
         </div>
       )}

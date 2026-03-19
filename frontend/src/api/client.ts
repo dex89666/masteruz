@@ -457,11 +457,28 @@ export const forumApi = {
   getTopic: (id: string, page?: number) =>
     api.get<ApiResponse<any>>(`/forum/topics/${id}`, { params: { page } }),
 
-  createTopic: (title: string, content: string) =>
-    api.post<ApiResponse<any>>('/forum/topics', { title, content }),
+  createTopic: (title: string, content: string, images?: File[]) => {
+    const formData = new FormData();
+    formData.append('title', title);
+    formData.append('content', content);
+    if (images) {
+      images.forEach(f => formData.append('images', f));
+    }
+    return api.post<ApiResponse<any>>('/forum/topics', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
 
-  createPost: (topicId: string, content: string) =>
-    api.post<ApiResponse<any>>(`/forum/topics/${topicId}/posts`, { content }),
+  createPost: (topicId: string, content: string, images?: File[]) => {
+    const formData = new FormData();
+    formData.append('content', content);
+    if (images) {
+      images.forEach(f => formData.append('images', f));
+    }
+    return api.post<ApiResponse<any>>(`/forum/topics/${topicId}/posts`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
 
   deleteTopic: (id: string) =>
     api.delete<ApiResponse<any>>(`/forum/topics/${id}`),

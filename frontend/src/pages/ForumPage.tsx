@@ -1,11 +1,100 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { forumApi } from '../api/client';
 import { useAuthStore } from '../store';
 import { useTranslation } from '../i18n';
 import { LoadingSpinner } from '../components/LoadingSpinner';
-import { MessageSquare, Plus, Pin, Lock, ArrowLeft, Send, Trash2 } from 'lucide-react';
+import { MessageSquare, Plus, Pin, Lock, ArrowLeft, Send, Trash2, Camera, Image, X } from 'lucide-react';
 import toast from 'react-hot-toast';
+
+// ─── Компонент выбора фото (галерея + камера) ───
+function PhotoPicker({ images, onChange, max = 5 }: { images: File[]; onChange: (files: File[]) => void; max?: number }) {
+  const galleryRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
+
+  const addFiles = (files: FileList | null) => {
+    if (!files) return;
+    const newFiles = Array.from(files).slice(0, max - images.length);
+    onChange([...images, ...newFiles]);
+  };
+
+  const removeFile = (idx: number) => {
+    onChange(images.filter((_, i) => i !== idx));
+  };
+
+  return (
+    <div>
+      {images.length > 0 && (
+        <div className="flex gap-2 mb-2 flex-wrap">
+          {images.map((file, idx) => (
+            <div key={idx} className="relative w-16 h-16">
+              <img
+                src={URL.createObjectURL(file)}
+                alt=""
+                className="w-16 h-16 object-cover rounded-lg border border-gray-200 dark:border-gray-700"
+              />
+              <button
+                type="button"
+                onClick={() => removeFile(idx)}
+                className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center"
+              >
+                <X size={12} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      {images.length < max && (
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => galleryRef.current?.click()}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
+          >
+            <Image size={14} />
+            Галерея
+          </button>
+          <button
+            type="button"
+            onClick={() => cameraRef.current?.click()}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
+          >
+            <Camera size={14} />
+            Камера
+          </button>
+          <input ref={galleryRef} type="file" accept="image/*" multiple hidden onChange={e => addFiles(e.target.files)} />
+          <input ref={cameraRef} type="file" accept="image/*" capture="environment" hidden onChange={e => addFiles(e.target.files)} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Компонент отображения изображений ───
+function ForumImages({ images }: { images?: string[] }) {
+  const [lightbox, setLightbox] = useState<string | null>(null);
+  if (!images || images.length === 0) return null;
+  return (
+    <>
+      <div className="grid grid-cols-3 gap-2 mt-2">
+        {images.map((url, idx) => (
+          <img
+            key={idx}
+            src={url}
+            alt={`Фото ${idx + 1}`}
+            className="w-full h-24 object-cover rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer hover:opacity-90 transition-opacity"
+            onClick={() => setLightbox(url)}
+          />
+        ))}
+      </div>
+      {lightbox && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4" onClick={() => setLightbox(null)}>
+          <img src={lightbox} alt="" className="max-w-full max-h-[90vh] rounded-xl" />
+        </div>
+      )}
+    </>
+  );
+}
 
 // ─── Список тем ───
 export function ForumPage() {
@@ -21,6 +110,7 @@ export function ForumPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newContent, setNewContent] = useState('');
+  const [newImages, setNewImages] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => { loadTopics(); }, [page]);
@@ -38,11 +128,12 @@ export function ForumPage() {
     if (!newTitle.trim() || !newContent.trim()) return;
     setSubmitting(true);
     try {
-      const res = await forumApi.createTopic(newTitle.trim(), newContent.trim());
+      const res = await forumApi.createTopic(newTitle.trim(), newContent.trim(), newImages.length > 0 ? newImages : undefined);
       toast.success(t('forum.topicCreated'));
       setShowCreate(false);
       setNewTitle('');
       setNewContent('');
+      setNewImages([]);
       navigate(`/forum/${res.data.data.id}`);
     } catch (err: any) {
       toast.error(err.response?.data?.message || t('common.error'));
@@ -86,6 +177,9 @@ export function ForumPage() {
             rows={4}
             maxLength={5000}
           />
+          <div className="mb-3">
+            <PhotoPicker images={newImages} onChange={setNewImages} />
+          </div>
           <div className="flex gap-2">
             <button
               onClick={handleCreateTopic}
@@ -166,6 +260,7 @@ export function ForumTopicPage() {
   const [topic, setTopic] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [newPost, setNewPost] = useState('');
+  const [postImages, setPostImages] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => { loadTopic(); }, [id]);
@@ -185,8 +280,9 @@ export function ForumTopicPage() {
     if (!newPost.trim()) return;
     setSubmitting(true);
     try {
-      await forumApi.createPost(id!, newPost.trim());
+      await forumApi.createPost(id!, newPost.trim(), postImages.length > 0 ? postImages : undefined);
       setNewPost('');
+      setPostImages([]);
       loadTopic();
     } catch (err: any) {
       toast.error(err.response?.data?.message || t('common.error'));
@@ -231,6 +327,7 @@ export function ForumTopicPage() {
           {topic.isLocked && <Lock size={12} className="text-gray-400" />}
         </div>
         <p className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap">{topic.content}</p>
+        <ForumImages images={topic.images} />
       </div>
 
       {/* Posts */}
@@ -245,6 +342,7 @@ export function ForumTopicPage() {
                 <span className="text-xs text-gray-400">{new Date(post.createdAt).toLocaleString()}</span>
               </div>
               <p className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap">{post.content}</p>
+              <ForumImages images={post.images} />
             </div>
           ))}
         </div>
@@ -252,22 +350,25 @@ export function ForumTopicPage() {
 
       {/* Reply */}
       {isMaster && !topic.isLocked && (
-        <div className="flex gap-2">
-          <textarea
-            value={newPost}
-            onChange={(e) => setNewPost(e.target.value)}
-            placeholder={t('forum.replyPlaceholder')}
-            className="input flex-1 text-sm"
-            rows={2}
-            maxLength={3000}
-          />
-          <button
-            onClick={handlePost}
-            disabled={submitting || !newPost.trim()}
-            className="btn-primary self-end px-4"
-          >
-            <Send size={16} />
-          </button>
+        <div className="space-y-2">
+          <div className="flex gap-2">
+            <textarea
+              value={newPost}
+              onChange={(e) => setNewPost(e.target.value)}
+              placeholder={t('forum.replyPlaceholder')}
+              className="input flex-1 text-sm"
+              rows={2}
+              maxLength={3000}
+            />
+            <button
+              onClick={handlePost}
+              disabled={submitting || !newPost.trim()}
+              className="btn-primary self-end px-4"
+            >
+              <Send size={16} />
+            </button>
+          </div>
+          <PhotoPicker images={postImages} onChange={setPostImages} />
         </div>
       )}
 
