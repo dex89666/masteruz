@@ -45,6 +45,7 @@ async function invalidateCatalogCache(): Promise<void> {
 
 /**
  * GET /catalog/categories — все активные категории (cached)
+ * Возвращает иерархическую структуру: родительские категории с дочерними
  */
 router.get('/categories', async (_req, res, next) => {
   try {
@@ -53,6 +54,27 @@ router.get('/categories', async (_req, res, next) => {
         where: { isActive: true },
         orderBy: { sortOrder: 'asc' },
         include: {
+          children: {
+            where: { isActive: true },
+            orderBy: { sortOrder: 'asc' },
+            include: {
+              subcategories: {
+                where: { isActive: true },
+                orderBy: { sortOrder: 'asc' },
+                select: {
+                  id: true,
+                  name: true,
+                  nameUz: true,
+                  nameEn: true,
+                  slug: true,
+                  icon: true,
+                  sortOrder: true,
+                  _count: { select: { tasks: true } },
+                },
+              },
+              _count: { select: { subcategories: true } },
+            },
+          },
           subcategories: {
             where: { isActive: true },
             orderBy: { sortOrder: 'asc' },
@@ -79,7 +101,9 @@ router.get('/categories', async (_req, res, next) => {
 });
 
 /**
- * GET /catalog/categories/:slug — категория со всеми подкатегориями и задачами (cached)
+ * GET /catalog/categories/:slug — категория со всеми данными (cached)
+ * Для родительской: возвращает дочерние категории
+ * Для дочерней: возвращает подкатегории и задачи
  */
 router.get('/categories/:slug', async (req, res, next) => {
   try {
@@ -87,6 +111,24 @@ router.get('/categories/:slug', async (req, res, next) => {
       prisma.category.findUnique({
         where: { slug: req.params.slug },
         include: {
+          parent: {
+            select: { id: true, name: true, nameUz: true, nameEn: true, slug: true, icon: true },
+          },
+          children: {
+            where: { isActive: true },
+            orderBy: { sortOrder: 'asc' },
+            include: {
+              subcategories: {
+                where: { isActive: true },
+                orderBy: { sortOrder: 'asc' },
+                select: {
+                  id: true, name: true, nameUz: true, nameEn: true, slug: true, icon: true,
+                  _count: { select: { tasks: true } },
+                },
+              },
+              _count: { select: { subcategories: true } },
+            },
+          },
           subcategories: {
             where: { isActive: true },
             orderBy: { sortOrder: 'asc' },

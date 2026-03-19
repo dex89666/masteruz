@@ -141,6 +141,7 @@ export function useAppInit() {
         try {
           const catRes = await catalogApi.getCategories();
           if (catRes.data.data) {
+            // Сохраняем все категории (включая родительские) в store
             setCategories(catRes.data.data);
           }
         } catch {

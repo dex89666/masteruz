@@ -45,7 +45,9 @@ export function OrdersListPage() {
   // Load categories for filter chips
   useEffect(() => {
     catalogApi.getCategories().then((res) => {
-      const cats = res.data.data || [];
+      const allCats = res.data.data || [];
+      // Только дочерние категории (с parentId)
+      const cats = allCats.filter((c: any) => c.parentId);
       setCategories(cats);
 
       // Resolve slug from URL to real category ID

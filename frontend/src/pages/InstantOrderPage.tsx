@@ -108,7 +108,9 @@ export function InstantOrderPage() {
   useEffect(() => {
     catalogApi.getCategories()
       .then((res) => {
-        const cats = res.data.data || [];
+        const allCats = res.data.data || [];
+        // Только дочерние категории (с parentId) — родительские не имеют подкатегорий
+        const cats = allCats.filter((c: any) => c.parentId);
         if (cats.length > 0) {
           setCategories(cats);
           // Auto-select category from URL param (?category=id_or_slug)

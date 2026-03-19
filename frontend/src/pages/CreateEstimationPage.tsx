@@ -44,7 +44,8 @@ export function CreateEstimationPage() {
   async function loadCategories() {
     try {
       const res = await catalogApi.getCategories();
-      setCategories(res.data.data || []);
+      // Только дочерние категории (с parentId)
+      setCategories((res.data.data || []).filter((c: any) => c.parentId));
     } catch { }
   }
 

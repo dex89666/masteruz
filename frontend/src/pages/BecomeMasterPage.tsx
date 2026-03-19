@@ -55,7 +55,8 @@ export function BecomeMasterPage() {
     setLoadingCategories(true);
     try {
       const res = await catalogApi.getCategories();
-      setCategories(res.data.data || []);
+      // Только дочерние категории (с parentId)
+      setCategories((res.data.data || []).filter((c: any) => c.parentId));
     } catch {
       toast.error(t('common.error'));
     } finally {

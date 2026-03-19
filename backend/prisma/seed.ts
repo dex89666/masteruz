@@ -1,23 +1,53 @@
 // ============================================
-// MasterUz — Database Seed (v4)
-// 14 категорий, 70+ подкатегорий, 300+ задач
-// + Партнёрские магазины, Ремонт под ключ
+// MasterUz — Database Seed (v5)
+// 6 родительских категорий + 15 дочерних, 70+ подкатегорий, 300+ задач
+// + Партнёрские магазины, Ремонт под ключ, Перевозки
 // ============================================
 
 import { PrismaClient } from '@prisma/client';
-import { SERVICE_CATALOG } from '../../shared/services-catalog.js';
+import { SERVICE_CATALOG, PARENT_CATEGORIES } from '../../shared/services-catalog.js';
 
 const prisma = new PrismaClient();
 
 async function seed() {
   console.log('🌱 Начинаю заполнение базы данных...');
 
-  // ─── Категории + подкатегории + задачи ───
+  // ─── Проход 1: Родительские категории (6 шт) ───
+  const parentMap = new Map<string, string>(); // slug → id
+  for (let i = 0; i < PARENT_CATEGORIES.length; i++) {
+    const pDef = PARENT_CATEGORIES[i];
+    const parent = await prisma.category.upsert({
+      where: { slug: pDef.slug },
+      update: {
+        name: pDef.name,
+        nameUz: pDef.nameUz,
+        nameEn: pDef.nameEn,
+        icon: pDef.icon,
+        sortOrder: i + 1,
+        parentId: null,
+      },
+      create: {
+        name: pDef.name,
+        nameUz: pDef.nameUz,
+        nameEn: pDef.nameEn,
+        slug: pDef.slug,
+        icon: pDef.icon,
+        sortOrder: i + 1,
+      },
+    });
+    parentMap.set(pDef.slug, parent.id);
+  }
+  console.log(`✅ Создано ${parentMap.size} родительских категорий`);
+
+  // ─── Проход 2: Дочерние категории + подкатегории + задачи ───
   let totalCategories = 0;
   let totalSubcategories = 0;
   let totalTasks = 0;
 
-  for (const catDef of SERVICE_CATALOG) {
+  for (let ci = 0; ci < SERVICE_CATALOG.length; ci++) {
+    const catDef = SERVICE_CATALOG[ci];
+    const parentId = catDef.parentSlug ? parentMap.get(catDef.parentSlug) || null : null;
+
     const category = await prisma.category.upsert({
       where: { slug: catDef.slug },
       update: {
@@ -25,7 +55,8 @@ async function seed() {
         nameUz: catDef.nameUz,
         nameEn: catDef.nameEn,
         icon: catDef.icon,
-        sortOrder: SERVICE_CATALOG.indexOf(catDef) + 1,
+        sortOrder: ci + 1,
+        parentId,
       },
       create: {
         name: catDef.name,
@@ -33,7 +64,8 @@ async function seed() {
         nameEn: catDef.nameEn,
         slug: catDef.slug,
         icon: catDef.icon,
-        sortOrder: SERVICE_CATALOG.indexOf(catDef) + 1,
+        sortOrder: ci + 1,
+        parentId,
       },
     });
     totalCategories++;
@@ -104,6 +136,22 @@ async function seed() {
   console.log(`✅ Создано ${totalCategories} категорий`);
   console.log(`✅ Создано ${totalSubcategories} подкатегорий`);
   console.log(`✅ Создано ${totalTasks} задач`);
+
+  // ─── Деактивация старых/тестовых категорий без parentId ───
+  const knownSlugs = [
+    ...PARENT_CATEGORIES.map(p => p.slug),
+    ...SERVICE_CATALOG.map(c => c.slug),
+  ];
+  const deactivated = await prisma.category.updateMany({
+    where: {
+      slug: { notIn: knownSlugs },
+      isActive: true,
+    },
+    data: { isActive: false },
+  });
+  if (deactivated.count > 0) {
+    console.log(`🧹 Деактивировано ${deactivated.count} старых/тестовых категорий`);
+  }
 
   // ─── Конфигурация платформы ───────────────
   const configs = await Promise.all([

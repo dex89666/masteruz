@@ -72,7 +72,8 @@ export function ProfileSettingsPage() {
         catalogApi.getCategories(),
         usersApi.getMasterCategories(),
       ]);
-      setCategories(catRes.data.data || []);
+      // Только дочерние категории (с parentId)
+      setCategories((catRes.data.data || []).filter((c: any) => c.parentId));
       const myIds = (myCatRes.data.data || []).map((mc: any) => mc.categoryId || mc.id);
       setSelectedCategoryIds(myIds);
     } catch {

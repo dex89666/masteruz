@@ -43,6 +43,7 @@ const MasterPortfolioPage = lazy(() => import('./pages/MasterPortfolioPage').the
 const BalancePage = lazy(() => import('./pages/BalancePage').then(m => ({ default: m.BalancePage })));
 const CatalogPage = lazy(() => import('./pages/CatalogPage').then(m => ({ default: m.CatalogPage })));
 const SubcategoryPage = lazy(() => import('./pages/SubcategoryPage').then(m => ({ default: m.SubcategoryPage })));
+const ServicesCatalogPage = lazy(() => import('./pages/ServicesCatalogPage').then(m => ({ default: m.ServicesCatalogPage })));
 const CartPage = lazy(() => import('./pages/CartPage').then(m => ({ default: m.CartPage })));
 const StoresPage = lazy(() => import('./pages/StoresPage').then(m => ({ default: m.StoresPage })));
 const StoreProfilePage = lazy(() => import('./pages/StoreProfilePage').then(m => ({ default: m.StoreProfilePage })));
@@ -116,6 +117,7 @@ function AppContent() {
         <Route path="orders/:id" element={<OrderDetailPage />} />
         <Route path="catalog/:slug" element={<CatalogPage />} />
         <Route path="catalog/:categorySlug/:subcategorySlug" element={<SubcategoryPage />} />
+        <Route path="services/:slug" element={<ServicesCatalogPage />} />
         <Route path="cart" element={<CartPage />} />
         <Route path="masters" element={<MasterSearchPage />} />
         <Route path="masters/:id" element={<MasterProfilePage />} />

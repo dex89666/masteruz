@@ -18,39 +18,23 @@ import { AnimatedCounter } from '../components/AnimatedCounter';
 import { useFormatPrice } from '../hooks';
 import type { Order } from '../types';
 
-// 14 категорий с яркими цветами
-const CATEGORY_COLORS: Record<string, { bg: string; text: string; border: string }> = {
-  plumbing:           { bg: 'bg-blue-50 dark:bg-blue-900/30',   text: 'text-blue-600 dark:text-blue-400',     border: 'border-blue-200 dark:border-blue-800' },
-  electrical:         { bg: 'bg-yellow-50 dark:bg-yellow-900/30', text: 'text-yellow-600 dark:text-yellow-400', border: 'border-yellow-200 dark:border-yellow-800' },
-  furniture:          { bg: 'bg-amber-50 dark:bg-amber-900/30', text: 'text-amber-700 dark:text-amber-400',   border: 'border-amber-200 dark:border-amber-800' },
-  construction:       { bg: 'bg-orange-50 dark:bg-orange-900/30', text: 'text-orange-600 dark:text-orange-400', border: 'border-orange-200 dark:border-orange-800' },
-  painting:           { bg: 'bg-pink-50 dark:bg-pink-900/30',   text: 'text-pink-600 dark:text-pink-400',     border: 'border-pink-200 dark:border-pink-800' },
-  'windows-doors':    { bg: 'bg-teal-50 dark:bg-teal-900/30',   text: 'text-teal-600 dark:text-teal-400',     border: 'border-teal-200 dark:border-teal-800' },
-  'appliance-install':{ bg: 'bg-indigo-50 dark:bg-indigo-900/30', text: 'text-indigo-600 dark:text-indigo-400', border: 'border-indigo-200 dark:border-indigo-800' },
-  carpentry:          { bg: 'bg-lime-50 dark:bg-lime-900/30',   text: 'text-lime-700 dark:text-lime-400',     border: 'border-lime-200 dark:border-lime-800' },
-  cleaning:           { bg: 'bg-cyan-50 dark:bg-cyan-900/30',   text: 'text-cyan-600 dark:text-cyan-400',     border: 'border-cyan-200 dark:border-cyan-800' },
-  'garden-outdoor':   { bg: 'bg-green-50 dark:bg-green-900/30', text: 'text-green-600 dark:text-green-400',   border: 'border-green-200 dark:border-green-800' },
-  'turnkey-renovation':{ bg: 'bg-rose-50 dark:bg-rose-900/30', text: 'text-rose-600 dark:text-rose-400',     border: 'border-rose-200 dark:border-rose-800' },
-  'interior-design':  { bg: 'bg-purple-50 dark:bg-purple-900/30', text: 'text-purple-600 dark:text-purple-400', border: 'border-purple-200 dark:border-purple-800' },
-  'custom-furniture': { bg: 'bg-fuchsia-50 dark:bg-fuchsia-900/30', text: 'text-fuchsia-600 dark:text-fuchsia-400', border: 'border-fuchsia-200 dark:border-fuchsia-800' },
-  'building-materials':{ bg: 'bg-red-50 dark:bg-red-900/30',   text: 'text-red-600 dark:text-red-400',       border: 'border-red-200 dark:border-red-800' },
+// 6 родительских категорий с яркими градиентами (naimi.kz-style)
+const PARENT_CATEGORY_STYLES: Record<string, { gradient: string; border: string; iconBg: string }> = {
+  'repair-finishing':      { gradient: 'from-blue-500 to-indigo-600',   border: 'border-blue-200 dark:border-blue-800',     iconBg: 'bg-blue-100 dark:bg-blue-900/40' },
+  'construction-building': { gradient: 'from-orange-500 to-amber-600',  border: 'border-orange-200 dark:border-orange-800', iconBg: 'bg-orange-100 dark:bg-orange-900/40' },
+  'home-help':             { gradient: 'from-green-500 to-emerald-600', border: 'border-green-200 dark:border-green-800',   iconBg: 'bg-green-100 dark:bg-green-900/40' },
+  'crafts-manufacturing':  { gradient: 'from-amber-500 to-yellow-600',  border: 'border-amber-200 dark:border-amber-800',   iconBg: 'bg-amber-100 dark:bg-amber-900/40' },
+  'tech-equipment':        { gradient: 'from-purple-500 to-violet-600', border: 'border-purple-200 dark:border-purple-800', iconBg: 'bg-purple-100 dark:bg-purple-900/40' },
+  'transport-logistics':   { gradient: 'from-red-500 to-rose-600',      border: 'border-red-200 dark:border-red-800',       iconBg: 'bg-red-100 dark:bg-red-900/40' },
 };
 
-const FALLBACK_CATEGORIES = [
-  { icon: '🔧', slug: 'plumbing', name: 'Сантехника' },
-  { icon: '⚡', slug: 'electrical', name: 'Электрика' },
-  { icon: '🪑', slug: 'furniture', name: 'Мебель' },
-  { icon: '🏗️', slug: 'construction', name: 'Строительство' },
-  { icon: '🎨', slug: 'painting', name: 'Покраска и отделка' },
-  { icon: '🚪', slug: 'windows-doors', name: 'Окна и двери' },
-  { icon: '🔌', slug: 'appliance-install', name: 'Бытовая техника' },
-  { icon: '🪵', slug: 'carpentry', name: 'Плотницкие работы' },
-  { icon: '🧹', slug: 'cleaning', name: 'Клининг' },
-  { icon: '🌿', slug: 'garden-outdoor', name: 'Сад и двор' },
-  { icon: '🏠', slug: 'turnkey-renovation', name: 'Ремонт под ключ' },
-  { icon: '🎯', slug: 'interior-design', name: 'Дизайн интерьера' },
-  { icon: '🪑', slug: 'custom-furniture', name: 'Мебель на заказ' },
-  { icon: '🧱', slug: 'building-materials', name: 'Стройматериалы' },
+const FALLBACK_PARENT_CATEGORIES = [
+  { icon: '🔨', slug: 'repair-finishing',      name: 'Ремонт и отделка',         childCount: 6 },
+  { icon: '🏗️', slug: 'construction-building', name: 'Строительство и монтаж',   childCount: 4 },
+  { icon: '🏠', slug: 'home-help',             name: 'Помощь по дому',           childCount: 2 },
+  { icon: '🪑', slug: 'crafts-manufacturing',  name: 'Изготовление и ремесло',   childCount: 2 },
+  { icon: '⚡', slug: 'tech-equipment',        name: 'Техника и оборудование',   childCount: 1 },
+  { icon: '🚚', slug: 'transport-logistics',   name: 'Перевозки и грузчики',     childCount: 1 },
 ];
 
 const FEATURE_ICONS = [Search, Shield, Star, MapPin] as const;
@@ -64,13 +48,15 @@ export function HomePage() {
   const formatPrice = useFormatPrice();
   const [topMasters, setTopMasters] = useState<any[]>([]);
   const [urgentOrders, setUrgentOrders] = useState<Order[]>([]);
-  const [categories, setCategories] = useState<any[]>(FALLBACK_CATEGORIES);
+  const [parentCategories, setParentCategories] = useState<any[]>(FALLBACK_PARENT_CATEGORIES);
 
   useEffect(() => {
     catalogApi.getCategories()
       .then((res) => {
         const cats = res.data.data || [];
-        if (cats.length > 0) setCategories(cats);
+        // Фильтруем только родительские категории (без parentId)
+        const parents = cats.filter((c: any) => !c.parentId);
+        if (parents.length > 0) setParentCategories(parents);
       })
       .catch(() => {});
 
@@ -154,21 +140,38 @@ export function HomePage() {
         </div>
       </section>
 
-      {/* ═══ БЛОК 2: Большие яркие категории (14 шт) ═══ */}
+      {/* ═══ БЛОК 2: 6 родительских категорий (naimi.kz-style) ═══ */}
       <section className="py-10 md:py-14 bg-white dark:bg-gray-900">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-8">
             <h2 className="text-2xl md:text-3xl font-extrabold dark:text-white mb-2">{t('categories.title')}</h2>
-            <p className="text-gray-500 dark:text-gray-400 text-sm">Выберите категорию — найдём лучшего мастера</p>
+            <p className="text-gray-500 dark:text-gray-400 text-base">Выберите направление — найдём лучшего мастера</p>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-4">
-            {categories.map((cat: any) => {
-              const colors = CATEGORY_COLORS[cat.slug] || { bg: 'bg-gray-50 dark:bg-gray-800', text: 'text-gray-600 dark:text-gray-400', border: 'border-gray-200 dark:border-gray-700' };
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5">
+            {parentCategories.map((cat: any) => {
+              const styles = PARENT_CATEGORY_STYLES[cat.slug] || { gradient: 'from-gray-500 to-gray-600', border: 'border-gray-200 dark:border-gray-700', iconBg: 'bg-gray-100 dark:bg-gray-800' };
+              const childCount = cat.children?.length || cat.childCount || 0;
               return (
-                <Link key={cat.slug} to={`/instant-order?category=${cat.id || cat.slug}`}
-                  className={`group relative overflow-hidden rounded-2xl border-2 ${colors.border} ${colors.bg} p-5 md:p-6 text-center transition-all hover:shadow-lg hover:-translate-y-1 hover:scale-[1.02] min-h-[100px]`}>
-                  <span className="text-4xl md:text-5xl block mb-2.5 group-hover:scale-110 transition-transform">{cat.icon || '📁'}</span>
-                  <span className={`text-sm md:text-base font-semibold ${colors.text} leading-tight block`}>{cat.name}</span>
+                <Link key={cat.slug} to={`/services/${cat.slug}`}
+                  className={`group relative overflow-hidden rounded-2xl border-2 ${styles.border} bg-white dark:bg-gray-800 p-6 md:p-7 transition-all hover:shadow-xl hover:-translate-y-1 hover:scale-[1.01] min-h-[130px]`}>
+                  {/* Gradient accent bar */}
+                  <div className={`absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r ${styles.gradient}`} />
+                  <div className="flex items-center gap-4">
+                    <div className={`flex-shrink-0 w-16 h-16 md:w-18 md:h-18 rounded-2xl ${styles.iconBg} flex items-center justify-center`}>
+                      <span className="text-3xl md:text-4xl group-hover:scale-110 transition-transform">{cat.icon || '📁'}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-lg md:text-xl font-bold text-gray-900 dark:text-white group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors leading-tight">
+                        {cat.name}
+                      </h3>
+                      {childCount > 0 && (
+                        <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
+                          {childCount} {childCount === 1 ? 'категория' : childCount < 5 ? 'категории' : 'категорий'}
+                        </p>
+                      )}
+                    </div>
+                    <ArrowRight size={20} className="flex-shrink-0 text-gray-300 dark:text-gray-600 group-hover:text-primary-500 transition-colors" />
+                  </div>
                 </Link>
               );
             })}
@@ -239,7 +242,7 @@ export function HomePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
             <div><div className="text-3xl md:text-4xl font-extrabold"><AnimatedCounter end={300} suffix="+" /></div><p className="text-primary-400 text-sm mt-1">{t('home.stat_services')}</p></div>
-            <div><div className="text-3xl md:text-4xl font-extrabold"><AnimatedCounter end={14} /></div><p className="text-primary-400 text-sm mt-1">{t('home.stat_categories')}</p></div>
+            <div><div className="text-3xl md:text-4xl font-extrabold"><AnimatedCounter end={6} /></div><p className="text-primary-400 text-sm mt-1">{t('home.stat_categories')}</p></div>
             <div><div className="text-3xl md:text-4xl font-extrabold"><AnimatedCounter end={8} /></div><p className="text-primary-400 text-sm mt-1">{t('home.stat_cities')}</p></div>
             <div><div className="text-3xl md:text-4xl font-extrabold"><AnimatedCounter end={30} /></div><p className="text-primary-400 text-sm mt-1">{t('home.stat_guarantee')}</p></div>
           </div>

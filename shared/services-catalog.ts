@@ -35,7 +35,22 @@ export interface CategoryDef {
   nameEn: string;
   icon: string;
   subcategories: SubcategoryDef[];
+  /** Slug родительской категории (если есть — это дочерняя категория) */
+  parentSlug?: string;
 }
+
+/**
+ * 6 родительских категорий (naimi.kz-style)
+ * Не содержат subcategories — только группируют дочерние категории
+ */
+export const PARENT_CATEGORIES: CategoryDef[] = [
+  { slug: 'repair-finishing',         name: 'Ремонт и отделка',              nameUz: 'Taʼmir va pardozlash',            nameEn: 'Repair & finishing',           icon: '🔨', subcategories: [] },
+  { slug: 'construction-building',    name: 'Строительство и монтаж',        nameUz: 'Qurilish va montaj',              nameEn: 'Construction & installation',  icon: '🏗️', subcategories: [] },
+  { slug: 'home-help',                name: 'Помощь по дому',                nameUz: 'Uyga yordam',                     nameEn: 'Home help',                    icon: '🏠', subcategories: [] },
+  { slug: 'crafts-manufacturing',     name: 'Изготовление и ремесло',        nameUz: 'Ishlab chiqarish va hunarmandchilik', nameEn: 'Crafts & manufacturing',   icon: '🪑', subcategories: [] },
+  { slug: 'tech-equipment',           name: 'Техника и оборудование',        nameUz: 'Texnika va uskunalar',            nameEn: 'Tech & equipment',             icon: '⚡', subcategories: [] },
+  { slug: 'transport-logistics',      name: 'Перевозки и грузчики',          nameUz: 'Tashish va yukchilar',            nameEn: 'Transport & movers',           icon: '🚚', subcategories: [] },
+];
 
 // Стоимость выезда мастера (платформенная константа)
 export const VISIT_FEE = 100000; // 100 000 сум
@@ -50,6 +65,7 @@ export const SERVICE_CATALOG: CategoryDef[] = [
     nameUz: 'Santexnika',
     nameEn: 'Plumbing',
     icon: '🔧',
+    parentSlug: 'repair-finishing',
     subcategories: [
       {
         slug: 'plumbing-faucets',
@@ -122,6 +138,7 @@ export const SERVICE_CATALOG: CategoryDef[] = [
     nameUz: 'Elektrika',
     nameEn: 'Electrical',
     icon: '⚡',
+    parentSlug: 'repair-finishing',
     subcategories: [
       {
         slug: 'electrical-wiring', name: 'Проводка и розетки', nameUz: 'Simlar va rozetkalar', nameEn: 'Wiring & outlets', icon: '🔌',
@@ -198,6 +215,7 @@ export const SERVICE_CATALOG: CategoryDef[] = [
     nameUz: 'Mebel yigʻish va taʼmirlash',
     nameEn: 'Furniture assembly & repair',
     icon: '🪑',
+    parentSlug: 'crafts-manufacturing',
     subcategories: [
       {
         slug: 'furniture-assembly', name: 'Сборка мебели', nameUz: 'Mebel yigʻish', nameEn: 'Furniture assembly', icon: '🔨',
@@ -251,8 +269,7 @@ export const SERVICE_CATALOG: CategoryDef[] = [
     name: 'Строительство и ремонт',
     nameUz: 'Qurilish va taʼmirlash',
     nameEn: 'Construction & renovation',
-    icon: '🏗️',
-    subcategories: [
+    icon: '🏗️',    parentSlug: 'construction-building',    subcategories: [
       {
         slug: 'construction-walls', name: 'Стены и перегородки', nameUz: 'Devorlar va toʻsiqlar', nameEn: 'Walls & partitions', icon: '🧱',
         tasks: [
@@ -308,6 +325,7 @@ export const SERVICE_CATALOG: CategoryDef[] = [
     nameUz: 'Boʻyoqchilik va pardozlash ishlari',
     nameEn: 'Painting & finishing',
     icon: '🎨',
+    parentSlug: 'repair-finishing',
     subcategories: [
       {
         slug: 'painting-walls', name: 'Покраска', nameUz: 'Boʻyash', nameEn: 'Painting', icon: '🖌️',
@@ -357,6 +375,7 @@ export const SERVICE_CATALOG: CategoryDef[] = [
     nameUz: 'Deraza/eshik oʻrnatish va taʼmirlash',
     nameEn: 'Windows & doors',
     icon: '🚪',
+    parentSlug: 'repair-finishing',
     subcategories: [
       {
         slug: 'wd-windows', name: 'Окна', nameUz: 'Derazalar', nameEn: 'Windows', icon: '🪟',
@@ -410,6 +429,7 @@ export const SERVICE_CATALOG: CategoryDef[] = [
     nameUz: 'Maishiy texnika oʻrnatish',
     nameEn: 'Appliance installation',
     icon: '🔌',
+    parentSlug: 'tech-equipment',
     subcategories: [
       {
         slug: 'appliance-kitchen', name: 'Кухонная техника', nameUz: 'Oshxona texnikasi', nameEn: 'Kitchen appliances', icon: '🍳',
@@ -464,6 +484,7 @@ export const SERVICE_CATALOG: CategoryDef[] = [
     nameUz: 'Duradgorlik va stolyarlik ishlari',
     nameEn: 'Carpentry & woodwork',
     icon: '🪵',
+    parentSlug: 'construction-building',
     subcategories: [
       {
         slug: 'carpentry-woodwork', name: 'Деревообработка', nameUz: 'Yogʻoch ishlov berish', nameEn: 'Woodwork', icon: '🪚',
@@ -516,6 +537,7 @@ export const SERVICE_CATALOG: CategoryDef[] = [
     nameUz: 'Tozalash va yigʻishtirish',
     nameEn: 'Cleaning',
     icon: '🧹',
+    parentSlug: 'home-help',
     subcategories: [
       {
         slug: 'cleaning-general', name: 'Генеральная уборка', nameUz: 'Umumiy tozalash', nameEn: 'Deep cleaning', icon: '🏠',
@@ -566,6 +588,7 @@ export const SERVICE_CATALOG: CategoryDef[] = [
     nameUz: 'Bogʻdorchilik va tashqi ishlar',
     nameEn: 'Garden & outdoor work',
     icon: '🌿',
+    parentSlug: 'home-help',
     subcategories: [
       {
         slug: 'garden-care', name: 'Уход за садом', nameUz: 'Bogʻ parvarishi', nameEn: 'Garden care', icon: '🌱',
@@ -620,6 +643,7 @@ export const SERVICE_CATALOG: CategoryDef[] = [
     nameUz: 'Kalit topshiriq taʼmir',
     nameEn: 'Turnkey renovation',
     icon: '🏗️',
+    parentSlug: 'repair-finishing',
     subcategories: [
       {
         slug: 'turnkey-apartment', name: 'Ремонт квартир', nameUz: 'Kvartira taʼmiri', nameEn: 'Apartment renovation', icon: '🏢',
@@ -667,6 +691,7 @@ export const SERVICE_CATALOG: CategoryDef[] = [
     nameUz: 'Interer dizayni',
     nameEn: 'Interior design',
     icon: '🎨',
+    parentSlug: 'repair-finishing',
     subcategories: [
       {
         slug: 'design-project', name: 'Дизайн-проект', nameUz: 'Dizayn-loyiha', nameEn: 'Design project', icon: '📐',
@@ -707,6 +732,7 @@ export const SERVICE_CATALOG: CategoryDef[] = [
     nameUz: 'Buyurtma mebel',
     nameEn: 'Custom furniture',
     icon: '🛋️',
+    parentSlug: 'crafts-manufacturing',
     subcategories: [
       {
         slug: 'furniture-kitchen', name: 'Кухонная мебель', nameUz: 'Oshxona mebeli', nameEn: 'Kitchen furniture', icon: '🍳',
@@ -761,6 +787,7 @@ export const SERVICE_CATALOG: CategoryDef[] = [
     nameUz: 'Qurilish materiallari',
     nameEn: 'Building materials',
     icon: '🧱',
+    parentSlug: 'construction-building',
     subcategories: [
       {
         slug: 'materials-finishing', name: 'Отделочные материалы', nameUz: 'Pardoz materiallari', nameEn: 'Finishing materials', icon: '🎨',
@@ -784,6 +811,53 @@ export const SERVICE_CATALOG: CategoryDef[] = [
           { slug: 'mat-hand-tools', name: 'Ручной инструмент', nameUz: 'Qoʻl asboblari', nameEn: 'Hand tools', description: 'Молотки, ключи, отвёртки, уровни', descriptionUz: 'Bolʻgalar, kalitlar, tornavidalar, darajalar', descriptionEn: 'Hammers, wrenches, screwdrivers, levels', estimatedTime: 'Доставка 1-2 дня', estimatedTimeUz: 'Yetkazib berish 1-2 kun', estimatedTimeEn: 'Delivery 1-2 days', minPrice: 20000 },
           { slug: 'mat-power-tools', name: 'Электроинструмент', nameUz: 'Elektr asboblar', nameEn: 'Power tools', description: 'Дрели, шуруповёрты, болгарки, перфораторы', descriptionUz: 'Drellar, shurupovertlar, bolgarkalar, perforatorlar', descriptionEn: 'Drills, drivers, grinders, rotary hammers', estimatedTime: 'Доставка 1-3 дня', estimatedTimeUz: 'Yetkazib berish 1-3 kun', estimatedTimeEn: 'Delivery 1-3 days', minPrice: 100000 },
           { slug: 'mat-safety-equipment', name: 'Средства защиты', nameUz: 'Himoya vositalari', nameEn: 'Safety equipment', description: 'Каски, перчатки, очки, респираторы', descriptionUz: 'Kaskalar, qoʻlqoplar, koʻzoynaklar, respiratorlar', descriptionEn: 'Helmets, gloves, goggles, respirators', estimatedTime: 'Доставка 1 день', estimatedTimeUz: 'Yetkazib berish 1 kun', estimatedTimeEn: 'Delivery 1 day', minPrice: 15000 },
+        ],
+      },
+    ],
+  },
+
+  // ═══════════════════════════════════════════
+  // 15. ГРУЗОПЕРЕВОЗКИ И ПЕРЕЕЗДЫ
+  // ═══════════════════════════════════════════
+  {
+    slug: 'freight-moving',
+    name: 'Грузоперевозки и переезды',
+    nameUz: 'Yuk tashish va koʻchish',
+    nameEn: 'Freight & moving',
+    icon: '🚛',
+    parentSlug: 'transport-logistics',
+    subcategories: [
+      {
+        slug: 'transport-freight', name: 'Грузоперевозки', nameUz: 'Yuk tashish', nameEn: 'Freight transport', icon: '🚚',
+        tasks: [
+          { slug: 'freight-city', name: 'Доставка по городу', nameUz: 'Shahar boʻylab yetkazib berish', nameEn: 'City delivery', description: 'Перевозка грузов по Ташкенту', descriptionUz: 'Toshkent boʻylab yuk tashish', descriptionEn: 'Cargo transport within Tashkent', estimatedTime: '1-3 часа', estimatedTimeUz: '1-3 soat', estimatedTimeEn: '1-3 hours', minPrice: 200000 },
+          { slug: 'freight-intercity', name: 'Междугородние перевозки', nameUz: 'Shaharlararo tashish', nameEn: 'Intercity transport', description: 'Перевозки между городами Узбекистана', descriptionUz: 'Oʻzbekiston shaharlari oʻrtasida tashish', descriptionEn: 'Transport between Uzbekistan cities', estimatedTime: '4-12 часов', estimatedTimeUz: '4-12 soat', estimatedTimeEn: '4-12 hours', minPrice: 500000 },
+          { slug: 'freight-furniture', name: 'Перевозка мебели', nameUz: 'Mebel tashish', nameEn: 'Furniture transport', description: 'Аккуратная перевозка мебели с упаковкой', descriptionUz: 'Mebelni ehtiyotkorlik bilan qadoqlash va tashish', descriptionEn: 'Careful furniture transport with packing', estimatedTime: '2-5 часов', estimatedTimeUz: '2-5 soat', estimatedTimeEn: '2-5 hours', minPrice: 300000 },
+          { slug: 'freight-construction', name: 'Доставка стройматериалов', nameUz: 'Qurilish materiallarini yetkazish', nameEn: 'Construction material delivery', description: 'Цемент, песок, кирпич, арматура', descriptionUz: 'Sement, qum, gʻisht, armatura', descriptionEn: 'Cement, sand, bricks, rebar', estimatedTime: '1-3 часа', estimatedTimeUz: '1-3 soat', estimatedTimeEn: '1-3 hours', minPrice: 250000 },
+        ],
+      },
+      {
+        slug: 'transport-moving', name: 'Переезды', nameUz: 'Koʻchish', nameEn: 'Moving', icon: '📦',
+        tasks: [
+          { slug: 'move-apartment', name: 'Переезд квартиры', nameUz: 'Kvartira koʻchishi', nameEn: 'Apartment moving', description: 'Упаковка, погрузка, перевозка, разгрузка', descriptionUz: 'Qadoqlash, yuklash, tashish, tushirish', descriptionEn: 'Packing, loading, transport, unloading', estimatedTime: '4-8 часов', estimatedTimeUz: '4-8 soat', estimatedTimeEn: '4-8 hours', minPrice: 500000 },
+          { slug: 'move-office', name: 'Переезд офиса', nameUz: 'Ofis koʻchishi', nameEn: 'Office moving', description: 'Перевозка офисной мебели и техники', descriptionUz: 'Ofis mebeli va texnikasini tashish', descriptionEn: 'Office furniture and equipment moving', estimatedTime: '6-12 часов', estimatedTimeUz: '6-12 soat', estimatedTimeEn: '6-12 hours', minPrice: 800000 },
+          { slug: 'move-house', name: 'Переезд дома', nameUz: 'Uy koʻchishi', nameEn: 'House moving', description: 'Полный переезд частного дома', descriptionUz: 'Xususiy uyning toʻliq koʻchishi', descriptionEn: 'Full private house moving', estimatedTime: '6-16 часов', estimatedTimeUz: '6-16 soat', estimatedTimeEn: '6-16 hours', minPrice: 1000000 },
+        ],
+      },
+      {
+        slug: 'transport-loaders', name: 'Грузчики', nameUz: 'Yukchilar', nameEn: 'Loaders', icon: '💪',
+        tasks: [
+          { slug: 'loaders-hourly', name: 'Грузчики (почасовая)', nameUz: 'Yukchilar (soatbay)', nameEn: 'Loaders (hourly)', description: 'Погрузка/разгрузка, подъём на этаж', descriptionUz: 'Yuklash/tushirish, qavatga koʻtarish', descriptionEn: 'Loading/unloading, carrying up floors', estimatedTime: 'от 1 часа', estimatedTimeUz: '1 soatdan', estimatedTimeEn: 'from 1 hour', minPrice: 100000 },
+          { slug: 'loaders-heavy', name: 'Подъём тяжёлых грузов', nameUz: 'Ogʻir yuklarni koʻtarish', nameEn: 'Heavy lifting', description: 'Пианино, сейфы, станки, холодильники', descriptionUz: 'Pianino, seyflar, stanokllar, muzlatgichlar', descriptionEn: 'Pianos, safes, machines, refrigerators', estimatedTime: '1-4 часа', estimatedTimeUz: '1-4 soat', estimatedTimeEn: '1-4 hours', minPrice: 200000 },
+          { slug: 'loaders-trash-removal', name: 'Вывоз мусора/хлама', nameUz: 'Axlat/eskini chiqarish', nameEn: 'Trash/junk removal', description: 'Вынос из квартиры, погрузка, вывоз', descriptionUz: 'Kvartiradan chiqarish, yuklash, olib ketish', descriptionEn: 'Remove from apartment, load, haul away', estimatedTime: '1-3 часа', estimatedTimeUz: '1-3 soat', estimatedTimeEn: '1-3 hours', minPrice: 150000 },
+        ],
+      },
+      {
+        slug: 'transport-courier', name: 'Курьерские услуги', nameUz: 'Kuryer xizmatlari', nameEn: 'Courier services', icon: '🏃',
+        tasks: [
+          { slug: 'courier-documents', name: 'Доставка документов', nameUz: 'Hujjatlarni yetkazish', nameEn: 'Document delivery', description: 'Срочная доставка документов по городу', descriptionUz: 'Shahar boʻylab tezkor hujjat yetkazish', descriptionEn: 'Urgent document delivery within city', estimatedTime: '30-90 мин', estimatedTimeUz: '30-90 daq', estimatedTimeEn: '30-90 min', minPrice: 50000 },
+          { slug: 'courier-parcels', name: 'Доставка посылок', nameUz: 'Posilkalarni yetkazish', nameEn: 'Parcel delivery', description: 'Забрать и доставить посылку/покупку', descriptionUz: 'Posilka/xaridni olib yetkazish', descriptionEn: 'Pick up and deliver parcel/purchase', estimatedTime: '1-3 часа', estimatedTimeUz: '1-3 soat', estimatedTimeEn: '1-3 hours', minPrice: 40000 },
+          { slug: 'courier-shopping', name: 'Покупка и доставка товаров', nameUz: 'Tovarlarni sotib olish va yetkazish', nameEn: 'Shopping & delivery', description: 'Купить по списку и доставить', descriptionUz: 'Roʻyxat boʻyicha sotib olish va yetkazish', descriptionEn: 'Buy from list and deliver', estimatedTime: '1-3 часа', estimatedTimeUz: '1-3 soat', estimatedTimeEn: '1-3 hours', minPrice: 60000 },
         ],
       },
     ],
