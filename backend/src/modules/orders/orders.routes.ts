@@ -6,10 +6,12 @@ import { Router } from 'express';
 import { ordersController } from './orders.controller.js';
 import { authenticate, optionalAuth } from '../../middleware/auth.js';
 import { validateBody, validateQuery } from '../../middleware/validate.js';
-import { createOrderSchema, orderResponseSchema, listOrdersSchema } from './orders.schema.js';
+import { createOrderSchema, orderResponseSchema, listOrdersSchema, assignMasterSchema, updateStatusSchema, cancelOrderSchema, disputeOrderSchema, resolveDisputeSchema } from './orders.schema.js';
 import { eventBus } from '../../services/eventBus.js';
 import { prisma } from '../../config/database.js';
 import { ApiError } from '../../utils/ApiError.js';
+import { getRedis } from '../../config/redis.js';
+import crypto from 'crypto';
 
 const router = Router();
 
@@ -31,12 +33,12 @@ router.post('/:id/respond', authenticate, validateBody(orderResponseSchema), (re
   ordersController.respond(req, res, next)
 );
 
-router.put('/:id/assign', authenticate, (req, res, next) =>
+router.put('/:id/assign', authenticate, validateBody(assignMasterSchema), (req, res, next) =>
   ordersController.assign(req, res, next)
 );
 
 // Мастер обновляет статус: ACCEPTED → IN_TRANSIT → IN_PROGRESS
-router.put('/:id/status', authenticate, (req, res, next) =>
+router.put('/:id/status', authenticate, validateBody(updateStatusSchema), (req, res, next) =>
   ordersController.updateStatus(req, res, next)
 );
 
@@ -54,17 +56,17 @@ router.put('/:id/complete', authenticate, (req, res, next) =>
   ordersController.complete(req, res, next)
 );
 
-router.put('/:id/cancel', authenticate, (req, res, next) =>
+router.put('/:id/cancel', authenticate, validateBody(cancelOrderSchema), (req, res, next) =>
   ordersController.cancel(req, res, next)
 );
 
 // Спор
-router.put('/:id/dispute', authenticate, (req, res, next) =>
+router.put('/:id/dispute', authenticate, validateBody(disputeOrderSchema), (req, res, next) =>
   ordersController.dispute(req, res, next)
 );
 
 // Разрешение спора (admin)
-router.put('/:id/resolve-dispute', authenticate, (req, res, next) =>
+router.put('/:id/resolve-dispute', authenticate, validateBody(resolveDisputeSchema), (req, res, next) =>
   ordersController.resolveDispute(req, res, next)
 );
 
@@ -77,11 +79,62 @@ router.get('/my/master', authenticate, (req, res, next) =>
   ordersController.myMasterOrders(req, res, next)
 );
 
-// ─── SSE: Real-time события заказа ─────────────
-router.get('/:id/events', authenticate, async (req, res, next) => {
+// ─── SSE: Одноразовый ticket (JWT никогда не попадает в URL) ─────
+router.post('/:id/events-ticket', authenticate, async (req, res, next) => {
   try {
     const { id: orderId } = req.params;
     const userId = req.user!.userId;
+
+    // Проверяем доступ: участник заказа или админ
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: { clientId: true, masterId: true },
+    });
+    if (!order) throw ApiError.notFound('Заказ не найден');
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+    const isAdmin = user?.role === 'ADMIN' || user?.role === 'MANAGER';
+    const isParticipant = order.clientId === userId || order.masterId === userId;
+    if (!isParticipant && !isAdmin) {
+      throw ApiError.forbidden('Нет доступа');
+    }
+
+    // Генерируем одноразовый ticket (30 секунд TTL)
+    const ticket = crypto.randomBytes(32).toString('hex');
+    const redis = getRedis();
+    await redis.set(`sse-ticket:${ticket}`, JSON.stringify({ userId, orderId }), 'EX', 30);
+
+    res.json({ success: true, data: { ticket } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ─── SSE: Real-time события заказа (через одноразовый ticket) ─────
+router.get('/:id/events', async (req, res, next) => {
+  try {
+    const { id: orderId } = req.params;
+    const ticket = typeof req.query.ticket === 'string' ? req.query.ticket : '';
+
+    if (!ticket) {
+      throw ApiError.unauthorized('Ticket обязателен. Получите через POST /orders/:id/events-ticket');
+    }
+
+    // Валидируем и удаляем одноразовый ticket
+    const redis = getRedis();
+    const ticketData = await redis.get(`sse-ticket:${ticket}`);
+    if (!ticketData) {
+      throw ApiError.unauthorized('Невалидный или истёкший ticket');
+    }
+    await redis.del(`sse-ticket:${ticket}`);
+
+    const { userId, orderId: ticketOrderId } = JSON.parse(ticketData);
+    if (ticketOrderId !== orderId) {
+      throw ApiError.forbidden('Ticket не соответствует заказу');
+    }
 
     // Проверяем доступ: участник заказа или админ
     const order = await prisma.order.findUnique({
@@ -116,6 +169,10 @@ router.get('/:id/events', authenticate, async (req, res, next) => {
 
     // Keepalive каждые 30 сек
     const keepalive = setInterval(() => {
+      if (res.writableEnded) {
+        clearInterval(keepalive);
+        return;
+      }
       try { res.write(': keepalive\n\n'); } catch { /* ignore */ }
     }, 30000);
 

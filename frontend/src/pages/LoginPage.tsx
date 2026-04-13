@@ -80,8 +80,7 @@ export function LoginPage() {
 
     const widgetContainer = document.getElementById('telegram-login-widget');
     if (widgetContainer) {
-      widgetContainer.innerHTML = '';
-      widgetContainer.appendChild(script);
+      widgetContainer.replaceChildren(script);
     }
 
     return () => {

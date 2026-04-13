@@ -436,7 +436,8 @@ In-app + Telegram Bot push (sendMessage + sendLocation). Уведомление 
 
 | Эндпоинт | Описание |
 |----------|----------|
-| `GET /api/orders/:id/events` | SSE-поток событий заказа (JWT через query param) |
+| `POST /api/orders/:id/events-ticket` | Получить одноразовый SSE-тикет (JWT auth через заголовок) |
+| `GET /api/orders/:id/events?ticket=...` | SSE-поток событий заказа (одноразовый тикет) |
 
 **События:**
 - `status_changed` — смена статуса заказа
@@ -446,9 +447,9 @@ In-app + Telegram Bot push (sendMessage + sendLocation). Уведомление 
 - `master_assigned` — назначен мастер
 
 - **Архитектура:** EventBus (in-memory Map) → SSE через EventSource
-- **Аутентификация:** JWT через `?token=` (EventSource не поддерживает заголовки)
+- **Аутентификация:** Одноразовый Redis-тикет (30с TTL) вместо JWT в URL — безопаснее, не утекает в логи
 - **Auto-reconnect:** автоматическое переподключение через 3 секунды
-- **Keepalive:** ping каждые 30 секунд
+- **Keepalive:** ping каждые 30 секунд с проверкой `res.writableEnded`
 
 ### 📝 Forum — Форум мастеров
 
@@ -679,8 +680,11 @@ In-app + Telegram Bot push (sendMessage + sendLocation). Уведомление 
 | **Чёрный список** | Блокировка с доказательствами, гео, типом нарушения |
 | **Click webhook** | MD5-подпись |
 | **Payme webhook** | JSON-RPC протокол |
-| **Загрузка файлов** | 5MB лимит, только JPEG/PNG/WebP/PDF, макс 5 файлов |
+| **Загрузка файлов** | 5MB лимит, только JPEG/PNG/WebP/PDF (двойная проверка MIME + расширение), макс 5 файлов |
 | **Body limit** | 10MB для JSON |
+| **Pagination DoS** | `clampPagination()` — все 13 пагинированных эндпоинтов ограничены limit ≤ 100 |
+| **SSE безопасность** | Одноразовые Redis-тикеты (30с TTL) вместо JWT в URL |
+| **Суперадмин** | Через env `SUPER_ADMIN_USERNAMES`, 0 хардкода в коде |
 | **BigInt safety** | JSON-сериализация для Telegram ID |
 
 ---
@@ -949,6 +953,7 @@ MasterUz/
 | `TELEGRAM_BOT_TOKEN` | Токен Telegram-бота |
 | `TELEGRAM_BOT_USERNAME` | Username бота (без @) |
 | `CORS_ORIGIN` | Разрешённые origins |
+| `SUPER_ADMIN_USERNAMES` | Telegram-username суперадминов через запятую |
 | `CLICK_MERCHANT_ID` | ID мерчанта Click |
 | `CLICK_SERVICE_ID` | ID сервиса Click |
 | `CLICK_SECRET_KEY` | Секрет Click |
@@ -969,7 +974,18 @@ MasterUz/
 | `UPLOAD_DIR` | `/app/uploads` | Директория загрузок |
 | `MAX_FILE_SIZE` | `5242880` | Макс. размер файла (5MB) |
 | `LOG_LEVEL` | `info` | Уровень логов |
+| `MASTER_REGISTRATION_FEE` | `400000` | Регистрационный взнос мастера (тийины) |
+| `ADMIN_TELEGRAM_CHAT_ID` | — | Chat ID для уведомлений администратору |
 | `VITE_API_URL` | `/api` | API URL для фронтенда |
+
+### Serverless-only (Vercel)
+
+| Переменная | Описание |
+|-----------|----------|
+| `UPSTASH_REDIS_REST_URL` | Upstash Redis REST URL |
+| `UPSTASH_REDIS_REST_TOKEN` | Upstash Redis REST токен |
+| `BLOB_READ_WRITE_TOKEN` | Vercel Blob Storage токен |
+| `IMGBB_API_KEY` | ImgBB API-ключ (резервный хостинг картинок) |
 
 ### CI/CD секреты (GitHub)
 

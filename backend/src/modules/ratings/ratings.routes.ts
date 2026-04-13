@@ -6,6 +6,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { ratingsService } from './ratings.service.js';
 import { authenticate } from '../../middleware/auth.js';
+import { clampPagination } from '../../utils/helpers.js';
 
 const router = Router();
 
@@ -22,8 +23,7 @@ router.post('/', authenticate, async (req: Request, res: Response, next: NextFun
 // Отзывы мастера
 router.get('/master/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 20;
+    const { page, limit } = clampPagination(req.query.page, req.query.limit);
     const result = await ratingsService.getMasterReviews(req.params.id, page, limit);
     res.json({ success: true, ...result });
   } catch (error) {

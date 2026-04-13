@@ -6,15 +6,33 @@
 import crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import Decimal from 'decimal.js';
+import { config } from '../config/index.js';
 
 // Конфигурация Decimal.js: 20 знаков, округление к ближайшему чётному (банковское)
 Decimal.set({ precision: 20, rounding: Decimal.ROUND_HALF_EVEN });
+
+/**
+ * Проверка суперадмина по username (из env SUPER_ADMIN_USERNAMES)
+ */
+export function isSuperAdmin(username: string | null | undefined): boolean {
+  if (!username) return false;
+  return config.superAdminUsernames.includes(username);
+}
 
 /**
  * Генерация уникального реферального кода
  */
 export function generateReferralCode(): string {
   return `MUZ${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+}
+
+/**
+ * Безопасная пагинация — ограничением limit сверху (защита от DoS)
+ */
+export function clampPagination(rawPage: unknown, rawLimit: unknown, maxLimit = 100): { page: number; limit: number; skip: number } {
+  const page = Math.max(1, Number(rawPage) || 1);
+  const limit = Math.min(Math.max(1, Number(rawLimit) || 20), maxLimit);
+  return { page, limit, skip: (page - 1) * limit };
 }
 
 /**

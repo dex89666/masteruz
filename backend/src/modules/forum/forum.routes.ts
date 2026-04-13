@@ -1,21 +1,28 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { prisma } from '../../config/database.js';
 import { authenticate, authorize } from '../../middleware/auth.js';
+import { validateQuery } from '../../middleware/validate.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { moderateMessage, censorMessage } from '../chat/chatModeration.js';
 import { logger } from '../../utils/logger.js';
 import { upload, saveUploadedFile } from '../../middleware/upload.js';
+import { z } from 'zod';
 
 const router = Router();
+
+const forumPaginationSchema = z.object({
+  page: z.coerce.number().positive().default(1),
+  limit: z.coerce.number().positive().max(50).default(20),
+});
 
 // Все маршруты требуют авторизации и роли MASTER (или ADMIN)
 router.use(authenticate);
 
 // ─── Список тем (GET /api/forum/topics) ───
-router.get('/topics', async (req: Request, res: Response, next: NextFunction) => {
+router.get('/topics', validateQuery(forumPaginationSchema), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = Math.min(parseInt(req.query.limit as string) || 20, 50);
+    const page = req.query.page as unknown as number;
+    const limit = req.query.limit as unknown as number;
     const skip = (page - 1) * limit;
 
     const [topics, total] = await Promise.all([
@@ -42,11 +49,11 @@ router.get('/topics', async (req: Request, res: Response, next: NextFunction) =>
 });
 
 // ─── Тема + посты (GET /api/forum/topics/:id) ───
-router.get('/topics/:id', async (req: Request, res: Response, next: NextFunction) => {
+router.get('/topics/:id', validateQuery(forumPaginationSchema), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = Math.min(parseInt(req.query.limit as string) || 30, 50);
+    const page = req.query.page as unknown as number;
+    const limit = req.query.limit as unknown as number;
     const skip = (page - 1) * limit;
 
     const topic = await prisma.forumTopic.findUnique({

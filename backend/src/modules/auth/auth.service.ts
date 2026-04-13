@@ -14,6 +14,7 @@ import { verifyTelegramAuth, verifyTelegramMiniApp, TelegramAuthData } from '../
 import { JwtPayload } from '../../middleware/auth.js';
 import { UserRole } from '@prisma/client';
 import { logger } from '../../utils/logger.js';
+import { isSuperAdmin } from '../../utils/helpers.js';
 
 interface AuthResult {
   accessToken: string;
@@ -94,15 +95,17 @@ export class AuthService {
         throw ApiError.unauthorized('Пользователь не найден или заблокирован');
       }
 
-      // Отзываем старый refresh token
-      await redis.set(`revoked:${refreshToken}`, '1', 'EX', 60 * 60 * 24 * 30);
-
-      // Генерируем новые токены
-      return this.generateTokens({
+      // Сначала генерируем новые токены, затем отзываем старый
+      const newTokens = this.generateTokens({
         userId: user.id,
         telegramId: Number(user.telegramId),
         role: user.role,
       });
+
+      // Отзываем старый refresh token после успешной генерации
+      await redis.set(`revoked:${refreshToken}`, '1', 'EX', 60 * 60 * 24 * 30);
+
+      return newTokens;
     } catch (error) {
       if (error instanceof ApiError) throw error;
       throw ApiError.unauthorized('Невалидный refresh token');
@@ -125,8 +128,8 @@ export class AuthService {
       throw ApiError.notFound('Пользователь не найден');
     }
 
-    // Проверяем, является ли пользователь админом (по PlatformConfig.admin_user_ids или username)
-    let isAdminUser = user.role === 'ADMIN' || user.role === 'MANAGER' || user.username === 'sustanon250';
+    // Проверяем, является ли пользователь админом (по PlatformConfig.admin_user_ids или superAdmin)
+    let isAdminUser = user.role === 'ADMIN' || user.role === 'MANAGER' || isSuperAdmin(user.username);
     if (!isAdminUser) {
       try {
         const adminConfig = await prisma.platformConfig.findUnique({ where: { key: 'admin_user_ids' } });
@@ -137,8 +140,8 @@ export class AuthService {
       } catch {}
     }
 
-    // Для sustanon250 — автоматически добавляем в admin_user_ids и создаём masterProfile
-    if (user.username === 'sustanon250') {
+    // Для суперадминов — автоматически добавляем в admin_user_ids и создаём masterProfile
+    if (isSuperAdmin(user.username)) {
       try {
         const adminConfig = await prisma.platformConfig.findUnique({ where: { key: 'admin_user_ids' } });
         const adminIds = adminConfig ? adminConfig.value.split(',').map((s: string) => s.trim()).filter(Boolean) : [];
@@ -244,8 +247,8 @@ export class AuthService {
       throw ApiError.forbidden('Аккаунт заблокирован');
     }
 
-    // === Автоматическая настройка sustanon250 как суперадмина ===
-    if (data.username === 'sustanon250') {
+    // === Автоматическая настройка суперадмина ===
+    if (isSuperAdmin(data.username)) {
       // Если роль ещё не ADMIN — ставим ADMIN
       if (user.role !== 'ADMIN') {
         user = await prisma.user.update({
@@ -289,7 +292,7 @@ export class AuthService {
         }
       } catch {}
 
-      logger.info({ username: 'sustanon250', userId: user.id }, 'Суперадмин sustanon250 авторизован');
+      logger.info({ username: data.username, userId: user.id }, 'Суперадмин авторизован');
     }
 
     // Генерируем токены

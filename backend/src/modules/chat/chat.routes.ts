@@ -8,6 +8,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { prisma } from '../../config/database.js';
 import { authenticate, authorize } from '../../middleware/auth.js';
 import { ApiError } from '../../utils/ApiError.js';
+import { clampPagination } from '../../utils/helpers.js';
 import { moderateMessage, censorMessage } from './chatModeration.js';
 import { logger } from '../../utils/logger.js';
 
@@ -252,9 +253,7 @@ router.get('/:orderId/unread', authenticate, async (req: Request, res: Response,
  */
 router.get('/admin/archive', authenticate, authorize('ADMIN', 'MANAGER'), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const page = Number(req.query.page) || 1;
-    const limit = Number(req.query.limit) || 20;
-    const skip = (page - 1) * limit;
+    const { page, limit, skip } = clampPagination(req.query.page, req.query.limit);
     const search = (req.query.search as string) || '';
     const status = req.query.status as string;
 

@@ -3,10 +3,12 @@
 // Улучшенное кэширование с стратегиями
 // ============================================
 
-const CACHE_VERSION = 5;
-const STATIC_CACHE = `masteruz-static-v${CACHE_VERSION}`;
-const API_CACHE = `masteruz-api-v${CACHE_VERSION}`;
-const IMAGE_CACHE = `masteruz-images-v${CACHE_VERSION}`;
+// Версия кеша — обновляется при деплое (дата + инкрементное число)
+// При обновлении достаточно изменить CACHE_VERSION на новую дату
+const CACHE_VERSION = '2026-04-11';
+const STATIC_CACHE = `masteruz-static-${CACHE_VERSION}`;
+const API_CACHE = `masteruz-api-${CACHE_VERSION}`;
+const IMAGE_CACHE = `masteruz-images-${CACHE_VERSION}`;
 const ALL_CACHES = [STATIC_CACHE, API_CACHE, IMAGE_CACHE];
 
 const STATIC_ASSETS = [

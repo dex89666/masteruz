@@ -15,6 +15,7 @@ vi.mock('../../src/config/index.js', () => ({
       refreshSecret: 'test-refresh-secret',
       refreshExpiresIn: '30d',
     },
+    superAdminUsernames: ['testadmin'],
   },
 }));
 

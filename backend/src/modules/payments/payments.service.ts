@@ -11,6 +11,7 @@ import { logger } from '../../utils/logger.js';
 import { toNum } from '../../utils/helpers.js';
 import { notificationService } from '../../services/notificationService.js';
 import { balanceService } from '../balance/balance.service.js';
+import { auditService } from '../../services/auditService.js';
 import crypto from 'crypto';
 
 export class PaymentsService {
@@ -344,6 +345,14 @@ export class PaymentsService {
 
       logger.info({ paymentId: payment.id }, 'Click платёж подтверждён');
 
+      await auditService.log({
+        actorId: payment.userId,
+        action: 'payment_completed',
+        entityType: 'payment',
+        entityId: payment.id,
+        details: { provider: 'CLICK', amount: toNum(payment.amount), type: payment.type, providerTxId: String(click_trans_id) },
+      });
+
       // Обработка по типу платежа
       await this.onPaymentCompleted(payment.id);
     } else {
@@ -418,6 +427,14 @@ export class PaymentsService {
 
         logger.info({ paymentId: payment.id }, 'Payme платёж подтверждён');
 
+        await auditService.log({
+          actorId: payment.userId,
+          action: 'payment_completed',
+          entityType: 'payment',
+          entityId: payment.id,
+          details: { provider: 'PAYME', amount: toNum(payment.amount), type: payment.type, providerTxId: params.id },
+        });
+
         await this.onPaymentCompleted(payment.id);
 
         return {
@@ -434,6 +451,15 @@ export class PaymentsService {
           where: { providerTxId: params.id },
           data: { status: PaymentStatus.REFUNDED },
         });
+
+        await auditService.log({
+          actorId: payment.userId,
+          action: 'payment_refunded',
+          entityType: 'payment',
+          entityId: payment.id,
+          details: { provider: 'PAYME', amount: toNum(payment.amount), providerTxId: params.id },
+        });
+
         return {
           result: {
             cancel_time: Date.now(),
@@ -450,13 +476,42 @@ export class PaymentsService {
 
   /**
    * Обработка платежа Telegram Stars
+   * Проверяет: владельца платежа, статус PENDING, уникальность telegramPaymentId
    */
-  async handleTelegramStarsPayment(paymentId: string, telegramPaymentId: string) {
-    // Идемпотентность: проверяем, не обработан ли уже
+  async handleTelegramStarsPayment(userId: string, paymentId: string, telegramPaymentId: string) {
+    if (!paymentId || !telegramPaymentId) {
+      throw ApiError.badRequest('paymentId и telegramPaymentId обязательны');
+    }
+
     const existing = await prisma.payment.findUnique({ where: { id: paymentId } });
-    if (existing?.status === PaymentStatus.COMPLETED) {
+    if (!existing) {
+      throw ApiError.notFound('Платёж не найден');
+    }
+
+    // Проверка владельца — пользователь может завершить только свой платёж
+    if (existing.userId !== userId) {
+      logger.warn({ paymentId, userId, ownerUserId: existing.userId }, '🚨 SECURITY: попытка завершить чужой платёж Telegram Stars');
+      throw ApiError.forbidden('Нет доступа к этому платежу');
+    }
+
+    // Идемпотентность
+    if (existing.status === PaymentStatus.COMPLETED) {
       logger.info({ paymentId }, 'Telegram Stars: платёж уже обработан, пропуск');
       return existing;
+    }
+
+    // Можно завершить только PENDING-платёж
+    if (existing.status !== PaymentStatus.PENDING) {
+      throw ApiError.conflict(`Платёж в статусе ${existing.status}, ожидается PENDING`);
+    }
+
+    // Защита от повторного использования telegramPaymentId (double-spend)
+    const duplicate = await prisma.payment.findFirst({
+      where: { providerTxId: telegramPaymentId, provider: PaymentProvider.TELEGRAM_STARS },
+    });
+    if (duplicate) {
+      logger.warn({ paymentId, telegramPaymentId, duplicateId: duplicate.id }, '🚨 SECURITY: дублирующий telegramPaymentId');
+      throw ApiError.conflict('Этот платёж Telegram Stars уже использован');
     }
 
     const payment = await prisma.payment.update({
@@ -467,7 +522,15 @@ export class PaymentsService {
       },
     });
 
-    logger.info({ paymentId: payment.id }, 'Telegram Stars платёж подтверждён');
+    logger.info({ paymentId: payment.id, userId }, 'Telegram Stars платёж подтверждён');
+
+    await auditService.log({
+      actorId: userId,
+      action: 'payment_completed',
+      entityType: 'payment',
+      entityId: payment.id,
+      details: { provider: 'TELEGRAM_STARS', amount: toNum(payment.amount), type: payment.type, providerTxId: telegramPaymentId },
+    });
 
     await this.onPaymentCompleted(payment.id);
 

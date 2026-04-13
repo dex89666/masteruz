@@ -14,7 +14,7 @@ services:
     environment:
       POSTGRES_DB: masteruz
       POSTGRES_USER: masteruz
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-masteruz_secret_2024}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
@@ -56,10 +56,10 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
-      DATABASE_URL: postgresql://masteruz:${DB_PASSWORD:-masteruz_secret_2024}@postgres:5432/masteruz
+      DATABASE_URL: postgresql://masteruz:${DB_PASSWORD:?DB_PASSWORD is required}@postgres:5432/masteruz
       REDIS_URL: redis://redis:6379
-      JWT_SECRET: ${JWT_SECRET:-change_this_jwt_secret_in_production}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change_this_refresh_secret_in_production}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET is required}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       TELEGRAM_BOT_NAME: ${TELEGRAM_BOT_NAME:-MasterUzBot}
       YANDEX_MAPS_API_KEY: ${YANDEX_MAPS_API_KEY}
@@ -71,6 +71,7 @@ services:
       UPLOAD_DIR: /app/uploads
       MAX_FILE_SIZE: 5242880
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
+      SUPER_ADMIN_USERNAMES: ${SUPER_ADMIN_USERNAMES:-}
     volumes:
       - uploads_data:/app/uploads
     ports:

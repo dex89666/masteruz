@@ -33,12 +33,33 @@ router.post('/upload', authenticate, upload.single('photo'), async (req: Request
 });
 
 /**
- * GET /photos/:orderId — все фото заказа
+ * GET /photos/:orderId — все фото заказа (только участники или админ)
  */
 router.get('/:orderId', authenticate, async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const { orderId } = req.params;
+    const userId = req.user!.userId;
+
+    // Проверяем доступ: участник заказа или админ
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: { clientId: true, masterId: true },
+    });
+    if (!order) throw ApiError.notFound('Заказ не найден');
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+    const isAdmin = user?.role === 'ADMIN' || user?.role === 'MANAGER';
+    const isParticipant = order.clientId === userId || order.masterId === userId;
+
+    if (!isParticipant && !isAdmin) {
+      throw ApiError.forbidden('Нет доступа к фото этого заказа');
+    }
+
     const photos = await prisma.orderPhoto.findMany({
-      where: { orderId: req.params.orderId },
+      where: { orderId },
       orderBy: [{ type: 'asc' }, { sortOrder: 'asc' }],
     });
 

@@ -7,7 +7,8 @@ import { Router } from 'express';
 import { authController } from './auth.controller.js';
 import { authenticate } from '../../middleware/auth.js';
 import { validateBody } from '../../middleware/validate.js';
-import { telegramAuthSchema, telegramMiniAppAuthSchema, refreshTokenSchema } from './auth.schema.js';
+import { telegramAuthSchema, telegramMiniAppAuthSchema, refreshTokenSchema, switchRoleSchema } from './auth.schema.js';
+import { isSuperAdmin } from '../../utils/helpers.js';
 
 const router = Router();
 
@@ -37,15 +38,10 @@ router.post('/logout', authenticate, (req, res, next) =>
 );
 
 // Переключение роли (только для админов)
-router.post('/switch-role', authenticate, async (req, res, next) => {
+router.post('/switch-role', authenticate, validateBody(switchRoleSchema), async (req, res, next) => {
   try {
     const userId = req.user!.userId;
     const { role } = req.body;
-
-    if (!role || !['ADMIN', 'MASTER', 'CLIENT', 'MANAGER'].includes(role)) {
-      res.status(400).json({ success: false, message: 'Некорректная роль' });
-      return;
-    }
 
     // Проверяем, является ли пользователь админом:
     // 1. Текущая роль ADMIN, или
@@ -58,14 +54,14 @@ router.post('/switch-role', authenticate, async (req, res, next) => {
     }
 
     const isCurrentAdmin = user.role === 'ADMIN';
-    const isSuperAdmin = user.username === 'sustanon250'; // Главный админ и разработчик
+    const isSuper = isSuperAdmin(user.username);
 
     // Проверяем PlatformConfig — admin_user_ids
     const adminConfig = await prisma.platformConfig.findUnique({ where: { key: 'admin_user_ids' } });
     const adminUserIds: string[] = adminConfig ? adminConfig.value.split(',').map((s: string) => s.trim()) : [];
     const isInAdminList = adminUserIds.includes(userId);
 
-    if (!isCurrentAdmin && !isInAdminList && !isSuperAdmin) {
+    if (!isCurrentAdmin && !isInAdminList && !isSuper) {
       res.status(403).json({ success: false, message: 'Только администраторы могут переключать роли' });
       return;
     }

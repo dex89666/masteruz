@@ -76,6 +76,11 @@ api.interceptors.response.use(
       }
     }
 
+    // Сетевая ошибка без ответа от сервера (timeout, ECONNREFUSED, offline)
+    if (!error.response) {
+      error.message = 'Ошибка соединения. Проверьте интернет и попробуйте снова';
+    }
+
     return Promise.reject(error);
   }
 );

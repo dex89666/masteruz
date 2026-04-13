@@ -7,14 +7,15 @@ import { prisma } from '../../config/database.js';
 import { authenticate, authorize } from '../../middleware/auth.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { logger } from '../../utils/logger.js';
+import { clampPagination } from '../../utils/helpers.js';
 
 const router = Router();
 
 // ─── GET /stores — Список магазинов ─────────
 router.get('/', async (req, res, next) => {
   try {
-    const { category, city, search, page = '1', limit = '20' } = req.query;
-    const skip = (Number(page) - 1) * Number(limit);
+    const { category, city, search } = req.query;
+    const { page, limit, skip } = clampPagination(req.query.page, req.query.limit);
 
     const where: any = { status: 'ACTIVE' };
     if (category) where.storeCategory = String(category);
@@ -31,7 +32,7 @@ router.get('/', async (req, res, next) => {
         where,
         include: { _count: { select: { products: true, reviews: true } } },
         skip,
-        take: Number(limit),
+        take: limit,
         orderBy: [{ isVerified: 'desc' }, { rating: 'desc' }],
       }),
       prisma.partnerStore.count({ where }),
@@ -42,11 +43,11 @@ router.get('/', async (req, res, next) => {
       data: stores,
       pagination: {
         total,
-        page: Number(page),
-        limit: Number(limit),
-        totalPages: Math.ceil(total / Number(limit)),
-        hasNext: skip + Number(limit) < total,
-        hasPrev: Number(page) > 1,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+        hasNext: skip + limit < total,
+        hasPrev: page > 1,
       },
     });
   } catch (error) {
@@ -108,8 +109,8 @@ router.get('/:slug', async (req, res, next) => {
 // ─── GET /stores/:slug/products — Товары магазина ─────
 router.get('/:slug/products', async (req, res, next) => {
   try {
-    const { category, search, page = '1', limit = '20' } = req.query;
-    const skip = (Number(page) - 1) * Number(limit);
+    const { category, search } = req.query;
+    const { page, limit, skip } = clampPagination(req.query.page, req.query.limit);
 
     const store = await prisma.partnerStore.findUnique({ where: { slug: req.params.slug } });
     if (!store) throw new ApiError(404, 'Магазин не найден');
@@ -127,7 +128,7 @@ router.get('/:slug/products', async (req, res, next) => {
       prisma.storeProduct.findMany({
         where,
         skip,
-        take: Number(limit),
+        take: limit,
         orderBy: { sortOrder: 'asc' },
       }),
       prisma.storeProduct.count({ where }),
@@ -138,11 +139,11 @@ router.get('/:slug/products', async (req, res, next) => {
       data: products,
       pagination: {
         total,
-        page: Number(page),
-        limit: Number(limit),
-        totalPages: Math.ceil(total / Number(limit)),
-        hasNext: skip + Number(limit) < total,
-        hasPrev: Number(page) > 1,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+        hasNext: skip + limit < total,
+        hasPrev: page > 1,
       },
     });
   } catch (error) {
@@ -215,8 +216,8 @@ router.post('/:slug/reviews', authenticate, async (req, res, next) => {
 // ─── GET /stores/admin/requests — Заявки на партнёрство ─────
 router.get('/admin/requests', authenticate, authorize('ADMIN'), async (req, res, next) => {
   try {
-    const { status, page = '1', limit = '20' } = req.query;
-    const skip = (Number(page) - 1) * Number(limit);
+    const { status } = req.query;
+    const { page, limit, skip } = clampPagination(req.query.page, req.query.limit);
     const where: any = {};
     if (status) where.status = String(status);
 
@@ -224,7 +225,7 @@ router.get('/admin/requests', authenticate, authorize('ADMIN'), async (req, res,
       prisma.partnerRequest.findMany({
         where,
         skip,
-        take: Number(limit),
+        take: limit,
         orderBy: { createdAt: 'desc' },
       }),
       prisma.partnerRequest.count({ where }),
@@ -235,11 +236,11 @@ router.get('/admin/requests', authenticate, authorize('ADMIN'), async (req, res,
       data: requests,
       pagination: {
         total,
-        page: Number(page),
-        limit: Number(limit),
-        totalPages: Math.ceil(total / Number(limit)),
-        hasNext: skip + Number(limit) < total,
-        hasPrev: Number(page) > 1,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+        hasNext: skip + limit < total,
+        hasPrev: page > 1,
       },
     });
   } catch (error) {

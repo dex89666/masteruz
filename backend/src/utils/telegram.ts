@@ -98,6 +98,11 @@ export function verifyTelegramMiniApp(initData: string): TelegramMiniAppInitData
 
     if (computedHash !== hash) return null;
 
+    // Проверка свежести auth_date (не старше 24 часов — защита от replay-атак)
+    const authDate = parseInt(urlParams.get('auth_date') || '0', 10);
+    const now = Math.floor(Date.now() / 1000);
+    if (now - authDate > 86400) return null;
+
     // Парсим данные пользователя
     const userStr = urlParams.get('user');
     const user = userStr ? JSON.parse(userStr) : undefined;

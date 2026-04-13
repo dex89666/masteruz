@@ -6,8 +6,11 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { adminService } from './admin.service.js';
 import { authenticate, authorize } from '../../middleware/auth.js';
+import { validateBody, validateQuery } from '../../middleware/validate.js';
+import { adminUsersQuerySchema, blockUserSchema, changeRoleSchema, adminBalanceSchema, adminOrderCommentSchema, adminConfigSchema } from './admin.schema.js';
 import { prisma } from '../../config/database.js';
 import { balanceService } from '../balance/balance.service.js';
+import { clampPagination } from '../../utils/helpers.js';
 
 const router = Router();
 
@@ -25,14 +28,14 @@ router.get('/dashboard', async (req: Request, res: Response, next: NextFunction)
 });
 
 // Пользователи
-router.get('/users', async (req: Request, res: Response, next: NextFunction) => {
+router.get('/users', validateQuery(adminUsersQuerySchema), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const result = await adminService.getUsers({
-      page: parseInt(req.query.page as string) || 1,
-      limit: parseInt(req.query.limit as string) || 20,
+      page: req.query.page as unknown as number,
+      limit: req.query.limit as unknown as number,
       role: req.query.role as string,
       search: req.query.search as string,
-      isActive: req.query.isActive ? req.query.isActive === 'true' : undefined,
+      isActive: req.query.isActive as unknown as boolean | undefined,
     });
     res.json({ success: true, ...result });
   } catch (error) {
@@ -41,7 +44,7 @@ router.get('/users', async (req: Request, res: Response, next: NextFunction) => 
 });
 
 // Блокировка
-router.put('/users/:id/block', async (req: Request, res: Response, next: NextFunction) => {
+router.put('/users/:id/block', validateBody(blockUserSchema), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const result = await adminService.toggleUserBlock(
       req.user!.userId,
@@ -65,14 +68,9 @@ router.put('/users/:id/verify', async (req: Request, res: Response, next: NextFu
 });
 
 // Смена роли пользователя (только ADMIN)
-router.put('/users/:id/role', authorize('ADMIN'), async (req: Request, res: Response, next: NextFunction) => {
+router.put('/users/:id/role', authorize('ADMIN'), validateBody(changeRoleSchema), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { role } = req.body;
-    const validRoles = ['CLIENT', 'MASTER', 'MANAGER', 'ADMIN'];
-    if (!role || !validRoles.includes(role)) {
-      res.status(400).json({ success: false, error: { message: 'Некорректная роль. Допустимо: CLIENT, MASTER, MANAGER, ADMIN' } });
-      return;
-    }
     // Нельзя менять роль самому себе
     if (req.params.id === req.user!.userId) {
       res.status(400).json({ success: false, error: { message: 'Нельзя изменить свою собственную роль' } });
@@ -106,8 +104,7 @@ router.get('/users/:id/balance', async (req: Request, res: Response, next: NextF
 // История транзакций пользователя
 router.get('/users/:id/transactions', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const page = Number(req.query.page) || 1;
-    const limit = Number(req.query.limit) || 50;
+    const { page, limit } = clampPagination(req.query.page, req.query.limit);
     const result = await balanceService.getTransactions(req.params.id, page, limit);
     res.json({ success: true, ...result });
   } catch (error) {
@@ -116,16 +113,12 @@ router.get('/users/:id/transactions', async (req: Request, res: Response, next: 
 });
 
 // Зачислить средства пользователю (только ADMIN)
-router.post('/users/:id/balance/topup', authorize('ADMIN'), async (req: Request, res: Response, next: NextFunction) => {
+router.post('/users/:id/balance/topup', authorize('ADMIN'), validateBody(adminBalanceSchema), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { amount, reason } = req.body;
-    if (!amount || Number(amount) <= 0) {
-      res.status(400).json({ success: false, error: { message: 'Сумма должна быть больше 0' } });
-      return;
-    }
     const result = await balanceService.adminTopUp(
       req.params.id,
-      Number(amount),
+      amount,
       req.user!.userId,
       reason
     );
@@ -136,16 +129,12 @@ router.post('/users/:id/balance/topup', authorize('ADMIN'), async (req: Request,
 });
 
 // Списать средства с пользователя (только ADMIN)
-router.post('/users/:id/balance/withdraw', authorize('ADMIN'), async (req: Request, res: Response, next: NextFunction) => {
+router.post('/users/:id/balance/withdraw', authorize('ADMIN'), validateBody(adminBalanceSchema), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { amount, reason } = req.body;
-    if (!amount || Number(amount) <= 0) {
-      res.status(400).json({ success: false, error: { message: 'Сумма должна быть больше 0' } });
-      return;
-    }
     const result = await balanceService.adminWithdraw(
       req.params.id,
-      Number(amount),
+      amount,
       req.user!.userId,
       reason
     );
@@ -172,13 +161,10 @@ router.get('/orders', async (req: Request, res: Response, next: NextFunction) =>
 });
 
 // Комментарий админа к заказу
-router.put('/orders/:id/comment', async (req: Request, res: Response, next: NextFunction) => {
+router.put('/orders/:id/comment', validateBody(adminOrderCommentSchema), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
     const { comment } = req.body;
-    if (typeof comment !== 'string') {
-      return res.status(400).json({ success: false, message: 'comment is required' });
-    }
     const order = await prisma.order.update({
       where: { id },
       data: { adminComment: comment || null },
@@ -215,7 +201,7 @@ router.get('/config', async (_req: Request, res: Response, next: NextFunction) =
   }
 });
 
-router.put('/config', authorize('ADMIN'), async (req: Request, res: Response, next: NextFunction) => {
+router.put('/config', authorize('ADMIN'), validateBody(adminConfigSchema), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { key, value, description } = req.body;
     const config = await adminService.updateConfig(req.user!.userId, key, value, description);
@@ -228,10 +214,8 @@ router.put('/config', authorize('ADMIN'), async (req: Request, res: Response, ne
 // Чёрный список (расширенный)
 router.get('/blacklist', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 20;
+    const { page, limit, skip } = clampPagination(req.query.page, req.query.limit);
     const violationType = req.query.violationType as string;
-    const skip = (page - 1) * limit;
 
     const where: any = {};
     if (violationType) where.violationType = violationType;
@@ -372,10 +356,8 @@ router.delete('/blacklist/:id', authorize('ADMIN'), async (req: Request, res: Re
 // GET /admin/certificates — список сертификатов (с фильтром по статусу верификации)
 router.get('/certificates', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 20;
+    const { page, limit, skip } = clampPagination(req.query.page, req.query.limit);
     const verified = req.query.verified as string | undefined;
-    const skip = (page - 1) * limit;
 
     const where: any = {};
     if (verified === 'true') where.verified = true;

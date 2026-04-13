@@ -23,6 +23,10 @@ export const refreshTokenSchema = z.object({
   refreshToken: z.string().min(1, 'refreshToken обязателен'),
 });
 
+export const switchRoleSchema = z.object({
+  role: z.enum(['ADMIN', 'MASTER', 'CLIENT', 'MANAGER']),
+});
+
 export type TelegramAuthInput = z.infer<typeof telegramAuthSchema>;
 export type TelegramMiniAppAuthInput = z.infer<typeof telegramMiniAppAuthSchema>;
 export type RefreshTokenInput = z.infer<typeof refreshTokenSchema>;

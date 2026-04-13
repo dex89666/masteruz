@@ -80,6 +80,12 @@ export const config = {
   // CORS
   corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:5173',
 
+  // Суперадмины (через env, без hardcode в коде)
+  superAdminUsernames: (process.env.SUPER_ADMIN_USERNAMES || '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean),
+
   // Логирование
   logLevel: process.env.LOG_LEVEL || 'info',
 } as const;

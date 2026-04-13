@@ -2,40 +2,34 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
+const targetUsername = process.argv[2];
+
+if (!targetUsername) {
+  console.error('Использование: npx ts-node scripts/make-admin.ts <username>');
+  process.exit(1);
+}
+
 async function main() {
-  // Найти всех пользователей
-  const users = await prisma.user.findMany({
-    select: {
-      id: true,
-      username: true,
-      role: true,
-      telegramId: true,
-      profile: {
-        select: {
-          firstName: true,
-          lastName: true,
-        },
-      },
-    },
-  });
-  
-  console.log('=== Все пользователи ===');
-  users.forEach(u => {
-    console.log(`ID: ${u.id} | @${u.username} | ${u.profile?.firstName ?? '—'} ${u.profile?.lastName ?? ''} | Role: ${u.role} | TG: ${u.telegramId}`);
+  const user = await prisma.user.findFirst({
+    where: { username: targetUsername },
+    select: { id: true, username: true, role: true },
   });
 
-  // Найти sustanon250
-  const target = users.find(u => u.username === 'sustanon250' || u.profile?.firstName === 'Vladimir');
-  if (target) {
-    console.log('\n=== Обновляю роль на ADMIN ===');
-    const updated = await prisma.user.update({
-      where: { id: target.id },
-      data: { role: 'ADMIN' },
-    });
-    console.log(`✅ @${updated.username} теперь ADMIN`);
-  } else {
-    console.log('\n❌ Пользователь sustanon250/Vladimir не найден');
+  if (!user) {
+    console.error(`❌ Пользователь @${targetUsername} не найден`);
+    process.exit(1);
   }
+
+  if (user.role === 'ADMIN') {
+    console.log(`ℹ️ @${user.username} уже ADMIN`);
+    return;
+  }
+
+  const updated = await prisma.user.update({
+    where: { id: user.id },
+    data: { role: 'ADMIN' },
+  });
+  console.log(`✅ @${updated.username} теперь ADMIN`);
 }
 
 main()

@@ -139,6 +139,18 @@ if (!isVercelEnv) {
   app.use('/api/payments', financeLimiter);
   app.use('/api/balance', financeLimiter);
 
+  // Rate Limiting — лимит загрузки файлов (тяжёлые операции)
+  const uploadLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 минут
+    max: 30, // Максимум 30 загрузок за 15 минут
+    message: {
+      success: false,
+      error: { message: 'Превышен лимит загрузки файлов', statusCode: 429 },
+    },
+  });
+  app.use('/api/photos', uploadLimiter);
+  app.use('/api/portfolio', uploadLimiter);
+
   // Rate Limiting — лимит для заявок на партнёрство (антиспам)
   const partnerRequestLimiter = rateLimit({
     windowMs: 60 * 60 * 1000, // 1 час
@@ -375,7 +387,7 @@ app.use(errorHandler);
 
 // ─── Запуск сервера ────────────────────────────
 
-if (!isVercelEnv) {
+if (!isVercelEnv && process.env.NODE_ENV !== 'test') {
   // Обычный запуск (VPS / Docker / локальная разработка)
   async function bootstrap() {
     try {

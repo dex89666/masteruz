@@ -15,7 +15,7 @@
 5. [Шаг 4 — Загрузка кода на GitHub](#5--шаг-4--загрузка-кода-на-github)
 6. [Шаг 5 — Настройка сервера](#6--шаг-5--настройка-сервера)
 7. [Шаг 6 — Переменные окружения](#7--шаг-6--переменные-окружения)
-8. [Шаг 7 — Первый запуск](#8--шаг-7--первый-запуск)
+8. [Шаг 7 — Первый запуск](#8--шаг-7--первый-запуск) <!-- markdownlint-disable-line MD051 -->
 9. [Шаг 8 — Telegram Mini App](#9--шаг-8--telegram-mini-app)
 10. [Шаг 9 — CI/CD автодеплой](#10--шаг-9--cicd-автодеплой)
 11. [Шаг 10 — Мониторинг и бэкапы](#11--шаг-10--мониторинг-и-бэкапы)
@@ -28,7 +28,7 @@
 ## 1. 📦 Что вам нужно перед стартом
 
 | # | Что | Где получить | Стоимость |
-|---|-----|-------------|-----------|
+| --- | ----- | ------------- | ----------- |
 | 1 | **VPS сервер** (Ubuntu 22.04, 2 vCPU, 4GB RAM, 40GB SSD) | Aéza, Timeweb, Hetzner, DigitalOcean | ~$10–15/мес |
 | 2 | **Домен** (например `masteruz.uz`) | afilias.uz, webname.uz, reg.uz | ~$15–30/год |
 | 3 | **Telegram Bot** | @BotFather в Telegram | Бесплатно |
@@ -39,7 +39,7 @@
 ### Почему GitHub + VPS, а НЕ Vercel?
 
 | | **GitHub + VPS (наш выбор)** | Vercel |
-|---|---|---|
+| --- | --- | --- |
 | Backend | ✅ Express + PostgreSQL + Redis — полный контроль | ❌ Только serverless functions, нет WebSockets |
 | База данных | ✅ PostgreSQL в Docker на том же сервере | ⚠️ Нужен внешний сервис (Supabase/Neon) +$$ |
 | Файлы/загрузки | ✅ Хранение на диске сервера | ❌ Нет persistent storage |
@@ -54,17 +54,18 @@
 
 ## 2. 🖥 Шаг 1 — Покупка VPS сервера
 
-### Рекомендуемые провайдеры:
+### Рекомендуемые провайдеры
 
 | Провайдер | Локация | Min план | Ссылка |
-|-----------|---------|----------|--------|
+| ----------- | --------- | ---------- | -------- |
 | **Aéza** (рекомендую) | Москва/Европа | 2 vCPU, 4GB — ~$7/мес | aeza.net |
 | **Timeweb Cloud** | Москва | 2 vCPU, 4GB — ~$10/мес | timeweb.cloud |
 | **Hetzner** | Европа | CX22 2vCPU, 4GB — €4.5/мес | hetzner.com |
 | **DigitalOcean** | Амстердам | 2vCPU, 4GB — $24/мес | digitalocean.com |
 
-### Минимальные требования:
-```
+### Минимальные требования
+
+```text
 ОС:     Ubuntu 22.04 LTS (64-bit)
 CPU:    2 vCPU
 RAM:    4 GB (минимум 2 GB)
@@ -72,8 +73,9 @@ RAM:    4 GB (минимум 2 GB)
 Трафик: Unlimited или 3+ TB
 ```
 
-### После покупки вы получите:
-```
+### После покупки вы получите
+
+```text
 IP-адрес:     185.xxx.xxx.xxx
 Пользователь: root
 Пароль:       (или SSH-ключ)
@@ -85,26 +87,29 @@ IP-адрес:     185.xxx.xxx.xxx
 
 ## 3. 🌐 Шаг 2 — Покупка домена
 
-### Для зоны `.uz`:
+### Для зоны `.uz`
+
 - **reg.uz** — регистрация .uz доменов
 - **webname.uz** — альтернативный регистратор
 
-### Для международных зон (.com, .io):
+### Для международных зон (.com, .io)
+
 - **Namecheap** — namecheap.com
 - **Cloudflare Registrar** — dash.cloudflare.com
 
-### Настройка DNS (после покупки):
+### Настройка DNS (после покупки)
 
 Зайдите в панель управления доменом и добавьте **DNS записи**:
 
 | Тип | Имя | Значение | TTL |
-|-----|-----|----------|-----|
+| --- | --- | --- | --- |
 | **A** | `@` (или `masteruz.uz`) | `185.xxx.xxx.xxx` (IP сервера) | 300 |
 | **A** | `www` | `185.xxx.xxx.xxx` (IP сервера) | 300 |
 
 ⏳ DNS обновляется за 5–30 минут (иногда до 24ч).
 
-### Проверка DNS:
+### Проверка DNS
+
 ```bash
 # На вашем компьютере:
 nslookup masteruz.uz
@@ -126,7 +131,8 @@ nslookup masteruz.uz
 ### 3.2 Настройка бота (пока без Mini App)
 
 Отправьте @BotFather:
-```
+
+```text
 /setdescription
 → Выберите бота
 → MasterUz — Платформа для заказа бытовых услуг в Узбекистане 🇺🇿
@@ -145,8 +151,9 @@ nslookup masteruz.uz
 
 > ⚠️ **Mini App настроим в Шаге 8** (после получения SSL сертификата)
 
-### Запишите:
-```
+### Запишите
+
+```text
 TELEGRAM_BOT_TOKEN=1234567890:AAF-xxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 TELEGRAM_BOT_USERNAME=MasterUzBot
 ```
@@ -185,6 +192,7 @@ git push -u origin main
 ### 4.3 Проверьте .gitignore
 
 Убедитесь что **НЕ загружаются**:
+
 - `node_modules/` ✅
 - `.env` ✅
 - `.env.production` ✅
@@ -223,15 +231,16 @@ bash scripts/server-setup.sh
 ```
 
 Скрипт автоматически:
+
 - ✅ Обновит систему
 - ✅ Установит Docker + Docker Compose
 - ✅ Настроит файрвол (UFW)
 - ✅ Установит fail2ban (защита от брутфорса)
 - ✅ Создаст `.env.production` с автогенерированными секретами
 
-### 5.3 Что установится:
+### 5.3 Что установится
 
-```
+```text
 Docker 24+          → контейнеризация
 Docker Compose v2   → оркестрация контейнеров  
 UFW                 → файрвол (порты 22, 80, 443)
@@ -249,7 +258,7 @@ Git                 → обновление кода
 nano /opt/masteruz/.env.production
 ```
 
-### 6.2 Заполните ВСЕ переменные:
+### 6.2 Заполните ВСЕ переменные
 
 ```env
 # ─── ДОМЕН ──────────────────────────────────
@@ -281,7 +290,8 @@ PAYME_MERCHANT_KEY=                   # ← Из кабинета Payme
 
 # ─── CORS ───────────────────────────────────
 CORS_ORIGIN=https://masteruz.uz      # ← Ваш домен с https://
-```
+# ─── СУПЕРАДМИН (заполните!) ────────────
+SUPER_ADMIN_USERNAMES=your_username   # ← Telegram username (без @), через запятую можно несколько```
 
 Сохраните: `Ctrl+O → Enter → Ctrl+X`
 
@@ -297,10 +307,10 @@ chmod +x scripts/deploy-init.sh
 bash scripts/deploy-init.sh
 ```
 
-### Скрипт автоматически:
+### Скрипт автоматически
 
 | Шаг | Действие | Время |
-|-----|----------|-------|
+| --- | ---------- | ------- |
 | 1 | Создаёт SSL директории | 1 сек |
 | 2 | Запускает Nginx с временным конфигом (HTTP) | 5 сек |
 | 3 | Собирает Docker образы (backend + frontend) | 3–5 мин |
@@ -315,14 +325,14 @@ bash scripts/deploy-init.sh
 
 После успешного деплоя откройте в браузере:
 
-```
+```text
 https://masteruz.uz            → Главная страница
 https://masteruz.uz/api/health → {"status":"ok"}
 https://masteruz.uz/stores     → Магазины
 https://masteruz.uz/catalog/plumbing → Каталог
 ```
 
-### 7.3 Если что-то не работает:
+### 7.3 Если что-то не работает
 
 ```bash
 # Посмотреть статус контейнеров:
@@ -348,7 +358,7 @@ docker compose -f docker-compose.prod.yml restart
 
 Откройте @BotFather и отправьте:
 
-```
+```text
 /newapp
 → Выберите вашего бота (@MasterUzBot)
 → Название: MasterUz
@@ -361,7 +371,7 @@ docker compose -f docker-compose.prod.yml restart
 
 ### 8.2 Настройка кнопки Menu
 
-```
+```text
 /setmenubutton
 → Выберите бота
 → Выберите тип: Web App
@@ -371,7 +381,7 @@ docker compose -f docker-compose.prod.yml restart
 
 ### 8.3 Настройка inline-кнопки (опционально)
 
-```
+```text
 /setinline
 → Выберите бота
 → placeholder: Найти мастера...
@@ -384,9 +394,9 @@ docker compose -f docker-compose.prod.yml restart
 3. Должно открыться ваше приложение внутри Telegram
 4. Авторизация произойдёт **автоматически** (через `initData`)
 
-### Что происходит при авторизации:
+### Что происходит при авторизации
 
-```
+```text
 Пользователь открывает Mini App
   → Telegram передаёт initData (зашифрованные данные)
   → Frontend отправляет initData на /api/auth/mini-app
@@ -403,11 +413,13 @@ docker compose -f docker-compose.prod.yml restart
 ### 9.1 SSH ключ для деплоя
 
 На вашем **компьютере**:
+
 ```powershell
 ssh-keygen -t ed25519 -C "deploy@masteruz" -f $HOME\.ssh\masteruz_deploy
 ```
 
 На **сервере**:
+
 ```bash
 # Добавьте публичный ключ
 nano ~/.ssh/authorized_keys
@@ -419,7 +431,7 @@ nano ~/.ssh/authorized_keys
 Зайдите в **GitHub → Settings → Secrets and variables → Actions** и добавьте:
 
 | Secret Name | Значение | Откуда |
-|-------------|----------|--------|
+| --- | --- | --- |
 | `SERVER_HOST` | `185.xxx.xxx.xxx` | IP вашего сервера |
 | `SERVER_USER` | `root` | Пользователь SSH |
 | `SERVER_SSH_KEY` | Содержимое файла `masteruz_deploy` (private key) | Файл из 9.1 |
@@ -428,7 +440,7 @@ nano ~/.ssh/authorized_keys
 
 ### 9.3 Как работает автодеплой
 
-```
+```text
 git push origin main
   → GitHub Actions запускается
   → Job 1: Тесты (107 тестов) ✅
@@ -481,7 +493,7 @@ docker compose -f docker-compose.prod.yml logs -f --tail=100
 
 ### 10.4 Health check эндпоинт
 
-```
+```text
 GET https://masteruz.uz/api/health
 → {"status":"ok","timestamp":"...","version":"1.0.0"}
 ```
@@ -495,7 +507,7 @@ GET https://masteruz.uz/api/health
 ### Файл: `.env.production` (корень проекта, на сервере)
 
 | Переменная | Описание | Пример | Обязательна |
-|-----------|----------|--------|-------------|
+| --- | --- | --- | --- |
 | `DOMAIN` | Домен сайта | `masteruz.uz` | ✅ |
 | `DB_PASSWORD` | Пароль PostgreSQL | `a7f3c9e2...` (32 hex) | ✅ |
 | `REDIS_PASSWORD` | Пароль Redis | `b4e2d1f8...` (24 hex) | ✅ |
@@ -510,6 +522,9 @@ GET https://masteruz.uz/api/health
 | `PAYME_MERCHANT_ID` | Payme Merchant ID | `abc123...` | ⬜ |
 | `PAYME_MERCHANT_KEY` | Payme Key | `def456...` | ⬜ |
 | `CORS_ORIGIN` | Разрешённый origin | `https://masteruz.uz` | ✅ |
+| `SUPER_ADMIN_USERNAMES` | Telegram-username суперадминов | `admin1,admin2` | ✅ |
+| `MASTER_REGISTRATION_FEE` | Взнос мастера (тийины) | `400000` | ⬜ |
+| `ADMIN_TELEGRAM_CHAT_ID` | Chat ID для уведомлений админу | `123456789` | ⬜ |
 
 > ✅ = обязательна для запуска, ⬜ = опциональна (платежи, карты)
 
@@ -518,7 +533,7 @@ GET https://masteruz.uz/api/health
 Эти переменные **НЕ НУЖНО** заполнять вручную — они берутся из `.env.production` и подставляются в `docker-compose.prod.yml`:
 
 | Переменная | Контейнер | Значение |
-|-----------|-----------|----------|
+| --- | --- | --- |
 | `NODE_ENV` | backend | `production` |
 | `PORT` | backend | `3000` |
 | `DATABASE_URL` | backend | `postgresql://masteruz:{DB_PASSWORD}@postgres:5432/masteruz` |
@@ -529,7 +544,7 @@ GET https://masteruz.uz/api/health
 ### GitHub Secrets (для CI/CD)
 
 | Secret | Значение |
-|--------|----------|
+| --- | --- |
 | `SERVER_HOST` | IP сервера |
 | `SERVER_USER` | `root` |
 | `SERVER_SSH_KEY` | Private SSH key |
@@ -590,12 +605,14 @@ docker compose -f docker-compose.prod.yml exec -T backend npx prisma migrate dep
 ## 14. ❓ FAQ и решение проблем
 
 ### SSL сертификат не выдаётся
-```
+
+```text
 Причина: DNS ещё не обновился
 Решение: Подождите 30 мин, проверьте: nslookup masteruz.uz
 ```
 
 ### Backend не запускается
+
 ```bash
 docker compose -f docker-compose.prod.yml logs backend
 # Частые причины:
@@ -604,6 +621,7 @@ docker compose -f docker-compose.prod.yml logs backend
 ```
 
 ### 502 Bad Gateway
+
 ```bash
 # Проверьте что backend запущен:
 docker compose -f docker-compose.prod.yml ps
@@ -612,24 +630,35 @@ docker compose -f docker-compose.prod.yml logs backend
 ```
 
 ### Telegram Mini App не открывается
-```
+
+```text
 1. Проверьте что HTTPS работает: https://masteruz.uz
 2. Убедитесь что URL в @BotFather точно совпадает с доменом
 3. Telegram требует валидный SSL (Let's Encrypt подходит)
 ```
 
 ### Как добавить нового администратора?
+
 ```bash
+# Способ 1: Через скрипт (рекомендуется)
+docker compose -f docker-compose.prod.yml exec backend \
+  npx ts-node scripts/make-admin.ts username_мастера
+
+# Способ 2: Через SQL
 docker compose -f docker-compose.prod.yml exec postgres \
   psql -U masteruz masteruz -c \
   "UPDATE users SET role='ADMIN' WHERE username='имя_пользователя';"
+
+# Суперадмин (роль ADMIN + привилегии выше):
+# Добавьте username в SUPER_ADMIN_USERNAMES в .env.production
+# и перезапустите backend
 ```
 
 ---
 
 ## 🏗 Структура файлов для продакшна
 
-```
+```text
 MasterUz/
 ├── .github/workflows/
 │   └── deploy.yml              ← CI/CD pipeline

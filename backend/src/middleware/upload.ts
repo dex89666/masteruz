@@ -34,6 +34,8 @@ const storage = isVercel
       },
     });
 
+const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.pdf'];
+
 const fileFilter = (_req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
   const allowedTypes = [
     'image/jpeg',
@@ -42,10 +44,11 @@ const fileFilter = (_req: any, file: Express.Multer.File, cb: multer.FileFilterC
     'application/pdf',
   ];
 
-  if (allowedTypes.includes(file.mimetype)) {
-    cb(null, true);
-  } else {
+  const ext = path.extname(file.originalname).toLowerCase();
+  if (!allowedTypes.includes(file.mimetype) || !ALLOWED_EXTENSIONS.includes(ext)) {
     cb(new ApiError(400, 'Разрешены только изображения (JPEG, PNG, WebP) и PDF'));
+  } else {
+    cb(null, true);
   }
 };
 

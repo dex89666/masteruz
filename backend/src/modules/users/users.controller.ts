@@ -5,6 +5,7 @@
 
 import { Request, Response, NextFunction } from 'express';
 import { usersService } from './users.service.js';
+import { isSuperAdmin } from '../../utils/helpers.js';
 
 export class UsersController {
   /**
@@ -15,7 +16,7 @@ export class UsersController {
       const user = await usersService.getMasterProfile(req.user!.userId);
 
       // Добавляем isAdminUser для корректной работы переключения ролей на фронтенде
-      let isAdminUser = user.role === 'ADMIN' || user.role === 'MANAGER' || user.username === 'sustanon250';
+      let isAdminUser = user.role === 'ADMIN' || user.role === 'MANAGER' || isSuperAdmin(user.username);
       if (!isAdminUser) {
         try {
           const { prisma } = await import('../../config/database.js');

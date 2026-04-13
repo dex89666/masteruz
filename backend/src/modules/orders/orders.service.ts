@@ -6,12 +6,13 @@
 
 import { prisma } from '../../config/database.js';
 import { ApiError } from '../../utils/ApiError.js';
-import { calculateDistance, calculateCommission, getPagination, paginatedResponse, moneyMul, moneyAdd, moneySub, moneyDiv, toNum } from '../../utils/helpers.js';
+import { calculateDistance, calculateCommission, getPagination, paginatedResponse, moneyMul, moneyAdd, moneySub, moneyDiv, toNum, isSuperAdmin } from '../../utils/helpers.js';
 import { OrderStatus, Prisma } from '@prisma/client';
 import type { CreateOrderInput, ListOrdersInput, OrderResponseInput } from './orders.schema.js';
 import { logger } from '../../utils/logger.js';
 import { notificationService } from '../../services/notificationService.js';
 import { balanceService } from '../balance/balance.service.js';
+import { auditService } from '../../services/auditService.js';
 import { eventBus } from '../../services/eventBus.js';
 
 // ─── Конфиг штрафов ─────────────────────────
@@ -350,7 +351,7 @@ export class OrdersService {
     let isAdminRequester = false;
     if (userId) {
       const reqUser = await prisma.user.findUnique({ where: { id: userId }, select: { role: true, username: true } });
-      isAdminRequester = reqUser?.role === 'ADMIN' || reqUser?.role === 'MANAGER' || reqUser?.username === 'sustanon250';
+      isAdminRequester = reqUser?.role === 'ADMIN' || reqUser?.role === 'MANAGER' || isSuperAdmin(reqUser?.username);
     }
 
     const canSeeContacts = isOwner || (isAssignedMaster && orderAccepted) || isAdminRequester;
@@ -766,6 +767,14 @@ export class OrdersService {
 
     logger.info({ orderId, masterPayout, commission }, 'Заказ финализирован, средства переведены');
 
+    await auditService.log({
+      actorId: order.masterId!,
+      action: 'order_finalized',
+      entityType: 'order',
+      entityId: orderId,
+      details: { masterPayout, commission, escrow: toNum(order.escrowAmount), clientId: order.clientId },
+    });
+
     // SSE: заказ завершён, средства переведены
     eventBus.emit(orderId, 'order_completed', {
       orderId,
@@ -910,6 +919,15 @@ export class OrdersService {
     });
 
     logger.info({ orderId, userId, cancelledBy, penaltyAmount }, 'Заказ отменён');
+
+    await auditService.log({
+      actorId: userId,
+      action: 'order_cancelled',
+      entityType: 'order',
+      entityId: orderId,
+      details: { cancelledBy, penaltyAmount, reason, escrowRefunded: toNum(order.escrowAmount) },
+    });
+
     return { orderId, cancelledBy, penaltyAmount, reason };
   }
 
@@ -931,6 +949,15 @@ export class OrdersService {
     });
 
     logger.info({ orderId, clientId, reason }, 'Спор открыт');
+
+    await auditService.log({
+      actorId: clientId,
+      action: 'dispute_opened',
+      entityType: 'order',
+      entityId: orderId,
+      details: { reason },
+    });
+
     return updatedOrder;
   }
 
@@ -1032,6 +1059,15 @@ export class OrdersService {
     }
 
     logger.info({ orderId, adminId, resolution }, 'Спор разрешён');
+
+    await auditService.log({
+      actorId: adminId,
+      action: 'dispute_resolved',
+      entityType: 'order',
+      entityId: orderId,
+      details: { resolution, note, escrow: toNum(order.escrowAmount), masterId: order.masterId, clientId: order.clientId },
+    });
+
     return { orderId, resolution, note };
   }
 

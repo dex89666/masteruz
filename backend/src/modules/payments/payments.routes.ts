@@ -6,13 +6,16 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { paymentsService } from './payments.service.js';
 import { authenticate } from '../../middleware/auth.js';
+import { validateBody } from '../../middleware/validate.js';
+import { balanceTopupSchema, registrationFeeSchema, telegramStarsSchema, commissionPaymentSchema } from './payments.schema.js';
 import { config } from '../../config/index.js';
 import { logger } from '../../utils/logger.js';
+import { clampPagination } from '../../utils/helpers.js';
 
 const router = Router();
 
 // Создание платежа за комиссию
-router.post('/create', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.post('/create', authenticate, validateBody(commissionPaymentSchema), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { orderId, provider } = req.body;
     const result = await paymentsService.createCommissionPayment(
@@ -27,15 +30,12 @@ router.post('/create', authenticate, async (req: Request, res: Response, next: N
 });
 
 // Пополнение баланса через платёжную систему (Click / Payme / Telegram Stars)
-router.post('/balance-topup', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.post('/balance-topup', authenticate, validateBody(balanceTopupSchema), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { amount, provider } = req.body;
-    if (!amount || !provider) {
-      return res.status(400).json({ success: false, error: { message: 'Укажите сумму и провайдер', statusCode: 400 } });
-    }
     const result = await paymentsService.createBalanceTopupPayment(
       req.user!.userId,
-      Number(amount),
+      amount,
       provider
     );
     res.json({ success: true, data: result });
@@ -45,7 +45,7 @@ router.post('/balance-topup', authenticate, async (req: Request, res: Response, 
 });
 
 // Создание платежа за регистрационный взнос мастера (400 000 сум)
-router.post('/registration-fee', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.post('/registration-fee', authenticate, validateBody(registrationFeeSchema), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { provider } = req.body;
     const result = await paymentsService.createRegistrationPayment(
@@ -83,7 +83,7 @@ router.post('/webhook/payme', async (req: Request, res: Response, next: NextFunc
 
     if (login !== 'Paycom' || password !== config.payme.merchantKey) {
       logger.warn(
-        { ip: req.ip, login },
+        { ip: req.ip },
         '🚨 SECURITY: Payme webhook invalid credentials — possible forgery attempt'
       );
       return res.status(400).json({ error: { code: -32504, message: 'Invalid signature' } });
@@ -96,10 +96,11 @@ router.post('/webhook/payme', async (req: Request, res: Response, next: NextFunc
   }
 });
 
-// Telegram Stars
-router.post('/telegram-stars', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+// Telegram Stars — с проверкой владельца платежа
+router.post('/telegram-stars', authenticate, validateBody(telegramStarsSchema), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const result = await paymentsService.handleTelegramStarsPayment(
+      req.user!.userId,
       req.body.paymentId,
       req.body.telegramPaymentId
     );
@@ -112,8 +113,7 @@ router.post('/telegram-stars', authenticate, async (req: Request, res: Response,
 // История платежей
 router.get('/history', authenticate, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 20;
+    const { page, limit } = clampPagination(req.query.page, req.query.limit);
     const result = await paymentsService.getUserPayments(req.user!.userId, page, limit);
     res.json({ success: true, ...result });
   } catch (error) {

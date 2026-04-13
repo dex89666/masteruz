@@ -9,6 +9,7 @@ import { config } from '../config/index.js';
 import { prisma } from '../config/database.js';
 import { ApiError } from '../utils/ApiError.js';
 import { UserRole } from '@prisma/client';
+import { isSuperAdmin } from '../utils/helpers.js';
 
 export interface JwtPayload {
   userId: string;
@@ -31,19 +32,12 @@ declare global {
  */
 export function authenticate(req: Request, _res: Response, next: NextFunction): void {
   try {
-    let token: string | undefined;
-
     const authHeader = req.headers.authorization;
-    if (authHeader?.startsWith('Bearer ')) {
-      token = authHeader.split(' ')[1];
-    } else if (typeof req.query.token === 'string') {
-      // SSE (EventSource) не поддерживает кастомные заголовки — принимаем token из query
-      token = req.query.token;
-    }
-
-    if (!token) {
+    if (!authHeader?.startsWith('Bearer ')) {
       throw ApiError.unauthorized('Токен не предоставлен');
     }
+
+    const token = authHeader.split(' ')[1];
 
     const payload = jwt.verify(token, config.jwt.secret) as JwtPayload;
 
@@ -75,15 +69,14 @@ export function authorize(...roles: UserRole[]) {
       return next();
     }
 
-    // Если среди разрешённых ролей есть ADMIN/MANAGER — проверяем admin_user_ids и sustanon250
+    // Если среди разрешённых ролей есть ADMIN/MANAGER — проверяем admin_user_ids и суперадминов
     if (roles.includes('ADMIN' as any) || roles.includes('MANAGER' as any)) {
       try {
-        // Проверяем sustanon250 — всегда имеет админ-доступ
         const currentUser = await prisma.user.findUnique({
           where: { id: req.user.userId },
           select: { username: true },
         });
-        if (currentUser?.username === 'sustanon250') {
+        if (isSuperAdmin(currentUser?.username)) {
           return next();
         }
 
@@ -91,7 +84,7 @@ export function authorize(...roles: UserRole[]) {
         if (adminConfig) {
           const adminIds = adminConfig.value.split(',').map((s: string) => s.trim());
           if (adminIds.includes(req.user.userId)) {
-            return next(); // Пользователь в списке админов — пропускаем
+            return next();
           }
         }
       } catch {

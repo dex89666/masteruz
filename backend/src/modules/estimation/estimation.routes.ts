@@ -6,6 +6,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { authenticate, authorize } from '../../middleware/auth.js';
 import { estimationService } from './estimation.service.js';
+import { clampPagination } from '../../utils/helpers.js';
 import { z } from 'zod';
 
 const router = Router();
@@ -151,10 +152,11 @@ router.put('/estimate/:estimateId/send', authenticate, async (req: Request, res:
  */
 router.get('/admin/orders', authenticate, authorize('ADMIN', 'MANAGER'), async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const { page, limit } = clampPagination(req.query.page, req.query.limit);
     const result = await estimationService.getEstimationOrders({
       status: req.query.status as string,
-      page: Number(req.query.page) || 1,
-      limit: Number(req.query.limit) || 20,
+      page,
+      limit,
     });
     res.json({ success: true, ...result });
   } catch (error) {

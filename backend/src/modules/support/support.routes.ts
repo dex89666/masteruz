@@ -6,6 +6,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { authenticate, authorize } from '../../middleware/auth.js';
 import { supportChatService } from './support.service.js';
+import { clampPagination } from '../../utils/helpers.js';
 import { z } from 'zod';
 
 const router = Router();
@@ -96,8 +97,7 @@ router.post('/admin', authenticate, authorize('ADMIN', 'MANAGER'), async (req: R
  */
 router.get('/admin/all', authenticate, authorize('ADMIN', 'MANAGER'), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 20;
+    const { page, limit } = clampPagination(req.query.page, req.query.limit);
     const result = await supportChatService.getAdminChats(undefined, page, limit);
     res.json({ success: true, ...result });
   } catch (error) {

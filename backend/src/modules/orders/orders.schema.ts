@@ -54,6 +54,27 @@ export const listOrdersSchema = z.object({
   sortOrder: z.enum(['asc', 'desc']).default('desc'),
 });
 
+export const assignMasterSchema = z.object({
+  masterId: z.string().uuid(),
+});
+
+export const updateStatusSchema = z.object({
+  status: z.enum(['ACCEPTED', 'IN_TRANSIT', 'IN_PROGRESS']),
+});
+
+export const cancelOrderSchema = z.object({
+  reason: z.string().max(500).optional(),
+});
+
+export const disputeOrderSchema = z.object({
+  reason: z.string().min(10, 'Минимум 10 символов').max(500),
+});
+
+export const resolveDisputeSchema = z.object({
+  resolution: z.enum(['refund_client', 'pay_master', 'split']),
+  note: z.string().max(1000).optional(),
+});
+
 export type CreateOrderInput = z.infer<typeof createOrderSchema>;
 export type UpdateOrderInput = z.infer<typeof updateOrderSchema>;
 export type OrderResponseInput = z.infer<typeof orderResponseSchema>;
