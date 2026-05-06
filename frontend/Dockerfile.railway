@@ -1,0 +1,38 @@
+# ============================================
+# MasterUz — Frontend Dockerfile для Railway
+# Отличия от обычного Dockerfile:
+#   - подставляем $PORT в nginx.conf через envsubst (Railway назначает порт)
+#   - используем nginx.railway.conf без proxy_pass на backend
+#   - VITE_API_URL приходит build-arg'ом из railway.json
+# ============================================
+
+FROM node:20-alpine AS base
+WORKDIR /app
+
+FROM base AS deps
+COPY package.json package-lock.json* ./
+RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
+
+FROM deps AS builder
+COPY . .
+ARG VITE_API_URL
+ARG VITE_TELEGRAM_BOT_NAME=MasterUzBot
+ARG VITE_YANDEX_MAPS_KEY=
+ARG VITE_YM_COUNTER=
+ARG VITE_SENTRY_DSN=
+ENV VITE_API_URL=$VITE_API_URL
+ENV VITE_TELEGRAM_BOT_NAME=$VITE_TELEGRAM_BOT_NAME
+ENV VITE_YANDEX_MAPS_KEY=$VITE_YANDEX_MAPS_KEY
+ENV VITE_YM_COUNTER=$VITE_YM_COUNTER
+ENV VITE_SENTRY_DSN=$VITE_SENTRY_DSN
+RUN npm run build
+
+FROM nginx:alpine AS runner
+COPY --from=builder /app/dist /usr/share/nginx/html
+COPY nginx.railway.conf /etc/nginx/templates/default.conf.template
+
+# nginx:alpine автоматически прогоняет /etc/nginx/templates/*.template через envsubst
+ENV PORT=8080
+EXPOSE 8080
+
+CMD ["nginx", "-g", "daemon off;"]
