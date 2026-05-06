@@ -90,17 +90,17 @@ import {
 describe('P2: Zod-валидация payments', () => {
   describe('balanceTopupSchema', () => {
     it('принимает валидный запрос', () => {
-      const r = balanceTopupSchema.safeParse({ amount: 50000, provider: 'click' });
+      const r = balanceTopupSchema.safeParse({ amount: 50000, provider: 'CLICK' });
       expect(r.success).toBe(true);
     });
 
     it('отклоняет отрицательную сумму', () => {
-      const r = balanceTopupSchema.safeParse({ amount: -100, provider: 'click' });
+      const r = balanceTopupSchema.safeParse({ amount: -100, provider: 'CLICK' });
       expect(r.success).toBe(false);
     });
 
     it('отклоняет сумму > 100 000 000', () => {
-      const r = balanceTopupSchema.safeParse({ amount: 200_000_000, provider: 'payme' });
+      const r = balanceTopupSchema.safeParse({ amount: 200_000_000, provider: 'PAYME' });
       expect(r.success).toBe(false);
     });
 
@@ -126,20 +126,20 @@ describe('P2: Zod-валидация payments', () => {
     it('принимает валидный UUID + provider', () => {
       const r = commissionPaymentSchema.safeParse({
         orderId: '123e4567-e89b-12d3-a456-426614174000',
-        provider: 'telegram_stars',
+        provider: 'TELEGRAM_STARS',
       });
       expect(r.success).toBe(true);
     });
 
     it('отклоняет невалидный UUID для orderId', () => {
-      const r = commissionPaymentSchema.safeParse({ orderId: 'not-uuid', provider: 'click' });
+      const r = commissionPaymentSchema.safeParse({ orderId: 'not-uuid', provider: 'CLICK' });
       expect(r.success).toBe(false);
     });
   });
 
   describe('registrationFeeSchema', () => {
     it('принимает валидный provider', () => {
-      expect(registrationFeeSchema.safeParse({ provider: 'payme' }).success).toBe(true);
+      expect(registrationFeeSchema.safeParse({ provider: 'PAYME' }).success).toBe(true);
     });
 
     it('отклоняет невалидный provider', () => {

@@ -90,8 +90,9 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-// Rate Limiting — только для VPS/Docker (на Vercel MemoryStore сбрасывается между cold starts)
-if (!isVercelEnv) {
+// Rate Limiting — только для VPS/Docker (на Vercel MemoryStore сбрасывается между cold starts;
+// в test-окружении отключаем, чтобы интеграционные тесты не били о лимиты и не зависели от Redis)
+if (!isVercelEnv && process.env.NODE_ENV !== 'test') {
   // ─── Redis-backed store (общий для всех воркеров, переживает рестарт) ───
   // Если Redis недоступен — fallback на MemoryStore (с предупреждением)
   let redisStoreFactory: ((prefix: string) => Store | undefined) | null = null;
