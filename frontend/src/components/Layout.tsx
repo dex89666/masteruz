@@ -484,6 +484,7 @@ export function Layout() {
                 <li><Link to="/public-offer" className="hover:text-white transition-colors">{t('home.publicOffer')}</Link></li>
                 <li><Link to="/privacy" className="hover:text-white transition-colors">{t('home.privacyPolicy')}</Link></li>
                 <li><Link to="/terms" className="hover:text-white transition-colors">Условия использования</Link></li>
+                <li><Link to="/complaint" className="hover:text-white transition-colors">Подать жалобу</Link></li>
               </ul>
             </div>
           </div>
@@ -501,6 +502,14 @@ export function Layout() {
                 vladlabcorp@gmail.com
               </a>
             </div>
+          </div>
+
+          {/* Юридические реквизиты */}
+          <div className="border-t border-gray-800 mt-4 pt-4 text-[11px] text-gray-500 leading-relaxed text-center md:text-left">
+            ООО «Vladlab» · ИНН <span className="text-gray-400">313 020 180</span> ·
+            ОКЭД 63.12.0 (деятельность веб-порталов) · г. Ташкент, Республика Узбекистан.
+            Платформа является информационным посредником между клиентами и независимыми
+            мастерами и не оказывает строительно-ремонтных услуг от своего имени.
           </div>
         </div>
       </footer>

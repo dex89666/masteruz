@@ -89,6 +89,7 @@ services:
       LOG_LEVEL: warn
     volumes:
       - uploads_data:/app/uploads
+      - registry_data:/app/data
     networks:
       - internal
     deploy:
@@ -146,6 +147,8 @@ volumes:
   redis_data:
     driver: local
   uploads_data:
+    driver: local
+  registry_data:
     driver: local
 
 networks:

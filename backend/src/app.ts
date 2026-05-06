@@ -8,11 +8,15 @@
   return Number(this);
 };
 
+// Sentry — должен быть инициализирован максимально рано
+import { Sentry, sentryEnabled } from './services/sentry.js';
+
 import express from 'express';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import compression from 'compression';
-import rateLimit from 'express-rate-limit';
+import rateLimit, { Options as RateLimitOptions, Store } from 'express-rate-limit';
 import path from 'path';
 
 import { config } from './config/index.js';
@@ -20,6 +24,7 @@ import { prisma } from './config/database.js';
 import { logger } from './utils/logger.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { checkUserActive } from './middleware/auth.js';
+import { betaGate } from './middleware/betaGate.js';
 
 // Импорт маршрутов модулей
 import authRoutes from './modules/auth/auth.routes.js';
@@ -48,6 +53,9 @@ import instantOrderRoutes from './modules/instant-order/instant-order.routes.js'
 import supportChatRoutes from './modules/support/support.routes.js';
 import forumRoutes from './modules/forum/forum.routes.js';
 import cardsRoutes from './modules/cards/cards.routes.js';
+import localRegistryRoutes from './modules/local-registry/local-registry.routes.js';
+import announcementsRoutes from './modules/announcements/announcements.routes.js';
+import complaintsRoutes from './modules/complaints/complaints.routes.js';
 
 const app = express();
 
@@ -80,42 +88,72 @@ app.use(cors({
 // Парсинг тела запроса
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 
 // Rate Limiting — только для VPS/Docker (на Vercel MemoryStore сбрасывается между cold starts)
 if (!isVercelEnv) {
+  // ─── Redis-backed store (общий для всех воркеров, переживает рестарт) ───
+  // Если Redis недоступен — fallback на MemoryStore (с предупреждением)
+  let redisStoreFactory: ((prefix: string) => Store | undefined) | null = null;
+  try {
+    // Подключаемся к тому же Redis, что и для бизнес-логики
+    const IoRedis = require('ioredis');
+    const IoRedisClass = IoRedis.default || IoRedis;
+    const rlClient = new IoRedisClass(config.redisUrl, {
+      maxRetriesPerRequest: 1,
+      enableOfflineQueue: false,
+      retryStrategy: (times: number) => Math.min(times * 100, 3000),
+    });
+    rlClient.on('error', (err: Error) => logger.warn({ err: err.message }, 'Rate-limit Redis error'));
+
+    const { default: RedisStore } = require('rate-limit-redis');
+    redisStoreFactory = (prefix: string) =>
+      new RedisStore({
+        sendCommand: (...args: string[]) => rlClient.call(...args),
+        prefix: `rl:${prefix}:`,
+      });
+    logger.info('Rate Limiting: Redis-backed store (production-ready)');
+  } catch (err) {
+    logger.warn({ err: (err as Error).message }, 'Rate Limiting: fallback to MemoryStore (после рестарта счётчики сбросятся!)');
+  }
+
+  const makeLimiter = (prefix: string, opts: Partial<RateLimitOptions>) =>
+    rateLimit({
+      standardHeaders: true,
+      legacyHeaders: false,
+      store: redisStoreFactory?.(prefix),
+      ...opts,
+    });
+
   // Rate Limiting — глобальный лимит
-  const globalLimiter = rateLimit({
+  const globalLimiter = makeLimiter('global', {
     windowMs: 15 * 60 * 1000, // 15 минут
     max: 1000, // Максимум 1000 запросов с одного IP (SPA делает 5-10 вызовов/страницу)
     message: {
       success: false,
       error: { message: 'Слишком много запросов, попробуйте позже', statusCode: 429 },
     },
-    standardHeaders: true,
-    legacyHeaders: false,
   });
   app.use('/api/', globalLimiter);
 
   // Rate Limiting — строгий лимит для авторизации (только login-эндпоинты)
-  const authLimiter = rateLimit({
+  const authLimiter = makeLimiter('auth', {
     windowMs: 15 * 60 * 1000,
     max: 10, // Максимум 10 попыток за 15 минут
     message: {
       success: false,
       error: { message: 'Слишком много попыток входа, попробуйте позже', statusCode: 429 },
     },
-    standardHeaders: true,
-    legacyHeaders: false,
     skip: (req) => {
       // /auth/me и /auth/switch-role не считаются login-попытками
-      const path = req.path;
-      return path === '/me' || path === '/switch-role' || path === '/refresh';
+      const p = req.path;
+      return p === '/me' || p === '/switch-role' || p === '/refresh';
     },
   });
   app.use('/api/auth', authLimiter);
 
   // Rate Limiting — лимит для создания заказов
-  const createOrderLimiter = rateLimit({
+  const createOrderLimiter = makeLimiter('orders', {
     windowMs: 60 * 60 * 1000, // 1 час
     max: 20, // Максимум 20 заказов в час
     message: {
@@ -126,21 +164,19 @@ if (!isVercelEnv) {
   app.use('/api/orders', createOrderLimiter);
 
   // Rate Limiting — строгий лимит для финансовых операций (платежи, баланс)
-  const financeLimiter = rateLimit({
+  const financeLimiter = makeLimiter('finance', {
     windowMs: 15 * 60 * 1000, // 15 минут
     max: 30, // Максимум 30 запросов за 15 минут
     message: {
       success: false,
       error: { message: 'Превышен лимит финансовых операций', statusCode: 429 },
     },
-    standardHeaders: true,
-    legacyHeaders: false,
   });
   app.use('/api/payments', financeLimiter);
   app.use('/api/balance', financeLimiter);
 
   // Rate Limiting — лимит загрузки файлов (тяжёлые операции)
-  const uploadLimiter = rateLimit({
+  const uploadLimiter = makeLimiter('upload', {
     windowMs: 15 * 60 * 1000, // 15 минут
     max: 30, // Максимум 30 загрузок за 15 минут
     message: {
@@ -152,7 +188,7 @@ if (!isVercelEnv) {
   app.use('/api/portfolio', uploadLimiter);
 
   // Rate Limiting — лимит для заявок на партнёрство (антиспам)
-  const partnerRequestLimiter = rateLimit({
+  const partnerRequestLimiter = makeLimiter('partner', {
     windowMs: 60 * 60 * 1000, // 1 час
     max: 3, // Максимум 3 заявки в час с одного IP
     message: {
@@ -316,8 +352,8 @@ app.use('/api', (req, res, next) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', usersRoutes);
-app.use('/api/orders', ordersRoutes);
-app.use('/api/payments', paymentsRoutes);
+app.use('/api/orders', betaGate, ordersRoutes);
+app.use('/api/payments', betaGate, paymentsRoutes);
 app.use('/api/referrals', referralsRoutes);
 app.use('/api/reviews', ratingsRoutes);
 app.use('/api/geo', geoRoutes);
@@ -340,6 +376,9 @@ app.use('/api/instant-order', instantOrderRoutes);
 app.use('/api/support-chat', supportChatRoutes);
 app.use('/api/forum', forumRoutes);
 app.use('/api/cards', cardsRoutes);
+app.use('/api/announcements', announcementsRoutes);
+app.use('/api/complaints', complaintsRoutes);
+app.use('/api/local-registry', localRegistryRoutes);
 
 // ─── Healthcheck ───────────────────────────────
 
@@ -383,6 +422,17 @@ app.get('/api/health', async (_req, res) => {
 // ─── Обработчики ошибок ────────────────────────
 
 app.use(notFoundHandler);
+
+// Sentry — захватывает все необработанные ошибки до errorHandler
+if (sentryEnabled) {
+  app.use(((err: any, _req: express.Request, _res: express.Response, next: express.NextFunction) => {
+    // Игнорируем ожидаемые ошибки клиента (4xx)
+    const status = err?.statusCode || err?.status || 500;
+    if (status >= 500) Sentry.captureException(err);
+    next(err);
+  }) as express.ErrorRequestHandler);
+}
+
 app.use(errorHandler);
 
 // ─── Запуск сервера ────────────────────────────

@@ -3,7 +3,7 @@
 // Агент 2 (Фронтенд-разработчик)
 // ============================================
 
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { Toaster } from 'react-hot-toast';
@@ -11,9 +11,11 @@ import { I18nProvider } from './i18n';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 import { Layout } from './components/Layout';
+import { ConsentGate } from './components/ConsentGate';
 import { useAppInit } from './hooks';
+import { trackPageView } from './lib/analytics';
 import { useAuthStore } from './store';
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { LoadingSpinner } from './components/LoadingSpinner';
 
 // Lazy-loaded Pages (code splitting)
@@ -27,6 +29,7 @@ const ProfilePage = lazy(() => import('./pages/ProfilePage').then(m => ({ defaul
 const MapPage = lazy(() => import('./pages/MapPage').then(m => ({ default: m.MapPage })));
 const SchoolPage = lazy(() => import('./pages/SchoolPage').then(m => ({ default: m.SchoolPage })));
 const AdminDashboardPage = lazy(() => import('./pages/AdminDashboardPage').then(m => ({ default: m.AdminDashboardPage })));
+const AdminRegistryPage = lazy(() => import('./pages/AdminRegistryPage').then(m => ({ default: m.AdminRegistryPage })));
 const BecomeMasterPage = lazy(() => import('./pages/BecomeMasterPage').then(m => ({ default: m.BecomeMasterPage })));
 const FavoritesPage = lazy(() => import('./pages/FavoritesPage').then(m => ({ default: m.FavoritesPage })));
 const MasterSearchPage = lazy(() => import('./pages/MasterSearchPage').then(m => ({ default: m.MasterSearchPage })));
@@ -61,6 +64,7 @@ const SupportChatPage = lazy(() => import('./pages/SupportChatPage').then(m => (
 const PrivacyPolicyPage = lazy(() => import('./pages/PrivacyPolicyPage').then(m => ({ default: m.PrivacyPolicyPage })));
 const PublicOfferPage = lazy(() => import('./pages/PublicOfferPage').then(m => ({ default: m.PublicOfferPage })));
 const TermsOfServicePage = lazy(() => import('./pages/TermsOfServicePage').then(m => ({ default: m.TermsOfServicePage })));
+const ComplaintPage = lazy(() => import('./pages/ComplaintPage').then(m => ({ default: m.ComplaintPage })));
 const ForumPage = lazy(() => import('./pages/ForumPage').then(m => ({ default: m.ForumPage })));
 const ForumTopicPage = lazy(() => import('./pages/ForumPage').then(m => ({ default: m.ForumTopicPage })));
 const LinkedCardsPage = lazy(() => import('./pages/LinkedCardsPage').then(m => ({ default: m.LinkedCardsPage })));
@@ -106,7 +110,13 @@ function AppContent() {
   // Initialize app (restore JWT session, detect Telegram Mini App, etc.)
   useAppInit();
 
+  const location = useLocation();
+  useEffect(() => {
+    trackPageView(location.pathname + location.search);
+  }, [location.pathname, location.search]);
+
   return (
+    <ConsentGate>
     <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><LoadingSpinner /></div>}>
       <Routes>
       {/* Public routes */}
@@ -133,6 +143,7 @@ function AppContent() {
         <Route path="privacy" element={<PrivacyPolicyPage />} />
         <Route path="public-offer" element={<PublicOfferPage />} />
         <Route path="terms" element={<TermsOfServicePage />} />
+        <Route path="complaint" element={<ComplaintPage />} />
         <Route path="forum" element={<ForumPage />} />
         <Route path="forum/:id" element={<ForumTopicPage />} />
 
@@ -329,12 +340,21 @@ function AppContent() {
             </AdminRoute>
           }
         />
+        <Route
+          path="admin/registry"
+          element={
+            <AdminRoute>
+              <AdminRegistryPage />
+            </AdminRoute>
+          }
+        />
 
         {/* Catch-all 404 */}
         <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>
     </Suspense>
+    </ConsentGate>
   );
 }
 

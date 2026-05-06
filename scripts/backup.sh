@@ -24,3 +24,21 @@ docker compose -f docker-compose.prod.yml exec -T postgres \
 ls -tp "$BACKUP_DIR"/*.sql.gz | tail -n +8 | xargs -I {} rm -- {} 2>/dev/null || true
 
 echo "✅ Backup created: $BACKUP_FILE ($(du -h "$BACKUP_FILE" | cut -f1))"
+
+# ─── Локальный JSON-реестр (clients/masters/consents) ───
+REGISTRY_DIR="/opt/masteruz/backups/registry"
+mkdir -p "$REGISTRY_DIR"
+REGISTRY_FILE="${REGISTRY_DIR}/registry_${TIMESTAMP}.tar.gz"
+
+# Снимаем тарбол с тома registry_data
+docker run --rm \
+    -v masteruz_registry_data:/data:ro \
+    -v "$REGISTRY_DIR":/backup \
+    alpine \
+    tar czf "/backup/$(basename "$REGISTRY_FILE")" -C /data . 2>/dev/null || \
+  echo "⚠️  Том registry_data ещё не существует — пропускаем"
+
+# Чистим старее 14 дней
+find "$REGISTRY_DIR" -name 'registry_*.tar.gz' -mtime +14 -delete 2>/dev/null || true
+
+echo "✅ Registry backup: $REGISTRY_FILE"

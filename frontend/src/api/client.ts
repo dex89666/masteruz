@@ -11,6 +11,7 @@ const API_URL = import.meta.env.VITE_API_URL || '/api';
 export const api = axios.create({
   baseURL: API_URL,
   timeout: 15000,
+  withCredentials: true, // отправлять httpOnly cookies (mu_at, mu_rt)
   headers: {
     'Content-Type': 'application/json',
   },

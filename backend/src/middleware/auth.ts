@@ -28,16 +28,22 @@ declare global {
 }
 
 /**
- * Middleware для проверки JWT-токена
+ * Middleware для проверки JWT-токена.
+ * Поддерживаем 2 источника:
+ *  1. httpOnly cookie `mu_at` — приоритет (безопаснее для веба)
+ *  2. Заголовок `Authorization: Bearer …` — fallback для Telegram Mini App
  */
 export function authenticate(req: Request, _res: Response, next: NextFunction): void {
   try {
+    const cookieToken = (req as any).cookies?.mu_at as string | undefined;
     const authHeader = req.headers.authorization;
-    if (!authHeader?.startsWith('Bearer ')) {
+    const headerToken =
+      authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : undefined;
+
+    const token = cookieToken || headerToken;
+    if (!token) {
       throw ApiError.unauthorized('Токен не предоставлен');
     }
-
-    const token = authHeader.split(' ')[1];
 
     const payload = jwt.verify(token, config.jwt.secret) as JwtPayload;
 
@@ -101,12 +107,12 @@ export function authorize(...roles: UserRole[]) {
  */
 export function optionalAuth(req: Request, _res: Response, next: NextFunction): void {
   try {
+    const cookieToken = (req as any).cookies?.mu_at as string | undefined;
     const authHeader = req.headers.authorization;
-    if (!authHeader?.startsWith('Bearer ')) {
-      return next();
-    }
+    const headerToken = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : undefined;
+    const token = cookieToken || headerToken;
+    if (!token) return next();
 
-    const token = authHeader.split(' ')[1];
     const payload = jwt.verify(token, config.jwt.secret) as JwtPayload;
     req.user = payload;
     next();

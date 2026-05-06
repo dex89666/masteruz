@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://masteruz.uz/</loc><changefreq>daily</changefreq><priority>1.0</priority></url>
+  <url><loc>https://masteruz.uz/masters</loc><changefreq>hourly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://masteruz.uz/catalog</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://masteruz.uz/map</loc><changefreq>hourly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://masteruz.uz/orders</loc><changefreq>hourly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://masteruz.uz/forum</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://masteruz.uz/school</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://masteruz.uz/stores</loc><changefreq>daily</changefreq><priority>0.6</priority></url>
+  <url><loc>https://masteruz.uz/turnkey</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://masteruz.uz/become-master</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://masteruz.uz/about</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>
+  <url><loc>https://masteruz.uz/support</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>
+  <url><loc>https://masteruz.uz/careers</loc><changefreq>monthly</changefreq><priority>0.4</priority></url>
+  <url><loc>https://masteruz.uz/public-offer</loc><changefreq>monthly</changefreq><priority>0.4</priority></url>
+  <url><loc>https://masteruz.uz/privacy</loc><changefreq>monthly</changefreq><priority>0.4</priority></url>
+  <url><loc>https://masteruz.uz/terms</loc><changefreq>monthly</changefreq><priority>0.4</priority></url>
+  <url><loc>https://masteruz.uz/complaint</loc><changefreq>monthly</changefreq><priority>0.3</priority></url>
+</urlset>

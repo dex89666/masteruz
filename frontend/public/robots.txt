@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://masteruz-ecru.vercel.app/sitemap.xml

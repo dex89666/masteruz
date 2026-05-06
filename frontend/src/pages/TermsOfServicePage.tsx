@@ -4,6 +4,7 @@
 
 import { Link } from 'react-router-dom';
 import { ArrowLeft, BookOpen } from 'lucide-react';
+import { LegalRequisites } from '../components/LegalRequisites';
 
 export function TermsOfServicePage() {
   return (
@@ -18,7 +19,7 @@ export function TermsOfServicePage() {
           <h1 className="text-2xl md:text-3xl font-bold dark:text-white">Условия использования</h1>
         </div>
 
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">Дата последнего обновления: 24 февраля 2026 г.</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">Дата последнего обновления: 06 мая 2026 г.</p>
 
         <div className="prose dark:prose-invert max-w-none space-y-6 text-gray-700 dark:text-gray-300 text-sm md:text-base leading-relaxed">
           <section>
@@ -117,6 +118,8 @@ export function TermsOfServicePage() {
               <li>Телефон: <a href="tel:+998957005040" className="text-primary-600 dark:text-primary-400 hover:underline">+998 95 700-50-40</a></li>
             </ul>
           </section>
+
+          <LegalRequisites />
         </div>
       </div>
     </div>

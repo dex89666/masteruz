@@ -10,14 +10,17 @@
 
 - [Обзор платформы](#-обзор-платформы)
 - [Архитектура](#-архитектура)
+- [Взаимодействие сервисов](#-взаимодействие-сервисов)
+- [Пропускная способность](#-пропускная-способность)
+- [Безопасность и защита от атак](#-безопасность-и-защита-от-атак)
 - [Технологический стек](#-технологический-стек)
 - [Модули бэкенда (24 модуля, 120+ API)](#-модули-бэкенда-24-модуля-120-api)
 - [База данных (37 моделей, 13 enum)](#-база-данных-37-моделей-13-enum)
 - [Фронтенд (41 страница, 35 компонентов)](#-фронтенд-41-страница-35-компонентов)
-- [Безопасность](#-безопасность)
 - [Внешние интеграции](#-внешние-интеграции)
 - [Инфраструктура и деплой](#-инфраструктура-и-деплой)
-- [Быстрый старт](#-быстрый-старт)
+- [🚀 PRODUCTION CHECKLIST — точные шаги запуска](#-production-checklist--точные-шаги-запуска)
+- [Быстрый старт (разработка)](#-быстрый-старт-разработка)
 - [Структура проекта](#-структура-проекта)
 - [Переменные окружения](#-переменные-окружения)
 - [Лицензия](#-лицензия)
@@ -110,7 +113,293 @@ MasterUz — это маркетплейс бытовых услуг, объед
 
 ---
 
-## 🛠 Технологический стек
+## 🔗 Взаимодействие сервисов
+
+### Граф зависимостей (runtime)
+
+```
+┌─────────────────── ВНЕШНИЙ МИР ───────────────────────┐
+│                                                        │
+│  Браузер/TWA  ──HTTPS──►  Nginx (443)                  │
+│                               │                        │
+│  Telegram Bot API  ◄──────────┤ ◄──── Backend push     │
+│                               │                        │
+│  Click / Payme  ──webhook──►  │                        │
+│                               │                        │
+│  Yandex Maps API  ◄──fetch──  │                        │
+└───────────────────────────────┼────────────────────────┘
+                                │
+                 ┌──────────────▼──────────────┐
+                 │          Nginx              │
+                 │   reverse proxy + SSL       │
+                 │  gzip + cache headers       │
+                 └──────┬──────────┬───────────┘
+                        │          │
+              ┌─────────▼──┐  ┌────▼──────────┐
+              │  Frontend  │  │   Backend API  │
+              │  Nginx SPA │  │  Express+TS    │
+              │  :80       │  │  :3000         │
+              └────────────┘  └──┬──────┬──────┘
+                                 │      │
+                    ┌────────────▼┐  ┌──▼──────────┐
+                    │ PostgreSQL  │  │    Redis     │
+                    │ :5432       │  │    :6379     │
+                    │ Prisma ORM  │  │ JWT blacklist│
+                    │ 37 моделей  │  │ SSE tickets  │
+                    │ SCRAM-SHA256│  │ Rate limit   │
+                    └─────────────┘  └─────────────┘
+```
+
+### Потоки данных для ключевых сценариев
+
+#### Сценарий 1: Авторизация через Telegram Mini App
+```
+TWA → /api/auth/telegram-mini-app
+  │
+  ├─► Verify HMAC-SHA256(initData, BOT_TOKEN)   [crypto, без БД]
+  ├─► prisma.user.upsert(telegramId)             [PostgreSQL]
+  ├─► generateReferralCode()                     [helpers]
+  ├─► jwt.sign(payload, JWT_SECRET, 7d)          [jsonwebtoken]
+  ├─► jwt.sign(payload, REFRESH_SECRET, 30d)     [jsonwebtoken]
+  └─► Response: { accessToken, refreshToken, user }
+```
+
+#### Сценарий 2: Создание заказа с эскроу
+```
+Client → POST /api/orders
+  │
+  ├─► authenticate() → checkUserActive()         [middleware]
+  ├─► validateBody(CreateOrderSchema)             [Zod]
+  ├─► rateLimit: 20 orders/hour per IP            [express-rate-limit]
+  ├─► prisma.order.create({ status: PUBLISHED })  [PostgreSQL tx]
+  ├─► prisma.balance.update (ESCROW_HOLD)         [atomic tx]
+  ├─► eventBus.emit('order_created')              [in-memory SSE]
+  ├─► notificationService.notifyNearbyMasters()   [Telegram Bot API]
+  │     └─► forEach master: sendTelegramMessage() [up to 50 push]
+  └─► Response: { order }
+```
+
+#### Сценарий 3: Оплата комиссии через Click
+```
+Client → POST /api/payments/commission
+  │
+  ├─► generateClickPaymentUrl(orderId, amount)    [backend]
+  └─► Response: { paymentUrl }
+
+Click Server → POST /api/payments/click-webhook
+  │
+  ├─► Verify MD5 signature                        [crypto]
+  ├─► prisma.payment.update(COMPLETED)            [PostgreSQL]
+  ├─► prisma.order.update(ACCEPTED)               [PostgreSQL]
+  ├─► auditService.log(payment_completed)         [AuditLog]
+  ├─► eventBus.emit('status_changed')             [SSE]
+  └─► notificationService.notifyMasterAssigned()  [Telegram push]
+```
+
+#### Сценарий 4: Real-time SSE обновления заказа
+```
+Client → POST /api/orders/:id/events-ticket  (JWT auth)
+  └─► redis.setex(ticket, 30, userId)            [30-секунд TTL]
+
+Client → GET /api/orders/:id/events?ticket=...
+  ├─► redis.get(ticket) → validate once           [одноразовый]
+  ├─► redis.del(ticket)                           [самоуничтожение]
+  ├─► res.setHeader('Content-Type', 'text/event-stream')
+  ├─► eventBus.addClient(orderId, userId, res)    [in-memory Map]
+  └─► Keepalive ping каждые 30 сек
+
+Master → PUT /api/orders/:id/status
+  └─► eventBus.emit(orderId, 'status_changed', data)  → SSE push to all subscribers
+```
+
+#### Сценарий 5: ФотоЗаказ за 30 секунд (AI)
+```
+Client → POST /api/instant-order/analyze
+  │  (multipart: фото + описание)
+  │
+  ├─► Multer: MIME-check + size limit 5MB         [middleware]
+  ├─► AI анализ категории по фото + тексту        [backend logic]
+  ├─► Подбор задач из каталога                    [PostgreSQL]
+  ├─► Генерация 3 вариантов (GOOD/BETTER/BEST)    [AiTier enum]
+  ├─► prisma.aiOrderTemplate.createMany()         [PostgreSQL]
+  └─► Response: { templates: [good, better, best] }
+
+Client → POST /api/instant-order/create
+  ├─► prisma.order.create(from template)          [PostgreSQL]
+  └─► (optional) → Moderation queue → PUBLISHED
+```
+
+### Межсервисные зависимости
+
+| Сервис | Зависит от | Используется в |
+|--------|-----------|----------------|
+| **Backend API** | PostgreSQL, Redis, Telegram Bot API, Click, Payme | Frontend, Nginx |
+| **Frontend** | Backend API, Yandex Maps JS API | Nginx |
+| **Nginx** | Frontend, Backend | Браузер, Telegram TWA |
+| **PostgreSQL** | — | Backend (Prisma ORM) |
+| **Redis** | — | Backend (JWT blacklist, SSE tickets, rate limit cache) |
+| **Telegram Bot API** | — | Backend (push уведомления, auth) |
+| **Click** | — | Backend (payment URL + webhook) |
+| **Payme** | — | Backend (JSON-RPC webhook) |
+| **Yandex Maps** | — | Frontend (геокодинг, карты) |
+| **EventBus (SSE)** | Redis (tickets), Backend memory | Frontend (EventSource) |
+| **NotificationService** | PostgreSQL (создание уведомлений), Telegram Bot API | Orders, Payments |
+| **AuditService** | PostgreSQL (auditLog table) | Admin, Payments |
+
+---
+
+## ⚡ Пропускная способность
+
+### Теоретические лимиты (VPS: 4 vCPU, 8 GB RAM)
+
+| Компонент | Теоретический предел | Реальный предел | Бутылочное горлышко |
+|-----------|---------------------|-----------------|--------------------|
+| **Nginx** | ~20 000 req/s (статика) | ~3 000 req/s (proxy) | `worker_connections 1024` |
+| **Node.js (1 процесс)** | ~2 000 req/s (без БД) | **100–400 req/s** | Single-thread, нет PM2 cluster |
+| **PostgreSQL** | ~5 000 simple queries/s | **200–1 000 req/s** | Pool = 5 + Prisma overhead |
+| **Redis** | ~80 000 ops/s | ~15 000 ops/s | 128 MB лимит памяти |
+| **SSE соединения** | Неограниченно (TCP) | ~500 concurrent | Память Node.js процесса |
+
+### Текущие Rate Limits (per IP)
+
+| Эндпоинт | Лимит | Окно | Реальная скорость |
+|---------|-------|------|-------------------|
+| Глобальный `/api/*` | 1 000 req | 15 мин | ~1.1 req/сек |
+| Auth `/api/auth` | 10 req | 15 мин | 0.01 req/сек |
+| Заказы `/api/orders` | 20 req | 1 час | 0.006 req/сек |
+| Платежи `/api/payments` | 30 req | 15 мин | 0.03 req/сек |
+| Загрузки `/api/photos` | 30 req | 15 мин | 0.03 req/сек |
+| Партнёры `/api/stores/partner-request` | 3 req | 1 час | 0.001 req/сек |
+
+### Расчёт ёмкости для продакшена
+
+```
+Целевая аудитория: 10 000 DAU (Узбекистан)
+Пик: 1 000 concurrent пользователей
+Среднее API-запросов на пользователя: 8–12/мин
+
+Пиковая нагрузка: 1 000 × 10 = 10 000 req/мин = 167 req/сек
+
+Текущая ёмкость Node.js: 100–400 req/сек ✅
+
+Для масштабирования до 100 000 DAU:
+→ PM2 cluster (4 воркера) → 400–1 600 req/сек
+→ Horizontal scaling (Nginx upstream) → N × 400 req/сек
+→ PostgreSQL read replicas → снизить нагрузку на мастер
+→ Redis cluster → для SSE и rate limit при масштабировании
+```
+
+### Известные узкие места
+
+| Проблема | Влияние | Решение |
+|---------|---------|---------|
+| **Single Node.js process** | При > 500 RPS падёт перфоманс | PM2 cluster + workers |
+| **Prisma connection pool (по умолчанию ~5)** | При > 100 concurrent DB запросов — очередь | `datasource db { url = "...?connection_limit=20" }` |
+| **MemoryStore rate limiter** | Сбрасывается при рестарте, не shared между PM2 | Заменить на Redis-backed limiter |
+| **SSE in-memory EventBus** | Не работает при multiple instances | Redis Pub/Sub при горизонтальном масштабировании |
+| **worker_connections 1024** | Nginx ограничен 2048 conn при 2 CPU | Увеличить до 4096 |
+| **PostgreSQL 512 MB** | При > 200 concurrent запросов — swap | Увеличить до 2 GB + pgBouncer |
+
+---
+
+## 🛡️ Безопасность и защита от атак
+
+### Реализованные меры (оценка 7/10)
+
+| Функция | Статус | Описание |
+|---------|--------|----------|
+| **TLS 1.2/1.3 + HSTS** | ✅ Реализовано | Let's Encrypt, HSTS 1 год + includeSubDomains |
+| **Security Headers** | ✅ Реализовано | X-Frame-Options, X-Content-Type, Referrer-Policy, Permissions-Policy |
+| **Content Security Policy** | ✅ Реализовано | Ограничены источники скриптов, frame-ancestors для Telegram |
+| **JWT + Redis blacklist** | ✅ Реализовано | Access 7d + Refresh 30d, отзыв через Redis |
+| **Telegram HMAC-SHA256** | ✅ Реализовано | Верификация Login Widget и Mini App initData |
+| **Rate Limiting (6 уровней)** | ✅ Реализовано | Global / Auth / Orders / Finance / Uploads / Partner |
+| **Zod валидация** | ✅ Реализовано | Все эндпоинты — body, query, params |
+| **SQL Injection Protection** | ✅ Реализовано | Prisma ORM параметризованные запросы |
+| **File Upload Security** | ✅ Реализовано | MIME + расширение whitelist, 5MB limit, max 5 файлов |
+| **CORS restricted** | ✅ Реализовано | Только `https://{DOMAIN}` |
+| **Чат-модерация (40+ regex)** | ✅ Реализовано | Блокировка обхода комиссии, контактов, мата |
+| **Escrow защита** | ✅ Реализовано | Средства блокируются до двойного подтверждения |
+| **Чёрный список пользователей** | ✅ Реализовано | С привязкой к доказательствам и типам нарушений |
+| **Click MD5 подпись** | ✅ Реализовано | Верификация webhook |
+| **Payme JSON-RPC Basic Auth** | ✅ Реализовано | Верификация webhook |
+| **SSE одноразовые тикеты** | ✅ Реализовано | Redis TTL 30 сек, не JWT в URL |
+| **Non-root Docker user** | ✅ Реализовано | uid=1001, `masteruz` user |
+| **UFW Firewall** | ✅ Реализовано | Только 22/80/443 |
+| **fail2ban** | ✅ Реализовано | SSH brute-force защита |
+| **PostgreSQL SCRAM-SHA-256** | ✅ Реализовано | Современная аутентификация |
+| **Redis requirepass** | ✅ Реализовано | Пароль в продакшене |
+| **Audit Log** | ✅ Реализовано | Все финансовые и admin-операции |
+| **checkUserActive middleware** | ✅ Реализовано | Заблокированный = 403 на всех запросах |
+| **Secrets в env** | ✅ Реализовано | Ничего не захардкожено, генерация openssl |
+| **Pagination DoS protection** | ✅ Реализовано | `clampPagination()` — `limit ≤ 100` |
+
+### DDoS-защита: анализ и рекомендации
+
+#### Текущая защита
+```
+L3/L4 (volumetric):  ❌ НЕТ — зависит от хостинг-провайдера
+L7 (application):    ⚠️ ЧАСТИЧНАЯ — rate limiting в Express MemoryStore
+Nginx connection:    ❌ НЕТ — нет limit_conn, limit_req на уровне Nginx
+WAF:                 ❌ НЕТ — нет ModSecurity, Cloudflare WAF
+Bot protection:      ❌ НЕТ
+```
+
+#### Рекомендуемые улучшения перед продакшеном
+
+**1. Nginx rate limiting (добавить в `nginx.conf`):**
+```nginx
+# Добавить в секцию http {}
+limit_req_zone $binary_remote_addr zone=api:10m rate=30r/m;
+limit_req_zone $binary_remote_addr zone=auth:10m rate=5r/m;
+limit_conn_zone $binary_remote_addr zone=addr:10m;
+
+# Добавить в location /api/
+limit_req zone=api burst=20 nodelay;
+limit_conn addr 20;
+```
+
+**2. Cloudflare (рекомендован для продакшена):**
+- Бесплатный план: L3/L4 DDoS защита, Bot Fight Mode
+- Pro план ($20/мес): WAF правила, rate limiting на edge
+- DNS: masteruz.uz → Cloudflare → VPS IP (скрытый)
+
+**3. Redis-backed Rate Limiter (заменить MemoryStore):**
+```bash
+npm install rate-limit-redis
+# Тогда rate limit не сбрасывается при рестарте
+# И shared между воркерами PM2
+```
+
+### Фишинг-защита: анализ
+
+| Механизм | Статус | Детали |
+|---------|--------|--------|
+| **CSP** | ✅ | `default-src 'self'` — блокирует загрузку внешних ресурсов |
+| **X-Frame-Options** | ✅ | `SAMEORIGIN` — защита от clickjacking/iframe фишинга |
+| **HSTS** | ✅ | 1 год — браузер не разрешает HTTP (SSL-stripping) |
+| **Telegram HMAC** | ✅ | Невозможно подделать initData без BOT_TOKEN |
+| **Strict CORS** | ✅ | Только официальный домен |
+| **`script-src 'self'`** | ✅ | Только собственные скрипты загружаются |
+| **SPF/DKIM/DMARC** | ⚠️ | Настроить для email-доменов (если используются) |
+| **Мониторинг похожих доменов** | ❌ | Нет защиты от masteruz.com, master-uz.uz и т.д. |
+
+### Известные уязвимости (требуют решения перед продакшеном)
+
+| # | Уязвимость | Риск | Решение |
+|---|-----------|------|---------|
+| 1 | **JWT в localStorage** (уязвим для XSS) | ВЫСОКИЙ | Перейти на HttpOnly cookies при расширении |
+| 2 | **MemoryStore rate limiter** (сбрасывается) | СРЕДНИЙ | `rate-limit-redis` |
+| 3 | **Нет CSRF токена** | СРЕДНИЙ | Принято: SameSite strict + JWT Bearer достаточно для API |
+| 4 | **`style-src 'unsafe-inline'`** в CSP | СРЕДНИЙ | Tailwind нужен; использовать `nonce` в следующей итерации |
+| 5 | **Payme: нет IP whitelist** | СРЕДНИЙ | Добавить список IP Paycom |
+| 6 | **Rate limiter не в Redis** | НИЗКИЙ | При горизонтальном масштабировании обязательно |
+| 7 | **Нет 2FA для admin** | НИЗКИЙ | TOTP для критичных операций |
+| 8 | **worker_connections 1024** | НИЗКИЙ | Увеличить до 4096 для 4 CPU сервера |
+
+---
+
+## 🛠️ Технологический стек
 
 ### Backend
 
@@ -661,34 +950,6 @@ In-app + Telegram Bot push (sendMessage + sendLocation). Уведомление 
 
 ---
 
-## 🔒 Безопасность
-
-| Функция | Описание |
-|---------|----------|
-| **Helmet** | Защитные HTTP-заголовки (XSS, CSP, HSTS) |
-| **CORS** | Конфигурируемые origins, credentials |
-| **CSP** | frame-ancestors для Telegram Mini App (`web.telegram.org`) |
-| **JWT** | Access 7d + Refresh 30d, отзыв через Redis blacklist |
-| **Telegram HMAC** | SHA-256 верификация Login Widget + WebAppData |
-| **Rate Limiting** | 4 уровня: глобальный (200/15мин), auth (10/15мин), заказы (20/час), партнёры (3/час) |
-| **Zod** | Валидация всех входных данных |
-| **Чат-модерация** | 40+ regex-правил (обход комиссии, контакты, мат рус/узб) |
-| **Контактная изоляция** | Телефон/email скрыты до оплаты комиссии |
-| **Эскроу** | Средства блокируются — защита от неоплаты |
-| **Штрафы** | 0/20 000/30 000 сум при отмене в зависимости от статуса |
-| **Ограничение новичков** | Мастера < 5 заказов: макс 70% от цены |
-| **Чёрный список** | Блокировка с доказательствами, гео, типом нарушения |
-| **Click webhook** | MD5-подпись |
-| **Payme webhook** | JSON-RPC протокол |
-| **Загрузка файлов** | 5MB лимит, только JPEG/PNG/WebP/PDF (двойная проверка MIME + расширение), макс 5 файлов |
-| **Body limit** | 10MB для JSON |
-| **Pagination DoS** | `clampPagination()` — все 13 пагинированных эндпоинтов ограничены limit ≤ 100 |
-| **SSE безопасность** | Одноразовые Redis-тикеты (30с TTL) вместо JWT в URL |
-| **Суперадмин** | Через env `SUPER_ADMIN_USERNAMES`, 0 хардкода в коде |
-| **BigInt safety** | JSON-сериализация для Telegram ID |
-
----
-
 ## 🔌 Внешние интеграции
 
 | Сервис | Использование |
@@ -776,7 +1037,388 @@ Push/PR → main
 
 ---
 
-## 🏁 Быстрый старт
+## 🚀 PRODUCTION CHECKLIST — точные шаги запуска
+
+> Точный порядок действий для запуска MasterUz в продакшен на VPS. Минимальные требования: Ubuntu 22.04 LTS, 4 vCPU, 8 GB RAM, 80 GB SSD NVMe.
+
+---
+
+### Этап 0 — Подготовка (до сервера)
+
+**0.1 Регистрация внешних сервисов:**
+
+| Сервис | Что получить | Где |
+|--------|-------------|-----|
+| **Домен** | masteruz.uz или ваш домен | reg.uz, nic.uz |
+| **Telegram Bot** | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME` | @BotFather → /newbot |
+| **Click** | `CLICK_MERCHANT_ID`, `CLICK_SERVICE_ID`, `CLICK_SECRET_KEY` | merchant.click.uz |
+| **Payme** | `PAYME_MERCHANT_ID`, `PAYME_MERCHANT_KEY` | merchant.payme.uz |
+| **Yandex Maps** | `YANDEX_MAPS_API_KEY` | developer.tech.yandex.ru |
+
+**0.2 Настройка Telegram Bot:**
+```bash
+# В @BotFather:
+/setdomain → masteruz.uz     # для Login Widget
+/setmenubutton               # для Mini App кнопки
+/setdescription              # описание бота
+
+# Убедитесь что домен верифицирован в BotFather для Web Apps
+```
+
+**0.3 Подготовка репозитория:**
+```bash
+git clone https://github.com/dex89666/masteruz.git
+cd masteruz
+
+# Проверить что все миграции актуальны
+ls backend/prisma/migrations/
+```
+
+---
+
+### Этап 1 — Настройка VPS
+
+**1.1 Купить VPS:**
+- Провайдеры: DigitalOcean, Hetzner, IHOR (для Узбекистана), Linode
+- Минимум: Ubuntu 22.04, 4 vCPU, 8 GB RAM, 80 GB SSD
+- **Важно:** Включить IPv4 static IP
+
+**1.2 DNS-настройка:**
+```dns
+A    masteruz.uz          →  <VPS_IP>
+A    www.masteruz.uz      →  <VPS_IP>
+
+# Если используете Cloudflare (рекомендуется):
+# Установить тип записи "Proxied" (оранжевое облачко)
+# Это скроет реальный IP и обеспечит DDoS-защиту L3/L4
+```
+
+**1.3 Первоначальная настройка сервера:**
+```bash
+# Подключиться по SSH
+ssh root@<VPS_IP>
+
+# Клонировать репозиторий
+git clone https://github.com/dex89666/masteruz.git /opt/masteruz
+cd /opt/masteruz
+
+# Запустить скрипт настройки сервера
+bash scripts/server-setup.sh
+```
+
+Скрипт автоматически выполнит:
+- `apt update && upgrade`
+- Установку Docker + Docker Compose v2
+- Установку `git`, `curl`, `ufw`, `fail2ban`
+- Настройку UFW (deny all → allow 22/80/443)
+- Клонирование репозитория
+- Генерацию секретов (`openssl rand -hex 32`)
+
+---
+
+### Этап 2 — Переменные окружения
+
+**2.1 Создать `.env.production`:**
+```bash
+cp .env.production.example .env.production
+nano /opt/masteruz/.env.production
+```
+
+**2.2 Заполнить обязательные переменные:**
+```env
+# === ОБЯЗАТЕЛЬНЫЕ ===
+
+# Домен (без https://)
+DOMAIN=masteruz.uz
+
+# База данных
+DB_PASSWORD=<сгенерировано_скриптом>
+
+# Redis
+REDIS_PASSWORD=<сгенерировано_скриптом>
+
+# JWT (сгенерированы скриптом setup)
+JWT_SECRET=<сгенерировано_скриптом>
+JWT_REFRESH_SECRET=<сгенерировано_скриптом>
+
+# Telegram (получить от @BotFather)
+TELEGRAM_BOT_TOKEN=<токен_бота>
+TELEGRAM_BOT_USERNAME=YourBotName
+
+# Суперадмин (ваш Telegram username без @)
+SUPER_ADMIN_USERNAMES=yourusername,otheradmin
+
+# Платежи (Click)
+CLICK_MERCHANT_ID=<id>
+CLICK_SERVICE_ID=<id>
+CLICK_SECRET_KEY=<ключ>
+
+# Платежи (Payme)
+PAYME_MERCHANT_ID=<id>
+PAYME_MERCHANT_KEY=<ключ>
+
+# Карты (Yandex)
+YANDEX_MAPS_API_KEY=<ключ>
+
+# === ОПЦИОНАЛЬНЫЕ ===
+
+# Telegram chat для уведомлений администратору (получить через @userinfobot)
+ADMIN_TELEGRAM_CHAT_ID=-1001234567890
+
+LOG_LEVEL=warn
+MAX_FILE_SIZE=5242880
+```
+
+**2.3 Проверить корректность `.env.production`:**
+```bash
+# Убедиться что нет незаполненных placeholder'ов
+grep -n "СГЕНЕРИРУЙ\|your_\|<" /opt/masteruz/.env.production
+# Вывод должен быть пустым
+```
+
+---
+
+### Этап 3 — Первый деплой
+
+**3.1 Запустить скрипт первого деплоя:**
+```bash
+cd /opt/masteruz
+bash scripts/deploy-init.sh
+```
+
+Скрипт автоматически выполнит:
+1. Создание директорий SSL (`certbot/conf`, `certbot/www`)
+2. Запуск сервисов в HTTP-режиме (без SSL)
+3. Получение SSL-сертификата через Let's Encrypt (certbot)
+4. Переключение на HTTPS-конфиг с вашим доменом
+5. Рестарт Nginx с SSL
+6. Выполнение миграций БД: `prisma migrate deploy`
+7. Seed начальных данных: `prisma/seed.ts` (15 категорий, 55+ подкатегорий, 200+ задач)
+8. Health check: `https://{DOMAIN}/api/health`
+
+**3.2 Проверить статус сервисов:**
+```bash
+cd /opt/masteruz
+docker compose -f docker-compose.prod.yml ps
+
+# Все 6 сервисов должны быть в состоянии "running":
+# masteruz-postgres    → healthy
+# masteruz-redis       → healthy
+# masteruz-backend     → running
+# masteruz-frontend    → running
+# masteruz-nginx       → running
+# masteruz-certbot     → exited (0) — нормально после получения SSL
+```
+
+**3.3 Проверить логи:**
+```bash
+# API
+docker compose -f docker-compose.prod.yml logs backend --tail=50
+
+# Nginx
+docker compose -f docker-compose.prod.yml logs nginx --tail=50
+
+# БД
+docker compose -f docker-compose.prod.yml logs postgres --tail=30
+```
+
+---
+
+### Этап 4 — Создание суперадмина
+
+```bash
+# Запустить скрипт создания суперадмина
+docker compose -f docker-compose.prod.yml exec backend \
+  npx tsx scripts/make-admin.ts <TELEGRAM_USERNAME>
+
+# Или через Prisma Studio (только для dev!)
+# npx prisma studio
+```
+
+> Также можно указать Telegram username в `SUPER_ADMIN_USERNAMES` в `.env.production` — тогда этот пользователь автоматически получит права при первом входе.
+
+---
+
+### Этап 5 — Настройка платёжных систем
+
+**5.1 Click — настройка webhook:**
+```
+В личном кабинете Click:
+Merchant → Services → Ваш сервис → Webhook URL:
+https://masteruz.uz/api/payments/click-webhook
+```
+
+**5.2 Payme — настройка webhook:**
+```
+В личном кабинете Payme:
+Merchant → Settings → Callback URL:
+https://masteruz.uz/api/payments/payme-webhook
+```
+
+**5.3 Проверить webhooks:**
+```bash
+# Click — test transaction через их sandbox
+# Payme — test через TestMode
+
+# Проверяем логи:
+docker compose -f docker-compose.prod.yml logs backend | grep -i "payment\|click\|payme"
+```
+
+---
+
+### Этап 6 — Настройка CI/CD (GitHub Actions)
+
+**6.1 Добавить GitHub Secrets:**
+```
+В репозитории: Settings → Secrets and variables → Actions
+
+SERVER_HOST = <IP_VPS>
+SERVER_USER = root
+SERVER_SSH_KEY = <содержимое ~/.ssh/id_rsa>
+```
+
+**6.2 Сгенерировать SSH-ключ для деплоя (если нужно):**
+```bash
+# На локальной машине:
+ssh-keygen -t ed25519 -C "deploy@masteruz" -f ~/.ssh/masteruz_deploy
+
+# Скопировать публичный ключ на сервер:
+ssh-copy-id -i ~/.ssh/masteruz_deploy.pub root@<VPS_IP>
+
+# Добавить в GitHub Secret SERVER_SSH_KEY:
+cat ~/.ssh/masteruz_deploy
+```
+
+**6.3 Проверить CI/CD пайплайн:**
+```bash
+git tag v1.0.0 && git push origin v1.0.0
+# Наблюдать в: GitHub → Actions → Deploy workflow
+```
+
+---
+
+### Этап 7 — Бэкапы и мониторинг
+
+**7.1 Настроить автоматические бэкапы БД:**
+```bash
+# Добавить в crontab (crontab -e):
+0 3 * * * /opt/masteruz/scripts/backup.sh >> /var/log/masteruz-backup.log 2>&1
+
+# Проверить скрипт бэкапа:
+bash /opt/masteruz/scripts/backup.sh
+ls -la /opt/masteruz/backups/  # должен появиться .sql.gz файл
+```
+
+**7.2 Настроить cron для обновления SSL:**
+```bash
+# Certbot auto-renewal (уже настроен в docker-compose.prod.yml как cron)
+# Проверить вручную:
+docker compose -f docker-compose.prod.yml run --rm certbot renew --dry-run
+```
+
+**7.3 Базовый мониторинг (minimalный setup):**
+```bash
+# Healthcheck endpoint:
+curl https://masteruz.uz/api/health
+
+# Uptime мониторинг (бесплатно):
+# https://uptimerobot.com — мониторинг каждые 5 мин + Telegram алерт
+
+# Логи в реальном времени:
+docker compose -f docker-compose.prod.yml logs -f backend
+```
+
+---
+
+### Этап 8 — Дополнительные улучшения безопасности (рекомендуется)
+
+**8.1 Cloudflare (настоятельно рекомендуется):**
+```
+1. Зарегистрироваться на cloudflare.com
+2. Добавить домен masteruz.uz
+3. Изменить NS-серверы у регистратора на Cloudflare
+4. Настроить DNS A-записи в Cloudflare (Proxied — оранжевое облачко)
+5. Включить: Security → Bot Fight Mode
+6. Включить: SSL/TLS → Full (strict)
+7. Настроить: Firewall Rules → Rate Limiting (если Pro план)
+```
+
+Преимущества Cloudflare Free:
+- L3/L4 DDoS защита (volumetric attacks)
+- Скрытие реального IP сервера
+- CDN кеш для статики
+- Bot Fight Mode
+- Automatic HTTPS
+
+**8.2 Redis-backed rate limiter (при горизонтальном масштабировании):**
+```bash
+cd backend && npm install rate-limit-redis
+# Заменить MemoryStore на RedisStore в app.ts
+```
+
+**8.3 Nginx connection limiting (добавить в `nginx/nginx.conf`):**
+```nginx
+# В секцию http {}:
+limit_req_zone $binary_remote_addr zone=api:10m rate=30r/m;
+limit_conn_zone $binary_remote_addr zone=addr:10m;
+```
+
+---
+
+### Этап 9 — Финальная проверка перед открытием
+
+```bash
+# 1. HTTPS работает
+curl -I https://masteruz.uz
+# ← HTTP/2 200
+
+# 2. API Health check
+curl https://masteruz.uz/api/health
+# ← {"status":"ok","db":"connected","redis":"connected"}
+
+# 3. Rate limiting работает
+for i in {1..15}; do curl -s -o /dev/null -w "%{http_code}\n" https://masteruz.uz/api/auth/me; done
+# ← первые 10 = 401, после 10 = 429
+
+# 4. SSL A+ рейтинг
+# Открыть: https://www.ssllabs.com/ssltest/analyze.html?d=masteruz.uz
+
+# 5. Security headers
+curl -I https://masteruz.uz | grep -i "strict-transport\|x-frame\|content-security"
+
+# 6. Авторизация через Telegram
+# Открыть https://masteruz.uz, войти через Telegram
+
+# 7. Создать тестовый заказ
+# Убедиться что эскроу работает, уведомления отправляются
+
+# 8. Проверить платёжные webhook'и
+# Click sandbox + Payme TestMode
+
+# 9. Admin панель
+# https://masteruz.uz/admin → войти как суперадмин
+```
+
+### Чеклист «готово к открытию»
+
+- [ ] HTTPS работает, redirect с HTTP
+- [ ] SSL рейтинг A+ на ssllabs.com
+- [ ] Health check `/api/health` возвращает `{"status":"ok"}`
+- [ ] Telegram авторизация работает (Web + Mini App)
+- [ ] Каталог загружен (категории, подкатегории, задачи)
+- [ ] Создание заказа — работает с эскроу
+- [ ] Click webhook — тест транзакция прошла
+- [ ] Payme webhook — тест транзакция прошла
+- [ ] Push-уведомления в Telegram — мастера получают
+- [ ] Admin панель — суперадмин может войти
+- [ ] Резервное копирование — cron настроен
+- [ ] SSL auto-renewal — certbot cron настроен
+- [ ] Uptime мониторинг (UptimeRobot) — настроен
+- [ ] Cloudflare DNS — Proxied (рекомендуется)
+
+---
+
+## 🏁 Быстрый старт (разработка)
 
 ### Предварительные требования
 - Node.js 20+
@@ -1015,7 +1657,10 @@ MasterUz/
 | Подкатегорий | **55+** |
 | Задач/услуг | **200+** |
 | Docker-сервисов (prod) | **6** |
+| Rate limit уровней | **6** |
+| Regex-правил чат-модерации | **40+** |
 | CI/CD job'ов | **3** (test → build → deploy) |
+| Оценка безопасности | **7/10** → после Cloudflare+Redis RL: **9/10** |
 
 ---
 

@@ -39,8 +39,8 @@ COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 COPY package.json ./
 
-# Create uploads directory
-RUN mkdir -p uploads && chown masteruz:nodejs uploads
+# Create uploads & local registry directories
+RUN mkdir -p uploads data && chown -R masteruz:nodejs uploads data
 
 USER masteruz
 

@@ -4,8 +4,12 @@
 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import './lib/sentry'; // должен быть до импорта App
+import { initAnalytics } from './lib/analytics';
 import App from './App';
 import './index.css';
+
+initAnalytics();
 
 // Telegram Mini App initialization
 const tgWebApp = (window as any).Telegram?.WebApp;
