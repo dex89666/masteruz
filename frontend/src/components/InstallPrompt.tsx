@@ -17,6 +17,13 @@ export function InstallPrompt() {
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
+    // В Telegram Mini App нет смысла предлагать «установить как приложение» —
+    // оно уже работает как мини-приложение и Chrome-prompt только мешает.
+    if ((window as any).Telegram?.WebApp?.initData) {
+      setDismissed(true);
+      return;
+    }
+
     // Check if user already dismissed
     if (localStorage.getItem('pwa-dismissed')) {
       setDismissed(true);
