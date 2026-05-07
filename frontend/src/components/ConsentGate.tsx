@@ -6,6 +6,7 @@
 // ============================================
 
 import { useEffect, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { ShieldCheck, FileText, Lock, ChevronDown } from 'lucide-react';
 import { api } from '../api/client';
 
@@ -63,7 +64,15 @@ function saveLocalConsent() {
   }
 }
 
+// Маршруты, доступные БЕЗ согласия — иначе пользователь физически не может прочесть,
+// с чем его просят согласиться. Сравниваем по pathname без trailing slash.
+const PUBLIC_LEGAL_ROUTES = ['/privacy', '/terms', '/public-offer'];
+
 export function ConsentGate({ children }: { children: React.ReactNode }) {
+  const location = useLocation();
+  const isPublicLegalRoute = PUBLIC_LEGAL_ROUTES.includes(
+    location.pathname.replace(/\/$/, ''),
+  );
   const [accepted, setAccepted] = useState<boolean>(() => !!loadLocalConsent());
   const [scrolledToEnd, setScrolledToEnd] = useState(false);
   const [offerOk, setOfferOk] = useState(false);
@@ -136,6 +145,8 @@ export function ConsentGate({ children }: { children: React.ReactNode }) {
   }
 
   if (accepted) return <>{children}</>;
+  // На юридических страницах пропускаем — пользователь должен иметь возможность прочесть документы до согласия.
+  if (isPublicLegalRoute) return <>{children}</>;
 
   const allChecked = offerOk && privacyOk && dataOk;
   const canSubmit = scrolledToEnd && allChecked && !submitting;
