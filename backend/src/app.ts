@@ -446,6 +446,20 @@ if (!isVercelEnv && process.env.NODE_ENV !== 'test') {
       await prisma.$connect();
       logger.info('✅ PostgreSQL подключён');
 
+      // Идемпотентный auto-seed каталога: если категорий нет — посеять.
+      // Безопасно повторно: внутри сидера используется upsert.
+      try {
+        const categoryCount = await prisma.category.count();
+        if (categoryCount === 0) {
+          logger.warn('⚠️ Категории не найдены в БД — запускаю auto-seed каталога…');
+          const { seedCatalog } = await import('./utils/catalogSeeder.js');
+          await seedCatalog(prisma);
+          logger.info('✅ Каталог посеян автоматически');
+        }
+      } catch (seedErr) {
+        logger.error({ err: seedErr }, '⚠️ Auto-seed каталога не удался — продолжаем запуск');
+      }
+
       app.listen(config.port, config.host, () => {
         logger.info(`🚀 MasterUz Backend запущен на ${config.host}:${config.port}`);
         logger.info(`📝 Среда: ${config.env}`);

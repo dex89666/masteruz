@@ -112,10 +112,26 @@ export function InstantOrderPage() {
   useEffect(() => {
     catalogApi.getCategories()
       .then((res) => {
-        const allCats: any[] = res.data.data || [];
-        // Берём дочерние категории (parentId есть). Если иерархии нет — берём все активные.
-        const children = allCats.filter((c) => c.parentId);
-        const cats = children.length > 0 ? children : allCats.filter((c) => c.isActive !== false);
+        const raw: any[] = res.data.data || [];
+
+        // API возвращает дерево: [{ id, name, children: [...], subcategories: [...] }, ...]
+        // Нам нужны «листовые» категории (с подкатегориями = реальные направления работ).
+        // Алгоритм: рекурсивно собираем всё, отдаём предпочтение узлам, у которых есть подкатегории/задачи.
+        const flat: any[] = [];
+        const walk = (node: any) => {
+          if (!node) return;
+          flat.push(node);
+          (node.children || []).forEach(walk);
+        };
+        raw.forEach(walk);
+
+        // Берём только те, что активны и имеют подкатегории (значит, по ним можно строить смету).
+        // Если таких нет — fallback: все активные с parentId, иначе все активные.
+        const active = flat.filter((c) => c.isActive !== false);
+        const withSubs = active.filter((c) => Array.isArray(c.subcategories) && c.subcategories.length > 0);
+        const withParent = active.filter((c) => c.parentId);
+        const cats = withSubs.length > 0 ? withSubs : (withParent.length > 0 ? withParent : active);
+
         if (cats.length > 0) {
           setCategories(cats);
           // Auto-select category from URL param (?category=id_or_slug)
@@ -124,6 +140,8 @@ export function InstantOrderPage() {
             const found = cats.find((c: Category) => c.id === catParam || (c as any).slug === catParam);
             if (found) setSelectedCategoryId(found.id);
           }
+        } else {
+          console.warn('Категории не получены: пустой список', raw);
         }
       })
       .catch((err) => {
