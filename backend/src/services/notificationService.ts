@@ -276,6 +276,51 @@ export class NotificationService {
       logger.error({ error, orderId, masterId }, 'Ошибка уведомления о принятии отклика');
     }
   }
+
+  /**
+   * Уведомить клиента, что его заказ авто-отменён системой (никто не принял за 72ч)
+   * и средства возвращены на баланс.
+   */
+  async notifyClientOrderAutoCancelled(orderId: string) {
+    try {
+      const order = await prisma.order.findUnique({
+        where: { id: orderId },
+        include: { client: true },
+      });
+      if (!order) return;
+
+      const refund = toNum(order.escrowAmount); // в БД уже 0, но нам нужна сумма для текста
+      // Пересчитаем по последней транзакции REFUND, если поле уже обнулено
+      const lastRefund = await prisma.balanceTransaction.findFirst({
+        where: { orderId, type: 'REFUND' },
+        orderBy: { createdAt: 'desc' },
+        select: { amount: true },
+      });
+      const refundAmount = lastRefund ? toNum(lastRefund.amount) : refund;
+
+      await this.createNotification({
+        userId: order.clientId,
+        type: 'order_auto_cancelled',
+        title: '⏱ Заказ отменён — средства возвращены',
+        message:
+          `К сожалению, ни один мастер не принял ваш заказ "${order.title}" за 72 часа. ` +
+          `Заказ автоматически отменён, ${refundAmount.toLocaleString('ru')} сум возвращены на баланс.`,
+        data: { orderId, refundAmount },
+      });
+
+      if (order.client?.telegramId) {
+        await sendTelegramMessage(
+          order.client.telegramId,
+          `⏱ <b>Заказ отменён</b>\n\n` +
+            `Ваш заказ <b>"${order.title}"</b> не был принят ни одним мастером в течение 72 часов.\n` +
+            `Заказ автоматически отменён, <b>${refundAmount.toLocaleString('ru')} сум</b> возвращены на ваш баланс.\n\n` +
+            `Попробуйте создать заказ повторно — возможно, стоит уточнить описание или изменить сумму.`,
+        );
+      }
+    } catch (error) {
+      logger.error({ error, orderId }, 'notifyClientOrderAutoCancelled failed');
+    }
+  }
 }
 
 export const notificationService = new NotificationService();

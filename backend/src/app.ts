@@ -25,6 +25,7 @@ import { logger } from './utils/logger.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { checkUserActive } from './middleware/auth.js';
 import { betaGate } from './middleware/betaGate.js';
+import { startAutoCancellationJob, stopAutoCancellationJob } from './services/orderAutoCancellation.js';
 
 // Импорт маршрутов модулей
 import authRoutes from './modules/auth/auth.routes.js';
@@ -450,6 +451,9 @@ if (!isVercelEnv && process.env.NODE_ENV !== 'test') {
         logger.info(`📝 Среда: ${config.env}`);
         logger.info(`🔗 API: http://${config.host}:${config.port}/api`);
       });
+
+      // Фоновая задача: авто-отмена «зависших» заказов с возвратом эскроу
+      startAutoCancellationJob();
     } catch (error) {
       logger.error({ error }, '❌ Ошибка запуска сервера');
       process.exit(1);
@@ -459,12 +463,14 @@ if (!isVercelEnv && process.env.NODE_ENV !== 'test') {
   // Graceful shutdown
   process.on('SIGTERM', async () => {
     logger.info('SIGTERM получен, завершаю...');
+    stopAutoCancellationJob();
     await prisma.$disconnect();
     process.exit(0);
   });
 
   process.on('SIGINT', async () => {
     logger.info('SIGINT получен, завершаю...');
+    stopAutoCancellationJob();
     await prisma.$disconnect();
     process.exit(0);
   });
