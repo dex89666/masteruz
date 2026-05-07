@@ -362,14 +362,20 @@ export function InstantOrderPage() {
       const lower = String(msg).toLowerCase();
       if (lower.includes('категори') && (lower.includes('определ') || lower.includes('вручн'))) {
         setCategoryRequired(true);
-        toast.error('Не удалось определить категорию. Отметьте подходящую галочкой ниже.');
-        setTimeout(() => {
-          categorySectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }, 50);
+        setStep('upload');
+        toast.error('Не удалось определить категорию. Отметьте подходящую галочкой ниже.', { duration: 6000 });
+        // Двойной rAF + небольшая задержка — гарантирует, что секция уже отрендерена
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            setTimeout(() => {
+              categorySectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 100);
+          });
+        });
       } else {
         toast.error(msg);
+        setStep('upload');
       }
-      setStep('upload');
     } finally {
       setLoading(false);
     }
@@ -665,6 +671,91 @@ export function InstantOrderPage() {
               )}
             </div>
 
+            {/* ─── Category (selectable grid) — сразу под описанием, чтобы видно при ошибке ─── */}
+            <div
+              ref={categorySectionRef}
+              className={`bg-white dark:bg-gray-800 rounded-2xl p-5 md:p-6 shadow-sm border-2 transition-all ${
+                categoryRequired && !selectedCategoryId
+                  ? 'border-red-500 ring-4 ring-red-500/20 animate-pulse'
+                  : 'border-gray-200 dark:border-gray-700'
+              }`}
+            >
+              {categoryRequired && !selectedCategoryId && (
+                <div className="mb-4 flex items-start gap-3 rounded-xl border border-red-300 bg-red-50 dark:bg-red-900/20 dark:border-red-800 p-3">
+                  <AlertTriangle size={20} className="text-red-500 shrink-0 mt-0.5" />
+                  <div className="text-sm text-red-700 dark:text-red-300">
+                    <strong>ИИ не смог определить категорию.</strong> Отметьте подходящую галочкой ниже —
+                    это нужно для составления точной сметы.
+                  </div>
+                </div>
+              )}
+              <div className="flex items-start justify-between mb-1 gap-3">
+                <h2 className="text-lg font-bold dark:text-white">
+                  Категория{' '}
+                  <span className="text-sm text-gray-400 font-normal">
+                    {selectedCategoryId ? '(выбрана)' : '(AI определит автоматически)'}
+                  </span>
+                </h2>
+                {selectedCategoryId && (
+                  <button
+                    type="button"
+                    onClick={() => { setSelectedCategoryId(''); setCategoryRequired(false); }}
+                    className="text-xs text-orange-600 hover:text-orange-700 font-semibold whitespace-nowrap"
+                  >
+                    Сбросить
+                  </button>
+                )}
+              </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+                Можно оставить пусто — ИИ определит сам по фото и описанию. Или отметьте вручную для точности сметы.
+              </p>
+
+              {categories.length === 0 ? (
+                <div className="text-sm text-gray-400 py-3 text-center">Загрузка категорий…</div>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                  {categories.map((cat) => {
+                    const checked = selectedCategoryId === cat.id;
+                    return (
+                      <button
+                        type="button"
+                        key={cat.id}
+                        onClick={() => {
+                          setSelectedCategoryId(checked ? '' : cat.id);
+                          setCategoryRequired(false);
+                        }}
+                        className={[
+                          'flex items-center gap-2 px-3 py-3 min-h-[52px] rounded-xl border-2 text-left transition-all',
+                          checked
+                            ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20 shadow-md shadow-orange-500/20'
+                            : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-orange-300 dark:hover:border-orange-700',
+                        ].join(' ')}
+                      >
+                        <span
+                          className={[
+                            'flex items-center justify-center w-5 h-5 rounded-md border-2 shrink-0 transition-all',
+                            checked
+                              ? 'bg-orange-500 border-orange-500 text-white'
+                              : 'bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600',
+                          ].join(' ')}
+                        >
+                          {checked && <Check size={14} strokeWidth={3} />}
+                        </span>
+                        <span className="text-base leading-none">{cat.icon}</span>
+                        <span
+                          className={`text-sm font-medium line-clamp-2 ${
+                            checked ? 'text-orange-700 dark:text-orange-300' : 'text-gray-700 dark:text-gray-200'
+                          }`}
+                        >
+                          {cat.name}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
             {/* ─── Timing ─── */}
             <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 md:p-6 shadow-sm border border-gray-200 dark:border-gray-700">
               <h2 className="text-lg font-bold mb-4 dark:text-white flex items-center gap-2">
@@ -707,6 +798,84 @@ export function InstantOrderPage() {
                     onChange={(e) => setDeadlineTime(e.target.value)}
                     className="w-32 rounded-xl border-2 border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white px-4 py-3 min-h-[48px] text-base"
                   />
+                </div>
+              )}
+            </div>
+
+            {/* ─── Category (selectable grid) ─── */}
+            <div
+              ref={categorySectionRef}
+              className={`bg-white dark:bg-gray-800 rounded-2xl p-5 md:p-6 shadow-sm border-2 transition-all ${
+                categoryRequired && !selectedCategoryId
+                  ? 'border-red-500 ring-4 ring-red-500/20 animate-pulse'
+                  : 'border-gray-200 dark:border-gray-700'
+              }`}
+            >
+              <div className="flex items-start justify-between mb-1 gap-3">
+                <h2 className="text-lg font-bold dark:text-white">
+                  Категория{' '}
+                  <span className="text-sm text-gray-400 font-normal">
+                    {selectedCategoryId ? '(выбрана)' : '(AI определит автоматически)'}
+                  </span>
+                </h2>
+                {selectedCategoryId && (
+                  <button
+                    type="button"
+                    onClick={() => { setSelectedCategoryId(''); setCategoryRequired(false); }}
+                    className="text-xs text-orange-600 hover:text-orange-700 font-semibold whitespace-nowrap"
+                  >
+                    Сбросить
+                  </button>
+                )}
+              </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+                {categoryRequired && !selectedCategoryId
+                  ? '⚠️ Отметьте галочкой подходящую категорию — это нужно для составления точной сметы.'
+                  : 'Можно оставить пусто — ИИ определит сам по фото и описанию. Или отметьте вручную для точности.'}
+              </p>
+
+              {categories.length === 0 ? (
+                <div className="text-sm text-gray-400 py-3 text-center">Загрузка категорий…</div>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                  {categories.map((cat) => {
+                    const checked = selectedCategoryId === cat.id;
+                    return (
+                      <button
+                        type="button"
+                        key={cat.id}
+                        onClick={() => {
+                          setSelectedCategoryId(checked ? '' : cat.id);
+                          setCategoryRequired(false);
+                        }}
+                        className={[
+                          'flex items-center gap-2 px-3 py-3 min-h-[52px] rounded-xl border-2 text-left transition-all',
+                          checked
+                            ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20 shadow-md shadow-orange-500/20'
+                            : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-orange-300 dark:hover:border-orange-700',
+                        ].join(' ')}
+                      >
+                        <span
+                          className={[
+                            'flex items-center justify-center w-5 h-5 rounded-md border-2 shrink-0 transition-all',
+                            checked
+                              ? 'bg-orange-500 border-orange-500 text-white'
+                              : 'bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600',
+                          ].join(' ')}
+                        >
+                          {checked && <Check size={14} strokeWidth={3} />}
+                        </span>
+                        <span className="text-base leading-none">{cat.icon}</span>
+                        <span
+                          className={`text-sm font-medium line-clamp-2 ${
+                            checked ? 'text-orange-700 dark:text-orange-300' : 'text-gray-700 dark:text-gray-200'
+                          }`}
+                        >
+                          {cat.name}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </div>
