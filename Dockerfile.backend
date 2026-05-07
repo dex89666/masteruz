@@ -1,0 +1,39 @@
+FROM node:20-alpine AS base
+WORKDIR /app
+RUN apk add --no-cache openssl libc6-compat
+
+FROM base AS deps
+COPY backend/package.json backend/package-lock.json* ./
+RUN if [ -f package-lock.json ]; then npm ci --only=production; else npm install --only=production; fi && \
+    cp -R node_modules /tmp/prod_node_modules && \
+    if [ -f package-lock.json ]; then npm ci; else npm install; fi
+
+FROM deps AS prisma
+COPY backend/prisma ./prisma/
+RUN npx prisma generate
+
+FROM prisma AS builder
+COPY backend/tsconfig.json ./
+COPY backend/src ./src/
+RUN npm run build
+
+FROM base AS runner
+ENV NODE_ENV=production
+
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 masteruz
+
+COPY --from=builder --chown=masteruz:nodejs /tmp/prod_node_modules ./node_modules
+COPY --from=builder --chown=masteruz:nodejs /app/dist ./dist
+COPY --from=builder --chown=masteruz:nodejs /app/prisma ./prisma
+COPY --from=builder --chown=masteruz:nodejs /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder --chown=masteruz:nodejs /app/node_modules/@prisma ./node_modules/@prisma
+COPY --chown=masteruz:nodejs backend/package.json ./
+
+RUN mkdir -p uploads data && chown -R masteruz:nodejs /app
+
+USER masteruz
+
+EXPOSE 3000
+
+CMD ["sh", "-c", "npx prisma migrate deploy && node dist/app.js"]

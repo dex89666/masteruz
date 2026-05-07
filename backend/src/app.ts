@@ -101,8 +101,8 @@ if (!isVercelEnv && process.env.NODE_ENV !== 'test') {
     const IoRedis = require('ioredis');
     const IoRedisClass = IoRedis.default || IoRedis;
     const rlClient = new IoRedisClass(config.redisUrl, {
-      maxRetriesPerRequest: 1,
-      enableOfflineQueue: false,
+      maxRetriesPerRequest: 3,
+      enableOfflineQueue: true,
       retryStrategy: (times: number) => Math.min(times * 100, 3000),
     });
     rlClient.on('error', (err: Error) => logger.warn({ err: err.message }, 'Rate-limit Redis error'));
