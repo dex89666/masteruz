@@ -97,15 +97,16 @@ export function ConsentGate({ children }: { children: React.ReactNode }) {
       .catch(() => {/* network ok — модал останется */});
   }, [accepted]);
 
-  // Блокируем скролл body, пока модал открыт
+  // Блокируем скролл body, пока модал открыт.
+  // НЕ блокируем на юридических страницах — там модала нет, иначе пользователь не сможет читать документ.
   useEffect(() => {
-    if (accepted) return;
+    if (accepted || isPublicLegalRoute) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
       document.body.style.overflow = prev;
     };
-  }, [accepted]);
+  }, [accepted, isPublicLegalRoute]);
 
   function handleScroll() {
     const el = scrollRef.current;
@@ -154,8 +155,8 @@ export function ConsentGate({ children }: { children: React.ReactNode }) {
   return (
     <>
       {/* App не рендерим под модалом: иначе он перехватывает события колеса/тача поверх overlay. */}
-      <div className="fixed inset-0 z-[100] bg-gray-50 dark:bg-gray-950 flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto">
-        <div className="bg-white dark:bg-gray-900 w-full sm:max-w-2xl sm:rounded-2xl rounded-t-2xl shadow-2xl flex flex-col max-h-[95vh] sm:max-h-[90vh] overflow-hidden my-auto">
+      <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 overscroll-contain">
+        <div className="bg-white dark:bg-gray-900 w-full sm:max-w-2xl sm:rounded-2xl rounded-t-2xl shadow-2xl flex flex-col max-h-[95vh] sm:max-h-[90vh] overflow-hidden">
           {/* Header */}
           <div className="px-6 py-5 border-b border-gray-200 dark:border-gray-700">
             <div className="flex items-center gap-3 mb-1">
