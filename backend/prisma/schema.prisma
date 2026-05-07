@@ -392,6 +392,8 @@ model Order {
   cancelReason     String?     @map("cancel_reason")
   cancelledBy      String?     @map("cancelled_by")
   disputeReason    String?     @map("dispute_reason")
+  // Счётчик отправленных напоминаний мастерам перед авто-отменой (0..3)
+  remindersSent    Int         @default(0) @map("reminders_sent")
   // Оценка (выезд мастера)
   isEstimationOrder Boolean    @default(false) @map("is_estimation_order")
   estimationFee    Decimal?    @map("estimation_fee") @db.Decimal(12, 2) // 150 000 сум

@@ -158,6 +158,8 @@ export interface Order {
   cancelReason: string | null;
   cancelledBy: string | null;
   disputeReason: string | null;
+  /** ISO-таймстамп автоматической отмены, если заказ всё ещё ждёт мастера */
+  autoCancelAt?: string | null;
   // Оценка
   isEstimationOrder: boolean;
   estimationFee: number | null;

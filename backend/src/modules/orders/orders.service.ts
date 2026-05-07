@@ -14,6 +14,16 @@ import { notificationService } from '../../services/notificationService.js';
 import { balanceService } from '../balance/balance.service.js';
 import { auditService } from '../../services/auditService.js';
 import { eventBus } from '../../services/eventBus.js';
+import { AUTO_CANCEL_TIMEOUT_HOURS } from '../../services/orderAutoCancellation.js';
+
+// Дополняет публикуемый заказ дедлайном авто-отмены (для UI-таймера)
+function withAutoCancelAt<T extends { status: OrderStatus; masterId: string | null; createdAt: Date }>(order: T): T & { autoCancelAt: Date | null } {
+  const isWaiting = order.status === OrderStatus.PUBLISHED && !order.masterId;
+  const autoCancelAt = isWaiting
+    ? new Date(order.createdAt.getTime() + AUTO_CANCEL_TIMEOUT_HOURS * 60 * 60 * 1000)
+    : null;
+  return Object.assign(order, { autoCancelAt });
+}
 
 // ─── Конфиг штрафов ─────────────────────────
 const PENALTY_AFTER_ACCEPT = 20000;   // Штраф за отмену после принятия (20 000 сум)
@@ -303,7 +313,7 @@ export class OrdersService {
         }) as any;
     }
 
-    return paginatedResponse(processedOrders, total, page, limit);
+    return paginatedResponse(processedOrders.map(withAutoCancelAt), total, page, limit);
   }
 
   /**
@@ -383,7 +393,7 @@ export class OrdersService {
       }
     }
 
-    return order;
+    return withAutoCancelAt(order as any);
   }
 
   /**

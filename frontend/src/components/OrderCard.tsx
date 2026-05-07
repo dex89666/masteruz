@@ -5,6 +5,7 @@
 import { Link } from 'react-router-dom';
 import { MapPin, Clock, MessageSquare, Wallet, Zap } from 'lucide-react';
 import CategoryIcon from './CategoryIcon';
+import AutoCancelCountdown from './AutoCancelCountdown';
 import { useTranslation } from '../i18n';
 import type { Order } from '../types';
 
@@ -35,9 +36,16 @@ export function OrderCard({ order, formatPrice, showNetEarnings }: OrderCardProp
   const visitFeeCommission = VISIT_FEE * (VISIT_FEE_COMMISSION_RATE / 100);
   const netEarnings = order.price - commission - VISIT_FEE - visitFeeCommission;
 
+  // Подсветка «горящих» заказов (≤12 ч до авто-отмены) — кричащая рамка
+  const hoursLeft = order.autoCancelAt
+    ? (new Date(order.autoCancelAt).getTime() - Date.now()) / 3_600_000
+    : Infinity;
+  const isBurning = order.status === 'PUBLISHED' && hoursLeft > 0 && hoursLeft <= 12;
+
   return (
     <Link to={`/orders/${order.id}`} className="block">
       <div className={`card hover:shadow-md dark:hover:shadow-lg dark:hover:shadow-black/20 transition-shadow animate-fade-in ${
+        isBurning ? 'ring-2 ring-red-500 dark:ring-red-500 shadow-red-500/30 shadow-lg' :
         order.isUrgent ? 'ring-2 ring-orange-400 dark:ring-orange-600' : ''
       }`}>
         <div className="flex items-start justify-between mb-3">
@@ -55,6 +63,12 @@ export function OrderCard({ order, formatPrice, showNetEarnings }: OrderCardProp
           </div>
           <span className={statusClass}>{statusLabel}</span>
         </div>
+
+        {order.status === 'PUBLISHED' && order.autoCancelAt && (
+          <div className="mb-2">
+            <AutoCancelCountdown autoCancelAt={order.autoCancelAt} compact />
+          </div>
+        )}
 
         <h3 className="font-semibold text-gray-900 dark:text-white mb-1 line-clamp-1">
           {order.title}

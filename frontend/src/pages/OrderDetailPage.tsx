@@ -15,6 +15,7 @@ import { OrderTimeline } from '../components/OrderTimeline';
 import { Breadcrumbs } from '../components/Breadcrumbs';
 import { OrderDetailSkeleton } from '../components/PageSkeletons';
 import { CommissionPaymentModal } from '../components/CommissionPaymentModal';
+import AutoCancelCountdown from '../components/AutoCancelCountdown';
 import { useAuthStore } from '../store';
 import { useFormatPrice } from '../hooks';
 import { useOrderEvents } from '../hooks/useOrderEvents';
@@ -304,6 +305,12 @@ export function OrderDetailPage() {
           </div>
           <span className={`badge ${statusColor} shrink-0 ml-2`}>{t(`orderStatus.${order.status}`)}</span>
         </div>
+
+        {order.status === 'PUBLISHED' && order.autoCancelAt && (
+          <div className="mb-3">
+            <AutoCancelCountdown autoCancelAt={order.autoCancelAt} />
+          </div>
+        )}
 
         <p className="text-gray-700 dark:text-gray-300 mb-4 whitespace-pre-line">{order.description}</p>
 

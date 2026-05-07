@@ -309,16 +309,136 @@ export class NotificationService {
       });
 
       if (order.client?.telegramId) {
-        await sendTelegramMessage(
-          order.client.telegramId,
-          `⏱ <b>Заказ отменён</b>\n\n` +
+        await sendTelegramMessage({
+          chatId: order.client.telegramId,
+          text:
+            `⏱ <b>Заказ отменён</b>\n\n` +
             `Ваш заказ <b>"${order.title}"</b> не был принят ни одним мастером в течение 72 часов.\n` +
             `Заказ автоматически отменён, <b>${refundAmount.toLocaleString('ru')} сум</b> возвращены на ваш баланс.\n\n` +
             `Попробуйте создать заказ повторно — возможно, стоит уточнить описание или изменить сумму.`,
-        );
+        });
       }
     } catch (error) {
       logger.error({ error, orderId }, 'notifyClientOrderAutoCancelled failed');
+    }
+  }
+
+  /**
+   * Повторная рассылка мастерам, подписанным на категорию заказа,
+   * по мере приближения авто-отмены. Эскалация по тонам сообщений.
+   */
+  async remindMastersOrderExpiring(orderId: string, hoursLeft: number) {
+    try {
+      const order = await prisma.order.findUnique({
+        where: { id: orderId },
+        include: { category: true },
+      });
+      if (!order || order.masterId) return;
+
+      const masters = await prisma.user.findMany({
+        where: {
+          role: 'MASTER',
+          isActive: true,
+          masterProfile: {
+            isAvailable: true,
+            masterCategories: { some: { categoryId: order.categoryId } },
+          },
+        },
+        select: { id: true, telegramId: true, profile: { select: { city: true } } },
+        take: 200,
+      });
+
+      const filtered = order.city
+        ? masters.filter((m) => !m.profile?.city || m.profile.city === order.city)
+        : masters;
+
+      const targets = filtered.slice(0, 100);
+
+      const isUrgent = hoursLeft <= 12;
+      const tone = isUrgent ? '🔥 Последний шанс' : '⏳ Заказ скоро сгорит';
+      const titleAlert = `${tone} — осталось ${hoursLeft}ч`;
+      const priceLabel = `${toNum(order.price).toLocaleString('ru')} сум`;
+      const cityLabel = order.city ? ` • ${order.city}` : '';
+
+      await Promise.allSettled(
+        targets.map(async (master) => {
+          await this.createNotification({
+            userId: master.id,
+            type: 'order_expiring',
+            title: titleAlert,
+            message: `${order.title} — ${priceLabel}${cityLabel}. До авто-отмены: ${hoursLeft}ч`,
+            data: { orderId, hoursLeft, isUrgent },
+          });
+          if (master.telegramId) {
+            const text =
+              `${tone} — <b>${hoursLeft} ч.</b>\n\n` +
+              `<b>${order.title}</b>\n` +
+              `💰 ${priceLabel}${cityLabel}\n` +
+              `📂 ${order.category?.name || ''}\n\n` +
+              `Если не примете в ближайшее время — заказ закроется автоматически и уйдёт другим.`;
+            await sendTelegramMessage({ chatId: master.telegramId, text }).catch(() => {});
+          }
+        }),
+      );
+
+      logger.info(
+        { orderId, hoursLeft, recipients: targets.length },
+        'remindMastersOrderExpiring: рассылка отправлена',
+      );
+    } catch (error) {
+      logger.error({ error, orderId, hoursLeft }, 'remindMastersOrderExpiring failed');
+    }
+  }
+
+  /**
+   * Уведомить администраторов, что заказ скоро будет авто-отменён.
+   */
+  async notifyAdminsOrderExpiring(orderId: string, hoursLeft: number) {
+    try {
+      const order = await prisma.order.findUnique({
+        where: { id: orderId },
+        include: { category: true, client: { include: { profile: true } } },
+      });
+      if (!order) return;
+
+      const admins = await prisma.user.findMany({
+        where: { role: { in: ['ADMIN', 'MANAGER'] as any }, isActive: true },
+        select: { id: true, telegramId: true },
+      });
+      if (admins.length === 0) return;
+
+      const clientName =
+        `${order.client.profile?.firstName || ''} ${order.client.profile?.lastName || ''}`.trim() ||
+        order.client.phone ||
+        'клиент';
+      const priceLabel = `${toNum(order.price).toLocaleString('ru')} сум`;
+
+      await Promise.allSettled(
+        admins.map(async (admin) => {
+          await this.createNotification({
+            userId: admin.id,
+            type: 'admin_order_expiring',
+            title: `⚠️ Заказ скоро авто-отменится (${hoursLeft}ч)`,
+            message: `${order.title} • ${priceLabel} • ${order.category?.name || ''} • клиент: ${clientName}`,
+            data: { orderId, hoursLeft },
+          });
+          if (admin.telegramId) {
+            const text =
+              `⚠️ <b>Заказ без откликов</b>\n\n` +
+              `<b>${order.title}</b>\n` +
+              `Категория: ${order.category?.name || '—'}\n` +
+              `Клиент: ${clientName}\n` +
+              `Сумма: ${priceLabel}\n` +
+              `До авто-отмены: <b>${hoursLeft} ч.</b>\n\n` +
+              `Можно вручную помочь клиенту: связаться или подсветить заказ мастерам.`;
+            await sendTelegramMessage({ chatId: admin.telegramId, text }).catch(() => {});
+          }
+        }),
+      );
+
+      logger.info({ orderId, hoursLeft, adminCount: admins.length }, 'notifyAdminsOrderExpiring: отправлено');
+    } catch (error) {
+      logger.error({ error, orderId, hoursLeft }, 'notifyAdminsOrderExpiring failed');
     }
   }
 }
