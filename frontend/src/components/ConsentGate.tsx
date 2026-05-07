@@ -6,12 +6,26 @@
 // ============================================
 
 import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { ShieldCheck, FileText, Lock, ChevronDown } from 'lucide-react';
 import { api } from '../api/client';
 
 const STORAGE_KEY = 'masteruz-consent-v4';
 const DOCUMENTS_VERSION = '2026-05-07-rev2'; // должна совпадать с backend DOCUMENTS_VERSION
+
+/**
+ * Открыть юридический документ в отдельном окне браузера.
+ * В Telegram Mini App используем WebApp.openLink(), иначе — window.open.
+ * Без этого Link target=_blank просто навигирует под модалом, и пользователь ничего не видит.
+ */
+function openDocument(path: string) {
+  const url = `${window.location.origin}${path}`;
+  const tg = (window as any).Telegram?.WebApp;
+  if (tg?.openLink) {
+    tg.openLink(url, { try_instant_view: false });
+    return;
+  }
+  window.open(url, '_blank', 'noopener,noreferrer');
+}
 
 /**
  * Telegram user id из Mini App. Важно для изоляции согласий между пользователями:
@@ -218,19 +232,31 @@ export function ConsentGate({ children }: { children: React.ReactNode }) {
               </p>
               <ul className="list-disc pl-5 mt-2 space-y-1">
                 <li>
-                  <Link to="/public-offer" target="_blank" className="text-primary-600 dark:text-primary-400 underline">
+                  <button
+                    type="button"
+                    onClick={() => openDocument('/public-offer')}
+                    className="text-primary-600 dark:text-primary-400 underline text-left"
+                  >
                     Публичная оферта
-                  </Link>
+                  </button>
                 </li>
                 <li>
-                  <Link to="/privacy" target="_blank" className="text-primary-600 dark:text-primary-400 underline">
+                  <button
+                    type="button"
+                    onClick={() => openDocument('/privacy')}
+                    className="text-primary-600 dark:text-primary-400 underline text-left"
+                  >
                     Политика конфиденциальности
-                  </Link>
+                  </button>
                 </li>
                 <li>
-                  <Link to="/terms" target="_blank" className="text-primary-600 dark:text-primary-400 underline">
+                  <button
+                    type="button"
+                    onClick={() => openDocument('/terms')}
+                    className="text-primary-600 dark:text-primary-400 underline text-left"
+                  >
                     Правила пользования
-                  </Link>
+                  </button>
                 </li>
               </ul>
             </section>
@@ -262,9 +288,13 @@ export function ConsentGate({ children }: { children: React.ReactNode }) {
               label={
                 <>
                   Я ознакомился(-ась) и принимаю{' '}
-                  <Link to="/public-offer" target="_blank" className="text-primary-600 dark:text-primary-400 underline">
+                  <button
+                    type="button"
+                    onClick={(e) => { e.preventDefault(); openDocument('/public-offer'); }}
+                    className="text-primary-600 dark:text-primary-400 underline"
+                  >
                     Публичную оферту
-                  </Link>
+                  </button>
                 </>
               }
             />
@@ -275,9 +305,13 @@ export function ConsentGate({ children }: { children: React.ReactNode }) {
               label={
                 <>
                   Я ознакомился(-ась) с{' '}
-                  <Link to="/privacy" target="_blank" className="text-primary-600 dark:text-primary-400 underline">
+                  <button
+                    type="button"
+                    onClick={(e) => { e.preventDefault(); openDocument('/privacy'); }}
+                    className="text-primary-600 dark:text-primary-400 underline"
+                  >
                     Политикой конфиденциальности
-                  </Link>
+                  </button>
                 </>
               }
             />
