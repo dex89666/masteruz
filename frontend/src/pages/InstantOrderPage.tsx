@@ -112,9 +112,10 @@ export function InstantOrderPage() {
   useEffect(() => {
     catalogApi.getCategories()
       .then((res) => {
-        const allCats = res.data.data || [];
-        // Только дочерние категории (с parentId) — родительские не имеют подкатегорий
-        const cats = allCats.filter((c: any) => c.parentId);
+        const allCats: any[] = res.data.data || [];
+        // Берём дочерние категории (parentId есть). Если иерархии нет — берём все активные.
+        const children = allCats.filter((c) => c.parentId);
+        const cats = children.length > 0 ? children : allCats.filter((c) => c.isActive !== false);
         if (cats.length > 0) {
           setCategories(cats);
           // Auto-select category from URL param (?category=id_or_slug)
@@ -125,7 +126,9 @@ export function InstantOrderPage() {
           }
         }
       })
-      .catch(() => {});
+      .catch((err) => {
+        console.error('Не удалось загрузить категории:', err);
+      });
   }, []);
 
   // ─── Сжатие изображения через Canvas ──────
@@ -798,162 +801,6 @@ export function InstantOrderPage() {
                     onChange={(e) => setDeadlineTime(e.target.value)}
                     className="w-32 rounded-xl border-2 border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white px-4 py-3 min-h-[48px] text-base"
                   />
-                </div>
-              )}
-            </div>
-
-            {/* ─── Category (selectable grid) ─── */}
-            <div
-              ref={categorySectionRef}
-              className={`bg-white dark:bg-gray-800 rounded-2xl p-5 md:p-6 shadow-sm border-2 transition-all ${
-                categoryRequired && !selectedCategoryId
-                  ? 'border-red-500 ring-4 ring-red-500/20 animate-pulse'
-                  : 'border-gray-200 dark:border-gray-700'
-              }`}
-            >
-              <div className="flex items-start justify-between mb-1 gap-3">
-                <h2 className="text-lg font-bold dark:text-white">
-                  Категория{' '}
-                  <span className="text-sm text-gray-400 font-normal">
-                    {selectedCategoryId ? '(выбрана)' : '(AI определит автоматически)'}
-                  </span>
-                </h2>
-                {selectedCategoryId && (
-                  <button
-                    type="button"
-                    onClick={() => { setSelectedCategoryId(''); setCategoryRequired(false); }}
-                    className="text-xs text-orange-600 hover:text-orange-700 font-semibold whitespace-nowrap"
-                  >
-                    Сбросить
-                  </button>
-                )}
-              </div>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
-                {categoryRequired && !selectedCategoryId
-                  ? '⚠️ Отметьте галочкой подходящую категорию — это нужно для составления точной сметы.'
-                  : 'Можно оставить пусто — ИИ определит сам по фото и описанию. Или отметьте вручную для точности.'}
-              </p>
-
-              {categories.length === 0 ? (
-                <div className="text-sm text-gray-400 py-3 text-center">Загрузка категорий…</div>
-              ) : (
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                  {categories.map((cat) => {
-                    const checked = selectedCategoryId === cat.id;
-                    return (
-                      <button
-                        type="button"
-                        key={cat.id}
-                        onClick={() => {
-                          setSelectedCategoryId(checked ? '' : cat.id);
-                          setCategoryRequired(false);
-                        }}
-                        className={[
-                          'flex items-center gap-2 px-3 py-3 min-h-[52px] rounded-xl border-2 text-left transition-all',
-                          checked
-                            ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20 shadow-md shadow-orange-500/20'
-                            : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-orange-300 dark:hover:border-orange-700',
-                        ].join(' ')}
-                      >
-                        <span
-                          className={[
-                            'flex items-center justify-center w-5 h-5 rounded-md border-2 shrink-0 transition-all',
-                            checked
-                              ? 'bg-orange-500 border-orange-500 text-white'
-                              : 'bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600',
-                          ].join(' ')}
-                        >
-                          {checked && <Check size={14} strokeWidth={3} />}
-                        </span>
-                        <span className="text-base leading-none">{cat.icon}</span>
-                        <span
-                          className={`text-sm font-medium line-clamp-2 ${
-                            checked ? 'text-orange-700 dark:text-orange-300' : 'text-gray-700 dark:text-gray-200'
-                          }`}
-                        >
-                          {cat.name}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* ─── Category (selectable grid) ─── */}
-            <div
-              ref={categorySectionRef}
-              className={`bg-white dark:bg-gray-800 rounded-2xl p-5 md:p-6 shadow-sm border-2 transition-all ${
-                categoryRequired && !selectedCategoryId
-                  ? 'border-red-500 ring-4 ring-red-500/20 animate-pulse'
-                  : 'border-gray-200 dark:border-gray-700'
-              }`}
-            >
-              <div className="flex items-start justify-between mb-1 gap-3">
-                <h2 className="text-lg font-bold dark:text-white">
-                  Категория{' '}
-                  <span className="text-sm text-gray-400 font-normal">
-                    {selectedCategoryId ? '(выбрана)' : '(AI определит автоматически)'}
-                  </span>
-                </h2>
-                {selectedCategoryId && (
-                  <button
-                    type="button"
-                    onClick={() => { setSelectedCategoryId(''); setCategoryRequired(false); }}
-                    className="text-xs text-orange-600 hover:text-orange-700 font-semibold whitespace-nowrap"
-                  >
-                    Сбросить
-                  </button>
-                )}
-              </div>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
-                {categoryRequired && !selectedCategoryId
-                  ? '⚠️ Отметьте галочкой подходящую категорию — это нужно для составления точной сметы.'
-                  : 'Можно оставить пусто — ИИ определит сам по фото и описанию. Или отметьте вручную для точности.'}
-              </p>
-
-              {categories.length === 0 ? (
-                <div className="text-sm text-gray-400 py-3 text-center">Загрузка категорий…</div>
-              ) : (
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                  {categories.map((cat) => {
-                    const checked = selectedCategoryId === cat.id;
-                    return (
-                      <button
-                        type="button"
-                        key={cat.id}
-                        onClick={() => {
-                          setSelectedCategoryId(checked ? '' : cat.id);
-                          setCategoryRequired(false);
-                        }}
-                        className={[
-                          'flex items-center gap-2 px-3 py-3 min-h-[52px] rounded-xl border-2 text-left transition-all',
-                          checked
-                            ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20 shadow-md shadow-orange-500/20'
-                            : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-orange-300 dark:hover:border-orange-700',
-                        ].join(' ')}
-                      >
-                        <span
-                          className={[
-                            'flex items-center justify-center w-5 h-5 rounded-md border-2 shrink-0 transition-all',
-                            checked
-                              ? 'bg-orange-500 border-orange-500 text-white'
-                              : 'bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600',
-                          ].join(' ')}
-                        >
-                          {checked && <Check size={14} strokeWidth={3} />}
-                        </span>
-                        <span className="text-base leading-none">{cat.icon}</span>
-                        <span
-                          className={`text-sm font-medium line-clamp-2 ${
-                            checked ? 'text-orange-700 dark:text-orange-300' : 'text-gray-700 dark:text-gray-200'
-                          }`}
-                        >
-                          {cat.name}
-                        </span>
-                      </button>
-                    );
-                  })}
                 </div>
               )}
             </div>
