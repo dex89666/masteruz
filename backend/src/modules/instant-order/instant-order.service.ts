@@ -27,6 +27,83 @@ const TIER_MULTIPLIERS: Record<string, { price: number; days: number; label: str
   BEST: { price: 1.3, days: 0.8, label: 'Премиум — максимум качества' },
 };
 
+// ─── Минимальная длина внятного описания ──────
+const MIN_CLEAR_DESCRIPTION_LEN = 25;
+
+// ─── Шаблоны уточняющих вопросов ──────────────
+// Если описание слишком общее или пересекается с несколькими категориями,
+// отдаём пользователю наводящие вопросы вместо случайной категории.
+type ClarifyingQuestion = {
+  id: string;
+  type: 'multiselect' | 'select' | 'text';
+  question: string;
+  hint?: string;
+  options?: { value: string; label: string }[];
+  placeholder?: string;
+};
+
+const SCOPE_OPTIONS: { value: string; label: string }[] = [
+  { value: 'plumbing',       label: '🔧 Сантехника (трубы, краны, унитаз)' },
+  { value: 'electrical',     label: '⚡ Электрика (розетки, проводка, свет)' },
+  { value: 'painting',       label: '🎨 Покраска / обои / штукатурка' },
+  { value: 'windows-doors',  label: '🪟 Окна / двери / балкон' },
+  { value: 'furniture',      label: '🪑 Мебель (сборка, ремонт, кухня)' },
+  { value: 'construction',   label: '🧱 Стены / кладка / стяжка' },
+  { value: 'carpentry',      label: '🪵 Полы / паркет / ламинат' },
+  { value: 'roofing',        label: '🏠 Крыша / кровля' },
+  { value: 'cleaning',       label: '🧹 Уборка / клининг' },
+  { value: 'conditioner',    label: '❄️ Кондиционер / вентиляция' },
+  { value: 'appliances',     label: '🔌 Подключение бытовой техники' },
+  { value: 'garden',         label: '🌳 Двор / газон / ландшафт' },
+  { value: 'earthworks',     label: '🚜 Земляные работы / экскаватор' },
+  { value: 'security',       label: '📹 Видеонаблюдение / сигнализация' },
+  { value: 'design',         label: '✏️ Дизайн-проект интерьера' },
+  { value: 'moving',         label: '🚚 Переезд / грузчики' },
+];
+
+function buildGenericClarifyingQuestions(): ClarifyingQuestion[] {
+  return [
+    {
+      id: 'scope',
+      type: 'multiselect',
+      question: 'Какие направления работ нужны? (выберите все подходящие)',
+      hint: 'Чем точнее перечислите, тем точнее будет смета',
+      options: SCOPE_OPTIONS,
+    },
+    {
+      id: 'rooms',
+      type: 'multiselect',
+      question: 'В каких помещениях будут работы?',
+      options: [
+        { value: 'bathroom',  label: 'Ванная / туалет' },
+        { value: 'kitchen',   label: 'Кухня' },
+        { value: 'living',    label: 'Жилая комната' },
+        { value: 'hallway',   label: 'Прихожая / коридор' },
+        { value: 'balcony',   label: 'Балкон / лоджия' },
+        { value: 'outdoor',   label: 'Двор / улица / фасад' },
+        { value: 'whole',     label: 'Вся квартира / дом' },
+      ],
+    },
+    {
+      id: 'urgency',
+      type: 'select',
+      question: 'Насколько срочно нужно выполнить?',
+      options: [
+        { value: 'today',  label: 'Сегодня — аварийная ситуация' },
+        { value: 'week',   label: 'На этой неделе' },
+        { value: 'month',  label: 'В течение месяца' },
+        { value: 'flex',   label: 'Не срочно, гибкие сроки' },
+      ],
+    },
+    {
+      id: 'details',
+      type: 'text',
+      question: 'Опишите подробнее, что не работает или что нужно установить',
+      placeholder: 'Например: течёт смеситель в ванной, не работает розетка на кухне, нужно покрасить две комнаты',
+    },
+  ];
+}
+
 export class InstantOrderService {
   /**
    * AI-анализ фотографий и описания → 3 варианта (Good / Better / Best)
@@ -55,47 +132,84 @@ export class InstantOrderService {
       throw ApiError.badRequest('Опишите что нужно сделать (голосом или текстом) или выберите категорию');
     }
 
-    // ─── Определяем категорию ──────────────
-    let category;
+    // ═══════════════════════════════════════════════════════════════════
+    // СТРАТЕГИЯ ОПРЕДЕЛЕНИЯ КАТЕГОРИЙ:
+    //  • categoryId передан       → одна выбранная категория
+    //  • описание длинное и keyword-detect нашёл ≥1 → одна или несколько категорий
+    //  • описание короткое/мутное → возвращаем уточняющие вопросы (без вариантов)
+    //  • найдено 0 категорий       → возвращаем уточняющие вопросы
+    // ═══════════════════════════════════════════════════════════════════
+
+    const allCategoriesActive = categoryId
+      ? null
+      : await prisma.category.findMany({
+          where: { isActive: true },
+          include: {
+            subcategories: {
+              where: { isActive: true },
+              include: {
+                tasks: { where: { isActive: true }, orderBy: { sortOrder: 'asc' } },
+              },
+            },
+          },
+        });
+
+    let detectedCategories: any[] = [];
+
     if (categoryId) {
-      category = await prisma.category.findUnique({
+      const single = await prisma.category.findUnique({
         where: { id: categoryId },
         include: {
           subcategories: {
             where: { isActive: true },
             include: {
-              tasks: {
-                where: { isActive: true },
-                orderBy: { sortOrder: 'asc' },
-              },
+              tasks: { where: { isActive: true }, orderBy: { sortOrder: 'asc' } },
             },
           },
         },
       });
-    } else {
-      // AI auto-detect: берём первую активную категорию по ключевым словам
-      const categories = await prisma.category.findMany({
-        where: { isActive: true },
-        include: {
-          subcategories: {
-            where: { isActive: true },
-            include: {
-              tasks: {
-                where: { isActive: true },
-                orderBy: { sortOrder: 'asc' },
-              },
-            },
-          },
-        },
-      });
-
-      // Простейший keyword-matching (в будущем → LLM)
-      category = this.detectCategory(combinedDescription, categories);
+      if (single) detectedCategories = [single];
+    } else if (allCategoriesActive && combinedDescription) {
+      detectedCategories = this.detectCategories(combinedDescription, allCategoriesActive);
     }
 
-    if (!category) {
-      throw ApiError.badRequest('Не удалось определить категорию. Пожалуйста, выберите категорию вручную.');
+    // ─── Если ничего не нашли или описание мутное → задаём вопросы ───
+    const needsClarification =
+      detectedCategories.length === 0 ||
+      (combinedDescription.length < MIN_CLEAR_DESCRIPTION_LEN && !categoryId);
+
+    if (needsClarification) {
+      logger.info(
+        { descriptionLen: combinedDescription.length, detected: detectedCategories.length },
+        'AI-анализ: недостаточно деталей → возвращаем уточняющие вопросы'
+      );
+      return {
+        needsClarification: true,
+        clarifyingQuestions: buildGenericClarifyingQuestions(),
+        message:
+          detectedCategories.length === 0
+            ? 'Не удалось точно определить характер работ. Ответьте на пару вопросов — соберём точную смету.'
+            : 'Опишите задачу подробнее, чтобы смета была точной.',
+        partialMatches: detectedCategories.slice(0, 5).map((c: any) => ({
+          id: c.id,
+          name: c.name,
+          slug: c.slug,
+        })),
+      };
     }
+
+    // ─── Если найдено НЕСКОЛЬКО категорий → строим мульти-смету ────
+    if (detectedCategories.length > 1) {
+      return await this.buildMultiCategoryAnalysis(
+        userId,
+        detectedCategories,
+        combinedDescription,
+        images
+      );
+    }
+
+    // ─── Одна категория (классический путь) ─────────────────────────
+    const category = detectedCategories[0];
 
     // ─── Собираем все доступные задачи ─────
     const allTasks = category.subcategories?.flatMap((sub: any) => sub.tasks || []) || [];
@@ -158,7 +272,7 @@ export class InstantOrderService {
         analysisResult.variants.map(async (variant: any) => {
           return prisma.aiOrderTemplate.create({
             data: {
-              categoryId: category!.id,
+              categoryId: category.id,
               tier: variant.tier as AiTierType,
               tierLabel: variant.tierLabel,
               taskIds: variant.taskIds,
@@ -201,6 +315,16 @@ export class InstantOrderService {
         slug: category.slug,
       },
       detectedFromPhoto: !categoryId,
+      detectedCategories: [
+        {
+          id: category.id,
+          name: category.name,
+          slug: category.slug,
+          nameUz: category.nameUz,
+          nameEn: category.nameEn,
+          icon: category.icon,
+        },
+      ],
       variants: templates.map((t: any) => ({
         id: t.id,
         tier: t.tier,
@@ -478,13 +602,236 @@ export class InstantOrderService {
   // ─── Приватные методы ──────────────────────────
 
   /**
-   * Определение категории по ключевым словам описания (mock-AI)
+   * Сборка сметы для НЕСКОЛЬКИХ направлений сразу.
+   *
+   * Алгоритм:
+   * 1. Для каждой найденной категории строим её собственный набор вариантов
+   *    (через buildSmartVariants → fallback). Берём BEST per-категория для самой полной картины.
+   * 2. Объединяем результаты в 3 уровня:
+   *    GOOD    = сумма GOOD по всем категориям (минимально достаточно)
+   *    BETTER  = сумма BETTER (рекомендуем)
+   *    BEST    = сумма BEST (всё с премиум-материалами)
+   * 3. taskIds объединяются, materials конкатенируются.
+   * 4. Сохраняем шаблоны в БД как обычно (categoryId — самая весомая = первая).
+   */
+  private async buildMultiCategoryAnalysis(
+    userId: string,
+    categories: any[],
+    description: string,
+    images: string[]
+  ) {
+    type SubVariant = {
+      tier: AiTierType;
+      tierLabel: string;
+      taskIds: string[];
+      materials: any[];
+      estimatedPrice: number;
+      estimatedDays: number;
+      confidence: number;
+      description: string;
+    };
+    type CategoryBundle = {
+      category: any;
+      variants: Record<AiTierType, SubVariant>;
+    };
+
+    const bundles: CategoryBundle[] = [];
+
+    for (const cat of categories) {
+      const tasks = cat.subcategories?.flatMap((s: any) => s.tasks || []) || [];
+      if (tasks.length === 0) continue;
+
+      const smart = buildSmartVariants(cat.slug, cat.name, description);
+      let perTier: Record<AiTierType, SubVariant>;
+
+      if (smart) {
+        perTier = {
+          GOOD: this.smartToSubVariant(smart.variants.find((v: any) => v.tier === 'GOOD'), tasks),
+          BETTER: this.smartToSubVariant(smart.variants.find((v: any) => v.tier === 'BETTER'), tasks),
+          BEST: this.smartToSubVariant(smart.variants.find((v: any) => v.tier === 'BEST'), tasks),
+        } as any;
+      } else {
+        const fb = this.generateVariantsFallback(cat, tasks, description, images);
+        perTier = {
+          GOOD: fb.variants[0] as SubVariant,
+          BETTER: fb.variants[1] as SubVariant,
+          BEST: fb.variants[2] as SubVariant,
+        };
+      }
+
+      bundles.push({ category: cat, variants: perTier });
+    }
+
+    if (bundles.length === 0) {
+      throw ApiError.badRequest('Не удалось построить смету — в выбранных направлениях пока нет услуг.');
+    }
+
+    const primary = bundles[0].category;
+
+    // ─── Объединяем по уровням ──────────────────────────────
+    const merge = (tier: AiTierType): SubVariant => {
+      const subs = bundles.map((b) => b.variants[tier]).filter(Boolean);
+      const taskIds = Array.from(new Set(subs.flatMap((s) => s.taskIds)));
+      const materials = subs.flatMap((s) => s.materials);
+      const estimatedPrice = subs.reduce((sum, s) => sum + s.estimatedPrice, 0);
+      const estimatedDays = Math.max(...subs.map((s) => s.estimatedDays || 1));
+      const confidence = subs.reduce((sum, s) => sum + s.confidence, 0) / subs.length;
+      const dirs = bundles.map((b) => b.category.name).join(', ');
+      const tierLabel = TIER_MULTIPLIERS[tier].label;
+      const desc =
+        tier === 'GOOD'
+          ? `Базовый объём по ${bundles.length} направлениям: ${dirs}. Минимально необходимые работы и расходники.`
+          : tier === 'BETTER'
+          ? `Оптимальный пакет по ${bundles.length} направлениям: ${dirs}. Рекомендуемое соотношение качество/цена.`
+          : `Премиум-пакет: всё по ${bundles.length} направлениям (${dirs}) + лучшие материалы и расширенная гарантия.`;
+      return {
+        tier,
+        tierLabel,
+        taskIds,
+        materials,
+        estimatedPrice,
+        estimatedDays,
+        confidence,
+        description: desc,
+      };
+    };
+
+    const merged: SubVariant[] = [merge('GOOD'), merge('BETTER'), merge('BEST')];
+
+    // ─── Сохраняем шаблоны (categoryId = primary) ────────────
+    let templates;
+    try {
+      templates = await Promise.all(
+        merged.map(async (variant) =>
+          prisma.aiOrderTemplate.create({
+            data: {
+              categoryId: primary.id,
+              tier: variant.tier as AiTierType,
+              tierLabel: variant.tierLabel,
+              taskIds: variant.taskIds,
+              materials: variant.materials,
+              estimatedPrice: Math.min(Math.round(variant.estimatedPrice), 9_999_999_999),
+              estimatedDays: variant.estimatedDays,
+              confidence: variant.confidence,
+              prompt: description.substring(0, 2000),
+              imageAnalysis: {
+                imageCount: images.length,
+                description: description.substring(0, 500),
+                multiCategory: true,
+                categorySlugs: bundles.map((b) => b.category.slug),
+              },
+              description: variant.description.substring(0, 2000),
+              createdById: userId,
+            },
+          })
+        )
+      );
+    } catch (dbError: any) {
+      logger.error({ err: dbError }, 'Ошибка сохранения мульти-AI-шаблона');
+      throw ApiError.badRequest('Не удалось сохранить варианты, попробуйте ещё раз');
+    }
+
+    logger.info(
+      { userId, count: bundles.length, slugs: bundles.map((b) => b.category.slug) },
+      'AI-анализ: мульти-категория, сборка завершена'
+    );
+
+    const allTasks = bundles.flatMap((b) => b.category.subcategories?.flatMap((s: any) => s.tasks || []) || []);
+
+    return {
+      category: {
+        id: primary.id,
+        name: primary.name,
+        nameUz: primary.nameUz,
+        nameEn: primary.nameEn,
+        slug: primary.slug,
+      },
+      detectedFromPhoto: true,
+      detectedCategories: bundles.map((b) => ({
+        id: b.category.id,
+        name: b.category.name,
+        slug: b.category.slug,
+        nameUz: b.category.nameUz,
+        nameEn: b.category.nameEn,
+        icon: b.category.icon,
+      })),
+      variants: templates.map((t: any) => ({
+        id: t.id,
+        tier: t.tier,
+        tierLabel: t.tierLabel,
+        taskIds: t.taskIds,
+        materials: t.materials,
+        estimatedPrice: t.estimatedPrice,
+        estimatedDays: t.estimatedDays,
+        confidence: t.confidence,
+        description: t.description,
+      })),
+      allTasks: allTasks.map((t: any) => ({
+        id: t.id,
+        name: t.name,
+        nameUz: t.nameUz,
+        nameEn: t.nameEn,
+        minPrice: t.minPrice,
+        estimatedTime: t.estimatedTime,
+      })),
+    };
+  }
+
+  /**
+   * Преобразование одного решения из buildSmartVariants в SubVariant.
+   */
+  private smartToSubVariant(v: any, tasks: any[]): any {
+    if (!v) {
+      const fallback = tasks[0];
+      return {
+        tier: 'GOOD',
+        tierLabel: TIER_MULTIPLIERS.GOOD.label,
+        taskIds: fallback ? [fallback.id] : [],
+        materials: [],
+        estimatedPrice: 100000,
+        estimatedDays: 1,
+        confidence: 0.7,
+        description: 'Базовый набор работ',
+      };
+    }
+    const matched = this.matchTasksToSolution(tasks, v.title, v.description);
+    return {
+      tier: v.tier,
+      tierLabel: v.tierLabel,
+      taskIds: matched.length > 0 ? matched : tasks[0] ? [tasks[0].id] : [],
+      materials: (v.materials || []).map((m: any) => ({
+        name: m.name,
+        quantity: m.qty,
+        unit: m.unit,
+        unitPrice: m.unitPrice,
+        total: m.total,
+      })),
+      estimatedPrice: v.estimatedPrice,
+      estimatedDays: v.estimatedDays,
+      confidence: v.confidence,
+      description: `${v.title}. ${v.description}`,
+    };
+  }
+
+
+  /**
+   * Определение ОДНОЙ категории — обёртка над detectCategories для обратной совместимости.
    */
   private detectCategory(description: string, categories: any[]): any | null {
+    const list = this.detectCategories(description, categories);
+    return list[0] || null;
+  }
+
+  /**
+   * Определение ВСЕХ направлений работ, упомянутых в описании.
+   * Возвращает массив категорий, отсортированный по убыванию score (≥ 1).
+   *
+   * Это позволяет поддержать сценарий, когда пользователь перечисляет
+   * несколько проблем сразу: «сантехника, электрика, окно, мебель» → 4 категории.
+   */
+  private detectCategories(description: string, categories: any[]): any[] {
     const lower = description.toLowerCase();
 
-    // Расширенная карта ключевых слов для всех 14 категорий каталога.
-    // Веса: точные совпадения (полные слова) = 3, частичные (корни) = 1.
     const keywords: Record<string, { exact: string[]; partial: string[] }> = {
       'plumbing': {
         exact: ['сантехник', 'сантехника', 'водопровод', 'канализация', 'унитаз', 'раковина', 'ванна', 'душевая', 'бойлер', 'радиатор', 'отопление', 'счётчик воды', 'фильтр воды', 'биде', 'джакузи', 'сифон', 'стиральная', 'посудомоечная'],
@@ -495,12 +842,12 @@ export class InstantOrderService {
         partial: ['розетк', 'выключател', 'провод', 'свет', 'люстр', 'замыкан', 'счётчик', 'электр', 'ламп', 'точечн', 'кабель', 'подсветк', 'короткое', 'пробк', 'вырубил', 'пропал свет', 'не горит', 'не работает розетк'],
       },
       'furniture': {
-        exact: ['мебель', 'шкаф', 'кухня', 'диван', 'кровать', 'комод', 'полка', 'стеллаж', 'тумба', 'гардероб'],
-        partial: ['мебел', 'шкаф', 'стол', 'стул', 'кухн', 'полк', 'сборк', 'диван', 'кроват', 'ящик', 'фурнитур', 'петл', 'дверц', 'фасад'],
+        exact: ['мебель', 'мебельщик', 'шкаф', 'кухня', 'диван', 'кровать', 'комод', 'полка', 'стеллаж', 'тумба', 'гардероб'],
+        partial: ['мебел', 'мебельщ', 'шкаф', 'стол', 'стул', 'кухн', 'полк', 'сборк', 'диван', 'кроват', 'ящик', 'фурнитур', 'петл', 'дверц', 'фасад'],
       },
       'construction': {
-        exact: ['кладка', 'фундамент', 'стяжка', 'перегородка', 'газоблок', 'кирпич', 'бетон', 'арматура', 'опалубка'],
-        partial: ['стройк', 'кладк', 'стен', 'фундамент', 'бетон', 'кирпич', 'перегородк', 'газоблок', 'штукатурк', 'стяжк', 'демонтаж стен', 'снос'],
+        exact: ['кладка', 'фундамент', 'стяжка', 'перегородка', 'газоблок', 'кирпич', 'бетон', 'арматура', 'опалубка', 'ремонт квартиры', 'ремонт дома', 'капитальный ремонт', 'косметический ремонт'],
+        partial: ['стройк', 'кладк', 'стен', 'фундамент', 'бетон', 'кирпич', 'перегородк', 'газоблок', 'штукатурк', 'стяжк', 'демонтаж стен', 'снос', 'капремонт', 'ремонт квартир'],
       },
       'painting': {
         exact: ['покраска', 'штукатурка', 'шпаклёвка', 'шпатлёвка', 'обои', 'грунтовка', 'отделка', 'декоративная штукатурка'],
@@ -518,6 +865,10 @@ export class InstantOrderService {
         exact: ['плотник', 'паркет', 'ламинат', 'вагонка', 'деревянный пол', 'лестница', 'беседка', 'терраса'],
         partial: ['плотник', 'дерев', 'доск', 'парк', 'ламинат', 'вагонк', 'лестниц', 'пол', 'настил', 'циклёвк', 'шлифовк'],
       },
+      'roofing': {
+        exact: ['крыша', 'кровля', 'кровельщик', 'кровельные работы', 'шифер', 'металлочерепица', 'профнастил', 'мягкая кровля'],
+        partial: ['крыш', 'кровл', 'черепиц', 'шифер', 'профнастил', 'водосток', 'мансард', 'стропил'],
+      },
       'conditioner': {
         exact: ['кондиционер', 'сплит-система', 'вентиляция', 'климат', 'фреон'],
         partial: ['кондиционер', 'сплит', 'вентиляц', 'климат', 'охлажд', 'фреон', 'дует', 'не охлаждает', 'заправк', 'холод'],
@@ -527,8 +878,12 @@ export class InstantOrderService {
         partial: ['стиральн', 'холодильник', 'духовк', 'микроволнов', 'плит', 'машинк', 'техник', 'подключ'],
       },
       'garden': {
-        exact: ['газон', 'ландшафт', 'полив', 'забор', 'ворота', 'навес', 'беседка', 'сад', 'огород'],
-        partial: ['газон', 'ландшафт', 'полив', 'забор', 'ворот', 'навес', 'садов', 'участ', 'террас', 'дренаж'],
+        exact: ['газон', 'ландшафт', 'ландшафтный дизайн', 'полив', 'забор', 'ворота', 'навес', 'беседка', 'сад', 'огород'],
+        partial: ['газон', 'ландшафт', 'полив', 'забор', 'ворот', 'навес', 'садов', 'участ', 'террас', 'дренаж', 'озеленен'],
+      },
+      'earthworks': {
+        exact: ['экскаватор', 'земляные работы', 'котлован', 'траншея', 'выемка грунта', 'погрузчик', 'бульдозер', 'самосвал'],
+        partial: ['экскаватор', 'котлован', 'траншея', 'грунт', 'выемк', 'засыпк', 'планировк участка', 'спецтехник'],
       },
       'security': {
         exact: ['видеонаблюдение', 'домофон', 'сигнализация', 'камера', 'охрана', 'контроль доступа'],
@@ -544,35 +899,17 @@ export class InstantOrderService {
       },
     };
 
-    let bestMatch: any = null;
-    let bestScore = 0;
-
+    const scored: { cat: any; score: number }[] = [];
     for (const cat of categories) {
-      const catConfig = keywords[cat.slug];
-      if (!catConfig) continue;
-
+      const cfg = keywords[cat.slug];
+      if (!cfg) continue;
       let score = 0;
-      // Exact keyword matches (weight = 3)
-      for (const kw of catConfig.exact) {
-        if (lower.includes(kw)) score += 3;
-      }
-      // Partial keyword matches (weight = 1)
-      for (const kw of catConfig.partial) {
-        if (lower.includes(kw)) score += 1;
-      }
-
-      if (score > bestScore) {
-        bestScore = score;
-        bestMatch = cat;
-      }
+      for (const kw of cfg.exact) if (lower.includes(kw)) score += 3;
+      for (const kw of cfg.partial) if (lower.includes(kw)) score += 1;
+      if (score > 0) scored.push({ cat, score });
     }
-
-    // Минимум 1 балл для совпадения — не отдаём случайную категорию
-    if (bestScore === 0) {
-      return null;
-    }
-
-    return bestMatch;
+    scored.sort((a, b) => b.score - a.score);
+    return scored.map((s) => s.cat);
   }
 
   /**

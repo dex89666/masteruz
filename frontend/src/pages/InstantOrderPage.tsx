@@ -47,7 +47,7 @@ const TIER_CONFIG = {
   },
 };
 
-type Step = 'upload' | 'analyzing' | 'variants' | 'confirm';
+type Step = 'upload' | 'analyzing' | 'clarify' | 'variants' | 'confirm';
 const STEPS: Step[] = ['upload', 'analyzing', 'variants', 'confirm'];
 const STEP_LABELS = ['Фото и описание', 'AI-анализ', 'Выбор варианта', 'Подтверждение'];
 
@@ -78,6 +78,10 @@ export function InstantOrderPage() {
   // AI result
   const [analysisResult, setAnalysisResult] = useState<AiAnalysisResult | null>(null);
   const [selectedVariant, setSelectedVariant] = useState<AiOrderTemplate | null>(null);
+
+  // Уточняющие вопросы (когда AI не смог точно определить характер работ)
+  const [clarifyQuestions, setClarifyQuestions] = useState<import('../types').AiClarifyingQuestion[]>([]);
+  const [clarifyAnswers, setClarifyAnswers] = useState<Record<string, string | string[]>>({});
 
   // Order form
   const [title, setTitle] = useState('');
@@ -311,6 +315,49 @@ export function InstantOrderPage() {
   }, [isRecording]);
 
   // ─── AI analysis ────────────────────
+  /**
+   * Преобразует ответы на уточняющие вопросы в плотную строку,
+   * которая будет добавлена к описанию и отправлена на повторный анализ.
+   */
+  const buildClarificationText = useCallback(() => {
+    if (!clarifyQuestions.length) return '';
+    const parts: string[] = [];
+    for (const q of clarifyQuestions) {
+      const answer = clarifyAnswers[q.id];
+      if (!answer || (Array.isArray(answer) && answer.length === 0)) continue;
+      if (q.type === 'multiselect' && Array.isArray(answer)) {
+        const labels = answer
+          .map((v) => q.options?.find((o) => o.value === v)?.label || v)
+          .join(', ');
+        parts.push(`${q.question} ${labels}`);
+      } else if (q.type === 'select' && typeof answer === 'string') {
+        const label = q.options?.find((o) => o.value === answer)?.label || answer;
+        parts.push(`${q.question} ${label}`);
+      } else if (q.type === 'text' && typeof answer === 'string') {
+        parts.push(answer);
+      }
+    }
+    return parts.join('. ');
+  }, [clarifyQuestions, clarifyAnswers]);
+
+  const handleSubmitClarification = async () => {
+    const extra = buildClarificationText();
+    if (!extra.trim()) {
+      toast.error('Заполните хотя бы один вопрос');
+      return;
+    }
+    // Объединяем ответы с исходным описанием и снова запускаем анализ
+    const merged = [description, extra].filter(Boolean).join('. ');
+    setDescription(merged);
+    // Сбрасываем флаг и запускаем анализ повторно
+    setClarifyQuestions([]);
+    setAnalysisResult(null);
+    // Маленькая хитрость: handleAnalyze читает description из state, поэтому ждём микротик
+    requestAnimationFrame(() => {
+      handleAnalyze();
+    });
+  };
+
   const handleAnalyze = async () => {
     if (images.length === 0) { toast.error('Загрузите хотя бы 1 фото'); return; }
     if (!description && !voiceText && !selectedCategoryId) {
@@ -368,13 +415,34 @@ export function InstantOrderPage() {
         categoryId: selectedCategoryId || undefined,
       });
 
-      setAnalysisResult(result.data.data);
+      const data = result.data.data;
+
+      // ─── Если AI не уверен → задаёт уточняющие вопросы ──
+      if (data?.needsClarification && Array.isArray(data.clarifyingQuestions) && data.clarifyingQuestions.length > 0) {
+        setClarifyQuestions(data.clarifyingQuestions);
+        setClarifyAnswers({});
+        setAnalysisResult(data);
+        setStep('clarify');
+        toast(data.message || 'Уточните детали, чтобы смета была точной', { icon: '💡', duration: 5000 });
+        return;
+      }
+
+      setAnalysisResult(data);
       setStep('variants');
 
-      if (result.data.data?.category) {
-        setTitle(`${result.data.data.category.name} — ФотоЗаказ`);
+      if (data?.category) {
+        const dirs = data.detectedCategories && data.detectedCategories.length > 1
+          ? data.detectedCategories.map((c: any) => c.name).join(' + ')
+          : data.category.name;
+        setTitle(`${dirs} — ФотоЗаказ`);
       }
-      toast.success('AI-анализ завершён! Выберите вариант.');
+
+      const direCount = data?.detectedCategories?.length ?? 1;
+      if (direCount > 1) {
+        toast.success(`AI определил ${direCount} направлений работ — собрана общая смета`);
+      } else {
+        toast.success('AI-анализ завершён! Выберите вариант.');
+      }
     } catch (err: any) {
       const msg = err.response?.data?.error?.message || err.response?.data?.message || err.message || 'Ошибка AI-анализа';
       console.error('AI analyze error:', err.response?.data || err);
@@ -871,6 +939,128 @@ export function InstantOrderPage() {
           </div>
         )}
 
+        {/* ═══ STEP 2.5: Clarifying questions (когда AI не уверен) ═══ */}
+        {step === 'clarify' && clarifyQuestions.length > 0 && (
+          <div className="space-y-6 animate-fade-in">
+            <div className="bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30 rounded-2xl p-5 border border-amber-200 dark:border-amber-800">
+              <div className="flex items-start gap-3">
+                <div className="w-12 h-12 rounded-full bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center flex-shrink-0">
+                  <Sparkles size={22} className="text-amber-600 dark:text-amber-400" />
+                </div>
+                <div>
+                  <h2 className="font-bold text-lg dark:text-white mb-1">
+                    Уточните несколько деталей
+                  </h2>
+                  <p className="text-sm text-gray-600 dark:text-gray-300">
+                    {analysisResult?.message ||
+                      'AI не смог точно определить характер работ. Ответьте на пару вопросов — соберём точную смету.'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {clarifyQuestions.map((q) => (
+              <div
+                key={q.id}
+                className="bg-white dark:bg-gray-800 rounded-2xl p-5 border border-gray-200 dark:border-gray-700 shadow-sm"
+              >
+                <label className="block font-semibold dark:text-white mb-1">{q.question}</label>
+                {q.hint && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">{q.hint}</p>
+                )}
+
+                {/* multiselect */}
+                {q.type === 'multiselect' && q.options && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
+                    {q.options.map((opt) => {
+                      const arr = (clarifyAnswers[q.id] as string[]) || [];
+                      const checked = arr.includes(opt.value);
+                      return (
+                        <label
+                          key={opt.value}
+                          className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 cursor-pointer transition-all ${
+                            checked
+                              ? 'bg-orange-50 dark:bg-orange-900/20 border-orange-400 dark:border-orange-600'
+                              : 'bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700 hover:border-orange-300'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e) => {
+                              const next = e.target.checked
+                                ? [...arr, opt.value]
+                                : arr.filter((v) => v !== opt.value);
+                              setClarifyAnswers({ ...clarifyAnswers, [q.id]: next });
+                            }}
+                            className="w-4 h-4 accent-orange-500"
+                          />
+                          <span className="text-sm dark:text-gray-200">{opt.label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* select */}
+                {q.type === 'select' && q.options && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
+                    {q.options.map((opt) => {
+                      const checked = clarifyAnswers[q.id] === opt.value;
+                      return (
+                        <label
+                          key={opt.value}
+                          className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 cursor-pointer transition-all ${
+                            checked
+                              ? 'bg-orange-50 dark:bg-orange-900/20 border-orange-400 dark:border-orange-600'
+                              : 'bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700 hover:border-orange-300'
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name={q.id}
+                            checked={checked}
+                            onChange={() => setClarifyAnswers({ ...clarifyAnswers, [q.id]: opt.value })}
+                            className="w-4 h-4 accent-orange-500"
+                          />
+                          <span className="text-sm dark:text-gray-200">{opt.label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* free text */}
+                {q.type === 'text' && (
+                  <textarea
+                    className="w-full mt-2 p-3 rounded-xl border-2 border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 dark:text-white focus:border-orange-400 focus:outline-none resize-none"
+                    rows={3}
+                    placeholder={q.placeholder}
+                    value={(clarifyAnswers[q.id] as string) || ''}
+                    onChange={(e) => setClarifyAnswers({ ...clarifyAnswers, [q.id]: e.target.value })}
+                  />
+                )}
+              </div>
+            ))}
+
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={() => setStep('upload')}
+                className="px-5 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 font-semibold"
+              >
+                ← Назад
+              </button>
+              <button
+                onClick={handleSubmitClarification}
+                disabled={loading}
+                className="flex-1 px-5 py-3 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 text-white font-bold shadow-lg hover:shadow-xl hover:scale-[1.01] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? 'Анализирую…' : 'Пересчитать смету →'}
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* ═══ STEP 3: Choose variant ═══ */}
         {step === 'variants' && analysisResult && (
           <div className="space-y-6 animate-fade-in">
@@ -888,7 +1078,11 @@ export function InstantOrderPage() {
                 <CheckCircle size={22} className="text-orange-500" />
               </div>
               <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Категория определена</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  {(analysisResult.detectedCategories?.length ?? 1) > 1
+                    ? `Определено направлений: ${analysisResult.detectedCategories!.length}`
+                    : 'Категория определена'}
+                </p>
                 <p className="font-bold dark:text-white text-base">{analysisResult.category.name}</p>
               </div>
               {analysisResult.detectedFromPhoto && (
@@ -897,6 +1091,25 @@ export function InstantOrderPage() {
                 </span>
               )}
             </div>
+
+            {/* Чипы всех найденных направлений (когда их > 1) */}
+            {analysisResult.detectedCategories && analysisResult.detectedCategories.length > 1 && (
+              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 rounded-2xl p-4 border border-blue-200 dark:border-blue-800">
+                <p className="text-sm font-semibold text-blue-900 dark:text-blue-200 mb-2">
+                  В смете учтены работы по всем направлениям:
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {analysisResult.detectedCategories.map((c) => (
+                    <span
+                      key={c.id}
+                      className="inline-flex items-center gap-1.5 bg-white dark:bg-gray-800 text-blue-700 dark:text-blue-300 text-xs font-semibold px-3 py-1.5 rounded-full border border-blue-200 dark:border-blue-700 shadow-sm"
+                    >
+                      ✓ {c.name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* 3 variant cards */}
             <h2 className="text-xl font-bold dark:text-white">Выберите вариант:</h2>

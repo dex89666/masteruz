@@ -755,7 +755,31 @@ export interface AiMaterialItem {
   total: number;
 }
 
+export interface AiClarifyingQuestion {
+  id: string;
+  type: 'multiselect' | 'select' | 'text';
+  question: string;
+  hint?: string;
+  options?: { value: string; label: string }[];
+  placeholder?: string;
+}
+
+export interface AiDetectedCategory {
+  id: string;
+  name: string;
+  slug: string;
+  nameUz: string | null;
+  nameEn: string | null;
+  icon: string | null;
+}
+
 export interface AiAnalysisResult {
+  /** Если AI не смог однозначно определить характер работ — задаёт уточняющие вопросы */
+  needsClarification?: boolean;
+  clarifyingQuestions?: AiClarifyingQuestion[];
+  message?: string;
+  partialMatches?: { id: string; name: string; slug: string }[];
+
   category: {
     id: string;
     name: string;
@@ -764,6 +788,8 @@ export interface AiAnalysisResult {
     slug: string;
   };
   detectedFromPhoto: boolean;
+  /** Все направления работ, которые AI распознал в описании (≥ 1). */
+  detectedCategories?: AiDetectedCategory[];
   variants: AiOrderTemplate[];
   allTasks: {
     id: string;
