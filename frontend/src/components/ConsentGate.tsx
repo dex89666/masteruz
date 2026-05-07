@@ -16,9 +16,10 @@ const DOCUMENTS_VERSION = '2026-05-08-legal'; // должна совпадать
  * Открыть юридический документ в отдельном окне браузера.
  * В Telegram Mini App используем WebApp.openLink(), иначе — window.open.
  * Без этого Link target=_blank просто навигирует под модалом, и пользователь ничего не видит.
+ * Добавляем v=DOCUMENTS_VERSION — cache-busting для внешнего браузера, чтобы он не показывал старый бандл.
  */
 function openDocument(path: string) {
-  const url = `${window.location.origin}${path}`;
+  const url = `${window.location.origin}${path}?v=${encodeURIComponent(DOCUMENTS_VERSION)}`;
   const tg = (window as any).Telegram?.WebApp;
   if (tg?.openLink) {
     tg.openLink(url, { try_instant_view: false });
