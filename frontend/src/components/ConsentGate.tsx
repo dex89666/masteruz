@@ -10,8 +10,8 @@ import { Link } from 'react-router-dom';
 import { ShieldCheck, FileText, Lock, ChevronDown } from 'lucide-react';
 import { api } from '../api/client';
 
-const STORAGE_KEY = 'masteruz-consent-v2';
-const DOCUMENTS_VERSION = '2026-05-06'; // должна совпадать с backend DOCUMENTS_VERSION
+const STORAGE_KEY = 'masteruz-consent-v3';
+const DOCUMENTS_VERSION = '2026-05-07'; // должна совпадать с backend DOCUMENTS_VERSION
 
 /**
  * Telegram user id из Mini App. Важно для изоляции согласий между пользователями:
