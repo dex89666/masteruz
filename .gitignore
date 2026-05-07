@@ -3,10 +3,20 @@ node_modules/
 dist/
 dist-vercel/
 build/
+
+# ── Переменные окружения (всё игнорируем, кроме *.example) ──
 .env
-.env.local
-.env.production
-.env.vercel
+.env.*
+!.env.example
+!.env.production.example
+!.env.vercel.example
+backend/.env
+backend/.env.*
+!backend/.env.example
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+
 *.log
 uploads/*
 !uploads/.gitkeep
@@ -24,4 +34,3 @@ backups/
 .vercel/
 .vite/
 .vercel
-.env*.local
