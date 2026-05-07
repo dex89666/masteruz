@@ -9,8 +9,8 @@ import { useEffect, useRef, useState } from 'react';
 import { ShieldCheck, FileText, Lock, ChevronDown } from 'lucide-react';
 import { api } from '../api/client';
 
-const STORAGE_KEY = 'masteruz-consent-v4';
-const DOCUMENTS_VERSION = '2026-05-07-rev2'; // должна совпадать с backend DOCUMENTS_VERSION
+const STORAGE_KEY = 'masteruz-consent-v5';
+const DOCUMENTS_VERSION = '2026-05-08-legal'; // должна совпадать с backend DOCUMENTS_VERSION
 
 /**
  * Открыть юридический документ в отдельном окне браузера.
