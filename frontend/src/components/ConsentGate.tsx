@@ -10,8 +10,8 @@ import { Link } from 'react-router-dom';
 import { ShieldCheck, FileText, Lock, ChevronDown } from 'lucide-react';
 import { api } from '../api/client';
 
-const STORAGE_KEY = 'masteruz-consent-v3';
-const DOCUMENTS_VERSION = '2026-05-07'; // должна совпадать с backend DOCUMENTS_VERSION
+const STORAGE_KEY = 'masteruz-consent-v4';
+const DOCUMENTS_VERSION = '2026-05-07-rev2'; // должна совпадать с backend DOCUMENTS_VERSION
 
 /**
  * Telegram user id из Mini App. Важно для изоляции согласий между пользователями:
@@ -202,10 +202,10 @@ export function ConsentGate({ children }: { children: React.ReactNode }) {
                 <FileText size={16} /> 5. Стоимость и комиссия
               </h3>
               <p>
-                Комиссия платформы — <b>15%</b> от завершённого заказа.
-                Регистрационный взнос мастера — <b>400 000 сум</b> единоразово.
-                Оплата: Click, Payme, Telegram Stars или наличные напрямую мастеру (с обязанностью
-                перевода комиссии платформе).
+                Платформа взимает комиссию за информационно-посреднические услуги в размере,
+                установленном в соответствии с законодательством Республики Узбекистан. Актуальный размер комиссии
+                и иных тарифов отображается в Платформе до подтверждения оплаты. Способы оплаты: Click, Payme, Telegram Stars
+                или наличные напрямую Мастеру (в этом случае Мастер обязан самостоятельно перечислить комиссию Платформе).
               </p>
             </section>
 
