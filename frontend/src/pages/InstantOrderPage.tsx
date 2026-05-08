@@ -432,7 +432,9 @@ export function InstantOrderPage() {
         }
       }
 
-      if (uploadedUrls.length === 0) {
+      // Если файлы были, но ни один не загрузился — это реальная ошибка сети.
+      // Если файлов изначально не было — это нормально, идём анализировать без фото.
+      if (uploadedUrls.length === 0 && imageFiles.length > 0) {
         toast.error('Не удалось загрузить фотографии. Проверьте соединение.');
         setStep('upload');
         setLoading(false);
