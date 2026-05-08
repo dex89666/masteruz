@@ -798,6 +798,9 @@ export interface AiAnalysisResult {
     nameEn: string | null;
     minPrice: number | null;
     estimatedTime: string | null;
+    categoryId?: string;
+    categoryName?: string;
+    subcategoryName?: string;
   }[];
 }
 

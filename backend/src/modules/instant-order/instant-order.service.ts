@@ -113,10 +113,15 @@ export class InstantOrderService {
     description?: string;
     voiceText?: string;
     categoryId?: string;
+    categoryIds?: string[];
     latitude?: number;
     longitude?: number;
   }) {
-    const { images, description, voiceText, categoryId } = data;
+    const { images, description, voiceText, categoryId, categoryIds } = data;
+    // Нормализуем явный выбор категорий: единый массив без дублей
+    const explicitIds = Array.from(
+      new Set([...(categoryIds || []), ...(categoryId ? [categoryId] : [])].filter(Boolean))
+    );
 
     if (!images || images.length === 0) {
       throw ApiError.badRequest('Необходимо загрузить хотя бы 1 фото');
@@ -128,55 +133,50 @@ export class InstantOrderService {
     // Объединяем описание из голоса и текста
     const combinedDescription = [voiceText, description].filter(Boolean).join('. ');
 
-    if (!combinedDescription && !categoryId) {
+    if (!combinedDescription && explicitIds.length === 0) {
       throw ApiError.badRequest('Опишите что нужно сделать (голосом или текстом) или выберите категорию');
     }
 
     // ═══════════════════════════════════════════════════════════════════
     // СТРАТЕГИЯ ОПРЕДЕЛЕНИЯ КАТЕГОРИЙ:
-    //  • categoryId передан       → одна выбранная категория
+    //  • explicitIds (массив) передан → клиент выбрал N категорий вручную
     //  • описание длинное и keyword-detect нашёл ≥1 → одна или несколько категорий
     //  • описание короткое/мутное → возвращаем уточняющие вопросы (без вариантов)
     //  • найдено 0 категорий       → возвращаем уточняющие вопросы
     // ═══════════════════════════════════════════════════════════════════
 
-    const allCategoriesActive = categoryId
-      ? null
-      : await prisma.category.findMany({
-          where: { isActive: true },
-          include: {
-            subcategories: {
-              where: { isActive: true },
-              include: {
-                tasks: { where: { isActive: true }, orderBy: { sortOrder: 'asc' } },
-              },
-            },
-          },
-        });
+    const categoryInclude = {
+      subcategories: {
+        where: { isActive: true },
+        include: {
+          tasks: { where: { isActive: true }, orderBy: { sortOrder: 'asc' as const } },
+        },
+      },
+    };
 
     let detectedCategories: any[] = [];
 
-    if (categoryId) {
-      const single = await prisma.category.findUnique({
-        where: { id: categoryId },
-        include: {
-          subcategories: {
-            where: { isActive: true },
-            include: {
-              tasks: { where: { isActive: true }, orderBy: { sortOrder: 'asc' } },
-            },
-          },
-        },
+    if (explicitIds.length > 0) {
+      const explicit = await prisma.category.findMany({
+        where: { id: { in: explicitIds }, isActive: true },
+        include: categoryInclude,
       });
-      if (single) detectedCategories = [single];
-    } else if (allCategoriesActive && combinedDescription) {
+      // Сохраняем порядок, в котором клиент перечислил категории
+      detectedCategories = explicitIds
+        .map((id) => explicit.find((c) => c.id === id))
+        .filter(Boolean) as any[];
+    } else if (combinedDescription) {
+      const allCategoriesActive = await prisma.category.findMany({
+        where: { isActive: true },
+        include: categoryInclude,
+      });
       detectedCategories = this.detectCategories(combinedDescription, allCategoriesActive);
     }
 
     // ─── Если ничего не нашли или описание мутное → задаём вопросы ───
     const needsClarification =
       detectedCategories.length === 0 ||
-      (combinedDescription.length < MIN_CLEAR_DESCRIPTION_LEN && !categoryId);
+      (combinedDescription.length < MIN_CLEAR_DESCRIPTION_LEN && explicitIds.length === 0);
 
     if (needsClarification) {
       logger.info(
@@ -211,8 +211,15 @@ export class InstantOrderService {
     // ─── Одна категория (классический путь) ─────────────────────────
     const category = detectedCategories[0];
 
-    // ─── Собираем все доступные задачи ─────
-    const allTasks = category.subcategories?.flatMap((sub: any) => sub.tasks || []) || [];
+    // ─── Собираем все доступные задачи (с инфо о подкатегории/категории) ─────
+    const allTasks = (category.subcategories || []).flatMap((sub: any) =>
+      (sub.tasks || []).map((t: any) => ({
+        ...t,
+        categoryId: category.id,
+        categoryName: category.name,
+        subcategoryName: sub.name,
+      }))
+    );
 
     if (allTasks.length === 0) {
       logger.warn({ categoryId: category.id, categoryName: category.name }, 'AI-анализ: в категории нет задач');
@@ -314,7 +321,7 @@ export class InstantOrderService {
         nameEn: category.nameEn,
         slug: category.slug,
       },
-      detectedFromPhoto: !categoryId,
+      detectedFromPhoto: explicitIds.length === 0,
       detectedCategories: [
         {
           id: category.id,
@@ -343,6 +350,9 @@ export class InstantOrderService {
         nameEn: t.nameEn,
         minPrice: t.minPrice,
         estimatedTime: t.estimatedTime,
+        categoryId: t.categoryId,
+        categoryName: t.categoryName,
+        subcategoryName: t.subcategoryName,
       })),
     };
   }
@@ -736,7 +746,16 @@ export class InstantOrderService {
       'AI-анализ: мульти-категория, сборка завершена'
     );
 
-    const allTasks = bundles.flatMap((b) => b.category.subcategories?.flatMap((s: any) => s.tasks || []) || []);
+    const allTasks = bundles.flatMap((b) =>
+      (b.category.subcategories || []).flatMap((s: any) =>
+        (s.tasks || []).map((t: any) => ({
+          ...t,
+          categoryId: b.category.id,
+          categoryName: b.category.name,
+          subcategoryName: s.name,
+        }))
+      )
+    );
 
     return {
       category: {
@@ -773,6 +792,9 @@ export class InstantOrderService {
         nameEn: t.nameEn,
         minPrice: t.minPrice,
         estimatedTime: t.estimatedTime,
+        categoryId: t.categoryId,
+        categoryName: t.categoryName,
+        subcategoryName: t.subcategoryName,
       })),
     };
   }

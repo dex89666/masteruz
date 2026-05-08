@@ -419,6 +419,7 @@ export const instantOrderApi = {
     description?: string;
     voiceText?: string;
     categoryId?: string;
+    categoryIds?: string[];
     latitude?: number;
     longitude?: number;
   }) => api.post<ApiResponse<any>>('/instant-order/analyze', data),

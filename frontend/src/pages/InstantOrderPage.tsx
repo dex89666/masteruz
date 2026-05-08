@@ -9,15 +9,16 @@ import { useState, useRef, useCallback, useEffect, type DragEvent } from 'react'
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import {
   Camera, Upload, Mic, MicOff, Sparkles, Zap, Star, Crown,
-  ChevronRight, ArrowLeft, MapPin, Calendar, AlertTriangle,
+  ChevronRight, ChevronDown, ArrowLeft, MapPin, Calendar, AlertTriangle,
   CheckCircle, Loader2, X, Package, Clock, Wallet, Image,
-  Plus, Trash2, Check,
+  Plus, Trash2, Check, ListChecks,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useTranslation } from '../i18n';
 import { useFormatPrice } from '../hooks';
 import { instantOrderApi, catalogApi, photosApi } from '../api/client';
 import type { AiAnalysisResult, AiOrderTemplate, Category } from '../types';
+import CategoryIcon from '../components/CategoryIcon';
 
 // ─── Tier configuration ──────────────────────
 const TIER_CONFIG = {
@@ -66,7 +67,7 @@ export function InstantOrderPage() {
   const [description, setDescription] = useState('');
   const [voiceText, setVoiceText] = useState('');
   const [isRecording, setIsRecording] = useState(false);
-  const [selectedCategoryId, setSelectedCategoryId] = useState('');
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -78,6 +79,9 @@ export function InstantOrderPage() {
   // AI result
   const [analysisResult, setAnalysisResult] = useState<AiAnalysisResult | null>(null);
   const [selectedVariant, setSelectedVariant] = useState<AiOrderTemplate | null>(null);
+
+  // Раскрытые карточки вариантов с подробным списком услуг
+  const [expandedVariants, setExpandedVariants] = useState<Record<string, boolean>>({});
 
   // Уточняющие вопросы (когда AI не смог точно определить характер работ)
   const [clarifyQuestions, setClarifyQuestions] = useState<import('../types').AiClarifyingQuestion[]>([]);
@@ -142,7 +146,7 @@ export function InstantOrderPage() {
           const catParam = searchParams.get('category');
           if (catParam) {
             const found = cats.find((c: Category) => c.id === catParam || (c as any).slug === catParam);
-            if (found) setSelectedCategoryId(found.id);
+            if (found) setSelectedCategoryIds([found.id]);
           }
         } else {
           console.warn('Категории не получены: пустой список', raw);
@@ -360,7 +364,7 @@ export function InstantOrderPage() {
 
   const handleAnalyze = async () => {
     if (images.length === 0) { toast.error('Загрузите хотя бы 1 фото'); return; }
-    if (!description && !voiceText && !selectedCategoryId) {
+    if (!description && !voiceText && selectedCategoryIds.length === 0) {
       toast.error('Опишите что нужно или выберите категорию'); return;
     }
 
@@ -412,7 +416,7 @@ export function InstantOrderPage() {
         images: uploadedUrls,
         description: description || undefined,
         voiceText: voiceText || undefined,
-        categoryId: selectedCategoryId || undefined,
+        categoryIds: selectedCategoryIds.length > 0 ? selectedCategoryIds : undefined,
       });
 
       const data = result.data.data;
@@ -764,16 +768,16 @@ export function InstantOrderPage() {
             <div
               ref={categorySectionRef}
               className={`bg-white dark:bg-gray-800 rounded-2xl p-5 md:p-6 shadow-sm border-2 transition-all ${
-                categoryRequired && !selectedCategoryId
+                categoryRequired && selectedCategoryIds.length === 0
                   ? 'border-red-500 ring-4 ring-red-500/20 animate-pulse'
                   : 'border-gray-200 dark:border-gray-700'
               }`}
             >
-              {categoryRequired && !selectedCategoryId && (
+              {categoryRequired && selectedCategoryIds.length === 0 && (
                 <div className="mb-4 flex items-start gap-3 rounded-xl border border-red-300 bg-red-50 dark:bg-red-900/20 dark:border-red-800 p-3">
                   <AlertTriangle size={20} className="text-red-500 shrink-0 mt-0.5" />
                   <div className="text-sm text-red-700 dark:text-red-300">
-                    <strong>ИИ не смог определить категорию.</strong> Отметьте подходящую галочкой ниже —
+                    <strong>ИИ не смог определить категорию.</strong> Отметьте одну или несколько подходящих галочек ниже —
                     это нужно для составления точной сметы.
                   </div>
                 </div>
@@ -782,13 +786,15 @@ export function InstantOrderPage() {
                 <h2 className="text-lg font-bold dark:text-white">
                   Категория{' '}
                   <span className="text-sm text-gray-400 font-normal">
-                    {selectedCategoryId ? '(выбрана)' : '(AI определит автоматически)'}
+                    {selectedCategoryIds.length > 0
+                      ? `(выбрано: ${selectedCategoryIds.length})`
+                      : '(AI определит автоматически)'}
                   </span>
                 </h2>
-                {selectedCategoryId && (
+                {selectedCategoryIds.length > 0 && (
                   <button
                     type="button"
-                    onClick={() => { setSelectedCategoryId(''); setCategoryRequired(false); }}
+                    onClick={() => { setSelectedCategoryIds([]); setCategoryRequired(false); }}
                     className="text-xs text-orange-600 hover:text-orange-700 font-semibold whitespace-nowrap"
                   >
                     Сбросить
@@ -796,7 +802,7 @@ export function InstantOrderPage() {
                 )}
               </div>
               <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
-                Можно оставить пусто — ИИ определит сам по фото и описанию. Или отметьте вручную для точности сметы.
+                Можно оставить пусто — ИИ определит сам по фото и описанию. Или отметьте <strong>несколько</strong> направлений для точности сметы.
               </p>
 
               {categories.length === 0 ? (
@@ -804,17 +810,19 @@ export function InstantOrderPage() {
               ) : (
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                   {categories.map((cat) => {
-                    const checked = selectedCategoryId === cat.id;
+                    const checked = selectedCategoryIds.includes(cat.id);
                     return (
                       <button
                         type="button"
                         key={cat.id}
                         onClick={() => {
-                          setSelectedCategoryId(checked ? '' : cat.id);
+                          setSelectedCategoryIds((prev) =>
+                            prev.includes(cat.id) ? prev.filter((x) => x !== cat.id) : [...prev, cat.id]
+                          );
                           setCategoryRequired(false);
                         }}
                         className={[
-                          'flex items-center gap-2 px-3 py-3 min-h-[52px] rounded-xl border-2 text-left transition-all',
+                          'flex items-center gap-2.5 px-3 py-3 min-h-[60px] rounded-xl border-2 text-left transition-all',
                           checked
                             ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20 shadow-md shadow-orange-500/20'
                             : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-orange-300 dark:hover:border-orange-700',
@@ -830,7 +838,7 @@ export function InstantOrderPage() {
                         >
                           {checked && <Check size={14} strokeWidth={3} />}
                         </span>
-                        <span className="text-base leading-none">{cat.icon}</span>
+                        <CategoryIcon name={cat.icon || 'Folder'} size="sm" />
                         <span
                           className={`text-sm font-medium line-clamp-2 ${
                             checked ? 'text-orange-700 dark:text-orange-300' : 'text-gray-700 dark:text-gray-200'
@@ -1185,6 +1193,85 @@ export function InstantOrderPage() {
                         </div>
                       </div>
                     )}
+
+                    {/* ─── Подробный список услуг (раскрывающийся) ─── */}
+                    {variant.taskIds && variant.taskIds.length > 0 && (() => {
+                      const tasksInVariant = (analysisResult.allTasks || []).filter((t) =>
+                        variant.taskIds.includes(t.id)
+                      );
+                      if (tasksInVariant.length === 0) return null;
+
+                      const isOpen = !!expandedVariants[variant.id];
+                      // Группируем по категории (для мульти-категорий)
+                      const grouped = tasksInVariant.reduce<Record<string, typeof tasksInVariant>>(
+                        (acc, t) => {
+                          const key = t.categoryName || 'Услуги';
+                          (acc[key] ||= []).push(t);
+                          return acc;
+                        },
+                        {}
+                      );
+
+                      return (
+                        <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setExpandedVariants((prev) => ({ ...prev, [variant.id]: !prev[variant.id] }));
+                            }}
+                            className="w-full flex items-center justify-between gap-2 text-left text-sm font-semibold text-gray-700 dark:text-gray-200 hover:text-orange-600 dark:hover:text-orange-400 transition-colors py-1"
+                          >
+                            <span className="flex items-center gap-2">
+                              <ListChecks size={16} className="text-orange-500" />
+                              Подробный список услуг ({tasksInVariant.length})
+                            </span>
+                            <ChevronDown
+                              size={18}
+                              className={`text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                            />
+                          </button>
+
+                          {isOpen && (
+                            <div
+                              onClick={(e) => e.stopPropagation()}
+                              className="mt-3 space-y-3 animate-fade-in"
+                            >
+                              {Object.entries(grouped).map(([catName, tasks]) => (
+                                <div key={catName}>
+                                  {Object.keys(grouped).length > 1 && (
+                                    <p className="text-xs font-bold text-orange-600 dark:text-orange-400 uppercase tracking-wide mb-1.5">
+                                      {catName}
+                                    </p>
+                                  )}
+                                  <ul className="space-y-1.5">
+                                    {tasks.map((t) => (
+                                      <li
+                                        key={t.id}
+                                        className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-200 bg-gray-50 dark:bg-gray-900/50 rounded-lg px-3 py-2"
+                                      >
+                                        <Check size={14} className="text-green-500 shrink-0 mt-0.5" strokeWidth={3} />
+                                        <div className="flex-1 min-w-0">
+                                          <p className="leading-snug">{t.name}</p>
+                                          {(t.subcategoryName || t.estimatedTime) && (
+                                            <p className="text-xs text-gray-400 mt-0.5">
+                                              {[t.subcategoryName, t.estimatedTime].filter(Boolean).join(' • ')}
+                                            </p>
+                                          )}
+                                        </div>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              ))}
+                              <p className="text-xs text-gray-500 dark:text-gray-400 italic pt-1">
+                                Все эти работы будут выполнены мастером по фиксированной цене.
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
 
                     <div className="mt-3 flex justify-end">
                       <span className="text-sm text-orange-500 font-semibold flex items-center gap-1 min-h-[44px] min-w-[44px] justify-center">

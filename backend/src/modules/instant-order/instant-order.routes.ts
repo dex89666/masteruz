@@ -17,6 +17,7 @@ const analyzeSchema = z.object({
   description: z.string().max(2000).optional(),
   voiceText: z.string().max(5000).optional(),
   categoryId: z.string().uuid().optional(),
+  categoryIds: z.array(z.string().uuid()).max(20).optional(),
   latitude: z.number().min(-90).max(90).optional(),
   longitude: z.number().min(-180).max(180).optional(),
 });
