@@ -104,6 +104,288 @@ function buildGenericClarifyingQuestions(): ClarifyingQuestion[] {
   ];
 }
 
+// ─── Конкретные вопросы по slug категории ──────
+// Цель: получить количественные параметры (м², точки, метры, кол-во) для расчёта объёма работ.
+const CATEGORY_QUESTION_BANK: Record<string, ClarifyingQuestion[]> = {
+  plumbing: [
+    {
+      id: 'plumbing_tasks',
+      type: 'multiselect',
+      question: 'Какие сантехнические работы нужны?',
+      options: [
+        { value: 'leak',         label: 'Устранить течь / протечку' },
+        { value: 'install_sink', label: 'Установить раковину / умывальник' },
+        { value: 'install_toilet', label: 'Установить / заменить унитаз' },
+        { value: 'install_faucet', label: 'Заменить смеситель / кран' },
+        { value: 'install_shower', label: 'Установить душевую кабину / поддон' },
+        { value: 'install_bath',   label: 'Установить ванну' },
+        { value: 'replace_pipes',  label: 'Заменить трубы (полная разводка)' },
+        { value: 'install_heater', label: 'Установить водонагреватель / бойлер' },
+        { value: 'unblock',        label: 'Прочистить засор' },
+      ],
+    },
+    {
+      id: 'plumbing_volume',
+      type: 'text',
+      question: 'Сколько точек / приборов нужно? И длина труб (если меняете)',
+      placeholder: 'Например: 1 раковина + 1 унитаз + замена 6 м труб',
+    },
+  ],
+  electrical: [
+    {
+      id: 'electrical_tasks',
+      type: 'multiselect',
+      question: 'Какие электромонтажные работы?',
+      options: [
+        { value: 'install_socket',  label: 'Установить / заменить розетки' },
+        { value: 'install_switch',  label: 'Установить / заменить выключатели' },
+        { value: 'install_light',   label: 'Подключить люстру / светильник' },
+        { value: 'wiring',          label: 'Полная замена проводки' },
+        { value: 'distribution',    label: 'Установить / заменить щит, автоматы' },
+        { value: 'troubleshoot',    label: 'Найти неисправность (КЗ, не работает)' },
+      ],
+    },
+    {
+      id: 'electrical_volume',
+      type: 'text',
+      question: 'Сколько точек (розетки + выключатели + светильники)?',
+      placeholder: 'Например: 8 розеток, 3 выключателя, 5 светильников',
+    },
+  ],
+  painting: [
+    {
+      id: 'painting_volume',
+      type: 'text',
+      question: 'Площадь окраски (м²) и тип поверхности',
+      placeholder: 'Например: стены 45 м² + потолок 18 м², побелка + покраска',
+    },
+    {
+      id: 'painting_finish',
+      type: 'select',
+      question: 'Что наносим?',
+      options: [
+        { value: 'paint',   label: 'Краска (водоэмульсионная / акрил)' },
+        { value: 'wallpaper', label: 'Обои' },
+        { value: 'plaster', label: 'Штукатурка / шпаклёвка' },
+        { value: 'decorative', label: 'Декоративная штукатурка / венецианка' },
+      ],
+    },
+  ],
+  'windows-doors': [
+    {
+      id: 'wd_count',
+      type: 'text',
+      question: 'Сколько окон / дверей и какие размеры?',
+      placeholder: 'Например: 3 пластиковых окна 1.5×1.4 м + 1 межкомнатная дверь',
+    },
+    {
+      id: 'wd_action',
+      type: 'select',
+      question: 'Что нужно сделать?',
+      options: [
+        { value: 'install', label: 'Установить новое' },
+        { value: 'replace', label: 'Заменить старое' },
+        { value: 'repair',  label: 'Отремонтировать (фурнитура, стеклопакет)' },
+      ],
+    },
+  ],
+  furniture: [
+    {
+      id: 'furniture_task',
+      type: 'select',
+      question: 'Что нужно с мебелью?',
+      options: [
+        { value: 'assemble', label: 'Собрать новую (из коробки)' },
+        { value: 'custom',   label: 'Изготовить на заказ' },
+        { value: 'repair',   label: 'Отремонтировать / реставрация' },
+        { value: 'kitchen',  label: 'Кухонный гарнитур (установка + подгонка)' },
+      ],
+    },
+    {
+      id: 'furniture_count',
+      type: 'text',
+      question: 'Сколько единиц мебели и габариты?',
+      placeholder: 'Например: 1 шкаф 2.4×0.6×2.5 м + кухня 4 пог. м',
+    },
+  ],
+  construction: [
+    {
+      id: 'construction_scope',
+      type: 'multiselect',
+      question: 'Какие строительные работы?',
+      options: [
+        { value: 'masonry',   label: 'Кладка стен / перегородок' },
+        { value: 'screed',    label: 'Стяжка пола' },
+        { value: 'plastering', label: 'Штукатурка стен' },
+        { value: 'demolition', label: 'Демонтаж старых конструкций' },
+        { value: 'insulation', label: 'Утепление' },
+        { value: 'capital',    label: 'Капитальный ремонт под ключ' },
+      ],
+    },
+    {
+      id: 'construction_area',
+      type: 'text',
+      question: 'Площадь и/или объём работ',
+      placeholder: 'Например: 60 м² квартира под ключ, или стяжка 25 м², или 12 м перегородок',
+    },
+  ],
+  carpentry: [
+    {
+      id: 'carpentry_area',
+      type: 'text',
+      question: 'Площадь пола (м²) и материал',
+      placeholder: 'Например: 35 м² ламината + плинтус по периметру',
+    },
+  ],
+  roofing: [
+    {
+      id: 'roofing_area',
+      type: 'text',
+      question: 'Площадь и тип кровли',
+      placeholder: 'Например: 80 м² металлочерепицы, скатная крыша 2 ската',
+    },
+    {
+      id: 'roofing_action',
+      type: 'select',
+      question: 'Что нужно сделать?',
+      options: [
+        { value: 'new',     label: 'Покрыть новую крышу' },
+        { value: 'replace', label: 'Заменить старое покрытие' },
+        { value: 'repair',  label: 'Отремонтировать (течь, локальный ремонт)' },
+      ],
+    },
+  ],
+  earthworks: [
+    {
+      id: 'earthworks_task',
+      type: 'select',
+      question: 'Какие земляные работы?',
+      options: [
+        { value: 'foundation_pit', label: 'Котлован под фундамент' },
+        { value: 'trench',         label: 'Траншея (под коммуникации)' },
+        { value: 'planning',       label: 'Планировка / выравнивание участка' },
+        { value: 'demolition',     label: 'Снос / разбор строений' },
+      ],
+    },
+    {
+      id: 'earthworks_volume',
+      type: 'text',
+      question: 'Объём (м³) или размеры (Д × Ш × Г)',
+      placeholder: 'Например: котлован 6×4×2 м, или 30 м³ грунта',
+    },
+  ],
+  garden: [
+    {
+      id: 'garden_task',
+      type: 'multiselect',
+      question: 'Что нужно сделать на участке?',
+      options: [
+        { value: 'lawn',     label: 'Газон (рулонный / посевной)' },
+        { value: 'planting', label: 'Посадка растений / деревьев' },
+        { value: 'paving',   label: 'Тротуарная плитка / дорожки' },
+        { value: 'fence',    label: 'Забор / ограждение' },
+        { value: 'irrigation', label: 'Система полива' },
+      ],
+    },
+    {
+      id: 'garden_area',
+      type: 'text',
+      question: 'Площадь участка (соток / м²)',
+      placeholder: 'Например: 6 соток, газон 200 м² + 30 м забора',
+    },
+  ],
+  cleaning: [
+    {
+      id: 'cleaning_type',
+      type: 'select',
+      question: 'Тип уборки',
+      options: [
+        { value: 'general', label: 'Генеральная уборка' },
+        { value: 'after_repair', label: 'После ремонта / стройки' },
+        { value: 'regular', label: 'Поддерживающая' },
+        { value: 'window', label: 'Мойка окон' },
+      ],
+    },
+    {
+      id: 'cleaning_area',
+      type: 'text',
+      question: 'Площадь помещения (м²)',
+      placeholder: 'Например: квартира 60 м², 2 комнаты',
+    },
+  ],
+  conditioner: [
+    {
+      id: 'conditioner_task',
+      type: 'select',
+      question: 'Что нужно с кондиционером?',
+      options: [
+        { value: 'install', label: 'Установить новый' },
+        { value: 'service', label: 'Обслуживание / заправка фреоном' },
+        { value: 'repair',  label: 'Ремонт' },
+        { value: 'dismantle', label: 'Демонтаж' },
+      ],
+    },
+    {
+      id: 'conditioner_count',
+      type: 'text',
+      question: 'Сколько штук и мощность (BTU)?',
+      placeholder: 'Например: 2 шт по 12000 BTU',
+    },
+  ],
+};
+
+/**
+ * Создаёт уточняющие вопросы под конкретные выбранные категории.
+ * Если категории не переданы — возвращает generic-вопросы.
+ */
+function buildClarifyingQuestionsFor(categories: { slug: string; name: string }[]): ClarifyingQuestion[] {
+  if (categories.length === 0) return buildGenericClarifyingQuestions();
+
+  const result: ClarifyingQuestion[] = [];
+  for (const cat of categories) {
+    const bank = CATEGORY_QUESTION_BANK[cat.slug];
+    if (!bank) continue;
+    // Префиксуем id и текст вопроса именем категории — если несколько направлений
+    for (const q of bank) {
+      result.push({
+        ...q,
+        id: `${cat.slug}__${q.id}`,
+        question: categories.length > 1 ? `[${cat.name}] ${q.question}` : q.question,
+      });
+    }
+  }
+
+  // Всегда финальный textarea на случай дополнительных пожеланий
+  result.push({
+    id: 'extra_details',
+    type: 'text',
+    question: 'Дополнительные пожелания / детали',
+    placeholder: 'Что важно учесть? Сроки, материалы, предпочтения по бренду…',
+  });
+
+  // Если ни для одной выбранной категории нет шаблона — фоллбек на generic
+  return result.length > 1 ? result : buildGenericClarifyingQuestions();
+}
+
+/**
+ * Проверяет, содержит ли описание конкретные количественные параметры:
+ * числа с единицами (м², м, шт, см, %), либо просто числа > 1 цифры.
+ * Если их нет — нужны уточнения по объёму.
+ */
+function descriptionHasMetrics(text: string): boolean {
+  if (!text) return false;
+  const lower = text.toLowerCase();
+  const patterns = [
+    /\d+\s?(?:м²|кв\.?\s?м|м2|м\^?2)/,        // м²
+    /\d+\s?(?:м3|м³|куб)/,                     // м³
+    /\d+\s?(?:шт|штук|пог\.?\s?м|пм|метр)/,   // штуки, погонные
+    /\d+\s?(?:см|мм)/,                         // см / мм
+    /\d{2,}/,                                  // любые числа от 10
+    /(?:^|\s)[2-9]\s+(?:розет|выключ|окн|двер|комнат|светильник|точк|раковин|унитаз|смесител|шкаф|ламп)/i,
+  ];
+  return patterns.some((re) => re.test(lower));
+}
+
 export class InstantOrderService {
   /**
    * AI-анализ фотографий и описания → 3 варианта (Good / Better / Best)
@@ -124,7 +406,11 @@ export class InstantOrderService {
     );
 
     if (!images || images.length === 0) {
-      throw ApiError.badRequest('Необходимо загрузить хотя бы 1 фото');
+      // Разрешаем без фото — если есть описание или выбраны категории
+      const hasContext = (description?.length || 0) >= 5 || (voiceText?.length || 0) >= 5 || explicitIds.length > 0;
+      if (!hasContext) {
+        throw ApiError.badRequest('Добавьте фото, описание или выберите категорию');
+      }
     }
     if (images.length > 10) {
       throw ApiError.badRequest('Максимум 10 фотографий');
@@ -173,24 +459,37 @@ export class InstantOrderService {
       detectedCategories = this.detectCategories(combinedDescription, allCategoriesActive);
     }
 
-    // ─── Если ничего не нашли или описание мутное → задаём вопросы ───
+    // ─── Когда нужны уточнения ──────────────────────
+    // 1) Категории не определены вообще
+    // 2) Описание слишком короткое и нет явного выбора категорий
+    // 3) Категории выбраны (явно или авто), но в описании нет конкретных метрик
+    //    (м², шт, объём) — без них точную смету не построить
+    const hasMetrics = descriptionHasMetrics(combinedDescription);
     const needsClarification =
       detectedCategories.length === 0 ||
-      (combinedDescription.length < MIN_CLEAR_DESCRIPTION_LEN && explicitIds.length === 0);
+      (combinedDescription.length < MIN_CLEAR_DESCRIPTION_LEN && explicitIds.length === 0) ||
+      (detectedCategories.length > 0 && !hasMetrics);
 
     if (needsClarification) {
       logger.info(
-        { descriptionLen: combinedDescription.length, detected: detectedCategories.length },
+        {
+          descriptionLen: combinedDescription.length,
+          detected: detectedCategories.length,
+          hasMetrics,
+          explicit: explicitIds.length,
+        },
         'AI-анализ: недостаточно деталей → возвращаем уточняющие вопросы'
       );
       return {
         needsClarification: true,
-        clarifyingQuestions: buildGenericClarifyingQuestions(),
+        clarifyingQuestions: buildClarifyingQuestionsFor(
+          detectedCategories.map((c: any) => ({ slug: c.slug, name: c.name }))
+        ),
         message:
           detectedCategories.length === 0
             ? 'Не удалось точно определить характер работ. Ответьте на пару вопросов — соберём точную смету.'
-            : 'Опишите задачу подробнее, чтобы смета была точной.',
-        partialMatches: detectedCategories.slice(0, 5).map((c: any) => ({
+            : 'Чтобы рассчитать стоимость точно, уточните объём работ (площадь, количество, метраж).',
+        partialMatches: detectedCategories.slice(0, 8).map((c: any) => ({
           id: c.id,
           name: c.name,
           slug: c.slug,

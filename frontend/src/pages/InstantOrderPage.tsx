@@ -385,9 +385,14 @@ export function InstantOrderPage() {
   };
 
   const handleAnalyze = async () => {
-    if (images.length === 0) { toast.error('Загрузите хотя бы 1 фото'); return; }
-    if (!description && !voiceText && selectedCategoryIds.length === 0) {
-      toast.error('Опишите что нужно или выберите категорию'); return;
+    const hasContext =
+      images.length > 0 ||
+      description.trim().length > 0 ||
+      voiceText.trim().length > 0 ||
+      selectedCategoryIds.length > 0;
+    if (!hasContext) {
+      toast.error('Загрузите фото, опишите задачу или выберите категорию');
+      return;
     }
 
     setLoading(true);
@@ -640,10 +645,10 @@ export function InstantOrderPage() {
 
             {/* ─── Photo zone ─── */}
             <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 md:p-6 shadow-sm border border-gray-200 dark:border-gray-700">
-              <h2 className="text-lg md:text-xl font-bold mb-4 dark:text-white flex items-center gap-2">
+              <h2 className="text-lg md:text-xl font-bold mb-4 dark:text-white flex items-center gap-2 flex-wrap">
                 <Camera size={22} className="text-orange-500" />
                 Загрузите фото проблемы
-                <span className="text-sm text-gray-400 font-normal">(до 10 шт.)</span>
+                <span className="text-sm text-gray-400 font-normal">(до 10 шт., необязательно)</span>
               </h2>
 
               {/* Photo previews grid */}
@@ -924,7 +929,13 @@ export function InstantOrderPage() {
             {/* ─── Analyze button ─── */}
             <button
               onClick={handleAnalyze}
-              disabled={images.length === 0 || loading}
+              disabled={
+                loading ||
+                (images.length === 0 &&
+                  description.trim().length === 0 &&
+                  voiceText.trim().length === 0 &&
+                  selectedCategoryIds.length === 0)
+              }
               className="w-full min-h-[60px] md:min-h-[64px] bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-2xl font-bold text-lg md:text-xl flex items-center justify-center gap-3 hover:from-orange-600 hover:to-amber-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-xl shadow-orange-500/25"
             >
               <Sparkles size={24} />
