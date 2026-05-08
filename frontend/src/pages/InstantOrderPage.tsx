@@ -138,7 +138,29 @@ export function InstantOrderPage() {
         const active = flat.filter((c) => c.isActive !== false);
         const withSubs = active.filter((c) => Array.isArray(c.subcategories) && c.subcategories.length > 0);
         const withParent = active.filter((c) => c.parentId);
-        const cats = withSubs.length > 0 ? withSubs : (withParent.length > 0 ? withParent : active);
+        const picked = withSubs.length > 0 ? withSubs : (withParent.length > 0 ? withParent : active);
+
+        // ─── Дедупликация: API может вернуть и parent, и child с тем же slug/именем ───
+        // Приоритет: top-level категории (без parentId), затем по сумме подкатегорий.
+        const seen = new Map<string, any>();
+        for (const c of picked) {
+          const key = (c.slug || c.name || '').toString().toLowerCase().trim();
+          if (!key) continue;
+          const existing = seen.get(key);
+          if (!existing) {
+            seen.set(key, c);
+            continue;
+          }
+          // Если уже есть запись — оставляем ту, что лучше: top-level > больше подкатегорий
+          const curSubs = (c.subcategories || []).length;
+          const oldSubs = (existing.subcategories || []).length;
+          const curIsRoot = !c.parentId;
+          const oldIsRoot = !existing.parentId;
+          if ((curIsRoot && !oldIsRoot) || (curIsRoot === oldIsRoot && curSubs > oldSubs)) {
+            seen.set(key, c);
+          }
+        }
+        const cats = Array.from(seen.values());
 
         if (cats.length > 0) {
           setCategories(cats);
