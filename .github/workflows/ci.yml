@@ -1,0 +1,92 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend-test:
+    name: Backend (TS + vitest)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: masteruz_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 10s
+          --health-timeout 5s --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 10s
+          --health-timeout 5s --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+      - name: Install
+        working-directory: backend
+        run: npm ci
+      - name: Generate Prisma client
+        working-directory: backend
+        run: npx prisma generate
+      - name: TypeScript check
+        working-directory: backend
+        run: npx tsc --noEmit
+      - name: Unit tests
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://postgres:test@localhost:5432/masteruz_test
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET: test-secret-only-for-ci
+          JWT_REFRESH_SECRET: test-refresh-secret-only-for-ci
+          NODE_ENV: test
+        run: npm test --if-present
+
+  frontend-build:
+    name: Frontend (TS + build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install
+        working-directory: frontend
+        run: npm ci
+      - name: TypeScript check
+        working-directory: frontend
+        run: npx tsc --noEmit
+      - name: Production build
+        working-directory: frontend
+        env:
+          VITE_API_URL: /api
+          VITE_TELEGRAM_BOT_NAME: Handymanuzbot
+        run: npm run build
+
+  npm-audit:
+    name: npm audit (informational)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Backend audit
+        working-directory: backend
+        run: npm audit --audit-level=high || true
+      - name: Frontend audit
+        working-directory: frontend
+        run: npm audit --audit-level=high || true

@@ -89,8 +89,13 @@ if (!isVercelEnv) {
 }
 
 // CORS
+const corsOrigins = config.corsOrigin.split(',').map(s => s.trim()).filter(Boolean);
+// Защита: в проде запрещаем wildcard '*' — иначе браузеры с credentials отправят токены кому угодно.
+if (config.env === 'production' && (corsOrigins.includes('*') || corsOrigins.length === 0)) {
+  throw new Error('FATAL: CORS_ORIGIN не должен быть пустым или "*" в production');
+}
 app.use(cors({
-  origin: config.corsOrigin.split(','),
+  origin: corsOrigins,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],

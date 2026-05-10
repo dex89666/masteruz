@@ -1,0 +1,10 @@
+Contact: mailto:security@masteruz.com
+Contact: https://t.me/Handymanuzbot?start=security
+Expires: 2027-12-31T23:59:59.000Z
+Preferred-Languages: ru, uz, en
+Canonical: https://masteruz.com/.well-known/security.txt
+Policy: https://masteruz.com/security-policy
+
+# Спасибо за ответственное раскрытие уязвимостей.
+# Опишите проблему максимально подробно, по возможности с PoC.
+# Мы отвечаем в течение 72 часов и публично благодарим reporter'ов.

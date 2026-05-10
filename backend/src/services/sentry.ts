@@ -5,7 +5,9 @@
 
 import * as Sentry from '@sentry/node';
 
-const dsn = process.env.SENTRY_DSN;
+// __SET_ME__ — placeholder для незаполненных env (не считаем активным)
+const rawDsn = process.env.SENTRY_DSN;
+const dsn = rawDsn && rawDsn !== '__SET_ME__' && rawDsn.startsWith('http') ? rawDsn : undefined;
 
 export const sentryEnabled = !!dsn;
 

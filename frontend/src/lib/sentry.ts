@@ -5,7 +5,8 @@
 
 import * as Sentry from '@sentry/react';
 
-const dsn = import.meta.env.VITE_SENTRY_DSN as string | undefined;
+const rawDsn = import.meta.env.VITE_SENTRY_DSN as string | undefined;
+const dsn = rawDsn && rawDsn !== '__SET_ME__' && rawDsn.startsWith('http') ? rawDsn : undefined;
 
 export const sentryEnabled = !!dsn;
 

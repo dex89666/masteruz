@@ -5,7 +5,7 @@ import { validateQuery } from '../../middleware/validate.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { moderateMessage, censorMessage } from '../chat/chatModeration.js';
 import { logger } from '../../utils/logger.js';
-import { upload, saveUploadedFile } from '../../middleware/upload.js';
+import { upload, saveUploadedFile, verifyFileMagic } from '../../middleware/upload.js';
 import { z } from 'zod';
 
 const router = Router();
@@ -88,7 +88,7 @@ router.get('/topics/:id', validateQuery(forumPaginationSchema), async (req: Requ
 });
 
 // ─── Создать тему (POST /api/forum/topics) — только мастера ───
-router.post('/topics', upload.array('images', 5), async (req: Request, res: Response, next: NextFunction) => {
+router.post('/topics', upload.array('images', 5), verifyFileMagic, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.user!.userId;
     const { title, content } = req.body;
@@ -141,7 +141,7 @@ router.post('/topics', upload.array('images', 5), async (req: Request, res: Resp
 });
 
 // ─── Ответ в теме (POST /api/forum/topics/:id/posts) — только мастера ───
-router.post('/topics/:id/posts', upload.array('images', 5), async (req: Request, res: Response, next: NextFunction) => {
+router.post('/topics/:id/posts', upload.array('images', 5), verifyFileMagic, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.user!.userId;
     const { id: topicId } = req.params;

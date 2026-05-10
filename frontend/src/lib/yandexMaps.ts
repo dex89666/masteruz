@@ -17,7 +17,8 @@ export function loadYandexMaps(): Promise<any> {
   if (loaderPromise) return loaderPromise;
 
   loaderPromise = new Promise((resolve, reject) => {
-    const apiKey = import.meta.env.VITE_YANDEX_MAPS_KEY || '';
+    const rawKey = import.meta.env.VITE_YANDEX_MAPS_KEY || '';
+    const apiKey = rawKey === '__SET_ME__' ? '' : rawKey;
     const existing = document.querySelector<HTMLScriptElement>('script[data-ymaps-loader]');
     if (existing) {
       existing.addEventListener('load', () => window.ymaps.ready(() => resolve(window.ymaps)));

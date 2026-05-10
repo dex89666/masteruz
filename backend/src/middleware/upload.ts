@@ -62,6 +62,47 @@ export const upload = multer({
 });
 
 /**
+ * Проверка магических байтов (защита от подмены типа: переименованный .php в .jpg).
+ * Возвращает true, если первые байты соответствуют заявленному mime.
+ */
+function isMagicBytesValid(buffer: Buffer, mime: string): boolean {
+  if (buffer.length < 4) return false;
+  const sig = buffer.subarray(0, 12);
+  if (mime === 'image/jpeg') return sig[0] === 0xff && sig[1] === 0xd8 && sig[2] === 0xff;
+  if (mime === 'image/png') return sig[0] === 0x89 && sig[1] === 0x50 && sig[2] === 0x4e && sig[3] === 0x47;
+  if (mime === 'image/webp')
+    return sig[0] === 0x52 && sig[1] === 0x49 && sig[2] === 0x46 && sig[3] === 0x46
+      && sig[8] === 0x57 && sig[9] === 0x45 && sig[10] === 0x42 && sig[11] === 0x50;
+  if (mime === 'application/pdf') return sig[0] === 0x25 && sig[1] === 0x50 && sig[2] === 0x44 && sig[3] === 0x46;
+  return false;
+}
+
+/**
+ * Middleware: после multer проверяет magic-bytes (защита от поддельных типов).
+ * Использовать ПОСЛЕ upload.single/array.
+ */
+export function verifyFileMagic(req: any, _res: any, next: any) {
+  const files: Express.Multer.File[] = req.files
+    ? (Array.isArray(req.files) ? req.files : Object.values(req.files).flat() as any)
+    : (req.file ? [req.file] : []);
+  for (const f of files) {
+    let buf: Buffer | null = null;
+    if (f.buffer) buf = f.buffer;
+    else if (f.path) {
+      try { buf = fs.readFileSync(f.path).subarray(0, 16); } catch { /* skip */ }
+    }
+    if (!buf || !isMagicBytesValid(buf, f.mimetype)) {
+      // Удаляем подозрительный файл с диска
+      if (f.path && fs.existsSync(f.path)) {
+        try { fs.unlinkSync(f.path); } catch { /* ignore */ }
+      }
+      return next(new ApiError(400, 'Файл повреждён или его тип не соответствует расширению'));
+    }
+  }
+  next();
+}
+
+/**
  * Утилита: загрузить файл в Vercel Blob (для serverless)
  * На VPS — возвращает локальный путь
  */

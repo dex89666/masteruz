@@ -7,7 +7,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { prisma } from '../../config/database.js';
 import { authenticate } from '../../middleware/auth.js';
 import { ApiError } from '../../utils/ApiError.js';
-import { upload, saveUploadedFile } from '../../middleware/upload.js';
+import { upload, saveUploadedFile, verifyFileMagic } from '../../middleware/upload.js';
 
 const router = Router();
 
@@ -15,7 +15,7 @@ const router = Router();
  * POST /photos/upload — загрузка фото (FormData, поле 'photo')
  * Возвращает { url: string }
  */
-router.post('/upload', authenticate, upload.single('photo'), async (req: Request, res: Response, next: NextFunction) => {
+router.post('/upload', authenticate, upload.single('photo'), verifyFileMagic, async (req: Request, res: Response, next: NextFunction) => {
   try {
     if (!req.file) {
       throw ApiError.badRequest('Файл не найден. Используйте поле "photo"');

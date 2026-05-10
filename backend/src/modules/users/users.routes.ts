@@ -7,7 +7,7 @@ import { Router } from 'express';
 import { usersController } from './users.controller.js';
 import { authenticate } from '../../middleware/auth.js';
 import { validateBody } from '../../middleware/validate.js';
-import { upload } from '../../middleware/upload.js';
+import { upload, verifyFileMagic } from '../../middleware/upload.js';
 import {
   updateProfileSchema,
   createMasterProfileSchema,
@@ -47,7 +47,7 @@ router.put('/master-categories', validateBody(updateMasterCategoriesSchema), (re
 );
 
 // Сертификаты
-router.post('/certificates', upload.single('file'), (req, res, next) =>
+router.post('/certificates', upload.single('file'), verifyFileMagic, (req, res, next) =>
   usersController.uploadCertificate(req, res, next)
 );
 
