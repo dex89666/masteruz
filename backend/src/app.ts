@@ -62,8 +62,18 @@ const app = express();
 
 // ─── Глобальные Middleware ─────────────────────
 
-// Безопасность
-app.use(helmet());
+// Доверие к прокси Railway/Vercel/Nginx — иначе req.ip = адрес прокси,
+// и rate-limiter забанит ВСЕХ пользователей разом. 'loopback, linklocal, uniquelocal'
+// доверяет только internal-адресам Railway, не подделке X-Forwarded-For извне.
+app.set('trust proxy', 'loopback, linklocal, uniquelocal');
+
+// Безопасность: HSTS на год + усиленные заголовки
+app.use(helmet({
+  contentSecurityPolicy: false, // SPA + Yandex Maps + Telegram WebApp — отключаем CSP, чтобы не ломать встроенные виджеты
+  crossOriginEmbedderPolicy: false,
+  hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+}));
 
 // Сжатие ответов — только на VPS (Vercel CDN сжимает сам на edge)
 const isVercelEnv = process.env.VERCEL === '1' || process.env.VERCEL === 'true';
@@ -460,11 +470,17 @@ if (!isVercelEnv && process.env.NODE_ENV !== 'test') {
         logger.error({ err: seedErr }, '⚠️ Auto-seed каталога не удался — продолжаем запуск');
       }
 
-      app.listen(config.port, config.host, () => {
+      const server = app.listen(config.port, config.host, () => {
         logger.info(`🚀 MasterUz Backend запущен на ${config.host}:${config.port}`);
         logger.info(`📝 Среда: ${config.env}`);
         logger.info(`🔗 API: http://${config.host}:${config.port}/api`);
       });
+      // KeepAlive за load-balancer'ом Railway/Cloudflare: keepAliveTimeout > idle прокси,
+      // headersTimeout > keepAliveTimeout. Иначе клиент получает 502 при reuse соединения.
+      server.keepAliveTimeout = 65_000;
+      server.headersTimeout = 70_000;
+      // Долгие операции (импорт каталога, отчёты) — до 60с, остальное по умолчанию
+      server.requestTimeout = 60_000;
 
       // Фоновая задача: авто-отмена «зависших» заказов с возвратом эскроу
       startAutoCancellationJob();

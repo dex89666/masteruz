@@ -57,14 +57,19 @@ export function verifyTelegramAuth(data: TelegramAuthData): boolean {
     .update(dataCheckString)
     .digest('hex');
 
-  // Проверка давности авторизации (не старше 24 часов)
+  // Проверка давности авторизации (не старше 3 часов — защита от replay-атак)
   const authTimestamp = data.auth_date;
   const currentTimestamp = Math.floor(Date.now() / 1000);
-  if (currentTimestamp - authTimestamp > 86400) {
+  if (currentTimestamp - authTimestamp > 10800) {
     return false;
   }
 
-  return hmac === hash;
+  // Constant-time compare — защита от timing-атак
+  try {
+    return crypto.timingSafeEqual(Buffer.from(hmac, 'hex'), Buffer.from(hash, 'hex'));
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -96,12 +101,19 @@ export function verifyTelegramMiniApp(initData: string): TelegramMiniAppInitData
       .update(dataCheckString)
       .digest('hex');
 
-    if (computedHash !== hash) return null;
+    // Constant-time compare — защита от timing-атак
+    try {
+      const a = Buffer.from(computedHash, 'hex');
+      const b = Buffer.from(hash, 'hex');
+      if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+    } catch {
+      return null;
+    }
 
-    // Проверка свежести auth_date (не старше 24 часов — защита от replay-атак)
+    // Проверка свежести auth_date (не старше 3 часов — защита от replay-атак)
     const authDate = parseInt(urlParams.get('auth_date') || '0', 10);
     const now = Math.floor(Date.now() / 1000);
-    if (now - authDate > 86400) return null;
+    if (now - authDate > 10800) return null;
 
     // Парсим данные пользователя
     const userStr = urlParams.get('user');
