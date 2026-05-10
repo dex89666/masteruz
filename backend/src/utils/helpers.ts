@@ -12,11 +12,13 @@ import { config } from '../config/index.js';
 Decimal.set({ precision: 20, rounding: Decimal.ROUND_HALF_EVEN });
 
 /**
- * Проверка суперадмина по username (из env SUPER_ADMIN_USERNAMES)
+ * Проверка суперадмина по username (из env SUPER_ADMIN_USERNAMES).
+ * Telegram usernames регистронезависимые — сравниваем lowercase.
  */
 export function isSuperAdmin(username: string | null | undefined): boolean {
   if (!username) return false;
-  return config.superAdminUsernames.includes(username);
+  const normalized = username.replace(/^@/, '').toLowerCase();
+  return config.superAdminUsernames.some(u => u.replace(/^@/, '').toLowerCase() === normalized);
 }
 
 /**
