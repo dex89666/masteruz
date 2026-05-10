@@ -60,6 +60,16 @@ export const assignMasterSchema = z.object({
 
 export const updateStatusSchema = z.object({
   status: z.enum(['ACCEPTED', 'IN_TRANSIT', 'IN_PROGRESS']),
+  // Текущие координаты мастера — для геофенс-проверки при IN_PROGRESS
+  latitude: z.number().min(-90).max(90).optional(),
+  longitude: z.number().min(-180).max(180).optional(),
+});
+
+export const masterLocationSchema = z.object({
+  latitude: z.number().min(-90).max(90),
+  longitude: z.number().min(-180).max(180),
+  heading: z.number().min(0).max(360).optional(),
+  speed: z.number().min(0).max(500).optional(),
 });
 
 export const cancelOrderSchema = z.object({

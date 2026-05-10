@@ -12,6 +12,7 @@ import { PhotoGallery } from '../components/PhotoGallery';
 import { GuaranteeWidget } from '../components/GuaranteeWidget';
 import { MasterCard } from '../components/MasterCard';
 import { OrderTimeline } from '../components/OrderTimeline';
+import { OrderRouteMap } from '../components/OrderRouteMap';
 import { Breadcrumbs } from '../components/Breadcrumbs';
 import { OrderDetailSkeleton } from '../components/PageSkeletons';
 import { CommissionPaymentModal } from '../components/CommissionPaymentModal';
@@ -19,6 +20,7 @@ import AutoCancelCountdown from '../components/AutoCancelCountdown';
 import { useAuthStore } from '../store';
 import { useFormatPrice } from '../hooks';
 import { useOrderEvents } from '../hooks/useOrderEvents';
+import { useMasterLocationBroadcast } from '../hooks/useMasterLocationBroadcast';
 import { useTranslation } from '../i18n';
 import {
   MapPin, Clock, DollarSign, User, Phone,
@@ -63,6 +65,11 @@ export function OrderDetailPage() {
   const [editingAdminComment, setEditingAdminComment] = useState(false);
   const [adminCommentDraft, setAdminCommentDraft] = useState('');
 
+  // Live-локация мастера (для клиента — приходит по SSE)
+  const [masterLive, setMasterLive] = useState<{ lat: number; lng: number } | null>(null);
+  // Подтверждение прибытия в процессе (показываем спиннер)
+  const [arriving, setArriving] = useState(false);
+
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'MANAGER';
   const isMaster = user?.role === 'MASTER';
   const isClient = user?.role === 'CLIENT';
@@ -86,8 +93,16 @@ export function OrderDetailPage() {
   }, [id]);
 
   // SSE real-time обновления — при любом событии перезагружаем заказ + показываем уведомление
-  const handleOrderEvent = useCallback((event: string) => {
+  const handleOrderEvent = useCallback((event: string, data: Record<string, unknown>) => {
     if (!id) return;
+    if (event === 'master_location') {
+      const lat = Number(data.latitude);
+      const lng = Number(data.longitude);
+      if (Number.isFinite(lat) && Number.isFinite(lng)) {
+        setMasterLive({ lat, lng });
+      }
+      return;
+    }
     loadOrder();
     // Показываем попап при подтверждении другой стороной
     if (event === 'master_confirmed' && isOwner) {
@@ -108,6 +123,15 @@ export function OrderDetailPage() {
     orderId: id,
     enabled: !loading && !!order,
     onEvent: handleOrderEvent,
+  });
+
+  // Мастер транслирует свою позицию во время доставки
+  useMasterLocationBroadcast({
+    orderId: id,
+    enabled:
+      !!order &&
+      isAssignedMaster &&
+      (order.status === 'ACCEPTED' || order.status === 'IN_TRANSIT'),
   });
 
   async function loadOrder() {
@@ -155,13 +179,49 @@ export function OrderDetailPage() {
   }
 
   // ─── Мастер обновляет статус ──────────────
+  // Для перехода IN_TRANSIT → IN_PROGRESS («Я приехал») запрашиваем геолокацию
+  // и шлём на бэк для геофенс-проверки (расстояние до точки заказа).
   async function handleUpdateStatus(newStatus: string) {
+    const needsGeofence = newStatus === 'IN_PROGRESS';
+
+    let coords: { latitude: number; longitude: number } | undefined;
+    if (needsGeofence) {
+      if (!navigator.geolocation) {
+        toast.error('Геолокация недоступна на этом устройстве');
+        return;
+      }
+      setArriving(true);
+      try {
+        coords = await new Promise<{ latitude: number; longitude: number }>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+            (err) => reject(err),
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+          );
+        });
+      } catch (geoErr: any) {
+        setArriving(false);
+        toast.error(
+          geoErr?.code === 1
+            ? 'Разрешите доступ к геолокации, чтобы подтвердить прибытие'
+            : 'Не удалось получить вашу геопозицию'
+        );
+        return;
+      }
+    }
+
     try {
-      await ordersApi.updateStatus(id!, newStatus);
+      await ordersApi.updateStatus(id!, newStatus, coords);
       toast.success(t('antiFraud.statusUpdated'));
       loadOrder();
     } catch (error: any) {
-      toast.error(error.response?.data?.message || t('common.error'));
+      const msg =
+        error.response?.data?.error?.message ||
+        error.response?.data?.message ||
+        t('common.error');
+      toast.error(msg, { duration: 6000 });
+    } finally {
+      setArriving(false);
     }
   }
 
@@ -551,6 +611,40 @@ export function OrderDetailPage() {
         </div>
       )}
 
+      {/* Live-карта для клиента: мастер в пути */}
+      {isOwner &&
+        order.masterId &&
+        order.latitude &&
+        order.longitude &&
+        (order.status === 'ACCEPTED' || order.status === 'IN_TRANSIT') && (
+          <div className="card mb-4 border-2 border-indigo-300 dark:border-indigo-700 bg-indigo-50/40 dark:bg-indigo-900/10">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-xl bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center">
+                <Truck size={20} className="text-indigo-600 dark:text-indigo-400" />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-900 dark:text-white">
+                  {order.status === 'IN_TRANSIT' ? 'Мастер уже в пути' : 'Мастер скоро выедет'}
+                </h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {masterLive
+                    ? 'Точка обновляется в реальном времени'
+                    : 'Когда мастер начнёт движение, его позиция появится на карте'}
+                </p>
+              </div>
+            </div>
+            <OrderRouteMap
+              orderLat={order.latitude}
+              orderLng={order.longitude}
+              masterLat={masterLive?.lat}
+              masterLng={masterLive?.lng}
+              height={240}
+              showActions={false}
+              orderLabel="Адрес заказа"
+            />
+          </div>
+        )}
+
       {/* ═══════ КНОПКИ ДЕЙСТВИЙ МАСТЕРА ═══════ */}
 
       {/* Мастер: ACCEPTED → В пути */}
@@ -572,21 +666,18 @@ export function OrderDetailPage() {
             <Truck size={18} />
             {t('antiFraud.iAmOnMyWay')}
           </button>
-          {/* Кнопка навигации */}
+          {/* Встроенная карта с маршрутом и кнопками навигаторов */}
           {order.latitude && order.longitude && (
-            <a
-              href={`yandexnavi://build_route_on_map?lat_to=${order.latitude}&lon_to=${order.longitude}`}
-              onClick={() => {
-                // Fallback для устройств без Яндекс.Навигатора
-                setTimeout(() => {
-                  window.open(`https://yandex.ru/maps/?rtext=~${order.latitude},${order.longitude}&rtt=auto`, '_blank');
-                }, 500);
-              }}
-              className="w-full mt-2 py-3 rounded-xl font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-900/30 hover:bg-indigo-200 dark:hover:bg-indigo-900/50 transition-all flex items-center justify-center gap-2 border border-indigo-200 dark:border-indigo-700"
-            >
-              <Navigation size={18} />
-              Открыть навигатор
-            </a>
+            <div className="mt-4">
+              <OrderRouteMap
+                orderLat={order.latitude}
+                orderLng={order.longitude}
+                myLat={masterLive?.lat}
+                myLng={masterLive?.lng}
+                height={220}
+                orderLabel={[order.city, order.district, order.street].filter(Boolean).join(', ') || order.address || 'Адрес заказа'}
+              />
+            </div>
           )}
         </div>
       )}
@@ -601,29 +692,31 @@ export function OrderDetailPage() {
             <div className="flex-1">
               <h3 className="font-bold text-gray-900 dark:text-white">{t('antiFraud.arrivedAtClient')}</h3>
               <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">{t('antiFraud.arrivedDesc')}</p>
+              <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">
+                ⚠️ Нажать можно только на месте заказа (радиус 500 м)
+              </p>
             </div>
           </div>
           <button
             onClick={() => handleUpdateStatus('IN_PROGRESS')}
-            className="w-full mt-4 py-3 rounded-xl font-semibold text-white bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 transition-all flex items-center justify-center gap-2"
+            disabled={arriving}
+            className="w-full mt-4 py-3 rounded-xl font-semibold text-white bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 disabled:opacity-60 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
           >
             <CheckCircle size={18} />
-            {t('antiFraud.startWork')}
+            {arriving ? 'Проверяем вашу позицию…' : t('antiFraud.startWork')}
           </button>
-          {/* Кнопка навигации */}
+          {/* Встроенная карта */}
           {order.latitude && order.longitude && (
-            <a
-              href={`yandexnavi://build_route_on_map?lat_to=${order.latitude}&lon_to=${order.longitude}`}
-              onClick={() => {
-                setTimeout(() => {
-                  window.open(`https://yandex.ru/maps/?rtext=~${order.latitude},${order.longitude}&rtt=auto`, '_blank');
-                }, 500);
-              }}
-              className="w-full mt-2 py-3 rounded-xl font-semibold text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-900/30 hover:bg-purple-200 dark:hover:bg-purple-900/50 transition-all flex items-center justify-center gap-2 border border-purple-200 dark:border-purple-700"
-            >
-              <Navigation size={18} />
-              Открыть навигатор
-            </a>
+            <div className="mt-4">
+              <OrderRouteMap
+                orderLat={order.latitude}
+                orderLng={order.longitude}
+                myLat={masterLive?.lat}
+                myLng={masterLive?.lng}
+                height={220}
+                orderLabel={[order.city, order.district, order.street].filter(Boolean).join(', ') || order.address || 'Адрес заказа'}
+              />
+            </div>
           )}
         </div>
       )}

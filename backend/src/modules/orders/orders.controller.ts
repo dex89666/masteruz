@@ -67,12 +67,28 @@ export class OrdersController {
   /** PUT /api/orders/:id/status — Мастер обновляет статус (ACCEPTED→IN_TRANSIT→IN_PROGRESS) */
   async updateStatus(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
+      const { status, latitude, longitude } = req.body;
       const order = await ordersService.updateOrderStatus(
         req.params.id,
         req.user!.userId,
-        req.body.status
+        status,
+        { latitude, longitude }
       );
       res.json({ success: true, data: order });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /** POST /api/orders/:id/master-location — live-позиция мастера (IN_TRANSIT) */
+  async masterLocation(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const result = await ordersService.broadcastMasterLocation(
+        req.params.id,
+        req.user!.userId,
+        req.body
+      );
+      res.json({ success: true, data: result });
     } catch (error) {
       next(error);
     }

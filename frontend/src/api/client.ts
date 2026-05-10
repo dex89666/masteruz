@@ -169,8 +169,12 @@ export const ordersApi = {
     api.put<ApiResponse<any>>(`/orders/${id}/assign`, { masterId }),
 
   // Мастер обновляет статус: ACCEPTED → IN_TRANSIT → IN_PROGRESS
-  updateStatus: (id: string, status: string) =>
-    api.put<ApiResponse<any>>(`/orders/${id}/status`, { status }),
+  updateStatus: (id: string, status: string, coords?: { latitude: number; longitude: number }) =>
+    api.put<ApiResponse<any>>(`/orders/${id}/status`, { status, ...(coords ?? {}) }),
+
+  // Live-позиция мастера в режиме доставки
+  masterLocation: (id: string, data: { latitude: number; longitude: number; heading?: number; speed?: number }) =>
+    api.post<ApiResponse<any>>(`/orders/${id}/master-location`, data),
 
   // Двойное подтверждение завершения
   masterConfirm: (id: string) =>

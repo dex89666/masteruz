@@ -7,7 +7,8 @@ export type OrderEvent =
   | 'master_confirmed'
   | 'client_confirmed'
   | 'order_completed'
-  | 'master_assigned';
+  | 'master_assigned'
+  | 'master_location';
 
 interface UseOrderEventsOptions {
   orderId: string | undefined;
@@ -71,6 +72,7 @@ export function useOrderEvents({ orderId, enabled = true, onEvent }: UseOrderEve
       'client_confirmed',
       'order_completed',
       'master_assigned',
+      'master_location',
     ];
 
     for (const eventType of eventTypes) {

@@ -572,7 +572,12 @@ export class OrdersService {
   /**
    * Мастер обновляет статус: ACCEPTED → IN_TRANSIT → IN_PROGRESS
    */
-  async updateOrderStatus(orderId: string, masterId: string, newStatus: string) {
+  async updateOrderStatus(
+    orderId: string,
+    masterId: string,
+    newStatus: string,
+    masterCoords?: { latitude?: number; longitude?: number }
+  ) {
     const order = await prisma.order.findUnique({ where: { id: orderId } });
     if (!order) throw ApiError.notFound('Заказ не найден');
     if (order.masterId !== masterId) throw ApiError.forbidden('Вы не назначены на этот заказ');
@@ -587,6 +592,29 @@ export class OrdersService {
       throw ApiError.badRequest(
         `Нельзя перевести из ${order.status} в ${newStatus}. Допустимые: ${allowedNext.join(', ')}`
       );
+    }
+
+    // ─── Гео-фенс при «Я приехал» (IN_TRANSIT → IN_PROGRESS) ───
+    // Не даём подтвердить «приехал», если мастер дальше 500м от точки заказа
+    if (newStatus === 'IN_PROGRESS' && order.latitude && order.longitude) {
+      if (masterCoords?.latitude == null || masterCoords?.longitude == null) {
+        throw ApiError.badRequest(
+          'Чтобы подтвердить прибытие, разрешите доступ к геолокации'
+        );
+      }
+      const distanceKm = calculateDistance(
+        order.latitude,
+        order.longitude,
+        masterCoords.latitude,
+        masterCoords.longitude
+      );
+      const ARRIVAL_RADIUS_KM = 0.5; // 500 м
+      if (distanceKm > ARRIVAL_RADIUS_KM) {
+        const meters = Math.round(distanceKm * 1000);
+        throw ApiError.badRequest(
+          `Вы в ${meters} м от точки заказа. Подойдите ближе (до 500 м), чтобы подтвердить прибытие.`
+        );
+      }
     }
 
     const updateData: any = { status: newStatus as OrderStatus };
@@ -616,6 +644,49 @@ export class OrdersService {
     });
 
     return updatedOrder;
+  }
+
+  /**
+   * Live-позиция мастера во время доставки (IN_TRANSIT)
+   * Эмитит SSE-событие master_location клиенту/всем подписчикам заказа.
+   * НЕ записываем в БД — только в eventBus (мгновенный broadcast).
+   */
+  async broadcastMasterLocation(
+    orderId: string,
+    masterId: string,
+    coords: { latitude: number; longitude: number; heading?: number; speed?: number }
+  ) {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: { id: true, masterId: true, status: true, latitude: true, longitude: true },
+    });
+    if (!order) throw ApiError.notFound('Заказ не найден');
+    if (order.masterId !== masterId) throw ApiError.forbidden('Вы не назначены на этот заказ');
+
+    // Live-трансляция имеет смысл только в активной фазе
+    const liveStatuses = new Set(['ACCEPTED', 'IN_TRANSIT', 'IN_PROGRESS']);
+    if (!liveStatuses.has(order.status)) {
+      return { broadcast: false, status: order.status };
+    }
+
+    // Расстояние до точки заказа — приходит вместе с позицией для UX-индикатора
+    const distanceKm =
+      order.latitude && order.longitude
+        ? calculateDistance(order.latitude, order.longitude, coords.latitude, coords.longitude)
+        : null;
+
+    eventBus.emit(orderId, 'master_location', {
+      orderId,
+      masterId,
+      latitude: coords.latitude,
+      longitude: coords.longitude,
+      heading: coords.heading,
+      speed: coords.speed,
+      distanceKm,
+      timestamp: new Date().toISOString(),
+    });
+
+    return { broadcast: true, distanceKm };
   }
 
   /**
