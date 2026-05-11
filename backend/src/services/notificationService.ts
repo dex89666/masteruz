@@ -222,6 +222,11 @@ export class NotificationService {
       // 1) Если у заказа есть гео — приоритет ближайшим, но город-фолбэк тоже
       // 2) Если у заказа есть город (без гео) — по городу (с нормализацией)
       // 3) Если ни гео ни города — отправляем ВСЕМ (до 50)
+      //
+      // ВАЖНО: мастер по категории УЖЕ матчится строго. Если у мастера нет
+      // координат и нет совпадения по городу — мы всё равно его включаем
+      // (без отметки расстояния). Лучше уведомить, чем молчать: мастер сам
+      // решит брать заказ или нет, увидев адрес.
       let filteredMasters;
       if (orderHasGeo) {
         filteredMasters = mastersWithDistance
@@ -230,14 +235,20 @@ export class NotificationService {
               const maxKm = m.masterProfile?.maxDistanceKm || 30;
               return m.distance <= maxKm;
             }
-            // У мастера нет координат — фолбэк на город
-            return !orderCityKey || normCity(m.profile?.city) === orderCityKey;
+            // У мастера нет координат — пропускаем дальше (city-проверка опциональна)
+            if (!orderCityKey) return true;
+            const masterCity = normCity(m.profile?.city);
+            // Если у мастера город не указан или совпадает — включаем
+            return !masterCity || masterCity === orderCityKey;
           })
-          .sort((a, b) => (a.distance ?? 999) - (b.distance ?? 999))
+          .sort((a, b) => (a.distance ?? 9999) - (b.distance ?? 9999))
           .slice(0, 50);
       } else if (order.city) {
         filteredMasters = mastersWithDistance
-          .filter((m) => normCity(m.profile?.city) === orderCityKey)
+          .filter((m) => {
+            const masterCity = normCity(m.profile?.city);
+            return !masterCity || masterCity === orderCityKey;
+          })
           .slice(0, 50);
       } else {
         // Нет ни гео ни города — отправляем всем

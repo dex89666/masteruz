@@ -6,6 +6,7 @@
 import { prisma } from '../../config/database.js';
 import { calculateDistance } from '../../utils/helpers.js';
 import { OrderStatus } from '@prisma/client';
+import { config } from '../../config/index.js';
 
 export class GeoService {
   /**
@@ -129,19 +130,26 @@ export class GeoService {
   }
 
   /**
-   * Геокодинг адреса (через Yandex Maps Geocoder API)
+   * Геокодинг адреса через Yandex Geocoder API.
+   * Возвращает {latitude, longitude} или null при отсутствии ключа/ответа.
    */
   async geocodeAddress(address: string): Promise<{ latitude: number; longitude: number } | null> {
+    const apiKey = config.yandexMaps?.apiKey;
+    if (!apiKey || !address?.trim()) return null;
     try {
-      // В реальном проекте — вызов Yandex Geocoder API
-      // const response = await fetch(
-      //   `https://geocode-maps.yandex.ru/1.x/?apikey=${config.yandexMaps.apiKey}&geocode=${encodeURIComponent(address)}&format=json`
-      // );
-      // const data = await response.json();
-      // Парсинг координат из ответа...
-
-      // Заглушка для разработки
-      return null;
+      const url = `https://geocode-maps.yandex.ru/1.x/?apikey=${apiKey}&geocode=${encodeURIComponent(address)}&format=json&results=1&lang=ru_RU`;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const _fetch = (globalThis as any).fetch as (u: string) => Promise<{ ok: boolean; json: () => Promise<any> }>;
+      const res = await _fetch(url);
+      if (!res.ok) return null;
+      const data = await res.json();
+      const point: string | undefined = data?.response?.GeoObjectCollection?.featureMember?.[0]?.GeoObject?.Point?.pos;
+      if (!point) return null;
+      const [lonStr, latStr] = point.split(' ');
+      const longitude = parseFloat(lonStr);
+      const latitude = parseFloat(latStr);
+      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+      return { latitude, longitude };
     } catch {
       return null;
     }

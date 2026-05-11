@@ -7,6 +7,8 @@ import { prisma } from '../../config/database.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { UserRole } from '@prisma/client';
 import type { UpdateProfileInput, CreateMasterProfileInput, UpdateMasterProfileInput, UpdateMasterCategoriesInput } from './users.schema.js';
+import { geoService } from '../geo/geo.service.js';
+import { logger } from '../../utils/logger.js';
 
 export class UsersService {
   /**
@@ -24,6 +26,21 @@ export class UsersService {
       });
     }
 
+    // Авто-геокодинг: если пришёл адрес/город, но координат нет — пробуем
+    // получить их через Yandex Geocoder. Это критично для уведомлений мастеров:
+    // фильтр по гео работает только при наличии latitude/longitude в профиле.
+    let { latitude, longitude } = data;
+    if ((latitude == null || longitude == null) && (data.address || data.city || data.district)) {
+      const addressParts = [data.district, data.city, data.address].filter(Boolean);
+      const fullAddress = addressParts.join(', ');
+      const geocoded = await geoService.geocodeAddress(fullAddress);
+      if (geocoded) {
+        latitude = geocoded.latitude;
+        longitude = geocoded.longitude;
+        logger.info({ userId, fullAddress, latitude, longitude }, 'Адрес геокодирован при обновлении профиля');
+      }
+    }
+
     // Обновляем UserProfile
     const profile = await prisma.userProfile.upsert({
       where: { userId },
@@ -31,8 +48,8 @@ export class UsersService {
         firstName: data.firstName,
         lastName: data.lastName,
         bio: data.bio,
-        latitude: data.latitude,
-        longitude: data.longitude,
+        latitude,
+        longitude,
         address: data.address,
         city: data.city,
         district: data.district,
@@ -42,8 +59,8 @@ export class UsersService {
         firstName: data.firstName || 'Пользователь',
         lastName: data.lastName,
         bio: data.bio,
-        latitude: data.latitude,
-        longitude: data.longitude,
+        latitude,
+        longitude,
         address: data.address,
         city: data.city,
         district: data.district,
