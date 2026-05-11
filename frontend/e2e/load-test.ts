@@ -4,7 +4,7 @@
 // Запуск: node --import=tsx e2e/load-test.ts
 // ============================================
 
-const API_URL = process.env.E2E_API_URL || 'https://masteruz-ecru.vercel.app/api';
+const API_URL = process.env.E2E_API_URL || 'https://masteruz.uz/api';
 
 interface Result {
   endpoint: string;

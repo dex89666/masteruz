@@ -11,13 +11,9 @@ import { ApiError } from '../../utils/ApiError.js';
 import { logger } from '../../utils/logger.js';
 
 // ─── Папка хранения ───
-// На serverless (Vercel) /var/task read-only — пишем в /tmp (ephemeral, но
-// хотя бы не падаем 500). На VPS/Railway — рядом с backend/data.
-// TODO: вынести в Postgres, чтобы данные не терялись на холодном старте Vercel.
-const isServerless = process.env.VERCEL === '1' || process.env.VERCEL === 'true' || process.env.AWS_LAMBDA_FUNCTION_NAME;
-const DATA_DIR = isServerless
-  ? path.join('/tmp', 'masteruz-data')
-  : path.resolve(process.cwd(), 'data');
+// Railway: persistent volume рядом с backend/data.
+// TODO: вынести в Postgres.
+const DATA_DIR = path.resolve(process.cwd(), 'data');
 
 const FILES = {
   clients: path.join(DATA_DIR, 'clients.json'),

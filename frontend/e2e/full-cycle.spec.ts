@@ -5,7 +5,7 @@
 
 import { test, expect, type Page } from '@playwright/test';
 
-const BASE_URL = process.env.E2E_BASE_URL || 'https://masteruz-ecru.vercel.app';
+const BASE_URL = process.env.E2E_BASE_URL || 'https://masteruz.uz';
 const API_URL = process.env.E2E_API_URL || `${BASE_URL}/api`;
 
 // ─── Helpers ─────────────────────────────────

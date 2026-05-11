@@ -2,7 +2,7 @@
 
 > Полнофункциональная экосистема-посредник для соединения клиентов с мастерами ремонтно-строительных услуг в Узбекистане. Включает веб-приложение, Telegram Mini App, админ-панель, эскроу-платежи, систему оценки, партнёрские магазины и ремонт под ключ.
 
-**Продакшен:** [masteruz-ecru.vercel.app](https://masteruz-ecru.vercel.app) · **Telegram Bot:** [@Handymanuzbot](https://t.me/Handymanuzbot)
+**Продакшен:** [masteruz.uz](https://masteruz.uz) · **Telegram Bot:** [@Handymanuzbot](https://t.me/Handymanuzbot)
 
 ---
 
@@ -69,7 +69,7 @@ MasterUz — это маркетплейс бытовых услуг, объед
           │                  │                    │
           ▼                  ▼                    ▼
 ┌──────────────────────────────────────────────────────────────┐
-│  Vercel Edge / Nginx Reverse Proxy (SSL, Gzip, Rate Limit)  │
+│  Nginx Reverse Proxy / Railway Edge (SSL, Gzip, Rate Limit) │
 └───────────────────────────┬──────────────────────────────────┘
                             │
 ┌───────────────────────────▼──────────────────────────────────┐
@@ -104,8 +104,8 @@ MasterUz — это маркетплейс бытовых услуг, объед
          ▼             ▼                  ▼
 ┌──────────────┐ ┌───────────┐  ┌─────────────────────┐
 │ PostgreSQL   │ │   Redis   │  │ File Storage        │
-│ (Neon / 16)  │ │(Upstash/  │  │ (Disk / Vercel Blob)│
-│ Prisma ORM   │ │ ioredis)  │  │                     │
+│ (Railway/16) │ │(ioredis)  │  │ (Volume / Disk)     │
+│ Prisma ORM   │ │           │  │                     │
 │ 35 моделей   │ │ JWT revoke│  │ JPEG/PNG/WebP/PDF   │
 │ 12 enum      │ │ + cache   │  │ до 5MB × 5 файлов   │
 └──────────────┘ └───────────┘  └─────────────────────┘
@@ -410,7 +410,7 @@ npm install rate-limit-redis
 | **TypeScript** | 5.3 | Типизация |
 | **Prisma ORM** | 5.10 | ORM + миграции + seed |
 | **PostgreSQL** | 15/16 | Основная БД |
-| **Redis** | 7 | Кеш + JWT blacklist (Upstash REST / ioredis TCP / in-memory) |
+| **Redis** | 7 | Кеш + JWT blacklist (ioredis TCP / in-memory) |
 | **Zod** | 3.22 | Валидация входных данных |
 | **jsonwebtoken** | 9.0 | JWT access + refresh tokens |
 | **bcryptjs** | 2.4 | Хеширование паролей |
@@ -440,13 +440,13 @@ npm install rate-limit-redis
 
 | Технология | Назначение |
 |-----------|------------|
-| **Vercel** | Основной продакшен-деплой (Serverless) |
+| **Railway** | Основной продакшен-деплой (Docker) |
 | **Docker + Docker Compose** | Альтернативный деплой (VPS) |
 | **Nginx** | Reverse proxy + SSL (VPS) |
 | **Let's Encrypt + Certbot** | SSL-сертификаты (VPS) |
 | **GitHub Actions** | CI/CD: тесты → Docker build → деплой |
-| **Neon PostgreSQL** | Serverless PostgreSQL (Vercel) |
-| **Upstash Redis** | Serverless Redis (Vercel) |
+| **Railway PostgreSQL** | Managed PostgreSQL |
+| **Railway Redis** | Managed Redis |
 
 ---
 
@@ -961,9 +961,7 @@ In-app + Telegram Bot push (sendMessage + sendLocation). Уведомление 
 | **Click** | Платёжная система Узбекистана: генерация URL + webhook (MD5 подпись) |
 | **Payme** | Платёжная система Узбекистана: JSON-RPC (CheckPerform, Create, Perform, Cancel) |
 | **Yandex Maps API** | Геокодинг, карты |
-| **Neon PostgreSQL** | Serverless PostgreSQL для Vercel |
-| **Upstash Redis** | Serverless Redis для Vercel (REST API) |
-| **Vercel Blob** | Загрузка файлов в serverless |
+| **Railway** | Hosting + Managed PostgreSQL + Redis |
 | **GitHub Actions** | CI/CD пайплайн |
 | **GHCR** | Docker-образы (ghcr.io) |
 | **Let's Encrypt** | SSL-сертификаты (VPS) |
@@ -974,15 +972,14 @@ In-app + Telegram Bot push (sendMessage + sendLocation). Уведомление 
 
 ### Два режима деплоя
 
-#### 1. Vercel (Serverless) — основной продакшен
+#### 1. Railway (Docker) — основной продакшен
 
 ```
-vercel.json → api/index.ts (serverless function)
-├── Frontend: статика из frontend/dist
-├── Backend: Express в serverless function (maxDuration: 30s)
-├── БД: Neon PostgreSQL (serverless)
-├── Redis: Upstash (REST API)
-└── Файлы: Vercel Blob
+Railway Project
+├── Backend service (Docker, Node.js + Express, persistent volume)
+├── Frontend service (Nginx статика)
+├── PostgreSQL 16 (managed)
+└── Redis 7 (managed)
 ```
 
 #### 2. Docker + VPS (Self-hosted)
@@ -1481,8 +1478,6 @@ npm run dev              # → http://localhost:5173
 
 ```
 MasterUz/
-├── api/                         # Vercel serverless entry
-│   └── index.ts                 # Express → serverless adapter
 ├── backend/                     # Серверная часть
 │   ├── prisma/
 │   │   ├── schema.prisma        # 35 моделей, 13 enum
@@ -1491,8 +1486,8 @@ MasterUz/
 │   ├── src/
 │   │   ├── app.ts               # Express entry: routes, middleware, CORS
 │   │   ├── config/
-│   │   │   ├── database.ts      # Prisma singleton + Neon adapter
-│   │   │   ├── redis.ts         # Upstash REST / ioredis / in-memory
+│   │   │   ├── database.ts      # Prisma singleton
+│   │   │   ├── redis.ts         # ioredis / in-memory
 │   │   │   └── index.ts         # Все переменные окружения
 │   │   ├── middleware/
 │   │   │   ├── auth.ts          # JWT authenticate, authorize, optionalAuth
@@ -1575,9 +1570,7 @@ MasterUz/
 │       └── deploy.yml           # CI/CD: test → build → deploy
 ├── docker-compose.yml           # Dev: postgres + redis + backend + frontend
 ├── docker-compose.prod.yml      # Prod: + nginx + certbot + SSL
-├── vercel.json                  # Vercel serverless конфигурация
-├── DEPLOY.md                    # Инструкция деплоя (VPS)
-├── DEPLOY-VERCEL.md             # Инструкция деплоя (Vercel)
+├── DEPLOY.md                    # Инструкция деплоя (VPS / Railway)
 └── README.md                    # Этот файл
 ```
 
@@ -1610,7 +1603,7 @@ MasterUz/
 | `NODE_ENV` | `production` | Окружение |
 | `JWT_EXPIRES_IN` | `7d` | Срок access token |
 | `JWT_REFRESH_EXPIRES_IN` | `30d` | Срок refresh token |
-| `REDIS_URL` | — | Redis (Upstash или ioredis) |
+| `REDIS_URL` | — | Redis (ioredis URL) |
 | `REDIS_PASSWORD` | — | Пароль Redis (prod) |
 | `YANDEX_MAPS_API_KEY` | — | Yandex Maps |
 | `UPLOAD_DIR` | `/app/uploads` | Директория загрузок |
@@ -1619,15 +1612,6 @@ MasterUz/
 | `MASTER_REGISTRATION_FEE` | `400000` | Регистрационный взнос мастера (тийины) |
 | `ADMIN_TELEGRAM_CHAT_ID` | — | Chat ID для уведомлений администратору |
 | `VITE_API_URL` | `/api` | API URL для фронтенда |
-
-### Serverless-only (Vercel)
-
-| Переменная | Описание |
-|-----------|----------|
-| `UPSTASH_REDIS_REST_URL` | Upstash Redis REST URL |
-| `UPSTASH_REDIS_REST_TOKEN` | Upstash Redis REST токен |
-| `BLOB_READ_WRITE_TOKEN` | Vercel Blob Storage токен |
-| `IMGBB_API_KEY` | ImgBB API-ключ (резервный хостинг картинок) |
 
 ### CI/CD секреты (GitHub)
 

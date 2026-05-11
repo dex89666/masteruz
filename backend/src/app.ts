@@ -62,7 +62,7 @@ const app = express();
 
 // ─── Глобальные Middleware ─────────────────────
 
-// Доверие к прокси Railway/Vercel/Nginx — иначе req.ip = адрес прокси,
+// Доверие к прокси Railway/Nginx — иначе req.ip = адрес прокси,
 // и rate-limiter забанит ВСЕХ пользователей разом. 'loopback, linklocal, uniquelocal'
 // доверяет только internal-адресам Railway, не подделке X-Forwarded-For извне.
 app.set('trust proxy', 'loopback, linklocal, uniquelocal');
@@ -75,18 +75,15 @@ app.use(helmet({
   referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
 }));
 
-// Сжатие ответов — только на VPS (Vercel CDN сжимает сам на edge)
-const isVercelEnv = process.env.VERCEL === '1' || process.env.VERCEL === 'true';
-if (!isVercelEnv) {
-  app.use(compression({
-    level: 6,
-    threshold: 1024, // Сжимаем ответы > 1KB
-    filter: (req, res) => {
-      if (req.headers['x-no-compression']) return false;
-      return compression.filter(req, res);
-    },
-  }));
-}
+// Сжатие ответов
+app.use(compression({
+  level: 6,
+  threshold: 1024, // Сжимаем ответы > 1KB
+  filter: (req, res) => {
+    if (req.headers['x-no-compression']) return false;
+    return compression.filter(req, res);
+  },
+}));
 
 // CORS
 const corsOrigins = config.corsOrigin.split(',').map(s => s.trim()).filter(Boolean);
@@ -106,9 +103,8 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-// Rate Limiting — только для VPS/Docker (на Vercel MemoryStore сбрасывается между cold starts;
-// в test-окружении отключаем, чтобы интеграционные тесты не били о лимиты и не зависели от Redis)
-if (!isVercelEnv && process.env.NODE_ENV !== 'test') {
+// Rate Limiting (в test-окружении отключаем, чтобы интеграционные тесты не били о лимиты)
+if (process.env.NODE_ENV !== 'test') {
   // ─── Redis-backed store (общий для всех воркеров, переживает рестарт) ───
   // Если Redis недоступен — fallback на MemoryStore (с предупреждением)
   let redisStoreFactory: ((prefix: string) => Store | undefined) | null = null;
@@ -214,129 +210,10 @@ if (!isVercelEnv && process.env.NODE_ENV !== 'test') {
     },
   });
   app.use('/api/stores/partner-request', partnerRequestLimiter);
-} else {
-  // ─── Vercel: Upstash Rate Limit (serverless-совместимый) ───
-  // Работает через Upstash REST API, не требует TCP-соединений
-  if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
-    // Динамический импорт — вызывается один раз при первом cold start
-    let globalRL: any = null;
-    let authRL: any = null;
-    let financeRL: any = null;
-
-    const initUpstashRL = async () => {
-      if (globalRL) return;
-      try {
-        const { Ratelimit } = await import('@upstash/ratelimit');
-
-        const upstashRedisForRL = {
-          url: process.env.UPSTASH_REDIS_REST_URL!,
-          token: process.env.UPSTASH_REDIS_REST_TOKEN!,
-        };
-
-        // Глобальный лимит: 1000 запросов / 15 минут (SPA делает 5-10 вызовов/страницу)
-        globalRL = new Ratelimit({
-          redis: upstashRedisForRL as any,
-          limiter: Ratelimit.slidingWindow(1000, '15 m'),
-          prefix: 'rl:global',
-          analytics: false,
-        });
-
-        // Auth лимит: 10 запросов / 15 минут
-        authRL = new Ratelimit({
-          redis: upstashRedisForRL as any,
-          limiter: Ratelimit.slidingWindow(10, '15 m'),
-          prefix: 'rl:auth',
-          analytics: false,
-        });
-
-        // Финансовый лимит: 30 запросов / 15 минут
-        financeRL = new Ratelimit({
-          redis: upstashRedisForRL as any,
-          limiter: Ratelimit.slidingWindow(30, '15 m'),
-          prefix: 'rl:finance',
-          analytics: false,
-        });
-      } catch (err) {
-        logger.error({ err }, 'Failed to init Upstash Rate Limit');
-      }
-    };
-
-    // Middleware для Vercel rate limiting — auth (только login-эндпоинты)
-    app.use('/api/auth', async (req, res, next) => {
-      try {
-        // /auth/me, /auth/switch-role, /auth/refresh — не считаются login-попытками
-        const path = req.path;
-        if (path === '/me' || path === '/switch-role' || path === '/refresh') return next();
-
-        await initUpstashRL();
-        if (!authRL) return next();
-        const ip = req.headers['x-forwarded-for']?.toString().split(',')[0] || req.ip || 'unknown';
-        const { success, remaining } = await authRL.limit(ip);
-        res.setHeader('X-RateLimit-Remaining', remaining.toString());
-        if (!success) {
-          return res.status(429).json({
-            success: false,
-            error: { message: 'Слишком много попыток входа, попробуйте позже', statusCode: 429 },
-          });
-        }
-        next();
-      } catch {
-        next();
-      }
-    });
-
-    // Middleware для Vercel rate limiting — финансовые эндпоинты
-    const financeRLMiddleware = async (req: any, res: any, next: any) => {
-      try {
-        await initUpstashRL();
-        if (!financeRL) return next();
-        const ip = req.headers['x-forwarded-for']?.toString().split(',')[0] || req.ip || 'unknown';
-        const { success, remaining } = await financeRL.limit(ip);
-        res.setHeader('X-RateLimit-Remaining', remaining.toString());
-        if (!success) {
-          return res.status(429).json({
-            success: false,
-            error: { message: 'Превышен лимит финансовых операций', statusCode: 429 },
-          });
-        }
-        next();
-      } catch {
-        next();
-      }
-    };
-    app.use('/api/payments', financeRLMiddleware);
-    app.use('/api/balance', financeRLMiddleware);
-
-    // Middleware для Vercel rate limiting — global
-    app.use('/api/', async (req, res, next) => {
-      try {
-        await initUpstashRL();
-        if (!globalRL) return next();
-        const ip = req.headers['x-forwarded-for']?.toString().split(',')[0] || req.ip || 'unknown';
-        const { success, remaining } = await globalRL.limit(ip);
-        res.setHeader('X-RateLimit-Remaining', remaining.toString());
-        if (!success) {
-          return res.status(429).json({
-            success: false,
-            error: { message: 'Слишком много запросов, попробуйте позже', statusCode: 429 },
-          });
-        }
-        next();
-      } catch {
-        next(); // Если Upstash недоступен — пропускаем
-      }
-    });
-
-    logger.info('Rate Limiting: Upstash mode (Vercel serverless)');
-  } else {
-    logger.warn('Vercel: UPSTASH_REDIS_REST_URL not set — rate limiting disabled');
-  }
 }
 
-// Статические файлы (загрузки) — только для VPS/Docker
-if (!isVercelEnv) {
-  app.use('/uploads', express.static(path.resolve(config.upload.dir)));
-}
+// Статические файлы (загрузки)
+app.use('/uploads', express.static(path.resolve(config.upload.dir)));
 
 // Request logging (dev only)
 if (config.env === 'development') {
@@ -427,7 +304,7 @@ app.get('/api/health', async (_req, res) => {
       timestamp: new Date().toISOString(),
       version: '1.0.0',
       environment: config.env,
-      runtime: isVercelEnv ? 'vercel-serverless' : 'node',
+      runtime: 'node',
       services: {
         database: dbStatus,
         redis: redisStatus,
@@ -454,8 +331,8 @@ app.use(errorHandler);
 
 // ─── Запуск сервера ────────────────────────────
 
-if (!isVercelEnv && process.env.NODE_ENV !== 'test') {
-  // Обычный запуск (VPS / Docker / локальная разработка)
+if (process.env.NODE_ENV !== 'test') {
+  // Обычный запуск (Railway / VPS / Docker / локальная разработка)
   async function bootstrap() {
     try {
       await prisma.$connect();

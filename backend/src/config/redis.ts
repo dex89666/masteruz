@@ -1,6 +1,6 @@
 // ============================================
-// MasterUz — Redis Client (Serverless-совместимый)
-// Поддерживает: Upstash REST (Vercel) + ioredis (VPS) + in-memory (dev)
+// MasterUz — Redis Client
+// Поддерживает: ioredis (Railway/VPS) + in-memory (dev)
 // ============================================
 
 import { config } from './index.js';
@@ -24,47 +24,12 @@ let redis: RedisLike | null = null;
 
 /**
  * Возвращает Redis-клиент.
- * - Vercel → Upstash REST (HTTP, без TCP-соединений)
- * - VPS/Docker → ioredis (TCP)
+ * - Railway/VPS/Docker → ioredis (TCP)
  * - Dev без Redis → in-memory fallback
  */
 export function getRedis(): RedisLike {
   if (!redis) {
-    const isVercel = process.env.VERCEL === '1' || process.env.VERCEL === 'true';
-
-    if (isVercel && process.env.UPSTASH_REDIS_REST_URL) {
-      // ─── Upstash REST (serverless) ───
-      const baseUrl = process.env.UPSTASH_REDIS_REST_URL!;
-      const token = process.env.UPSTASH_REDIS_REST_TOKEN!;
-
-      const upstashFetch = async (command: string[]): Promise<any> => {
-        const res = await fetch(baseUrl, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(command),
-        });
-        const data = (await res.json()) as { result: any; error?: string };
-        if (data.error) throw new Error(data.error);
-        return data.result;
-      };
-
-      redis = {
-        get: (key) => upstashFetch(['GET', key]),
-        set: (key, value, ...args) => upstashFetch(['SET', key, value, ...args.map(String)]),
-        del: (key) => upstashFetch(['DEL', key]),
-        ping: () => upstashFetch(['PING']),
-        setex: (key, seconds, value) => upstashFetch(['SETEX', key, String(seconds), value]),
-        keys: (pattern) => upstashFetch(['KEYS', pattern]),
-        sadd: (key, ...members) => upstashFetch(['SADD', key, ...members]),
-        smembers: (key) => upstashFetch(['SMEMBERS', key]),
-        srem: (key, ...members) => upstashFetch(['SREM', key, ...members]),
-      };
-
-      logger.info('Redis: Upstash REST mode (serverless)');
-    } else if (config.redisUrl && config.redisUrl !== 'redis://localhost:6379') {
+    if (config.redisUrl && config.redisUrl !== 'redis://localhost:6379') {
       // ─── ioredis TCP (VPS / Docker) ───
       try {
         const IoRedis = require('ioredis');

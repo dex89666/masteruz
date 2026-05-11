@@ -38,7 +38,7 @@ class EventBus {
   }
 
   private async initRedis() {
-    if (process.env.VERCEL === '1' || process.env.NODE_ENV === 'test') return;
+    if (process.env.NODE_ENV === 'test') return;
     try {
       const ioredisMod = await import('ioredis');
       const IoRedis: any = (ioredisMod as any).default || ioredisMod;

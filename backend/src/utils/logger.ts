@@ -6,13 +6,11 @@
 import pino from 'pino';
 import { config } from '../config/index.js';
 
-const isVercel = process.env.VERCEL === '1' || process.env.VERCEL === 'true';
-
 export const logger = pino({
   level: config.logLevel,
-  // pino-pretty только в development и НЕ на Vercel (сокращает бандл)
+  // pino-pretty только в development
   transport:
-    config.env === 'development' && !isVercel
+    config.env === 'development'
       ? {
           target: 'pino-pretty',
           options: {

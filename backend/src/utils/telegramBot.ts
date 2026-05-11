@@ -152,7 +152,7 @@ ${taskList}
 🔗 Открыть заказ
 `.trim();
 
-  const miniAppUrl = config.telegram.miniAppUrl || 'https://masteruz-ecru.vercel.app';
+  const miniAppUrl = config.telegram.miniAppUrl || 'https://masteruz.uz';
   const orderUrl = `${miniAppUrl}/orders/${params.orderId}`;
   const replyMarkup = {
     inline_keyboard: [
@@ -195,7 +195,7 @@ export async function notifyMasterNewOrder(params: {
   const distanceLabel = params.distance != null ? `\n📏 <b>Расстояние:</b> ${params.distance} км от вас` : '';
 
   // Deep link: opens the order directly inside Telegram Mini App
-  const miniAppUrl = config.telegram.miniAppUrl || 'https://masteruz-ecru.vercel.app';
+  const miniAppUrl = config.telegram.miniAppUrl || 'https://masteruz.uz';
   const botUsername = config.telegram.botUsername;
   const orderUrl = `${miniAppUrl}/orders/${params.orderId}`;
 
@@ -249,7 +249,7 @@ export async function notifyMasterResponseAccepted(params: {
 Оплатите комиссию платформы, чтобы получить контакты клиента и приступить к работе.
 `.trim();
 
-  const miniAppUrl = config.telegram.miniAppUrl || 'https://masteruz-ecru.vercel.app';
+  const miniAppUrl = config.telegram.miniAppUrl || 'https://masteruz.uz';
   const orderUrl = `${miniAppUrl}/orders/${params.orderId}`;
   const replyMarkup = {
     inline_keyboard: [

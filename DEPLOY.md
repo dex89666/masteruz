@@ -36,20 +36,6 @@
 | 5 | **Yandex Maps API ключ** (опционально) | developer.tech.yandex.ru | Бесплатно (лимит) |
 | 6 | **Click/Payme** ключи (опционально, для платежей) | click.uz / payme.uz | По договору |
 
-### Почему GitHub + VPS, а НЕ Vercel?
-
-| | **GitHub + VPS (наш выбор)** | Vercel |
-| --- | --- | --- |
-| Backend | ✅ Express + PostgreSQL + Redis — полный контроль | ❌ Только serverless functions, нет WebSockets |
-| База данных | ✅ PostgreSQL в Docker на том же сервере | ⚠️ Нужен внешний сервис (Supabase/Neon) +$$ |
-| Файлы/загрузки | ✅ Хранение на диске сервера | ❌ Нет persistent storage |
-| Telegram Bot | ✅ Полноценный бот + webhook | ⚠️ Ограничения cold start |
-| WebSocket/Chat | ✅ Поддерживается | ❌ Не поддерживается |
-| Стоимость | 💰 $10–15/мес (всё включено) | 💰 $20+ (Vercel Pro + DB + Storage) |
-| Масштабирование | ✅ Docker compose scale | ✅ Авто |
-
-**Вывод**: Для fullstack Telegram Mini App — **VPS + Docker** профессиональнее и дешевле.
-
 ---
 
 ## 2. 🖥 Шаг 1 — Покупка VPS сервера

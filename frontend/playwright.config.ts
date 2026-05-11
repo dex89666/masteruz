@@ -9,7 +9,7 @@ export default defineConfig({
   reporter: 'html',
   timeout: 30000,
   use: {
-    baseURL: process.env.E2E_BASE_URL || 'https://masteruz-ecru.vercel.app',
+    baseURL: process.env.E2E_BASE_URL || 'https://masteruz.uz',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },

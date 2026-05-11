@@ -6,10 +6,7 @@
 import dotenv from 'dotenv';
 import path from 'path';
 
-// В serverless (Vercel) dotenv не нужен — переменные из dashboard
-if (process.env.VERCEL !== '1' && process.env.VERCEL !== 'true') {
-  dotenv.config({ path: path.resolve(process.cwd(), '.env') });
-}
+dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
 /**
  * Безопасное чтение env. Игнорирует placeholder `__SET_ME__`,
@@ -54,7 +51,7 @@ export const config = {
   telegram: {
     botToken: env('TELEGRAM_BOT_TOKEN'),
     botUsername: (env('TELEGRAM_BOT_USERNAME') || env('TELEGRAM_BOT_NAME')).replace(/^@/, ''),
-    miniAppUrl: env('TELEGRAM_MINI_APP_URL', 'https://masteruz-ecru.vercel.app'),
+    miniAppUrl: env('TELEGRAM_MINI_APP_URL', 'https://masteruz.uz'),
     adminChatId: env('ADMIN_TELEGRAM_CHAT_ID'),
   },
 
