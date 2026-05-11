@@ -778,11 +778,26 @@ export interface AiAnalysisResult {
   needsClarification?: boolean;
   /** Работа требует обмера на месте — клиент сам не назовёт площадь/объём */
   needsOnSiteEstimation?: boolean;
+  /** AI вернул несколько вероятных категорий — клиент подтверждает выбор */
+  needsCategoryConfirmation?: boolean;
   /** Уровень сложности, рассчитанный бэкендом */
-  complexity?: 'SIMPLE' | 'CLARIFY' | 'ON_SITE';
+  complexity?: 'SIMPLE' | 'CLARIFY' | 'ON_SITE' | 'CONFIRM';
   clarifyingQuestions?: AiClarifyingQuestion[];
   message?: string;
   partialMatches?: { id: string; name: string; slug: string }[];
+  /** Топ-3 категорий с confidence для подтверждения пользователем */
+  suggestedCategories?: Array<AiDetectedCategory & { confidence: number; reasoning?: string }>;
+
+  /** AI: краткое описание того, что увидел/понял (1-2 фразы) */
+  aiSummary?: string;
+  /** AI: уверенность в top-1 категории (0-100) */
+  aiConfidence?: number;
+  /** AI: классификатор срочности */
+  urgency?: 'emergency' | 'urgent' | 'normal' | 'flexible';
+  /** AI: список материалов для работы */
+  aiMaterials?: string[];
+  /** AI: ориентировочный бюджет UZS */
+  aiPriceHint?: { min: number; max: number };
 
   category: {
     id: string;
@@ -793,7 +808,7 @@ export interface AiAnalysisResult {
   };
   detectedFromPhoto: boolean;
   /** Все направления работ, которые AI распознал в описании (≥ 1). */
-  detectedCategories?: AiDetectedCategory[];
+  detectedCategories?: Array<AiDetectedCategory & { confidence?: number }>;
   variants: AiOrderTemplate[];
   allTasks: {
     id: string;
