@@ -198,9 +198,29 @@ export class NotificationService {
         return { ...m, distance };
       });
 
+      // Нормализатор города для сравнения: понижаем регистр, убираем пробелы/диакритику.
+      // Так «Ташкент», «ташкент », «Tashkent», «Toshkent» считаются одним городом.
+      const cityAliases: Record<string, string> = {
+        ташкент: 'tashkent',
+        tashkent: 'tashkent',
+        toshkent: 'tashkent',
+        самарканд: 'samarkand',
+        samarkand: 'samarkand',
+        samarqand: 'samarkand',
+        бухара: 'bukhara',
+        bukhara: 'bukhara',
+        buxoro: 'bukhara',
+      };
+      const normCity = (raw?: string | null): string => {
+        if (!raw) return '';
+        const k = raw.trim().toLowerCase().replace(/\s+/g, '');
+        return cityAliases[k] ?? k;
+      };
+      const orderCityKey = normCity(order.city);
+
       // Фильтрация:
       // 1) Если у заказа есть гео — приоритет ближайшим, но город-фолбэк тоже
-      // 2) Если у заказа есть город (без гео) — по городу
+      // 2) Если у заказа есть город (без гео) — по городу (с нормализацией)
       // 3) Если ни гео ни города — отправляем ВСЕМ (до 50)
       let filteredMasters;
       if (orderHasGeo) {
@@ -211,17 +231,28 @@ export class NotificationService {
               return m.distance <= maxKm;
             }
             // У мастера нет координат — фолбэк на город
-            return !order.city || m.profile?.city === order.city;
+            return !orderCityKey || normCity(m.profile?.city) === orderCityKey;
           })
           .sort((a, b) => (a.distance ?? 999) - (b.distance ?? 999))
           .slice(0, 50);
       } else if (order.city) {
         filteredMasters = mastersWithDistance
-          .filter((m) => m.profile?.city === order.city)
+          .filter((m) => normCity(m.profile?.city) === orderCityKey)
           .slice(0, 50);
       } else {
         // Нет ни гео ни города — отправляем всем
         filteredMasters = mastersWithDistance.slice(0, 50);
+      }
+
+      // ФОЛБЭК: если после гео/city-фильтра никого не осталось, но по категории
+      // мастера были найдены — отправляем им. Лучше уведомить мастера «не из города»,
+      // чем не уведомить никого.
+      if (filteredMasters.length === 0 && mastersWithDistance.length > 0) {
+        filteredMasters = mastersWithDistance.slice(0, 50);
+        logger.warn(
+          { orderId, totalMasters: mastersWithDistance.length, orderCity: order.city },
+          'notifyMastersNewOrder: гео/city-фильтр обнулил список — отправляем всем найденным по категории',
+        );
       }
 
       logger.info({ orderId, filteredCount: filteredMasters.length }, 'notifyMastersNewOrder: после фильтрации');
