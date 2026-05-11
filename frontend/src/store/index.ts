@@ -47,6 +47,9 @@ export const useAuthStore = create<AuthState>()(
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
         localStorage.removeItem('masteruz-auth');
+        // При выходе из аккаунта сбрасываем и согласие — при следующем входе
+        // пользователь должен заново ознакомиться с офертой и политикой.
+        localStorage.removeItem('masteruz-consent-v5');
         set({
           user: null,
           accessToken: null,

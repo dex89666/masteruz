@@ -88,6 +88,25 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+// Глобальный guard: вся аппа требует логин.
+// Разрешены без авторизации: страница логина и юридические документы (privacy/terms/offer),
+// чтобы пользователь мог прочесть, с чем соглашается, ДО входа.
+const PUBLIC_ROUTES = ['/login', '/privacy', '/terms', '/public-offer'];
+
+function AuthGate({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, isLoading } = useAuthStore();
+  const location = useLocation();
+  const isPublic = PUBLIC_ROUTES.includes(location.pathname.replace(/\/$/, ''));
+
+  if (isLoading) {
+    return <div className="flex items-center justify-center min-h-screen"><LoadingSpinner /></div>;
+  }
+  if (!isAuthenticated && !isPublic) {
+    return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />;
+  }
+  return <>{children}</>;
+}
+
 // Protect route for masters only
 function MasterRoute({ children }: { children: React.ReactNode }) {
   const { user } = useAuthStore();
@@ -117,6 +136,7 @@ function AppContent() {
 
   return (
     <ConsentGate>
+    <AuthGate>
     <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><LoadingSpinner /></div>}>
       <Routes>
       {/* Public routes */}
@@ -354,6 +374,7 @@ function AppContent() {
       </Route>
     </Routes>
     </Suspense>
+    </AuthGate>
     </ConsentGate>
   );
 }
