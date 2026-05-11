@@ -26,7 +26,7 @@ import {
 import toast from 'react-hot-toast';
 import type { Dashboard } from '../types';
 
-type AdminTab = 'overview' | 'users' | 'orders' | 'payments' | 'catalog' | 'config' | 'stores' | 'turnkey' | 'moderation' | 'support' | 'school';
+type AdminTab = 'overview' | 'users' | 'orders' | 'payments' | 'catalog' | 'config' | 'stores' | 'turnkey' | 'moderation' | 'support' | 'school' | 'security';
 
 // ─── Stat Card Component ────────────────────
 function StatCard({ icon: Icon, label, value, subValue, color, trend }: {
@@ -130,6 +130,8 @@ export function AdminDashboardPage() {
   // Config tab state
   const [config, setConfig] = useState<any[]>([]);
   const [configLoading, setConfigLoading] = useState(false);
+  const [fraudSignals, setFraudSignals] = useState<any[]>([]);
+  const [fraudLoading, setFraudLoading] = useState(false);
   const [editingConfig, setEditingConfig] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
 
@@ -224,6 +226,7 @@ export function AdminDashboardPage() {
     if (tab === 'orders') loadOrders();
     if (tab === 'payments') loadPayments();
     if (tab === 'config') loadConfig();
+    if (tab === 'security') loadFraudSignals();
     if (tab === 'stores') loadPartnerRequests();
     if (tab === 'turnkey') loadTurnkeyProjects();
     if (tab === 'catalog') loadCatalog();
@@ -522,6 +525,18 @@ export function AdminDashboardPage() {
       console.error(e);
     } finally {
       setConfigLoading(false);
+    }
+  }
+
+  async function loadFraudSignals() {
+    setFraudLoading(true);
+    try {
+      const res = await adminApi.getFraudSignals(1);
+      setFraudSignals(res.data.data || []);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setFraudLoading(false);
     }
   }
 
@@ -984,6 +999,7 @@ export function AdminDashboardPage() {
     { key: 'catalog', label: 'Каталог', icon: FolderTree },
     { key: 'school', label: 'Школа', icon: GraduationCap },
     { key: 'moderation', label: 'Модерация', icon: AlertTriangle },
+    { key: 'security', label: 'Защита от обхода', icon: Shield },
     { key: 'support', label: 'Поддержка', icon: Headphones },
     { key: 'config', label: t('admin.tabConfig'), icon: Settings },
   ];
@@ -3072,6 +3088,102 @@ export function AdminDashboardPage() {
                 </div>
               )}
             </>
+          )}
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════ */}
+      {/* TAB: SECURITY — fraud-сигналы          */}
+      {/* ═══════════════════════════════════════ */}
+      {tab === 'security' && (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold dark:text-white flex items-center gap-2">
+              <Shield size={18} className="text-red-500" />
+              Сигналы попыток обхода платформы
+            </h2>
+            <button
+              onClick={loadFraudSignals}
+              className="p-2 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
+            >
+              <RefreshCw size={16} />
+            </button>
+          </div>
+
+          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 text-sm text-amber-800 dark:text-amber-200">
+            Здесь фиксируются автоматические сигналы: попытки передать контакты в чате,
+            частые отмены после назначения мастера, повторные пары с цепочкой отмен.
+            Решение о санкциях принимает админ — по оферте штраф = стоимость заказа × <b>bypass_penalty_multiplier</b>.
+          </div>
+
+          {fraudLoading ? (
+            <LoadingSpinner />
+          ) : fraudSignals.length === 0 ? (
+            <EmptyState
+              icon={Shield}
+              title="Подозрительной активности нет"
+              description="Когда система обнаружит попытку обхода — увидите её здесь."
+            />
+          ) : (
+            <div className="space-y-3">
+              {fraudSignals.map((s) => {
+                const details = s.details || {};
+                const actor = s.actor;
+                const name = actor?.profile
+                  ? `${actor.profile.firstName || ''} ${actor.profile.lastName || ''}`.trim() || actor.phone
+                  : actor?.phone || s.actorId;
+                return (
+                  <div
+                    key={s.id}
+                    className="card border border-red-200 dark:border-red-900/50 bg-red-50/30 dark:bg-red-900/10"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-red-100 dark:bg-red-900/40 flex items-center justify-center flex-shrink-0">
+                        <AlertTriangle size={18} className="text-red-600 dark:text-red-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-semibold text-sm dark:text-white">{name}</span>
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300">
+                            {actor?.role || '—'}
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            {new Date(s.createdAt).toLocaleString('ru')}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">
+                          <b>Сигнал:</b> {details.signal || '—'}
+                        </p>
+                        {details.matchedPattern && (
+                          <p className="text-xs text-gray-500 mt-1 font-mono break-all">
+                            Паттерн: {details.matchedPattern}
+                          </p>
+                        )}
+                        {details.orderId && (
+                          <p className="text-xs text-gray-500 mt-1">
+                            Заказ:{' '}
+                            <button
+                              onClick={() => navigate(`/orders/${details.orderId}`)}
+                              className="text-primary-600 hover:underline"
+                            >
+                              {details.orderId.slice(0, 8)}…
+                            </button>
+                          </p>
+                        )}
+                      </div>
+                      {user?.role === 'ADMIN' && (
+                        <button
+                          onClick={() => navigate(`/admin/users/${s.actorId}`)}
+                          className="text-xs px-3 py-1.5 rounded-lg bg-red-500 text-white hover:bg-red-600 transition"
+                        >
+                          Профиль
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </div>
       )}
