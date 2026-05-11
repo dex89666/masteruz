@@ -126,6 +126,11 @@ model User {
   balance     Decimal  @default(0) @db.Decimal(12, 2)
   referralCode String  @unique @map("referral_code")
   referredById String? @map("referred_by_id")
+  // Customer Risk Score (0..100): чем выше — тем рискованнее клиент
+  // 0–30 = надёжный, 31–60 = нейтральный, 61–80 = осторожно, 81+ = высокий риск
+  riskScore     Int      @default(50) @map("risk_score")
+  riskUpdatedAt DateTime? @map("risk_updated_at")
+  riskFactors   Json?   @map("risk_factors") // снапшот факторов последнего пересчёта
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
@@ -165,6 +170,8 @@ model User {
   forumTopics         ForumTopic[]     @relation("ForumTopicAuthor")
   forumPosts          ForumPost[]      @relation("ForumPostAuthor")
   linkedCards         LinkedCard[]
+  clientReviewsGiven    MasterReviewClient[] @relation("MRC_Master")
+  clientReviewsReceived MasterReviewClient[] @relation("MRC_Client")
 
   @@map("users")
 }
@@ -435,6 +442,7 @@ model Order {
   parentOrder Order?         @relation("EstimationChain", fields: [parentOrderId], references: [id])
   childOrders Order[]        @relation("EstimationChain")
   aiTemplate  AiOrderTemplate? @relation(fields: [aiTemplateId], references: [id])
+  masterClientReviews MasterReviewClient[]
 
   @@index([status, createdAt])
   @@index([latitude, longitude])
@@ -483,6 +491,36 @@ model Review {
   @@unique([orderId, reviewerId])
   @@index([revieweeId])
   @@map("reviews")
+}
+
+// ════════════════════════════════════════════════
+// ОТЗЫВЫ МАСТЕРОВ О КЛИЕНТАХ (для Customer Risk Score)
+// ════════════════════════════════════════════════
+// Мастер после завершения/отмены заказа может оценить клиента
+// по нескольким осям. Это влияет на riskScore клиента.
+model MasterReviewClient {
+  id             String   @id @default(uuid())
+  orderId        String   @map("order_id")
+  masterId       String   @map("master_id")
+  clientId       String   @map("client_id")
+  // 1..5: общая адекватность клиента
+  overall        Int
+  // Опциональные флаги (для скоринга)
+  wasRude        Boolean  @default(false) @map("was_rude")        // хамил, грубил
+  wasNoShow      Boolean  @default(false) @map("was_no_show")     // не открыл / не пришёл
+  haggledHard    Boolean  @default(false) @map("haggled_hard")    // торговался после согласования
+  changedScope   Boolean  @default(false) @map("changed_scope")   // менял ТЗ по ходу
+  delayedPayment Boolean  @default(false) @map("delayed_payment") // тянул оплату
+  comment        String?
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  order  Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  master User  @relation("MRC_Master", fields: [masterId], references: [id])
+  client User  @relation("MRC_Client", fields: [clientId], references: [id])
+
+  @@unique([orderId, masterId])
+  @@index([clientId])
+  @@map("master_reviews_client")
 }
 
 // ════════════════════════════════════════════════

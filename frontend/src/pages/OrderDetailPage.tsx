@@ -17,6 +17,7 @@ import { Breadcrumbs } from '../components/Breadcrumbs';
 import { OrderDetailSkeleton } from '../components/PageSkeletons';
 import { CommissionPaymentModal } from '../components/CommissionPaymentModal';
 import AutoCancelCountdown from '../components/AutoCancelCountdown';
+import { ClientRiskBadge } from '../components/ClientRiskBadge';
 import { useAuthStore } from '../store';
 import { useFormatPrice } from '../hooks';
 import { useOrderEvents } from '../hooks/useOrderEvents';
@@ -918,6 +919,9 @@ export function OrderDetailPage() {
           <div className="flex items-center gap-2 mb-3">
             <CheckCircle size={18} className="text-green-600 dark:text-green-400" />
             <h3 className="font-bold text-green-800 dark:text-green-300">{t('commissionPayment.clientData')}</h3>
+            {(order.client as any).risk && (
+              <ClientRiskBadge risk={(order.client as any).risk} />
+            )}
           </div>
 
           {order.client.phone && (

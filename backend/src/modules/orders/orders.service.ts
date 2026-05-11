@@ -15,6 +15,7 @@ import { balanceService } from '../balance/balance.service.js';
 import { auditService } from '../../services/auditService.js';
 import { eventBus } from '../../services/eventBus.js';
 import { AUTO_CANCEL_TIMEOUT_HOURS } from '../../services/orderAutoCancellation.js';
+import { safeRecalculate as recalcCustomerRisk } from '../../services/customerRiskService.js';
 
 // Дополняет публикуемый заказ дедлайном авто-отмены (для UI-таймера)
 function withAutoCancelAt<T extends { status: OrderStatus; masterId: string | null; createdAt: Date }>(order: T): T & { autoCancelAt: Date | null } {
@@ -408,6 +409,20 @@ export class OrdersService {
           (order.master as any).phone = maskPhone((order.master as any).phone);
         }
       }
+    }
+
+    // ─── Customer Risk Score: мастер/админ видит риск-скор клиента ──
+    // (Сам клиент свой скор тоже видит — это его персональные данные)
+    if (order.client && (isAdminRequester || isAssignedMaster || isOwner)) {
+      const score = (order.client as any).riskScore ?? 50;
+      const band = score <= 30 ? 'low' : score <= 60 ? 'normal' : score <= 80 ? 'caution' : 'high';
+      (order.client as any).risk = { score, band };
+    }
+    // Скрываем raw поля скоринга от всех (только агрегат через .risk)
+    if (order.client) {
+      delete (order.client as any).riskScore;
+      delete (order.client as any).riskUpdatedAt;
+      delete (order.client as any).riskFactors;
     }
 
     return withAutoCancelAt(order as any);
@@ -896,6 +911,9 @@ export class OrdersService {
       timestamp: new Date().toISOString(),
     });
 
+    // Customer Risk Score: пересчёт после успешного завершения
+    void recalcCustomerRisk(order.clientId);
+
     return { orderId };
   }
 
@@ -1039,6 +1057,9 @@ export class OrdersService {
       details: { cancelledBy, penaltyAmount, reason, escrowRefunded: toNum(order.escrowAmount) },
     });
 
+    // Customer Risk Score: пересчёт после отмены (не блокирует основной флоу)
+    void recalcCustomerRisk(order.clientId);
+
     return { orderId, cancelledBy, penaltyAmount, reason };
   }
 
@@ -1068,6 +1089,9 @@ export class OrdersService {
       entityId: orderId,
       details: { reason },
     });
+
+    // Customer Risk Score: пересчёт после открытия спора
+    void recalcCustomerRisk(clientId);
 
     return updatedOrder;
   }
