@@ -689,6 +689,9 @@ export const adminApi = {
   updateConfig: (key: string, value: string, description?: string) =>
     api.put<ApiResponse<any>>('/admin/config', { key, value, description }),
 
+  getFraudSignals: (page?: number) =>
+    api.get<PaginatedResponse<any>>('/admin/fraud-signals', { params: { page } }),
+
   getBlacklist: (page?: number, violationType?: string) =>
     api.get<PaginatedResponse<any>>('/admin/blacklist', { params: { page, violationType } }),
 

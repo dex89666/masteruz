@@ -211,6 +211,41 @@ router.put('/config', authorize('ADMIN'), validateBody(adminConfigSchema), async
   }
 });
 
+// ─── Fraud-сигналы (anti-bypass) ──────────────
+router.get('/fraud-signals', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { page, limit, skip } = clampPagination(req.query.page, req.query.limit);
+
+    const [signals, total] = await Promise.all([
+      prisma.auditLog.findMany({
+        where: { action: 'FRAUD_SIGNAL' },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+        include: {
+          actor: {
+            select: {
+              id: true,
+              phone: true,
+              role: true,
+              profile: { select: { firstName: true, lastName: true } },
+            },
+          },
+        },
+      }),
+      prisma.auditLog.count({ where: { action: 'FRAUD_SIGNAL' } }),
+    ]);
+
+    res.json({
+      success: true,
+      data: signals,
+      pagination: { page, limit, total, pages: Math.ceil(total / limit) },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Чёрный список (расширенный)
 router.get('/blacklist', async (req: Request, res: Response, next: NextFunction) => {
   try {
