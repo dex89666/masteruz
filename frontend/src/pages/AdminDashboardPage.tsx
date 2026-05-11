@@ -21,7 +21,7 @@ import {
   XCircle, RefreshCw, Database, Store, Hammer,
   FolderTree, Plus, Trash2, Edit3, ChevronDown, ChevronUp,
   Headphones, Send, MessageCircle, FileText, Sparkles,
-  GraduationCap, HelpCircle, BookOpen,
+  GraduationCap, HelpCircle, BookOpen, Phone,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { Dashboard } from '../types';
@@ -2938,7 +2938,11 @@ export function AdminDashboardPage() {
               {/* Основные настройки — красивые карточки */}
               <div className="grid gap-4 md:grid-cols-2">
                 {[
-                  { key: 'commission_rate', label: 'Комиссия платформы (%)', icon: CreditCard, color: 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400', desc: 'Процент комиссии за обычные заказы', suffix: '%' },
+                  { key: 'commission_rate', label: 'Комиссия платформы (%)', icon: CreditCard, color: 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400', desc: 'Базовая ставка комиссии за обычные заказы', suffix: '%' },
+                  { key: 'first_order_commission_rate', label: 'Комиссия первого заказа пары (%)', icon: Shield, color: 'bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400', desc: 'Повышенная ставка для первого заказа клиент↔мастер (защита от увода)', suffix: '%' },
+                  { key: 'repeat_order_commission_rate', label: 'Комиссия повторного заказа пары (%)', icon: Shield, color: 'bg-teal-50 dark:bg-teal-900/20 text-teal-600 dark:text-teal-400', desc: 'Льготная ставка для повторных заказов через платформу', suffix: '%' },
+                  { key: 'bypass_penalty_multiplier', label: 'Множитель штрафа за обход (×)', icon: AlertTriangle, color: 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400', desc: 'Штраф = стоимость заказа × коэффициент. По оферте — до 5×', suffix: '×' },
+                  { key: 'virtual_numbers_enabled', label: 'Виртуальные номера', icon: Phone, color: 'bg-violet-50 dark:bg-violet-900/20 text-violet-600 dark:text-violet-400', desc: 'true/false — маскировать реальные телефоны прокси-номерами', suffix: '' },
                   { key: 'material_commission_rate', label: 'Комиссия за материалы (%)', icon: Package, color: 'bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400', desc: 'Процент комиссии за стройматериалы', suffix: '%' },
                   { key: 'urgency_multiplier', label: 'Надбавка за срочность (%)', icon: Zap, color: 'bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400', desc: 'Процент надбавки к цене за срочные заказы', suffix: '%' },
                   { key: 'min_order_amount', label: 'Минимальная сумма заказа', icon: DollarSign, color: 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400', desc: 'Минимальная цена заказа (сум)', suffix: ' сум' },

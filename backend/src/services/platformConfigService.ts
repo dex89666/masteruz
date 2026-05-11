@@ -28,7 +28,7 @@ export const PLATFORM_CONFIG_KEYS = {
   virtualNumbersEnabled: 'virtual_numbers_enabled', // 'true' / 'false' — маскирование телефонов
 
   // Гарантии
-  guaranteeDays: 'guarantee_days',
+  guaranteeDays: 'guarantee_duration_days',
 
   // Срочность
   urgencyMultiplier: 'urgency_multiplier',

@@ -301,15 +301,26 @@ export class EstimationService {
     // Клиент оплачивает полную сумму сметы
     const clientBalance = await balanceService.getBalance(clientId);
     const estTotal = toNum(estimate.totalAmount);
-    if (clientBalance < estTotal) {
+
+    // ─── Зачёт платы за выезд ─────────────────────
+    // estimation_fee уже захолдирована при создании заказа на оценку.
+    // При согласии со сметой эта сумма идёт в зачёт стоимости работ —
+    // клиент доплачивает только разницу.
+    const alreadyHeld = toNum(estimate.order.escrowAmount); // = estimation_fee
+    const extraNeeded = Math.max(0, estTotal - alreadyHeld);
+
+    if (extraNeeded > 0 && clientBalance < extraNeeded) {
       throw ApiError.badRequest(
         `Недостаточно средств. Баланс: ${clientBalance.toLocaleString('ru')} сум, ` +
-        `необходимо: ${estTotal.toLocaleString('ru')} сум`
+        `необходимо доплатить: ${extraNeeded.toLocaleString('ru')} сум ` +
+        `(уже захолдировано за выезд: ${alreadyHeld.toLocaleString('ru')} сум)`
       );
     }
 
-    // Блокируем сумму сметы
-    await balanceService.holdFunds(clientId, estTotal, estimate.orderId);
+    // Холдим только разницу (если она положительная)
+    if (extraNeeded > 0) {
+      await balanceService.holdFunds(clientId, extraNeeded, estimate.orderId);
+    }
 
     // Обновляем статусы → модерация
     await prisma.$transaction([
@@ -324,7 +335,8 @@ export class EstimationService {
         where: { id: estimate.orderId },
         data: {
           status: OrderStatus.MODERATION,
-          escrowAmount: { increment: estimate.totalAmount },
+          // Эскроу выравниваем под итоговую стоимость сметы
+          escrowAmount: estTotal,
         },
       }),
     ]);
@@ -332,8 +344,16 @@ export class EstimationService {
     // Уведомить админов/менеджеров
     await this.notifyModeration(estimate.orderId, estimateId);
 
-    logger.info({ estimateId, totalAmount: estimate.totalAmount }, 'Клиент одобрил смету → модерация');
-    return { success: true, message: 'Смета одобрена, ожидается модерация' };
+    logger.info(
+      { estimateId, totalAmount: estTotal, creditedVisitFee: alreadyHeld, extraCharged: extraNeeded },
+      'Клиент одобрил смету → модерация (visit_fee зачтён)'
+    );
+    return {
+      success: true,
+      message: 'Смета одобрена, ожидается модерация',
+      creditedVisitFee: alreadyHeld,
+      extraCharged: extraNeeded,
+    };
   }
 
   /**
