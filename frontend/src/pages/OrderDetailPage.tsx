@@ -3,8 +3,8 @@
 // Двойное подтверждение / Статус-бар / Штрафы / Споры
 // ============================================
 
-import { useEffect, useState, useCallback } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useEffect, useState, useCallback, useRef } from 'react';
+import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { ordersApi, reviewsApi, photosApi, estimationApi, adminApi } from '../api/client';
 import { StarRating } from '../components/StarRating';
 import { OrderChat } from '../components/OrderChat';
@@ -75,6 +75,25 @@ export function OrderDetailPage() {
   const isClient = user?.role === 'CLIENT';
   const isOwner = order?.clientId === user?.id;
   const isAssignedMaster = order?.masterId === user?.id;
+
+  const [searchParams, setSearchParams] = useSearchParams();
+  const respondAction = searchParams.get('action') === 'respond';
+  const respondFormRef = useRef<HTMLDivElement | null>(null);
+  const [respondHighlight, setRespondHighlight] = useState(false);
+
+  // Авто-прокрутка к форме отклика при переходе из Telegram-кнопки «Подтвердить заявку»
+  useEffect(() => {
+    if (!respondAction || !order || !isMaster || isOwner) return;
+    if (order.status !== 'PUBLISHED') return;
+    const timer = setTimeout(() => {
+      respondFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setRespondHighlight(true);
+      setTimeout(() => setRespondHighlight(false), 2400);
+      // Убираем action из URL чтобы при ручном обновлении не повторялось
+      setSearchParams((p) => { p.delete('action'); return p; }, { replace: true });
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [respondAction, order, isMaster, isOwner]);
 
   function formatLastSeen(lastSeenAt: string | null): string {
     if (!lastSeenAt) return '';
@@ -1119,7 +1138,12 @@ export function OrderDetailPage() {
 
       {/* Форма отклика для мастера */}
       {isMaster && order.status === 'PUBLISHED' && !isOwner && (
-        <div className="card">
+        <div
+          ref={respondFormRef}
+          className={`card transition-all duration-500 ${
+            respondHighlight ? 'ring-2 ring-primary-500 shadow-xl scale-[1.01]' : ''
+          }`}
+        >
           <h3 className="font-semibold mb-3 dark:text-white">{t('orderDetail.respondTitle')}</h3>
           <div className="flex gap-3 items-end">
             <div className="flex-1">
