@@ -25,7 +25,7 @@ export function StatusBadge({ status, size = 'sm', pulse = false }: StatusBadgeP
   const { t } = useTranslation();
   const config = STATUS_CONFIG[status] || STATUS_CONFIG.PENDING;
 
-  const statusLabel = t(`orders.status_${status.toLowerCase()}`) || status;
+  const statusLabel = t(`orderStatus.${status.toUpperCase()}`) || status;
 
   const sizeClasses = size === 'sm'
     ? 'px-2.5 py-0.5 text-xs'
