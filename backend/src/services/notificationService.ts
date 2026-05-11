@@ -123,33 +123,67 @@ export class NotificationService {
 
       const orderHasGeo = !!(order.latitude && order.longitude);
 
-      // Находим активных мастеров, у которых есть категория этого заказа
-      const masters = await prisma.user.findMany({
+      // Категории-кандидаты: сам categoryId + родительский (если заказ в подкатегории)
+      // Это важно: мастер может быть привязан к родителю «Электрика», а заказ — в подкатегории «Замена розетки».
+      const categoryIds: string[] = [order.categoryId];
+      if (order.category?.parentId) categoryIds.push(order.category.parentId);
+      // Также добавляем ID всех детей текущей категории (если заказ в родительской — мастера-узкоспециалисты тоже получат)
+      const childCategories = await prisma.category.findMany({
+        where: { parentId: order.categoryId },
+        select: { id: true },
+      });
+      for (const c of childCategories) categoryIds.push(c.id);
+
+      const masterSelect = {
+        id: true,
+        telegramId: true,
+        profile: { select: { latitude: true, longitude: true, city: true } },
+        masterProfile: { select: { maxDistanceKm: true } },
+      } as const;
+
+      // ШАГ 1: ищем мастеров, у которых явно привязана категория (или её родитель/потомок)
+      let masters = await prisma.user.findMany({
         where: {
           role: 'MASTER',
           isActive: true,
           masterProfile: {
             isAvailable: true,
-            masterCategories: {
-              some: {
-                categoryId: order.categoryId,
-              },
-            },
+            masterCategories: { some: { categoryId: { in: categoryIds } } },
           },
         },
-        select: {
-          id: true,
-          telegramId: true,
-          profile: { select: { latitude: true, longitude: true, city: true } },
-          masterProfile: { select: { maxDistanceKm: true } },
-        },
+        select: masterSelect,
         take: 200,
       });
 
-      logger.info({ orderId, totalMasters: masters.length, orderHasGeo, orderCity: order.city }, 'notifyMastersNewOrder: найдено мастеров');
+      let matchMode: 'category' | 'fallback_all_masters' = 'category';
+
+      // ШАГ 2 (фолбэк): если по категории никого нет — берём ВСЕХ активных мастеров.
+      // Лучше отправить «не своей» категории, чем не отправить никому.
+      // Дальше всё равно фильтруем по гео/городу.
+      if (masters.length === 0) {
+        masters = await prisma.user.findMany({
+          where: {
+            role: 'MASTER',
+            isActive: true,
+            masterProfile: { isAvailable: true },
+          },
+          select: masterSelect,
+          take: 200,
+        });
+        matchMode = 'fallback_all_masters';
+        logger.warn(
+          { orderId, categoryIds, orderCategoryName: order.category?.name },
+          'notifyMastersNewOrder: по категории мастеров нет — переключаемся на фолбэк (все активные мастера)',
+        );
+      }
+
+      logger.info(
+        { orderId, totalMasters: masters.length, matchMode, orderHasGeo, orderCity: order.city, categoryIds },
+        'notifyMastersNewOrder: найдено мастеров',
+      );
 
       if (masters.length === 0) {
-        logger.warn({ orderId }, 'notifyMastersNewOrder: нет активных мастеров');
+        logger.warn({ orderId }, 'notifyMastersNewOrder: нет активных мастеров вообще');
         return;
       }
 
