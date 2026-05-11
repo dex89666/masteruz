@@ -517,6 +517,17 @@ export class OrdersService {
       throw ApiError.badRequest('Мастер не откликался на этот заказ');
     }
 
+    // ─── Дифференцированная комиссия: первый заказ клиент↔мастер → повышенная
+    //     ставка (защита от увода), повторные → льготная.
+    const { getEffectiveCommissionRate, getConfigNumber, PLATFORM_CONFIG_KEYS } = await import(
+      '../../services/platformConfigService.js'
+    );
+    const effectiveRate = await getEffectiveCommissionRate(clientId, masterId);
+    const visitFeeRate = await getConfigNumber(PLATFORM_CONFIG_KEYS.visitFeeCommissionRate);
+    const recalcWorkCommission = calculateCommission(toNum(order.price), effectiveRate);
+    const recalcVisitCommission = calculateCommission(toNum(order.visitFee ?? 0), visitFeeRate);
+    const recalcCommissionAmount = recalcWorkCommission + recalcVisitCommission;
+
     // PUBLISHED → ACCEPTED (не сразу IN_PROGRESS!)
     // Комиссия теперь удерживается автоматически из эскроу при завершении
     const [updatedOrder] = await prisma.$transaction([
@@ -526,6 +537,8 @@ export class OrdersService {
           masterId,
           status: OrderStatus.ACCEPTED,
           acceptedAt: new Date(),
+          commissionRate: effectiveRate,
+          commissionAmount: recalcCommissionAmount,
           commissionPaid: true, // Авто-комиссия: мастер не платит вручную
         },
         include: {

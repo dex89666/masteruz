@@ -450,6 +450,17 @@ export function InstantOrderPage() {
 
       const data = result.data.data;
 
+      // ─── Работа требует выезда мастера для замера ──
+      if (data?.needsOnSiteEstimation) {
+        setAnalysisResult(data);
+        setStep('clarify'); // переиспользуем экран — на нём покажем кнопку «Вызвать мастера на замер»
+        toast(
+          data.message || 'Для точного расчёта нужны замеры на месте. Можем вызвать мастера на выездную оценку.',
+          { icon: '📏', duration: 7000 }
+        );
+        return;
+      }
+
       // ─── Если AI не уверен → задаёт уточняющие вопросы ──
       if (data?.needsClarification && Array.isArray(data.clarifyingQuestions) && data.clarifyingQuestions.length > 0) {
         setClarifyQuestions(data.clarifyingQuestions);
@@ -979,6 +990,48 @@ export function InstantOrderPage() {
               Определяем тип работ, подбираем задачи и материалы, считаем стоимость.
               Обычно это 5–10 секунд.
             </p>
+          </div>
+        )}
+
+        {/* ═══ STEP 2.5a: Вызов мастера на замер (когда работа требует обмера) ═══ */}
+        {step === 'clarify' && analysisResult?.needsOnSiteEstimation && (
+          <div className="space-y-6 animate-fade-in">
+            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 rounded-2xl p-6 border border-blue-200 dark:border-blue-800">
+              <div className="flex items-start gap-3 mb-4">
+                <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center flex-shrink-0">
+                  <Sparkles size={22} className="text-blue-600 dark:text-blue-400" />
+                </div>
+                <div>
+                  <h2 className="font-bold text-lg dark:text-white mb-1">
+                    Нужны замеры на месте
+                  </h2>
+                  <p className="text-sm text-gray-600 dark:text-gray-300">
+                    {analysisResult.message ||
+                      'Без точной площади/объёма смету не построить. Мастер приедет, замерит и составит точную смету. Стоимость выезда указана в тарифах платформы и пойдёт в зачёт работ, если вы согласитесь со сметой.'}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  // На текущий момент эстимация-флоу инициируется на странице заказа после создания.
+                  // Здесь — переключаемся на режим уточнений как fallback, чтобы клиент мог дописать детали.
+                  toast('Создайте заказ — затем со страницы заказа вызовете мастера на замер.', { icon: '🔧', duration: 6000 });
+                  setStep('upload');
+                }}
+                className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-semibold rounded-xl py-3 hover:opacity-90 transition"
+              >
+                Вызвать мастера на замер
+              </button>
+              <button
+                type="button"
+                onClick={() => setStep('upload')}
+                className="w-full text-sm text-gray-500 dark:text-gray-400 mt-3 hover:underline"
+              >
+                Назад — уточнить описание самостоятельно
+              </button>
+            </div>
           </div>
         )}
 

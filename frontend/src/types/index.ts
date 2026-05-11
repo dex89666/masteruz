@@ -776,6 +776,10 @@ export interface AiDetectedCategory {
 export interface AiAnalysisResult {
   /** Если AI не смог однозначно определить характер работ — задаёт уточняющие вопросы */
   needsClarification?: boolean;
+  /** Работа требует обмера на месте — клиент сам не назовёт площадь/объём */
+  needsOnSiteEstimation?: boolean;
+  /** Уровень сложности, рассчитанный бэкендом */
+  complexity?: 'SIMPLE' | 'CLARIFY' | 'ON_SITE';
   clarifyingQuestions?: AiClarifyingQuestion[];
   message?: string;
   partialMatches?: { id: string; name: string; slug: string }[];

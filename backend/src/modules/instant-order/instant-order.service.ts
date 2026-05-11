@@ -368,9 +368,75 @@ function buildClarifyingQuestionsFor(categories: { slug: string; name: string }[
 }
 
 /**
+ * Штучные работы — для них смета строится по простой формуле «цена × количество»,
+ * метраж/м² не нужен. Если описание содержит такую работу и количество ≤ SIMPLE_MAX_QTY —
+ * пропускаем шаг уточнений.
+ */
+const UNIT_WORK_KEYWORDS = [
+  'розет', 'выключател', 'светильник', 'люстр', 'лампочк', 'лампу', 'ламп ',
+  'смесител', 'кран ', 'кран,', 'кран.', 'кран\n', 'смесителя',
+  'унитаз', 'раковин', 'мойк', 'ванн',
+  'замок', 'замка', 'ручк', 'петл', 'петли', 'дверн',
+  'плинтус', 'карниз', 'крючок', 'полк',
+  'точк',
+];
+
+const SIMPLE_MAX_QTY = 3;
+
+/**
+ * Извлекает количество штук из описания: «одна розетка», «1 розетка», «2 шт»…
+ * Возвращает null, если не нашли число.
+ */
+function extractUnitQuantity(text: string): number | null {
+  if (!text) return null;
+  const lower = text.toLowerCase();
+
+  // Словесные числительные → цифры
+  const wordToNum: Record<string, number> = {
+    'один': 1, 'одну': 1, 'одна': 1, 'одно': 1,
+    'два': 2, 'две': 2, 'двух': 2, 'пару': 2, 'пара': 2,
+    'три': 3, 'трёх': 3, 'трех': 3,
+  };
+  for (const [w, n] of Object.entries(wordToNum)) {
+    const re = new RegExp(`(^|\\s)${w}(\\s|$)`, 'i');
+    if (re.test(lower)) return n;
+  }
+
+  // Числа: «1 розетка», «2 шт», «3 светильника»
+  const numMatch = lower.match(/\b(\d{1,3})\s*(?:шт|штук|штуки|штуку)?/);
+  if (numMatch) return parseInt(numMatch[1], 10);
+
+  return null;
+}
+
+/**
+ * Описание содержит штучную работу (розетка/выключатель/смеситель…).
+ */
+function hasUnitWorkKeyword(text: string): boolean {
+  if (!text) return false;
+  const lower = text.toLowerCase();
+  return UNIT_WORK_KEYWORDS.some((kw) => lower.includes(kw));
+}
+
+/**
+ * Описание явно требует расчёта метража/площади — без этих данных смету не построить.
+ * Покраска, штукатурка, стяжка, ламинат, плитка, обои, утепление, кровля.
+ */
+const AREA_WORK_KEYWORDS = [
+  'покрас', 'штукатур', 'шпатлёв', 'шпаклёв', 'шпаклев', 'стяжк',
+  'ламинат', 'паркет', 'линолеум', 'плитк', 'кафел', 'обои', 'обоев',
+  'утеплен', 'кровл', 'отделк', 'выравнивани',
+];
+
+function requiresAreaMetric(text: string): boolean {
+  if (!text) return false;
+  const lower = text.toLowerCase();
+  return AREA_WORK_KEYWORDS.some((kw) => lower.includes(kw));
+}
+
+/**
  * Проверяет, содержит ли описание конкретные количественные параметры:
  * числа с единицами (м², м, шт, см, %), либо просто числа > 1 цифры.
- * Если их нет — нужны уточнения по объёму.
  */
 function descriptionHasMetrics(text: string): boolean {
   if (!text) return false;
@@ -384,6 +450,40 @@ function descriptionHasMetrics(text: string): boolean {
     /(?:^|\s)[2-9]\s+(?:розет|выключ|окн|двер|комнат|светильник|точк|раковин|унитаз|смесител|шкаф|ламп)/i,
   ];
   return patterns.some((re) => re.test(lower));
+}
+
+/**
+ * Определяет сложность заказа:
+ *  - SIMPLE: штучная работа в малом количестве (≤ 3) — смета сразу
+ *  - CLARIFY: можно уточнить деталями — показать вопросы
+ *  - ON_SITE: требует метража, который клиент не назовёт по памяти — нужен выезд мастера
+ */
+type OrderComplexity = 'SIMPLE' | 'CLARIFY' | 'ON_SITE';
+
+function classifyComplexity(text: string, hasDetectedCategory: boolean): OrderComplexity {
+  if (!hasDetectedCategory) return 'CLARIFY';
+
+  const isUnitWork = hasUnitWorkKeyword(text);
+  const qty = extractUnitQuantity(text);
+  const isAreaWork = requiresAreaMetric(text);
+  const hasMetrics = descriptionHasMetrics(text);
+
+  // Если упомянута штучная работа и количество понятно и небольшое — это SIMPLE
+  if (isUnitWork && qty !== null && qty >= 1 && qty <= SIMPLE_MAX_QTY) return 'SIMPLE';
+
+  // Если штучная работа без явного количества, но описание содержит «поменять/заменить/установить»
+  // в единственном числе — считаем что 1 штука
+  if (isUnitWork && qty === null && /\b(поменять|заменить|установить|починить|поставить)\b/i.test(text)) {
+    return 'SIMPLE';
+  }
+
+  // Работа требует метража, но его нет → клиент сам не посчитает — нужен выезд
+  if (isAreaWork && !hasMetrics) return 'ON_SITE';
+
+  // Категория есть, метрики есть — норм, идём дальше без уточнений
+  if (hasMetrics) return 'SIMPLE';
+
+  return 'CLARIFY';
 }
 
 export class InstantOrderService {
@@ -459,29 +559,47 @@ export class InstantOrderService {
       detectedCategories = this.detectCategories(combinedDescription, allCategoriesActive);
     }
 
-    // ─── Когда нужны уточнения ──────────────────────
-    // 1) Категории не определены вообще
-    // 2) Описание слишком короткое и нет явного выбора категорий
-    // 3) Категории выбраны (явно или авто), но в описании нет конкретных метрик
-    //    (м², шт, объём) — без них точную смету не построить
-    const hasMetrics = descriptionHasMetrics(combinedDescription);
-    const needsClarification =
-      detectedCategories.length === 0 ||
-      (combinedDescription.length < MIN_CLEAR_DESCRIPTION_LEN && explicitIds.length === 0) ||
-      (detectedCategories.length > 0 && !hasMetrics);
+    // ─── Классификация сложности заказа ──────────────────────
+    //  SIMPLE   — штучная работа (1-3 розетки) или есть конкретные метрики → строим смету сразу
+    //  CLARIFY  — категория есть, но непонятен объём → задаём уточняющие вопросы
+    //  ON_SITE  — работа требует обмера (покраска/плитка/стяжка без площади) → выезд мастера
+    const complexity = classifyComplexity(combinedDescription, detectedCategories.length > 0);
+    const tooShortWithoutExplicit =
+      combinedDescription.length < MIN_CLEAR_DESCRIPTION_LEN && explicitIds.length === 0;
 
-    if (needsClarification) {
+    if (complexity === 'ON_SITE') {
+      logger.info(
+        { descriptionLen: combinedDescription.length, detected: detectedCategories.length },
+        'AI-анализ: работа требует выезда мастера для обмера'
+      );
+      return {
+        needsClarification: false,
+        needsOnSiteEstimation: true,
+        complexity: 'ON_SITE' as const,
+        message:
+          'Для точного расчёта нужны замеры на месте (площадь, объём работ). ' +
+          'Можем вызвать мастера на бесплатную (или платную, по тарифу платформы) выездную оценку.',
+        partialMatches: detectedCategories.slice(0, 8).map((c: any) => ({
+          id: c.id,
+          name: c.name,
+          slug: c.slug,
+        })),
+      };
+    }
+
+    if (complexity === 'CLARIFY' || (detectedCategories.length === 0) || tooShortWithoutExplicit) {
       logger.info(
         {
           descriptionLen: combinedDescription.length,
           detected: detectedCategories.length,
-          hasMetrics,
+          complexity,
           explicit: explicitIds.length,
         },
         'AI-анализ: недостаточно деталей → возвращаем уточняющие вопросы'
       );
       return {
         needsClarification: true,
+        complexity: 'CLARIFY' as const,
         clarifyingQuestions: buildClarifyingQuestionsFor(
           detectedCategories.map((c: any) => ({ slug: c.slug, name: c.name }))
         ),
@@ -496,6 +614,8 @@ export class InstantOrderService {
         })),
       };
     }
+
+    // complexity === 'SIMPLE' → идём строить смету
 
     // ─── Если найдено НЕСКОЛЬКО категорий → строим мульти-смету ────
     if (detectedCategories.length > 1) {
