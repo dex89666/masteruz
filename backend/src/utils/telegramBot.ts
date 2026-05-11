@@ -28,14 +28,22 @@ interface SendLocationOptions {
   longitude: number;
 }
 
+export interface TelegramSendResult {
+  ok: boolean;
+  errorCode?: number;
+  description?: string;
+}
+
 /**
- * Отправка текстового сообщения в Telegram
+ * Отправка текстового сообщения в Telegram.
+ * Возвращает структурированный результат — чтобы вызывающая сторона могла
+ * различать «бот заблокирован пользователем» (403) и сетевые ошибки.
  */
-export async function sendTelegramMessage(options: SendMessageOptions): Promise<boolean> {
+export async function sendTelegramMessage(options: SendMessageOptions): Promise<TelegramSendResult> {
   try {
     if (!config.telegram.botToken) {
       logger.warn('Telegram Bot Token не настроен, сообщение не отправлено');
-      return false;
+      return { ok: false, description: 'bot_token_missing' };
     }
 
     const body: any = {
@@ -54,18 +62,21 @@ export async function sendTelegramMessage(options: SendMessageOptions): Promise<
       body: JSON.stringify(body),
     });
 
-    const result = await response.json() as any;
+    const result = (await response.json()) as { ok: boolean; description?: string; error_code?: number };
 
     if (!result.ok) {
-      logger.error({ error: result.description, chatId: options.chatId }, 'Ошибка отправки Telegram сообщения');
-      return false;
+      logger.error(
+        { errorCode: result.error_code, description: result.description, chatId: String(options.chatId) },
+        'Telegram API отклонил сообщение',
+      );
+      return { ok: false, errorCode: result.error_code, description: result.description };
     }
 
-    logger.info({ chatId: options.chatId }, 'Telegram сообщение отправлено');
-    return true;
+    logger.debug({ chatId: String(options.chatId) }, 'Telegram сообщение отправлено');
+    return { ok: true };
   } catch (error) {
-    logger.error({ error, chatId: options.chatId }, 'Ошибка отправки Telegram сообщения');
-    return false;
+    logger.error({ error, chatId: String(options.chatId) }, 'Ошибка отправки Telegram сообщения');
+    return { ok: false, description: error instanceof Error ? error.message : 'unknown' };
   }
 }
 
@@ -186,7 +197,7 @@ export async function notifyMasterNewOrder(params: {
   isUrgent: boolean;
   categoryName: string;
   distance?: number | null;
-}): Promise<void> {
+}): Promise<TelegramSendResult> {
   const chatId = String(params.masterTelegramId);
 
   const locationParts = [params.city, params.district].filter(Boolean);
@@ -226,7 +237,7 @@ export async function notifyMasterNewOrder(params: {
         ],
       };
 
-  await sendTelegramMessage({ chatId, text: message, replyMarkup });
+  return sendTelegramMessage({ chatId, text: message, replyMarkup });
 }
 
 /**

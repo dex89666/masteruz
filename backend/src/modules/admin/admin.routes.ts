@@ -551,4 +551,91 @@ router.put('/master/:masterId/categories', authorize('ADMIN'), async (req: Reque
   }
 });
 
+// ────────────────────────────────────────────────────────────
+// Диагностика доставки уведомлений по заказу.
+// GET /admin/orders/:id/notification-debug
+// Показывает: категорию заказа, список потенциальных получателей,
+// причину исключения каждого мастера (нет категории/недоступен/нет telegramId/др.).
+// ────────────────────────────────────────────────────────────
+router.get('/orders/:id/notification-debug', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const order = await prisma.order.findUnique({
+      where: { id: req.params.id },
+      include: { category: true },
+    });
+    if (!order) {
+      res.status(404).json({ success: false, error: 'Заказ не найден' });
+      return;
+    }
+
+    // Иерархия категорий: сам + родитель + дети
+    const categoryIds: string[] = [order.categoryId];
+    if (order.category?.parentId) categoryIds.push(order.category.parentId);
+    const childCategories = await prisma.category.findMany({
+      where: { parentId: order.categoryId },
+      select: { id: true, name: true },
+    });
+    for (const c of childCategories) categoryIds.push(c.id);
+
+    // Все активные мастера (для разбора по причинам)
+    const allMasters = await prisma.user.findMany({
+      where: { role: 'MASTER', isActive: true },
+      select: {
+        id: true,
+        telegramId: true,
+        username: true,
+        profile: { select: { firstName: true, lastName: true, city: true, latitude: true, longitude: true } },
+        masterProfile: {
+          select: {
+            isAvailable: true,
+            maxDistanceKm: true,
+            masterCategories: { select: { categoryId: true, category: { select: { name: true } } } },
+          },
+        },
+      },
+      take: 500,
+    });
+
+    const diagnostics = allMasters.map((m) => {
+      const reasons: string[] = [];
+      if (!m.masterProfile) reasons.push('no_master_profile');
+      else if (!m.masterProfile.isAvailable) reasons.push('not_available');
+      const matchedCategory = m.masterProfile?.masterCategories?.find((mc) => categoryIds.includes(mc.categoryId));
+      if (!matchedCategory) reasons.push('category_not_linked');
+      if (!m.telegramId) reasons.push('no_telegram_id');
+      return {
+        masterId: m.id,
+        name: `${m.profile?.firstName || ''} ${m.profile?.lastName || ''}`.trim() || m.username,
+        telegramId: m.telegramId ? String(m.telegramId) : null,
+        city: m.profile?.city,
+        hasCoordinates: !!(m.profile?.latitude && m.profile?.longitude),
+        categories: m.masterProfile?.masterCategories?.map((mc) => mc.category.name) || [],
+        matchedCategory: matchedCategory?.category.name || null,
+        eligible: reasons.length === 0,
+        excludeReasons: reasons,
+      };
+    });
+
+    res.json({
+      success: true,
+      data: {
+        order: {
+          id: order.id,
+          title: order.title,
+          status: order.status,
+          city: order.city,
+          hasGeo: !!(order.latitude && order.longitude),
+          category: { id: order.categoryId, name: order.category?.name, parentId: order.category?.parentId },
+          categoryIdsConsidered: categoryIds,
+        },
+        totalActiveMasters: allMasters.length,
+        eligibleCount: diagnostics.filter((d) => d.eligible).length,
+        masters: diagnostics,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 export default router;

@@ -155,12 +155,12 @@ export const announcementsService = {
     // Telegram лимит ~30 сообщений/сек — батч с паузами
     for (const u of users) {
       if (!u.telegramId) continue;
-      const ok = await sendTelegramMessage({
+      const result = await sendTelegramMessage({
         chatId: u.telegramId,
         text,
         parseMode: 'HTML',
       });
-      ok ? sent++ : failed++;
+      result.ok ? sent++ : failed++;
       // 50ms между сообщениями (~20 msg/sec, ниже лимита)
       await sleep(50);
     }

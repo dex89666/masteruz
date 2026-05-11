@@ -231,7 +231,7 @@ export class NotificationService {
         filteredMasters.map(async (master) => {
           const distLabel = master.distance !== null ? ` • ${master.distance} км от вас` : '';
 
-          // In-app уведомление
+          // In-app уведомление (работает всегда, даже если Telegram заблокирован)
           await this.createNotification({
             userId: master.id,
             type: 'new_order',
@@ -246,8 +246,13 @@ export class NotificationService {
             },
           });
 
-          // Telegram push
-          await notifyMasterNewOrder({
+          // Telegram push — только если есть telegramId
+          if (!master.telegramId) {
+            logger.warn({ orderId, masterId: master.id }, 'У мастера нет telegramId, push пропущен');
+            return { masterId: master.id, pushOk: false, reason: 'no_telegram_id' };
+          }
+
+          const pushResult = await notifyMasterNewOrder({
             masterTelegramId: master.telegramId,
             orderTitle: order.title,
             orderId: order.id,
@@ -259,15 +264,37 @@ export class NotificationService {
             categoryName: order.category?.name || '',
             distance: master.distance,
           });
-        })
+
+          if (!pushResult.ok) {
+            logger.warn(
+              {
+                orderId,
+                masterId: master.id,
+                telegramId: String(master.telegramId),
+                errorCode: pushResult.errorCode,
+                description: pushResult.description,
+              },
+              'Telegram push мастеру не доставлен (in-app уведомление сохранено)',
+            );
+          }
+
+          return { masterId: master.id, pushOk: pushResult.ok, reason: pushResult.description };
+        }),
       );
 
-      const failed = results.filter((r) => r.status === 'rejected');
-      if (failed.length > 0) {
-        logger.warn({ orderId, failedCount: failed.length, totalCount: filteredMasters.length }, 'Некоторые уведомления не доставлены');
-      }
+      const pushSuccess = results.filter((r) => r.status === 'fulfilled' && (r as PromiseFulfilledResult<any>).value?.pushOk).length;
+      const pushFailed = results.length - pushSuccess;
 
-      logger.info({ orderId, mastersNotified: filteredMasters.length - failed.length, totalMasters: filteredMasters.length }, 'Мастера уведомлены о новом заказе (гео-подбор)');
+      logger.info(
+        {
+          orderId,
+          totalTargets: filteredMasters.length,
+          pushSuccess,
+          pushFailed,
+          matchMode,
+        },
+        'notifyMastersNewOrder: рассылка завершена',
+      );
     } catch (error) {
       logger.error({ error, orderId }, 'Ошибка уведомления мастеров о новом заказе');
     }
