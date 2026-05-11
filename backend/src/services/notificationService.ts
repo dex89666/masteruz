@@ -227,12 +227,35 @@ export class NotificationService {
       logger.info({ orderId, filteredCount: filteredMasters.length }, 'notifyMastersNewOrder: после фильтрации');
 
       // ─── Параллельная рассылка (Promise.allSettled) ───
+      // Накапливаем записи журнала доставки и пишем одним createMany в конце.
+      const deliveryRecords: Array<{
+        orderId: string;
+        userId: string;
+        channel: string;
+        status: string;
+        reason: string | null;
+        errorCode: number | null;
+        description: string | null;
+        matchMode: string;
+        distanceKm: number | null;
+      }> = [];
+
+      const mapTelegramReason = (errorCode?: number, description?: string): string => {
+        if (!description) return 'unknown';
+        const d = description.toLowerCase();
+        if (errorCode === 403 && d.includes('blocked')) return 'bot_blocked';
+        if (errorCode === 403 && d.includes("can't initiate")) return 'never_started_bot';
+        if (errorCode === 400 && d.includes('chat not found')) return 'chat_not_found';
+        if (errorCode === 400 && d.includes('user is deactivated')) return 'user_deactivated';
+        return description.slice(0, 80);
+      };
+
       const results = await Promise.allSettled(
         filteredMasters.map(async (master) => {
           const distLabel = master.distance !== null ? ` • ${master.distance} км от вас` : '';
 
-          // In-app уведомление (работает всегда, даже если Telegram заблокирован)
-          await this.createNotification({
+          // 1) In-app уведомление — работает всегда
+          const inApp = await this.createNotification({
             userId: master.id,
             type: 'new_order',
             title: order.isUrgent ? '🚨 Новый срочный заказ!' : '🆕 Новый заказ!',
@@ -246,9 +269,31 @@ export class NotificationService {
             },
           });
 
-          // Telegram push — только если есть telegramId
+          deliveryRecords.push({
+            orderId,
+            userId: master.id,
+            channel: 'in_app',
+            status: inApp ? 'success' : 'failed',
+            reason: inApp ? null : 'db_error',
+            errorCode: null,
+            description: null,
+            matchMode,
+            distanceKm: master.distance,
+          });
+
+          // 2) Telegram push — только если есть telegramId
           if (!master.telegramId) {
-            logger.warn({ orderId, masterId: master.id }, 'У мастера нет telegramId, push пропущен');
+            deliveryRecords.push({
+              orderId,
+              userId: master.id,
+              channel: 'telegram',
+              status: 'skipped',
+              reason: 'no_telegram_id',
+              errorCode: null,
+              description: null,
+              matchMode,
+              distanceKm: master.distance,
+            });
             return { masterId: master.id, pushOk: false, reason: 'no_telegram_id' };
           }
 
@@ -263,6 +308,18 @@ export class NotificationService {
             isUrgent: order.isUrgent,
             categoryName: order.category?.name || '',
             distance: master.distance,
+          });
+
+          deliveryRecords.push({
+            orderId,
+            userId: master.id,
+            channel: 'telegram',
+            status: pushResult.ok ? 'success' : 'failed',
+            reason: pushResult.ok ? null : mapTelegramReason(pushResult.errorCode, pushResult.description),
+            errorCode: pushResult.errorCode ?? null,
+            description: pushResult.description ?? null,
+            matchMode,
+            distanceKm: master.distance,
           });
 
           if (!pushResult.ok) {
@@ -281,6 +338,13 @@ export class NotificationService {
           return { masterId: master.id, pushOk: pushResult.ok, reason: pushResult.description };
         }),
       );
+
+      // Запись журнала доставки одним пакетом
+      if (deliveryRecords.length > 0) {
+        await prisma.notificationDeliveryLog
+          .createMany({ data: deliveryRecords })
+          .catch((err) => logger.error({ err, orderId }, 'Не удалось записать журнал доставки'));
+      }
 
       const pushSuccess = results.filter((r) => r.status === 'fulfilled' && (r as PromiseFulfilledResult<any>).value?.pushOk).length;
       const pushFailed = results.length - pushSuccess;

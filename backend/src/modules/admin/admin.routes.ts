@@ -638,4 +638,58 @@ router.get('/orders/:id/notification-debug', async (req: Request, res: Response,
   }
 });
 
+// ────────────────────────────────────────────────────────────
+// Журнал доставки уведомлений по заказу (из notification_delivery_logs).
+// GET /admin/orders/:id/delivery-log
+// Показывает каждую попытку доставки (in-app + Telegram), статус и причину.
+// ────────────────────────────────────────────────────────────
+router.get('/orders/:id/delivery-log', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const logs = await prisma.notificationDeliveryLog.findMany({
+      where: { orderId: req.params.id },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    if (logs.length === 0) {
+      res.json({ success: true, data: { logs: [], summary: null, hint: 'Журнал пуст. Возможные причины: рассылка ещё не запускалась, заказ не PUBLISHED, или сервис уведомлений упал до записи журнала.' } });
+      return;
+    }
+
+    // Подтягиваем имена мастеров
+    const userIds = [...new Set(logs.map((l) => l.userId))];
+    const users = await prisma.user.findMany({
+      where: { id: { in: userIds } },
+      select: { id: true, username: true, telegramId: true, profile: { select: { firstName: true, lastName: true } } },
+    });
+    const userMap = new Map(users.map((u) => [u.id, u]));
+
+    const enriched = logs.map((l) => {
+      const u = userMap.get(l.userId);
+      return {
+        ...l,
+        masterName: u ? `${u.profile?.firstName || ''} ${u.profile?.lastName || ''}`.trim() || u.username : null,
+        telegramId: u?.telegramId ? String(u.telegramId) : null,
+      };
+    });
+
+    const summary = {
+      total: logs.length,
+      inAppSuccess: logs.filter((l) => l.channel === 'in_app' && l.status === 'success').length,
+      telegramSuccess: logs.filter((l) => l.channel === 'telegram' && l.status === 'success').length,
+      telegramFailed: logs.filter((l) => l.channel === 'telegram' && l.status === 'failed').length,
+      telegramSkipped: logs.filter((l) => l.channel === 'telegram' && l.status === 'skipped').length,
+      byReason: logs
+        .filter((l) => l.reason)
+        .reduce<Record<string, number>>((acc, l) => {
+          acc[l.reason!] = (acc[l.reason!] || 0) + 1;
+          return acc;
+        }, {}),
+    };
+
+    res.json({ success: true, data: { summary, logs: enriched } });
+  } catch (error) {
+    next(error);
+  }
+});
+
 export default router;

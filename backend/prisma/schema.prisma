@@ -618,6 +618,28 @@ model Notification {
   @@map("notifications")
 }
 
+// ─── Журнал доставки push-уведомлений ────────────────────
+// Записывается при каждой попытке разослать новый заказ мастерам.
+// Позволяет диагностировать «почему мастер не получил пуш» прямо из админки.
+model NotificationDeliveryLog {
+  id          String   @id @default(uuid())
+  orderId     String   @map("order_id")
+  userId      String   @map("user_id")
+  channel     String   // 'in_app' | 'telegram'
+  status      String   // 'success' | 'failed' | 'skipped'
+  reason      String?  // 'no_telegram_id' | 'bot_blocked' | 'chat_not_found' | etc.
+  errorCode   Int?     @map("error_code")
+  description String?
+  matchMode   String?  @map("match_mode") // 'category' | 'fallback_all_masters'
+  distanceKm  Float?   @map("distance_km")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([orderId])
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@map("notification_delivery_logs")
+}
+
 // ════════════════════════════════════════════════
 // ЧЁРНЫЙ СПИСОК
 // ════════════════════════════════════════════════
