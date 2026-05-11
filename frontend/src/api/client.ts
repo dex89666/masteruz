@@ -680,6 +680,12 @@ export const adminApi = {
   updateOrderComment: (orderId: string, comment: string) =>
     api.put<ApiResponse<any>>(`/admin/orders/${orderId}/comment`, { comment }),
 
+  getOrderNotificationDebug: (orderId: string) =>
+    api.get<ApiResponse<any>>(`/admin/orders/${orderId}/notification-debug`),
+
+  getOrderDeliveryLog: (orderId: string) =>
+    api.get<ApiResponse<any>>(`/admin/orders/${orderId}/delivery-log`),
+
   getPayments: (params?: any) =>
     api.get<PaginatedResponse<any>>('/admin/payments', { params }),
 

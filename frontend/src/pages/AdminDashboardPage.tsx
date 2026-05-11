@@ -22,6 +22,7 @@ import {
   FolderTree, Plus, Trash2, Edit3, ChevronDown, ChevronUp,
   Headphones, Send, MessageCircle, FileText, Sparkles,
   GraduationCap, HelpCircle, BookOpen, Phone,
+  Bell,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { Dashboard } from '../types';
@@ -118,6 +119,12 @@ export function AdminDashboardPage() {
   const [ordersTotalPages, setOrdersTotalPages] = useState(1);
   const [ordersStatus, setOrdersStatus] = useState('');
   const [ordersLoading, setOrdersLoading] = useState(false);
+
+  // Notification diagnostics modal
+  const [notifyOrder, setNotifyOrder] = useState<{ id: string; title: string } | null>(null);
+  const [notifyDebug, setNotifyDebug] = useState<any | null>(null);
+  const [notifyLog, setNotifyLog] = useState<any | null>(null);
+  const [notifyLoading, setNotifyLoading] = useState(false);
 
   // Payments tab state
   const [payments, setPayments] = useState<any[]>([]);
@@ -495,6 +502,25 @@ export function AdminDashboardPage() {
       console.error(e);
     } finally {
       setOrdersLoading(false);
+    }
+  }
+
+  async function openNotifyDiag(order: { id: string; title: string }) {
+    setNotifyOrder(order);
+    setNotifyDebug(null);
+    setNotifyLog(null);
+    setNotifyLoading(true);
+    try {
+      const [debugRes, logRes] = await Promise.all([
+        adminApi.getOrderNotificationDebug(order.id),
+        adminApi.getOrderDeliveryLog(order.id),
+      ]);
+      setNotifyDebug(debugRes.data.data);
+      setNotifyLog(logRes.data.data);
+    } catch (e: any) {
+      toast.error(e.response?.data?.message || 'Не удалось загрузить диагностику');
+    } finally {
+      setNotifyLoading(false);
     }
   }
 
@@ -1435,6 +1461,14 @@ export function AdminDashboardPage() {
                       {o.commissionPaid && (
                         <span className="text-[10px] text-green-600 dark:text-green-400">комиссия</span>
                       )}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); openNotifyDiag({ id: o.id, title: o.title }); }}
+                        className="mt-2 inline-flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400 dark:hover:bg-amber-900/40 transition-colors"
+                        title="Диагностика уведомлений по этому заказу"
+                      >
+                        <Bell size={12} />
+                        Уведомления
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -3344,6 +3378,20 @@ export function AdminDashboardPage() {
           </div>
         </div>
       )}
+
+      {/* ═══════════════════════════════════════ */}
+      {/* MODAL: Notification Diagnostics        */}
+      {/* ═══════════════════════════════════════ */}
+      {notifyOrder && (
+        <NotificationDiagModal
+          order={notifyOrder}
+          loading={notifyLoading}
+          debug={notifyDebug}
+          log={notifyLog}
+          onClose={() => { setNotifyOrder(null); setNotifyDebug(null); setNotifyLog(null); }}
+          onRefresh={() => openNotifyDiag(notifyOrder)}
+        />
+      )}
     </div>
   );
 }
@@ -3373,6 +3421,208 @@ function Pagination({ page, totalPages, onPageChange }: {
       >
         <ChevronRight size={20} className="dark:text-gray-400" />
       </button>
+    </div>
+  );
+}
+
+// ─── Notification Diagnostics Modal ─────────
+const REASON_LABELS: Record<string, string> = {
+  no_master_profile: 'Нет профиля мастера',
+  not_available: 'Мастер выключил приём заказов',
+  category_not_linked: 'Категория не привязана',
+  no_telegram_id: 'Не привязал Telegram (не нажимал /start у бота)',
+  bot_blocked: 'Заблокировал бота',
+  never_started_bot: 'Не открывал бота (нужно /start)',
+  chat_not_found: 'Чат не найден',
+  city_mismatch: 'Город не совпал',
+  out_of_range: 'Дальше maxDistanceKm',
+};
+
+const reasonLabel = (r?: string | null) => (r && REASON_LABELS[r]) || r || '—';
+
+function NotificationDiagModal({
+  order, loading, debug, log, onClose, onRefresh,
+}: {
+  order: { id: string; title: string };
+  loading: boolean;
+  debug: any | null;
+  log: any | null;
+  onClose: () => void;
+  onRefresh: () => void;
+}) {
+  const summary = log?.summary;
+  const logs: any[] = log?.logs || [];
+  const masters: any[] = debug?.masters || [];
+  const eligible = masters.filter((m) => m.eligible);
+  const blocked = masters.filter((m) => !m.eligible);
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="bg-white dark:bg-gray-900 w-full sm:max-w-3xl sm:rounded-2xl rounded-t-2xl shadow-2xl max-h-[92vh] flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-gray-100 dark:border-gray-800">
+          <div className="flex items-center gap-2 min-w-0">
+            <Bell size={18} className="text-amber-500 flex-shrink-0" />
+            <div className="min-w-0">
+              <h3 className="font-semibold text-sm dark:text-white truncate">Диагностика уведомлений</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{order.title}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={onRefresh}
+              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400"
+              title="Обновить"
+            >
+              <RefreshCw size={16} />
+            </button>
+            <button
+              onClick={onClose}
+              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400"
+            >
+              <XCircle size={18} />
+            </button>
+          </div>
+        </div>
+
+        {/* Body */}
+        <div className="overflow-y-auto flex-1 p-4 space-y-5">
+          {loading && <LoadingSpinner />}
+
+          {!loading && debug && (
+            <>
+              {/* Summary */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div className="card !p-3">
+                  <p className="text-[10px] text-gray-500 dark:text-gray-400">Активных мастеров</p>
+                  <p className="text-lg font-bold dark:text-white">{debug.totalActiveMasters}</p>
+                </div>
+                <div className="card !p-3">
+                  <p className="text-[10px] text-gray-500 dark:text-gray-400">Подходят</p>
+                  <p className="text-lg font-bold text-green-600 dark:text-green-400">{debug.eligibleCount}</p>
+                </div>
+                <div className="card !p-3">
+                  <p className="text-[10px] text-gray-500 dark:text-gray-400">Telegram доставлено</p>
+                  <p className="text-lg font-bold text-blue-600 dark:text-blue-400">{summary?.telegramSuccess ?? 0}</p>
+                </div>
+                <div className="card !p-3">
+                  <p className="text-[10px] text-gray-500 dark:text-gray-400">Ошибок Telegram</p>
+                  <p className="text-lg font-bold text-red-500">{summary?.telegramFailed ?? 0}</p>
+                </div>
+              </div>
+
+              {/* Order context */}
+              <div className="card !p-3 text-xs space-y-1">
+                <div className="flex justify-between">
+                  <span className="text-gray-500 dark:text-gray-400">Категория:</span>
+                  <span className="dark:text-white font-medium">{debug.order?.category?.name || '—'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500 dark:text-gray-400">Город:</span>
+                  <span className="dark:text-white">{debug.order?.city || '—'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500 dark:text-gray-400">Координаты заказа:</span>
+                  <span className={debug.order?.hasGeo ? 'text-green-600' : 'text-orange-500'}>
+                    {debug.order?.hasGeo ? 'есть' : 'нет'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Delivery log */}
+              {logs.length > 0 && (
+                <section>
+                  <h4 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-2">
+                    Журнал доставки ({logs.length})
+                  </h4>
+                  <div className="space-y-1.5 max-h-64 overflow-y-auto">
+                    {logs.map((l) => {
+                      const ok = l.status === 'success';
+                      const skipped = l.status === 'skipped';
+                      return (
+                        <div
+                          key={l.id}
+                          className={`flex items-center justify-between gap-2 text-xs p-2 rounded-lg border ${
+                            ok
+                              ? 'bg-green-50 dark:bg-green-900/10 border-green-200 dark:border-green-900/30'
+                              : skipped
+                              ? 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700'
+                              : 'bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-900/30'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${
+                              l.channel === 'telegram'
+                                ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'
+                                : 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300'
+                            }`}>{l.channel}</span>
+                            <span className="dark:text-white truncate">{l.masterName || l.userId.slice(0, 8)}</span>
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <span className={ok ? 'text-green-600' : skipped ? 'text-gray-500' : 'text-red-600'}>
+                              {ok ? '✓' : skipped ? '○' : '✗'} {reasonLabel(l.reason)}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+              )}
+
+              {logs.length === 0 && (
+                <div className="card !p-3 bg-amber-50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-900/30">
+                  <p className="text-xs text-amber-700 dark:text-amber-400">
+                    {log?.hint || 'Журнал доставки пуст. Возможно, рассылка ещё не запускалась.'}
+                  </p>
+                </div>
+              )}
+
+              {/* Eligible masters */}
+              {eligible.length > 0 && (
+                <section>
+                  <h4 className="text-xs font-semibold uppercase text-green-600 dark:text-green-400 mb-2">
+                    Подходящие мастера ({eligible.length})
+                  </h4>
+                  <div className="space-y-1 max-h-48 overflow-y-auto">
+                    {eligible.map((m) => (
+                      <div key={m.masterId} className="flex items-center justify-between text-xs p-2 rounded-lg bg-green-50 dark:bg-green-900/10">
+                        <span className="dark:text-white truncate">{m.name}</span>
+                        <span className="text-[10px] text-gray-500 dark:text-gray-400">
+                          {m.city || '—'} · {m.hasCoordinates ? 'geo' : 'no geo'} · {m.telegramId ? 'TG' : 'no TG'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {/* Blocked masters */}
+              {blocked.length > 0 && (
+                <section>
+                  <h4 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-2">
+                    Не получили ({blocked.length})
+                  </h4>
+                  <div className="space-y-1 max-h-64 overflow-y-auto">
+                    {blocked.map((m) => (
+                      <div key={m.masterId} className="flex items-center justify-between gap-2 text-xs p-2 rounded-lg bg-gray-50 dark:bg-gray-800">
+                        <span className="dark:text-white truncate">{m.name}</span>
+                        <div className="flex flex-wrap gap-1 justify-end">
+                          {m.excludeReasons.map((r: string) => (
+                            <span key={r} className="text-[10px] px-1.5 py-0.5 rounded bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                              {reasonLabel(r)}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
