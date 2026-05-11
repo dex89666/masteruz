@@ -11,6 +11,7 @@ import { ApiError } from '../../utils/ApiError.js';
 import { clampPagination } from '../../utils/helpers.js';
 import { moderateMessage, censorMessage } from './chatModeration.js';
 import { logger } from '../../utils/logger.js';
+import { detectContactExchangeInMessage, recordFraudSignal } from '../../services/fraudDetectionService.js';
 
 const router = Router();
 
@@ -138,6 +139,22 @@ router.post('/:orderId', authenticate, async (req: Request, res: Response, next:
         isFlagged = true;
         flagReason = modResult.reasons.join('; ');
         logger.warn({ orderId, userId, reasons: modResult.reasons }, 'Подозрительное сообщение в чате');
+      }
+
+      // ─── Anti-fraud: попытка обмена контактами / договорённости вне платформы ──
+      const contactCheck = detectContactExchangeInMessage(text);
+      if (contactCheck.detected) {
+        isFlagged = true;
+        flagReason = [flagReason, `bypass-attempt:${contactCheck.matchedPattern}`]
+          .filter(Boolean)
+          .join('; ');
+        recordFraudSignal({
+          userId,
+          signal: 'CHAT_CONTACT_EXCHANGE',
+          context: { orderId, matchedPattern: contactCheck.matchedPattern },
+        }).catch((err) =>
+          logger.error({ err, orderId, userId }, 'Не удалось зафиксировать fraud-сигнал')
+        );
       }
     }
 

@@ -1015,10 +1015,18 @@ export function InstantOrderPage() {
               <button
                 type="button"
                 onClick={() => {
-                  // На текущий момент эстимация-флоу инициируется на странице заказа после создания.
-                  // Здесь — переключаемся на режим уточнений как fallback, чтобы клиент мог дописать детали.
-                  toast('Создайте заказ — затем со страницы заказа вызовете мастера на замер.', { icon: '🔧', duration: 6000 });
-                  setStep('upload');
+                  // Переход на форму выездной оценки с предзаполненными данными:
+                  // категория (если AI её распознал), описание и фотографии.
+                  const primaryCategory =
+                    analysisResult?.partialMatches?.[0]?.id || analysisResult?.category?.id || undefined;
+                  navigate('/estimation/create', {
+                    state: {
+                      categoryId: primaryCategory,
+                      description: description || voiceText || '',
+                      images: images,
+                      title: title || undefined,
+                    },
+                  });
                 }}
                 className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-semibold rounded-xl py-3 hover:opacity-90 transition"
               >

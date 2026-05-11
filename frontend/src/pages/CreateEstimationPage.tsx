@@ -4,7 +4,7 @@
 // ============================================
 
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { estimationApi, catalogApi } from '../api/client';
 import { useAuthStore } from '../store';
 import { useGeolocation } from '../hooks';
@@ -17,22 +17,31 @@ import { UZBEKISTAN_REGIONS, getDistrictsForCity } from '../data/regions';
 
 const ESTIMATION_FEE = 150000; // 150 000 сум
 
+interface PrefillState {
+  categoryId?: string;
+  description?: string;
+  images?: string[];
+  title?: string;
+}
+
 export function CreateEstimationPage() {
   const navigate = useNavigate();
+  const routerLocation = useLocation();
+  const prefill = (routerLocation.state as PrefillState | null) || {};
   const { user } = useAuthStore();
   const { location, requestLocation } = useGeolocation();
 
   const [categories, setCategories] = useState<any[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
-  // Форма
-  const [categoryId, setCategoryId] = useState('');
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
+  // Форма — предзаполняется из InstantOrder, если пришли по кнопке «Вызвать мастера на замер»
+  const [categoryId, setCategoryId] = useState(prefill.categoryId || '');
+  const [title, setTitle] = useState(prefill.title || '');
+  const [description, setDescription] = useState(prefill.description || '');
   const [address, setAddress] = useState('');
   const [city, setCity] = useState('Ташкент');
   const [district, setDistrict] = useState('');
-  const [images, setImages] = useState<string[]>([]);
+  const [images, setImages] = useState<string[]>(prefill.images || []);
   const [scheduledDate, setScheduledDate] = useState('');
   const [scheduledTime, setScheduledTime] = useState('');
 
