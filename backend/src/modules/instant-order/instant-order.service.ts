@@ -11,6 +11,7 @@ import { notificationService } from '../../services/notificationService.js';
 import { toNum, moneyMul, moneyAdd, calculateCommission } from '../../utils/helpers.js';
 import { OrderStatus } from '@prisma/client';
 import { buildSmartVariants } from './pricing-catalog.js';
+import { analyzeOrder, type AiAnalysisResult } from '../../services/aiAnalysisService.js';
 
 // Тип AI-уровня (AiTier будет доступен после prisma generate)
 type AiTierType = 'GOOD' | 'BETTER' | 'BEST';
@@ -541,6 +542,8 @@ export class InstantOrderService {
     };
 
     let detectedCategories: any[] = [];
+    let aiAnalysis: AiAnalysisResult | null = null;
+    let allCategoriesActive: any[] = [];
 
     if (explicitIds.length > 0) {
       const explicit = await prisma.category.findMany({
@@ -551,12 +554,91 @@ export class InstantOrderService {
       detectedCategories = explicitIds
         .map((id) => explicit.find((c) => c.id === id))
         .filter(Boolean) as any[];
-    } else if (combinedDescription) {
-      const allCategoriesActive = await prisma.category.findMany({
+    } else {
+      // ─── AI Vision: анализ фото + текста через OpenAI GPT-4o ──────
+      allCategoriesActive = await prisma.category.findMany({
         where: { isActive: true },
         include: categoryInclude,
       });
-      detectedCategories = this.detectCategories(combinedDescription, allCategoriesActive);
+
+      aiAnalysis = await analyzeOrder({
+        photoUrls: images,
+        text: combinedDescription,
+        availableCategories: allCategoriesActive.map((c: any) => ({
+          slug: c.slug,
+          name: c.name,
+        })),
+      });
+
+      // AI сказал — нужен выезд для замеров → сразу ON_SITE
+      if (aiAnalysis.needsOnSite) {
+        logger.info(
+          { topCat: aiAnalysis.categories[0]?.slug, conf: aiAnalysis.categories[0]?.confidence },
+          'AI-анализ: требуется выезд мастера для обмера (определено AI)'
+        );
+        const partialMatches = aiAnalysis.categories
+          .map((g) => allCategoriesActive.find((c: any) => c.slug === g.slug))
+          .filter(Boolean)
+          .slice(0, 8)
+          .map((c: any) => ({ id: c.id, name: c.name, slug: c.slug }));
+
+        return {
+          needsClarification: false,
+          needsOnSiteEstimation: true,
+          complexity: 'ON_SITE' as const,
+          aiSummary: aiAnalysis.summary,
+          urgency: aiAnalysis.urgency,
+          message:
+            'Для точного расчёта нужны замеры на месте (площадь, объём работ). ' +
+            'Можем вызвать мастера на бесплатную (или платную, по тарифу платформы) выездную оценку.',
+          partialMatches,
+        };
+      }
+
+      const CONFIDENT_THRESHOLD = 75; // ≥ 75 — берём одну категорию
+      const POSSIBLE_THRESHOLD = 50;  // 50-74 — даём клиенту выбрать из топ-3
+      const top = aiAnalysis.categories[0];
+
+      if (top && top.confidence >= CONFIDENT_THRESHOLD) {
+        const cat = allCategoriesActive.find((c: any) => c.slug === top.slug);
+        if (cat) detectedCategories = [cat];
+      } else if (top && top.confidence >= POSSIBLE_THRESHOLD) {
+        // Клиент должен подтвердить — возвращаем топ-3 с confidence
+        const suggested = aiAnalysis.categories
+          .map((g) => {
+            const c = allCategoriesActive.find((cat: any) => cat.slug === g.slug);
+            return c
+              ? {
+                  id: c.id,
+                  slug: c.slug,
+                  name: c.name,
+                  nameUz: c.nameUz,
+                  nameEn: c.nameEn,
+                  icon: c.icon,
+                  confidence: g.confidence,
+                  reasoning: g.reasoning,
+                }
+              : null;
+          })
+          .filter(Boolean);
+
+        logger.info(
+          { count: suggested.length, topConf: top.confidence },
+          'AI-анализ: средний confidence, нужно подтверждение категории'
+        );
+
+        return {
+          needsClarification: false,
+          needsCategoryConfirmation: true,
+          complexity: 'CONFIRM' as const,
+          aiSummary: aiAnalysis.summary,
+          urgency: aiAnalysis.urgency,
+          suggestedCategories: suggested,
+          message:
+            'AI определил несколько возможных направлений. Отметьте подходящие — соберём точную смету.',
+        };
+      }
+      // < POSSIBLE_THRESHOLD → detectedCategories пуст → попадём в CLARIFY ниже
     }
 
     // ─── Классификация сложности заказа ──────────────────────
@@ -576,6 +658,8 @@ export class InstantOrderService {
         needsClarification: false,
         needsOnSiteEstimation: true,
         complexity: 'ON_SITE' as const,
+        aiSummary: aiAnalysis?.summary,
+        urgency: aiAnalysis?.urgency,
         message:
           'Для точного расчёта нужны замеры на месте (площадь, объём работ). ' +
           'Можем вызвать мастера на бесплатную (или платную, по тарифу платформы) выездную оценку.',
@@ -600,6 +684,8 @@ export class InstantOrderService {
       return {
         needsClarification: true,
         complexity: 'CLARIFY' as const,
+        aiSummary: aiAnalysis?.summary,
+        urgency: aiAnalysis?.urgency,
         clarifyingQuestions: buildClarifyingQuestionsFor(
           detectedCategories.map((c: any) => ({ slug: c.slug, name: c.name }))
         ),
@@ -707,7 +793,22 @@ export class InstantOrderService {
               estimatedDays: variant.estimatedDays,
               confidence: variant.confidence,
               prompt: (combinedDescription || '').substring(0, 2000),
-              imageAnalysis: { imageCount: images.length, description: (combinedDescription || '').substring(0, 500) },
+              imageAnalysis: {
+                imageCount: images.length,
+                description: (combinedDescription || '').substring(0, 500),
+                ai: aiAnalysis
+                  ? {
+                      topCategory: aiAnalysis.categories[0]?.slug,
+                      topConfidence: aiAnalysis.categories[0]?.confidence,
+                      urgency: aiAnalysis.urgency,
+                      summary: aiAnalysis.summary,
+                      materials: aiAnalysis.materials,
+                      priceHint: aiAnalysis.priceHint,
+                      model: aiAnalysis.raw.model,
+                      latencyMs: aiAnalysis.raw.latencyMs,
+                    }
+                  : null,
+              },
               description: (variant.description || '').substring(0, 2000),
               createdById: userId,
             },
@@ -741,6 +842,11 @@ export class InstantOrderService {
         slug: category.slug,
       },
       detectedFromPhoto: explicitIds.length === 0,
+      aiSummary: aiAnalysis?.summary,
+      aiConfidence: aiAnalysis?.categories[0]?.confidence,
+      urgency: aiAnalysis?.urgency,
+      aiMaterials: aiAnalysis?.materials,
+      aiPriceHint: aiAnalysis?.priceHint ?? undefined,
       detectedCategories: [
         {
           id: category.id,
@@ -749,6 +855,7 @@ export class InstantOrderService {
           nameUz: category.nameUz,
           nameEn: category.nameEn,
           icon: category.icon,
+          confidence: aiAnalysis?.categories[0]?.confidence,
         },
       ],
       variants: templates.map((t: any) => ({

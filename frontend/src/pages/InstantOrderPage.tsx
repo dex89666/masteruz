@@ -461,6 +461,31 @@ export function InstantOrderPage() {
         return;
       }
 
+      // ─── AI определил несколько вероятных категорий → клиент подтверждает ──
+      if (data?.needsCategoryConfirmation && Array.isArray(data.suggestedCategories) && data.suggestedCategories.length > 0) {
+        setAnalysisResult(data);
+        // Предзаполняем выбор категорий тем что AI предположил
+        const ids = data.suggestedCategories.map((c: any) => c.id).filter(Boolean);
+        setSelectedCategoryIds(ids);
+        setCategoryRequired(true);
+        setStep('upload');
+        const top = data.suggestedCategories[0];
+        toast(
+          top?.confidence
+            ? `AI определил: ${top.name} (уверенность ${Math.round(top.confidence)}%). Подтвердите или измените выбор.`
+            : 'AI определил несколько направлений. Подтвердите выбор.',
+          { icon: '🤖', duration: 6000 }
+        );
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            setTimeout(() => {
+              categorySectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 100);
+          });
+        });
+        return;
+      }
+
       // ─── Если AI не уверен → задаёт уточняющие вопросы ──
       if (data?.needsClarification && Array.isArray(data.clarifyingQuestions) && data.clarifyingQuestions.length > 0) {
         setClarifyQuestions(data.clarifyingQuestions);
@@ -1181,7 +1206,7 @@ export function InstantOrderPage() {
               <div className="w-12 h-12 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
                 <CheckCircle size={22} className="text-orange-500" />
               </div>
-              <div>
+              <div className="flex-1 min-w-0">
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   {(analysisResult.detectedCategories?.length ?? 1) > 1
                     ? `Определено направлений: ${analysisResult.detectedCategories!.length}`
@@ -1189,12 +1214,53 @@ export function InstantOrderPage() {
                 </p>
                 <p className="font-bold dark:text-white text-base">{analysisResult.category.name}</p>
               </div>
-              {analysisResult.detectedFromPhoto && (
-                <span className="ml-auto text-xs bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 px-3 py-1 rounded-full font-medium">
+              {typeof analysisResult.aiConfidence === 'number' && (
+                <span
+                  className={`text-xs font-bold px-3 py-1 rounded-full ${
+                    analysisResult.aiConfidence >= 85
+                      ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
+                      : analysisResult.aiConfidence >= 70
+                      ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                  }`}
+                  title="Уверенность AI в определении категории"
+                >
+                  AI {Math.round(analysisResult.aiConfidence)}%
+                </span>
+              )}
+              {analysisResult.detectedFromPhoto && typeof analysisResult.aiConfidence !== 'number' && (
+                <span className="text-xs bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 px-3 py-1 rounded-full font-medium">
                   Определено AI
                 </span>
               )}
             </div>
+
+            {/* AI Summary — что увидел AI на фото */}
+            {analysisResult.aiSummary && (
+              <div className="bg-gradient-to-br from-purple-50 to-blue-50 dark:from-purple-950/30 dark:to-blue-950/30 rounded-2xl p-4 border border-purple-200 dark:border-purple-800">
+                <p className="text-xs font-semibold text-purple-700 dark:text-purple-300 uppercase tracking-wide mb-1">
+                  🤖 AI разобрал ваш запрос:
+                </p>
+                <p className="text-sm text-gray-800 dark:text-gray-200 leading-relaxed">
+                  {analysisResult.aiSummary}
+                </p>
+                {analysisResult.urgency && analysisResult.urgency !== 'normal' && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                      analysisResult.urgency === 'emergency'
+                        ? 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300'
+                        : analysisResult.urgency === 'urgent'
+                        ? 'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300'
+                        : 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'
+                    }`}>
+                      {analysisResult.urgency === 'emergency' ? '🚨 АВАРИЯ' :
+                       analysisResult.urgency === 'urgent' ? '⚡ Срочно' :
+                       '🕐 Гибко'}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Чипы всех найденных направлений (когда их > 1) */}
             {analysisResult.detectedCategories && analysisResult.detectedCategories.length > 1 && (

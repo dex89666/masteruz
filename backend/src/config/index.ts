@@ -60,6 +60,13 @@ export const config = {
     apiKey: env('YANDEX_MAPS_API_KEY'),
   },
 
+  // OpenAI — AI Vision для анализа фотозаказов
+  openai: {
+    apiKey: env('OPENAI_API_KEY'),
+    model: env('OPENAI_VISION_MODEL', 'gpt-4o'),
+    timeoutMs: parseInt(env('OPENAI_TIMEOUT_MS', '45000'), 10),
+  },
+
   // Click (платежи)
   click: {
     merchantId: env('CLICK_MERCHANT_ID'),
