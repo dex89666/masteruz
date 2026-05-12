@@ -16,6 +16,7 @@ import { auditService } from '../../services/auditService.js';
 import { eventBus } from '../../services/eventBus.js';
 import { AUTO_CANCEL_TIMEOUT_HOURS } from '../../services/orderAutoCancellation.js';
 import { safeRecalculate as recalcCustomerRisk } from '../../services/customerRiskService.js';
+import { safeScanUser as safeScanFraud } from '../../services/fraudDetectionService.js';
 
 // Дополняет публикуемый заказ дедлайном авто-отмены (для UI-таймера)
 function withAutoCancelAt<T extends { status: OrderStatus; masterId: string | null; createdAt: Date }>(order: T): T & { autoCancelAt: Date | null } {
@@ -1060,6 +1061,9 @@ export class OrdersService {
     // Customer Risk Score: пересчёт после отмены (не блокирует основной флоу)
     void recalcCustomerRisk(order.clientId);
 
+    // Fraud-скан того, кто отменил (мастер с серией отмен = красный флаг)
+    void safeScanFraud(userId);
+
     return { orderId, cancelledBy, penaltyAmount, reason };
   }
 
@@ -1092,6 +1096,9 @@ export class OrdersService {
 
     // Customer Risk Score: пересчёт после открытия спора
     void recalcCustomerRisk(clientId);
+
+    // Fraud-скан клиента: серия споров — повод присмотреться
+    void safeScanFraud(clientId);
 
     return updatedOrder;
   }

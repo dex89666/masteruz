@@ -812,4 +812,38 @@ router.get('/orders/:id/routing-analysis', async (req: Request, res: Response, n
   }
 });
 
+// ────────────────────────────────────────────────────────────
+// Fraud Detection Agent: композитный отчёт по пользователю (Итерация 4).
+// GET  /admin/users/:id/fraud-report  — текущий скор + сигналы
+// POST /admin/users/:id/fraud-scan    — форсировать пересчёт
+// ────────────────────────────────────────────────────────────
+router.get('/users/:id/fraud-report', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { scanUser } = await import('../../services/fraudDetectionService.js');
+    const report = await scanUser(req.params.id);
+
+    // История ранее зафиксированных сигналов (последние 20)
+    const history = await prisma.auditLog.findMany({
+      where: { actorId: req.params.id, action: 'FRAUD_SIGNAL' },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+      select: { id: true, details: true, createdAt: true },
+    });
+
+    res.json({ success: true, data: { report, history } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/users/:id/fraud-scan', authorize('ADMIN'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { scanUser } = await import('../../services/fraudDetectionService.js');
+    const report = await scanUser(req.params.id);
+    res.json({ success: true, data: report });
+  } catch (error) {
+    next(error);
+  }
+});
+
 export default router;
