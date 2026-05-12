@@ -692,4 +692,124 @@ router.get('/orders/:id/delivery-log', async (req: Request, res: Response, next:
   }
 });
 
+// ────────────────────────────────────────────────────────────
+// Разбор композитного скоринга мастеров для заказа (Итерация 3).
+// GET /admin/orders/:id/routing-analysis
+// Показывает топ-N мастеров с полной разбивкой скора по факторам.
+// ────────────────────────────────────────────────────────────
+router.get('/orders/:id/routing-analysis', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { rankMasters, splitIntoWaves } = await import('../../services/masterRoutingService.js');
+    const { toNum } = await import('../../utils/helpers.js');
+
+    const order = await prisma.order.findUnique({
+      where: { id: req.params.id },
+      include: { category: true },
+    });
+    if (!order) {
+      res.status(404).json({ success: false, error: 'Заказ не найден' });
+      return;
+    }
+
+    // Кандидатные категории: сам, родитель, прямые дети
+    const categoryIds: string[] = [order.categoryId];
+    if (order.category?.parentId) categoryIds.push(order.category.parentId);
+    const childCategories = await prisma.category.findMany({
+      where: { parentId: order.categoryId },
+      select: { id: true },
+    });
+    for (const c of childCategories) categoryIds.push(c.id);
+
+    // Все активные мастера в категориях (без гео-обрезки, чтобы видеть полную картину)
+    const masters = await prisma.user.findMany({
+      where: {
+        role: 'MASTER',
+        isActive: true,
+        masterProfile: {
+          isAvailable: true,
+          masterCategories: { some: { categoryId: { in: categoryIds } } },
+        },
+      },
+      select: {
+        id: true,
+        username: true,
+        telegramId: true,
+        profile: { select: { firstName: true, lastName: true, latitude: true, longitude: true, city: true } },
+        masterProfile: {
+          select: {
+            maxDistanceKm: true,
+            rating: true,
+            completedOrders: true,
+            isOnline: true,
+            lastSeenAt: true,
+            hourlyRate: true,
+            masterCategories: { select: { categoryId: true } },
+          },
+        },
+      },
+      take: 200,
+    });
+
+    const ranked = rankMasters(
+      masters.map((m) => ({
+        id: m.id,
+        telegramId: m.telegramId,
+        profile: m.profile,
+        masterProfile: m.masterProfile,
+      })),
+      {
+        id: order.id,
+        categoryId: order.categoryId,
+        parentCategoryId: order.category?.parentId ?? null,
+        childCategoryIds: childCategories.map((c) => c.id),
+        latitude: order.latitude,
+        longitude: order.longitude,
+        isUrgent: order.isUrgent,
+        estimatedPrice: toNum(order.price),
+      },
+    );
+
+    const userMap = new Map(masters.map((m) => [m.id, m]));
+    const enriched = ranked.map((r) => {
+      const u = userMap.get(r.masterId);
+      return {
+        ...r,
+        masterName: u
+          ? `${u.profile?.firstName || ''} ${u.profile?.lastName || ''}`.trim() || u.username
+          : null,
+        city: u?.profile?.city ?? null,
+        rating: u?.masterProfile?.rating ?? 0,
+        completedOrders: u?.masterProfile?.completedOrders ?? 0,
+        isOnline: u?.masterProfile?.isOnline ?? false,
+      };
+    });
+
+    const waves = splitIntoWaves(ranked, order.isUrgent);
+
+    res.json({
+      success: true,
+      data: {
+        order: {
+          id: order.id,
+          title: order.title,
+          status: order.status,
+          isUrgent: order.isUrgent,
+          city: order.city,
+          hasGeo: !!(order.latitude && order.longitude),
+          categoryName: order.category?.name,
+        },
+        totalCandidates: ranked.length,
+        waves: waves.map((w) => ({
+          wave: w.wave,
+          delayMs: w.delayMs,
+          masterIds: w.masters.map((m) => m.masterId),
+        })),
+        masters: enriched,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 export default router;

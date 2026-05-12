@@ -7,6 +7,13 @@ import { prisma } from '../config/database.js';
 import { sendTelegramMessage, notifyMasterOrderApproved, notifyMasterNewOrder, notifyMasterResponseAccepted } from '../utils/telegramBot.js';
 import { logger } from '../utils/logger.js';
 import { toNum, calculateDistance } from '../utils/helpers.js';
+import {
+  rankMasters,
+  splitIntoWaves,
+  logRoutingDecision,
+  type RankedMaster,
+  type DispatchWave,
+} from './masterRoutingService.js';
 
 export class NotificationService {
   /**
@@ -138,7 +145,18 @@ export class NotificationService {
         id: true,
         telegramId: true,
         profile: { select: { latitude: true, longitude: true, city: true } },
-        masterProfile: { select: { maxDistanceKm: true } },
+        masterProfile: {
+          select: {
+            maxDistanceKm: true,
+            // Поля для routing-скоринга (Итерация 3)
+            rating: true,
+            completedOrders: true,
+            isOnline: true,
+            lastSeenAt: true,
+            hourlyRate: true,
+            masterCategories: { select: { categoryId: true } },
+          },
+        },
       } as const;
 
       // ШАГ 1: ищем мастеров, у которых явно привязана категория (или её родитель/потомок)
@@ -268,142 +286,227 @@ export class NotificationService {
 
       logger.info({ orderId, filteredCount: filteredMasters.length }, 'notifyMastersNewOrder: после фильтрации');
 
-      // ─── Параллельная рассылка (Promise.allSettled) ───
-      // Накапливаем записи журнала доставки и пишем одним createMany в конце.
-      const deliveryRecords: Array<{
-        orderId: string;
-        userId: string;
-        channel: string;
-        status: string;
-        reason: string | null;
-        errorCode: number | null;
-        description: string | null;
-        matchMode: string;
-        distanceKm: number | null;
-      }> = [];
-
-      const mapTelegramReason = (errorCode?: number, description?: string): string => {
-        if (!description) return 'unknown';
-        const d = description.toLowerCase();
-        if (errorCode === 403 && d.includes('blocked')) return 'bot_blocked';
-        if (errorCode === 403 && d.includes("can't initiate")) return 'never_started_bot';
-        if (errorCode === 400 && d.includes('chat not found')) return 'chat_not_found';
-        if (errorCode === 400 && d.includes('user is deactivated')) return 'user_deactivated';
-        return description.slice(0, 80);
-      };
-
-      const results = await Promise.allSettled(
-        filteredMasters.map(async (master) => {
-          const distLabel = master.distance !== null ? ` • ${master.distance} км от вас` : '';
-
-          // 1) In-app уведомление — работает всегда
-          const inApp = await this.createNotification({
-            userId: master.id,
-            type: 'new_order',
-            title: order.isUrgent ? '🚨 Новый срочный заказ!' : '🆕 Новый заказ!',
-            message: `${order.title} — ${toNum(order.price).toLocaleString('ru')} сум${order.city ? ` • ${order.city}` : ''}${order.district ? `, ${order.district}` : ''}${distLabel}`,
-            data: {
-              orderId: order.id,
-              city: order.city,
-              district: order.district,
-              isUrgent: order.isUrgent,
-              distance: master.distance,
-            },
-          });
-
-          deliveryRecords.push({
-            orderId,
-            userId: master.id,
-            channel: 'in_app',
-            status: inApp ? 'success' : 'failed',
-            reason: inApp ? null : 'db_error',
-            errorCode: null,
-            description: null,
-            matchMode,
-            distanceKm: master.distance,
-          });
-
-          // 2) Telegram push — только если есть telegramId
-          if (!master.telegramId) {
-            deliveryRecords.push({
-              orderId,
-              userId: master.id,
-              channel: 'telegram',
-              status: 'skipped',
-              reason: 'no_telegram_id',
-              errorCode: null,
-              description: null,
-              matchMode,
-              distanceKm: master.distance,
-            });
-            return { masterId: master.id, pushOk: false, reason: 'no_telegram_id' };
-          }
-
-          const pushResult = await notifyMasterNewOrder({
-            masterTelegramId: master.telegramId,
-            orderTitle: order.title,
-            orderId: order.id,
-            city: order.city,
-            district: order.district,
-            region: order.region,
-            price: toNum(order.price),
-            isUrgent: order.isUrgent,
-            categoryName: order.category?.name || '',
-            distance: master.distance,
-          });
-
-          deliveryRecords.push({
-            orderId,
-            userId: master.id,
-            channel: 'telegram',
-            status: pushResult.ok ? 'success' : 'failed',
-            reason: pushResult.ok ? null : mapTelegramReason(pushResult.errorCode, pushResult.description),
-            errorCode: pushResult.errorCode ?? null,
-            description: pushResult.description ?? null,
-            matchMode,
-            distanceKm: master.distance,
-          });
-
-          if (!pushResult.ok) {
-            logger.warn(
-              {
-                orderId,
-                masterId: master.id,
-                telegramId: String(master.telegramId),
-                errorCode: pushResult.errorCode,
-                description: pushResult.description,
-              },
-              'Telegram push мастеру не доставлен (in-app уведомление сохранено)',
-            );
-          }
-
-          return { masterId: master.id, pushOk: pushResult.ok, reason: pushResult.description };
-        }),
+      // ─── Итерация 3: композитный скоринг + волновая рассылка ───
+      const ranked = rankMasters(
+        filteredMasters.map((m) => ({
+          id: m.id,
+          telegramId: m.telegramId,
+          profile: m.profile,
+          masterProfile: m.masterProfile,
+        })),
+        {
+          id: order.id,
+          categoryId: order.categoryId,
+          parentCategoryId: order.category?.parentId ?? null,
+          childCategoryIds: childCategories.map((c) => c.id),
+          latitude: order.latitude,
+          longitude: order.longitude,
+          isUrgent: order.isUrgent,
+          estimatedPrice: toNum(order.price),
+        },
       );
+      logRoutingDecision(orderId, ranked);
 
-      // Запись журнала доставки одним пакетом
-      if (deliveryRecords.length > 0) {
-        await prisma.notificationDeliveryLog
-          .createMany({ data: deliveryRecords })
-          .catch((err) => logger.error({ err, orderId }, 'Не удалось записать журнал доставки'));
-      }
-
-      const pushSuccess = results.filter((r) => r.status === 'fulfilled' && (r as PromiseFulfilledResult<any>).value?.pushOk).length;
-      const pushFailed = results.length - pushSuccess;
-
+      const waves = splitIntoWaves(ranked, order.isUrgent);
       logger.info(
         {
           orderId,
-          totalTargets: filteredMasters.length,
-          pushSuccess,
-          pushFailed,
-          matchMode,
+          waves: waves.map((w) => ({ wave: w.wave, delayMs: w.delayMs, count: w.masters.length })),
+          isUrgent: order.isUrgent,
         },
-        'notifyMastersNewOrder: рассылка завершена',
+        'notifyMastersNewOrder: волновой план рассылки',
       );
+
+      // Первая волна — синхронно, остальные — отложенно через setTimeout с проверкой статуса.
+      // Если заказ к моменту волны уже принят/отменён — волну пропускаем.
+      for (const wave of waves) {
+        if (wave.delayMs === 0) {
+          await this._dispatchWave(order, wave, matchMode);
+        } else {
+          setTimeout(() => {
+            this._dispatchWave(order, wave, matchMode).catch((err) =>
+              logger.error({ err, orderId, wave: wave.wave }, 'Ошибка волны рассылки'),
+            );
+          }, wave.delayMs);
+        }
+      }
     } catch (error) {
       logger.error({ error, orderId }, 'Ошибка уведомления мастеров о новом заказе');
     }
+  }
+
+  /**
+   * Выполнить одну волну рассылки.
+   * Перед отправкой проверяет, что заказ всё ещё ждёт мастера.
+   * Записи journal'a доставки идут одним пакетом.
+   */
+  private async _dispatchWave(
+    order: {
+      id: string;
+      title: string;
+      price: any;
+      city: string | null;
+      district: string | null;
+      region: string | null;
+      isUrgent: boolean;
+      category: { name: string } | null;
+    },
+    wave: DispatchWave,
+    matchMode: string,
+  ): Promise<void> {
+    const orderId = order.id;
+
+    // Свежий статус: если уже принят/отменён — пропускаем волну
+    if (wave.wave > 1) {
+      const fresh = await prisma.order.findUnique({
+        where: { id: orderId },
+        select: { status: true },
+      });
+      const stillOpen = fresh?.status === 'PUBLISHED' || fresh?.status === 'DRAFT';
+      if (!stillOpen) {
+        logger.info(
+          { orderId, wave: wave.wave, status: fresh?.status },
+          'notifyMastersNewOrder: волна отменена — заказ уже не ждёт мастера',
+        );
+        return;
+      }
+    }
+
+    const deliveryRecords: Array<{
+      orderId: string;
+      userId: string;
+      channel: string;
+      status: string;
+      reason: string | null;
+      errorCode: number | null;
+      description: string | null;
+      matchMode: string;
+      distanceKm: number | null;
+    }> = [];
+
+    const mapTelegramReason = (errorCode?: number, description?: string): string => {
+      if (!description) return 'unknown';
+      const d = description.toLowerCase();
+      if (errorCode === 403 && d.includes('blocked')) return 'bot_blocked';
+      if (errorCode === 403 && d.includes("can't initiate")) return 'never_started_bot';
+      if (errorCode === 400 && d.includes('chat not found')) return 'chat_not_found';
+      if (errorCode === 400 && d.includes('user is deactivated')) return 'user_deactivated';
+      return description.slice(0, 80);
+    };
+
+    const results = await Promise.allSettled(
+      wave.masters.map(async (master: RankedMaster) => {
+        const distLabel = master.distanceKm !== null ? ` • ${master.distanceKm} км от вас` : '';
+
+        // 1) In-app уведомление
+        const inApp = await this.createNotification({
+          userId: master.masterId,
+          type: 'new_order',
+          title: order.isUrgent ? '🚨 Новый срочный заказ!' : '🆕 Новый заказ!',
+          message: `${order.title} — ${toNum(order.price).toLocaleString('ru')} сум${order.city ? ` • ${order.city}` : ''}${order.district ? `, ${order.district}` : ''}${distLabel}`,
+          data: {
+            orderId,
+            city: order.city,
+            district: order.district,
+            isUrgent: order.isUrgent,
+            distance: master.distanceKm,
+            routingScore: master.score,
+            wave: wave.wave,
+          },
+        });
+
+        deliveryRecords.push({
+          orderId,
+          userId: master.masterId,
+          channel: 'in_app',
+          status: inApp ? 'success' : 'failed',
+          reason: inApp ? null : 'db_error',
+          errorCode: null,
+          description: null,
+          matchMode,
+          distanceKm: master.distanceKm,
+        });
+
+        // 2) Telegram push
+        if (!master.telegramId) {
+          deliveryRecords.push({
+            orderId,
+            userId: master.masterId,
+            channel: 'telegram',
+            status: 'skipped',
+            reason: 'no_telegram_id',
+            errorCode: null,
+            description: null,
+            matchMode,
+            distanceKm: master.distanceKm,
+          });
+          return { masterId: master.masterId, pushOk: false, reason: 'no_telegram_id' };
+        }
+
+        const pushResult = await notifyMasterNewOrder({
+          masterTelegramId: master.telegramId,
+          orderTitle: order.title,
+          orderId,
+          city: order.city,
+          district: order.district,
+          region: order.region,
+          price: toNum(order.price),
+          isUrgent: order.isUrgent,
+          categoryName: order.category?.name || '',
+          distance: master.distanceKm,
+        });
+
+        deliveryRecords.push({
+          orderId,
+          userId: master.masterId,
+          channel: 'telegram',
+          status: pushResult.ok ? 'success' : 'failed',
+          reason: pushResult.ok ? null : mapTelegramReason(pushResult.errorCode, pushResult.description),
+          errorCode: pushResult.errorCode ?? null,
+          description: pushResult.description ?? null,
+          matchMode,
+          distanceKm: master.distanceKm,
+        });
+
+        if (!pushResult.ok) {
+          logger.warn(
+            {
+              orderId,
+              masterId: master.masterId,
+              telegramId: master.telegramId,
+              errorCode: pushResult.errorCode,
+              description: pushResult.description,
+            },
+            'Telegram push мастеру не доставлен (in-app уведомление сохранено)',
+          );
+        }
+
+        return { masterId: master.masterId, pushOk: pushResult.ok, reason: pushResult.description };
+      }),
+    );
+
+    if (deliveryRecords.length > 0) {
+      await prisma.notificationDeliveryLog
+        .createMany({ data: deliveryRecords })
+        .catch((err) => logger.error({ err, orderId }, 'Не удалось записать журнал доставки'));
+    }
+
+    const pushSuccess = results.filter(
+      (r) => r.status === 'fulfilled' && (r as PromiseFulfilledResult<any>).value?.pushOk,
+    ).length;
+    const pushFailed = results.length - pushSuccess;
+
+    logger.info(
+      {
+        orderId,
+        wave: wave.wave,
+        targets: wave.masters.length,
+        pushSuccess,
+        pushFailed,
+        matchMode,
+      },
+      'notifyMastersNewOrder: волна доставлена',
+    );
   }
 
   /**
