@@ -31,6 +31,7 @@ export class AdminService {
       registrationFeesPaid,
       unpaidMasters,
       urgentOrders,
+      ordersBySource,
     ] = await Promise.all([
       prisma.user.count(),
       prisma.user.count({ where: { role: 'MASTER' } }),
@@ -77,6 +78,10 @@ export class AdminService {
       prisma.masterProfile.count({ where: { registrationPaid: true } }),
       prisma.masterProfile.count({ where: { registrationPaid: false } }),
       prisma.order.count({ where: { isUrgent: true } }),
+      prisma.order.groupBy({
+        by: ['source'],
+        _count: { source: true },
+      }),
     ]);
 
     return {
@@ -99,6 +104,10 @@ export class AdminService {
       ordersByStatus: ordersByStatus.map((item) => ({
         status: item.status,
         count: item._count.status,
+      })),
+      ordersBySource: ordersBySource.map((item) => ({
+        source: item.source,
+        count: item._count.source,
       })),
     };
   }

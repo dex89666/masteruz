@@ -8,7 +8,7 @@ import { useEffect, useState } from 'react';
 import {
   Search, Shield, Star, MapPin, Users, GraduationCap,
   ArrowRight, Zap, HelpCircle, Store, Hammer, Camera, Handshake, AlertTriangle, ClipboardList,
-  FileText, MessageSquare, CheckCircle,
+  FileText, MessageSquare, CheckCircle, ListChecks,
 } from 'lucide-react';
 import { useAuthStore } from '../store';
 import { useTranslation } from '../i18n';
@@ -106,15 +106,24 @@ export function HomePage() {
             <p className="text-base md:text-lg text-gray-300 max-w-xl mx-auto">{t('home.heroDesc')}</p>
           </div>
 
-          {/* ★ Одна широкая кнопка «Создать заказ за 30 секунд» — крупная, по центру */}
-          <div className="flex flex-col items-center gap-4 max-w-2xl mx-auto">
-            <Link
-              to="/instant-order"
-              className="w-full flex flex-col items-center justify-center bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-bold px-8 py-7 rounded-2xl text-xl md:text-2xl transition-all shadow-xl shadow-orange-500/40 hover:shadow-orange-500/60 hover:scale-[1.02] ring-2 ring-orange-400/50 min-h-[80px]"
-            >
-              <span className="flex items-center gap-3"><Camera size={30} /> Создать заказ за 30 секунд</span>
-              <span className="text-sm md:text-base font-normal text-white/80 mt-2">Фото + голос = готовый заказ с ценой</span>
-            </Link>
+          {/* ★ Две равноценные кнопки: быстрый вариант + детальный */}
+          <div className="flex flex-col items-center gap-4 max-w-3xl mx-auto">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
+              <Link
+                to="/instant-order"
+                className="flex flex-col items-center justify-center bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-bold px-6 py-6 rounded-2xl transition-all shadow-xl shadow-orange-500/40 hover:shadow-orange-500/60 hover:scale-[1.02] ring-2 ring-orange-400/50 min-h-[112px]"
+              >
+                <span className="flex items-center gap-2 text-lg md:text-xl"><Camera size={26} /> {t('newOrder.instant.title')}</span>
+                <span className="text-xs md:text-sm font-normal text-white/85 mt-1.5 text-center">{t('newOrder.instant.desc')}</span>
+              </Link>
+              <Link
+                to="/orders/create"
+                className="flex flex-col items-center justify-center bg-white/95 hover:bg-white text-blue-700 font-bold px-6 py-6 rounded-2xl transition-all shadow-xl hover:scale-[1.02] ring-2 ring-blue-300/70 min-h-[112px] border-2 border-blue-300"
+              >
+                <span className="flex items-center gap-2 text-lg md:text-xl"><ListChecks size={26} /> {t('newOrder.detailed.title')}</span>
+                <span className="text-xs md:text-sm font-normal text-blue-700/80 mt-1.5 text-center">{t('newOrder.detailed.desc')}</span>
+              </Link>
+            </div>
 
             {/* ★ Кнопка «Срочный вызов» — красная, заметная */}
             <Link

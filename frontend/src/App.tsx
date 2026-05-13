@@ -24,6 +24,8 @@ const LoginPage = lazy(() => import('./pages/LoginPage').then(m => ({ default: m
 const OrdersListPage = lazy(() => import('./pages/OrdersListPage').then(m => ({ default: m.OrdersListPage })));
 const OrderDetailPage = lazy(() => import('./pages/OrderDetailPage').then(m => ({ default: m.OrderDetailPage })));
 const MyOrdersPage = lazy(() => import('./pages/MyOrdersPage').then(m => ({ default: m.MyOrdersPage })));
+const CreateOrderPage = lazy(() => import('./pages/CreateOrderPage').then(m => ({ default: m.CreateOrderPage })));
+const NewOrderChoicePage = lazy(() => import('./pages/NewOrderChoicePage').then(m => ({ default: m.NewOrderChoicePage })));
 const MasterDashboardPage = lazy(() => import('./pages/MasterDashboardPage').then(m => ({ default: m.MasterDashboardPage })));
 const ProfilePage = lazy(() => import('./pages/ProfilePage').then(m => ({ default: m.ProfilePage })));
 const MapPage = lazy(() => import('./pages/MapPage').then(m => ({ default: m.MapPage })));
@@ -215,9 +217,19 @@ function AppContent() {
 
         {/* Protected routes (need auth) */}
         <Route
+          path="new-order"
+          element={
+            <ProtectedRoute>
+              <NewOrderChoicePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="orders/create"
           element={
-            <Navigate to="/instant-order" replace />
+            <ProtectedRoute>
+              <CreateOrderPage />
+            </ProtectedRoute>
           }
         />
         <Route

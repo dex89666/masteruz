@@ -132,15 +132,24 @@ export function ProfilePage() {
         </div>
       </div>
 
-      {/* Быстрое создание заказа — большая кнопка для клиентов */}
+      {/* Быстрое создание заказа — два варианта для клиентов */}
       {!isMaster && (
-        <Link
-          to="/instant-order"
-          className="flex items-center justify-center gap-3 w-full mb-4 py-5 rounded-2xl bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white text-lg font-bold shadow-lg shadow-primary-500/25 active:scale-[0.98] transition-all"
-        >
-          <PlusCircle size={26} />
-          Создать заказ за 30 секунд
-        </Link>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+          <Link
+            to="/instant-order"
+            className="flex items-center justify-center gap-2 py-4 rounded-2xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white text-base font-bold shadow-lg shadow-orange-500/25 active:scale-[0.98] transition-all"
+          >
+            <PlusCircle size={22} />
+            {t('newOrder.instant.title')}
+          </Link>
+          <Link
+            to="/orders/create"
+            className="flex items-center justify-center gap-2 py-4 rounded-2xl bg-white dark:bg-gray-800 border-2 border-blue-300 dark:border-blue-700 hover:border-blue-500 text-blue-700 dark:text-blue-300 text-base font-bold shadow-md active:scale-[0.98] transition-all"
+          >
+            <PlusCircle size={22} />
+            {t('newOrder.detailed.title')}
+          </Link>
+        </div>
       )}
 
       {/* Быстрые действия */}

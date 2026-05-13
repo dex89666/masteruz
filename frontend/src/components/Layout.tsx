@@ -110,7 +110,7 @@ export function Layout() {
       ? [
           ...(isMaster
             ? [{ path: '/dashboard', icon: LayoutDashboard, label: t('nav.dashboard') }]
-            : [{ path: '/instant-order', icon: PlusCircle, label: t('nav.create') }]),
+            : [{ path: '/new-order', icon: PlusCircle, label: t('nav.create') }]),
           { path: '/my-orders', icon: Briefcase, label: t('nav.myOrders') },
           ...(isClient ? [{ path: '/favorites', icon: Heart, label: t('nav.favorites') }] : []),
           { path: '/map', icon: MapPin, label: t('nav.map') },
@@ -454,7 +454,8 @@ export function Layout() {
               <h4 className="font-semibold text-white mb-3 text-sm">{t('footer.forClients')}</h4>
               <ul className="space-y-2 text-sm">
                 <li><Link to="/orders" className="hover:text-white transition-colors">{t('nav.orders')}</Link></li>
-                <li><Link to="/instant-order" className="hover:text-white transition-colors">{t('nav.create')}</Link></li>
+                <li><Link to="/instant-order" className="hover:text-white transition-colors">{t('newOrder.instant.title')}</Link></li>
+                <li><Link to="/orders/create" className="hover:text-white transition-colors">{t('newOrder.detailed.title')}</Link></li>
                 <li><Link to="/masters" className="hover:text-white transition-colors">{t('nav.masters')}</Link></li>
                 <li><Link to="/map" className="hover:text-white transition-colors">{t('nav.map')}</Link></li>
                 <li><Link to="/stores" className="hover:text-white transition-colors">{t('stores.title')}</Link></li>

@@ -19,6 +19,7 @@ import { useFormatPrice } from '../hooks';
 import { instantOrderApi, catalogApi, photosApi } from '../api/client';
 import type { AiAnalysisResult, AiOrderTemplate, Category } from '../types';
 import CategoryIcon from '../components/CategoryIcon';
+import { CameraCapture } from '../components/CameraCapture';
 
 // ─── Tier configuration ──────────────────────
 const TIER_CONFIG = {
@@ -58,7 +59,7 @@ export function InstantOrderPage() {
   const [searchParams] = useSearchParams();
   const formatPrice = useFormatPrice();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const [showCamera, setShowCamera] = useState(false);
 
   // ─── State ─────────────────────────
   const [step, setStep] = useState<Step>('upload');
@@ -640,6 +641,14 @@ export function InstantOrderPage() {
             Загрузите фото → опишите голосом → AI подберёт варианты
           </p>
 
+          {/* ─── Перекрёстная ссылка на детальный режим ─── */}
+          <Link
+            to="/orders/create"
+            className="inline-flex items-center gap-2 mt-3 px-3 py-2 rounded-lg bg-white/15 hover:bg-white/25 backdrop-blur-sm text-white text-xs md:text-sm font-medium transition-colors min-h-[36px]"
+          >
+            <ListChecks size={16} /> Знаю что нужно — оформить детально
+          </Link>
+
           {/* ─── Step indicator ─── */}
           <div className="flex items-center gap-1 mt-5">
             {STEPS.map((s, i) => (
@@ -747,7 +756,7 @@ export function InstantOrderPage() {
               {/* Camera / Gallery buttons */}
               <div className="flex gap-3 mt-4">
                 <button
-                  onClick={() => cameraInputRef.current?.click()}
+                  onClick={() => setShowCamera(true)}
                   className="flex-1 flex items-center justify-center gap-2 min-h-[48px] rounded-xl border-2 border-orange-200 dark:border-orange-700 text-orange-600 dark:text-orange-400 font-semibold hover:bg-orange-50 dark:hover:bg-orange-900/10 transition-colors text-sm md:text-base"
                 >
                   <Camera size={20} /> Камера
@@ -761,7 +770,13 @@ export function InstantOrderPage() {
               </div>
 
               <input ref={fileInputRef} type="file" multiple accept="image/*" className="hidden" onChange={handleFileSelect} />
-              <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFileSelect} />
+
+              {showCamera && (
+                <CameraCapture
+                  onCapture={(file) => addFiles([file])}
+                  onClose={() => setShowCamera(false)}
+                />
+              )}
             </div>
 
             {/* ─── Voice description ─── */}

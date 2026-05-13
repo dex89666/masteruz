@@ -1150,6 +1150,50 @@ export function AdminDashboardPage() {
                 </div>
               )}
 
+              {/* Order Source Split: AI vs Wizard */}
+              {dashboard?.ordersBySource && dashboard.ordersBySource.length > 0 && (() => {
+                const total = dashboard.ordersBySource.reduce((sum: number, s: any) => sum + s.count, 0);
+                if (!total) return null;
+                const ai = dashboard.ordersBySource.find((s: any) => s.source === 'INSTANT_AI')?.count || 0;
+                const wizard = dashboard.ordersBySource.find((s: any) => s.source === 'DETAILED_WIZARD')?.count || 0;
+                const aiPct = Math.round((ai / total) * 100);
+                const wizardPct = 100 - aiPct;
+                return (
+                  <div className="card">
+                    <h3 className="font-semibold mb-3 dark:text-white flex items-center gap-2">
+                      <Zap size={18} className="text-orange-500" />
+                      Источник заказов
+                    </h3>
+                    <div className="flex gap-1 h-3 rounded-full overflow-hidden mb-3">
+                      <div className="bg-gradient-to-r from-orange-500 to-amber-500" style={{ width: `${aiPct}%` }} />
+                      <div className="bg-gradient-to-r from-blue-500 to-indigo-600" style={{ width: `${wizardPct}%` }} />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="w-3 h-3 rounded-full bg-orange-500" />
+                          <span className="font-semibold dark:text-white">AI / Фото за 30 сек</span>
+                        </div>
+                        <p className="text-2xl font-bold text-orange-600 dark:text-orange-400 mt-1">
+                          {aiPct}<span className="text-sm">%</span>
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">{ai} заказов</p>
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="w-3 h-3 rounded-full bg-blue-600" />
+                          <span className="font-semibold dark:text-white">Визард / Детально</span>
+                        </div>
+                        <p className="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-1">
+                          {wizardPct}<span className="text-sm">%</span>
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">{wizard} заказов</p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* Top Masters */}
               {dashboard?.topMasters && dashboard.topMasters.length > 0 && (
                 <div className="card">

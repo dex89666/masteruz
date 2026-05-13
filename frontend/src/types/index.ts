@@ -550,6 +550,7 @@ export interface Dashboard {
   topMasters: any[];
   recentOrders: Order[];
   ordersByStatus: { status: string; count: number }[];
+  ordersBySource?: { source: 'INSTANT_AI' | 'DETAILED_WIZARD'; count: number }[];
 }
 
 // ─── Транзакции баланса ────────────────────

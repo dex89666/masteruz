@@ -4,7 +4,7 @@
 // ============================================
 
 import { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { ordersApi, catalogApi } from '../api/client';
 import { useAuthStore } from '../store';
 import { useGeolocation, useTelegram } from '../hooks';
@@ -23,10 +23,13 @@ import {
   Zap,
   Shield,
   Check,
+  Sparkles,
+  Camera,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { Task } from '../types';
 import { UZBEKISTAN_REGIONS, getDistrictsForCity, getRegionByCity, getLocalizedRegionName } from '../data/regions';
+import { CameraCapture } from '../components/CameraCapture';
 
 type WizardStep = 1 | 2 | 3 | 4;
 
@@ -121,6 +124,7 @@ export function CreateOrderPage() {
   const [isUrgent, setIsUrgent] = useState(false);
   const [offerAccepted, setOfferAccepted] = useState(false);
   const [images, setImages] = useState<File[]>([]);
+  const [showCamera, setShowCamera] = useState(false);
   const [previews, setPreviews] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [_appliedPromo, setAppliedPromo] = useState<any>(null);
@@ -327,6 +331,15 @@ export function CreateOrderPage() {
       </button>
 
       <h1 className="page-title">{t('createOrder.title')}</h1>
+
+      {/* ─── Перекрёстная ссылка на AI-режим ─── */}
+      <Link
+        to="/instant-order"
+        className="inline-flex items-center gap-2 mb-4 px-3 py-2 rounded-lg bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-100 dark:hover:bg-orange-900/30 text-orange-700 dark:text-orange-300 text-sm font-medium transition-colors min-h-[36px]"
+      >
+        <Sparkles size={16} /> Не уверены? Сделайте фото — AI подберёт варианты
+      </Link>
+
       <StepIndicator current={step} total={4} />
 
       {/* ═══ STEP 1: Category Selection ═══ */}
@@ -792,16 +805,27 @@ export function CreateOrderPage() {
                   </div>
                 ))}
                 {images.length < 5 && (
-                  <label className="w-20 h-20 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 flex items-center justify-center cursor-pointer hover:border-primary-400 dark:hover:border-primary-500 transition-colors">
-                    <ImageIcon size={24} className="text-gray-400" />
-                    <input
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      onChange={handleImages}
-                      className="hidden"
-                    />
-                  </label>
+                  <>
+                    <label className="w-20 h-20 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 flex flex-col items-center justify-center cursor-pointer hover:border-primary-400 dark:hover:border-primary-500 transition-colors gap-0.5">
+                      <ImageIcon size={20} className="text-gray-400" />
+                      <span className="text-[10px] text-gray-400">Галерея</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        onChange={handleImages}
+                        className="hidden"
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowCamera(true)}
+                      className="w-20 h-20 rounded-lg border-2 border-dashed border-orange-300 dark:border-orange-700 flex flex-col items-center justify-center cursor-pointer hover:border-orange-500 transition-colors gap-0.5"
+                    >
+                      <Camera size={20} className="text-orange-500" />
+                      <span className="text-[10px] text-orange-500">Камера</span>
+                    </button>
+                  </>
                 )}
               </div>
             </div>
@@ -868,6 +892,22 @@ export function CreateOrderPage() {
             </button>
           </form>
         </div>
+      )}
+
+      {showCamera && (
+        <CameraCapture
+          onCapture={(file) => {
+            if (images.length >= 5) {
+              toast.error(t('createOrder.maxPhotos'));
+              return;
+            }
+            setImages((prev) => [...prev, file]);
+            const reader = new FileReader();
+            reader.onload = (e) => setPreviews((prev) => [...prev, e.target?.result as string]);
+            reader.readAsDataURL(file);
+          }}
+          onClose={() => setShowCamera(false)}
+        />
       )}
     </div>
   );

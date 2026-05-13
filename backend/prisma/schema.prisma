@@ -21,6 +21,14 @@ enum UserRole {
   MANAGER
 }
 
+// ─── Источник заказа ──────────────────────────
+// DETAILED_WIZARD — клиент создал заказ через 4-шаговый визард (выбрал категорию, задачи, описание)
+// INSTANT_AI      — клиент создал заказ через «Фото-заказ за 30 секунд» (фото + AI Vision)
+enum OrderSource {
+  DETAILED_WIZARD
+  INSTANT_AI
+}
+
 // ─── Статусы заказа ───────────────────────────
 enum OrderStatus {
   DRAFT
@@ -407,6 +415,7 @@ model Order {
   parentOrderId    String?     @map("parent_order_id")        // Связь: заказ оценки → основной заказ
   // AI Instant Order (ФотоЗаказ за 30 сек)
   isInstantAiOrder Boolean     @default(false) @map("is_instant_ai_order")
+  source           OrderSource @default(DETAILED_WIZARD)
   aiTemplateId     String?     @map("ai_template_id")
   additionalWishes String?     @map("additional_wishes")
   moderationRequired Boolean   @default(false) @map("moderation_required")
@@ -452,6 +461,7 @@ model Order {
   @@index([clientId, status])
   @@index([masterId, status])
   @@index([aiTemplateId])
+  @@index([source])
   @@map("orders")
 }
 

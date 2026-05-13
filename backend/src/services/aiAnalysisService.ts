@@ -159,30 +159,78 @@ export async function analyzeOrder(input: AiAnalysisInput): Promise<AiAnalysisRe
     throw ApiError.badRequest('Нужны фото или описание для AI-анализа');
   }
 
-  let response;
-  try {
-    response = await client.chat.completions.create({
-      model: config.openai.model,
-      response_format: { type: 'json_object' },
-      temperature: 0.2,
-      max_tokens: 800,
-      messages: [
-        { role: 'system', content: buildSystemPrompt(availableCategories) },
-        { role: 'user', content: userContent },
-      ],
-    });
-  } catch (err: any) {
+  // Список моделей в порядке приоритета: основная → дешёвый fallback.
+  // Если у аккаунта нет квоты на gpt-4o, gpt-4o-mini обычно остаётся доступен.
+  const primary = config.openai.model;
+  const fallback = primary === 'gpt-4o-mini' ? null : 'gpt-4o-mini';
+  const modelChain = [primary, fallback].filter(Boolean) as string[];
+
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  let response: any = null;
+  let lastErr: any = null;
+
+  outer: for (const model of modelChain) {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        response = await client.chat.completions.create({
+          model,
+          response_format: { type: 'json_object' },
+          temperature: 0.2,
+          max_tokens: 800,
+          messages: [
+            { role: 'system', content: buildSystemPrompt(availableCategories) },
+            { role: 'user', content: userContent },
+          ],
+        });
+        if (model !== primary) {
+          logger.warn({ primary, fallback: model }, 'AI Vision: переключились на fallback-модель');
+        }
+        break outer;
+      } catch (err: any) {
+        lastErr = err;
+        const status: number | undefined = err?.status;
+        const code: string | undefined = err?.code || err?.error?.code;
+
+        // Постоянные ошибки — не ретраим, пробуем следующую модель сразу.
+        const isQuota = code === 'insufficient_quota';
+        const isModelMissing = status === 404 || code === 'model_not_found';
+        const isAuth = status === 401;
+        const isBadRequest = status === 400;
+        if (isQuota || isModelMissing || isAuth || isBadRequest) break;
+
+        // Временные ошибки (429 rate_limit, 5xx) — экспоненциальный backoff
+        const isTransient = status === 429 || (status !== undefined && status >= 500);
+        if (!isTransient || attempt === 2) break;
+        const delayMs = 500 * 2 ** attempt; // 500, 1000, 2000
+        logger.warn({ model, attempt: attempt + 1, status, code }, 'AI Vision: ретрай после ошибки');
+        await sleep(delayMs);
+      }
+    }
+    if (response) break;
+  }
+
+  if (!response) {
+    const err = lastErr;
+    const status: number | undefined = err?.status;
+    const code: string | undefined = err?.code || err?.error?.code;
+
     logger.error(
-      { err: err?.message, status: err?.status, code: err?.code },
-      'OpenAI Vision: запрос провален'
+      { err: err?.message, status, code },
+      'OpenAI Vision: запрос провален после всех попыток'
     );
+
     const userMsg =
-      err?.status === 401
-        ? 'AI-сервис не авторизован (проверьте OPENAI_API_KEY)'
-        : err?.status === 429
-        ? 'AI-сервис временно перегружен, попробуйте через минуту'
-        : err?.status === 400
-        ? 'AI не смог обработать изображения. Попробуйте другие фото.'
+      status === 401
+        ? 'AI-сервис не авторизован: проверьте OPENAI_API_KEY.'
+        : code === 'insufficient_quota'
+        ? 'AI-сервис недоступен: исчерпан баланс OpenAI. Свяжитесь с администратором для пополнения.'
+        : status === 429
+        ? 'AI-сервис временно перегружен, попробуйте через минуту.'
+        : status === 400
+        ? 'AI не смог обработать изображения. Попробуйте другие фото или сократите текст.'
+        : code === 'model_not_found'
+        ? 'AI-модель недоступна для вашего аккаунта OpenAI. Включите доступ к gpt-4o-mini.'
         : 'AI-анализ временно недоступен. Попробуйте ещё раз через минуту.';
     throw ApiError.badRequest(userMsg);
   }

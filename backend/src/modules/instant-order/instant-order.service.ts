@@ -979,6 +979,7 @@ export class InstantOrderService {
           urgentMultiplier,
           // AI-специфичные поля
           isInstantAiOrder: true,
+          source: 'INSTANT_AI',
           aiTemplateId: template.id,
           additionalWishes: data.additionalWishes || null,
           moderationRequired: false,
@@ -1053,6 +1054,7 @@ export class InstantOrderService {
       prisma.order.findMany({
         where: {
           isInstantAiOrder: true,
+          source: 'INSTANT_AI',
           moderationRequired: true,
           status: OrderStatus.MODERATION,
         },
@@ -1069,6 +1071,7 @@ export class InstantOrderService {
       prisma.order.count({
         where: {
           isInstantAiOrder: true,
+          source: 'INSTANT_AI',
           moderationRequired: true,
           status: OrderStatus.MODERATION,
         },

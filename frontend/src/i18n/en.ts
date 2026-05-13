@@ -1316,6 +1316,31 @@ const en = {
     legal: 'Legal information',
   },
 
+  // ─── Order type chooser ────────────────
+  newOrder: {
+    title: 'How would you like to create the order?',
+    subtitle: 'Choose the way that suits you best',
+    hint: 'You can switch between modes at any time',
+    instant: {
+      badge: 'Fast',
+      title: 'Order in 30 seconds',
+      desc: 'Snap a photo of the problem — AI detects what to do and suggests pricing',
+      bullet1: 'No need to pick a category',
+      bullet2: 'Estimate ready in a minute',
+      bullet3: 'Perfect when you are not sure',
+      cta: 'Take a photo',
+    },
+    detailed: {
+      badge: 'Precise',
+      title: 'Detailed order',
+      desc: 'Pick category and specific tasks yourself — for those who know what they need',
+      bullet1: 'Full control over the task list',
+      bullet2: 'Fixed scope and price',
+      bullet3: 'Best for recurring jobs',
+      cta: 'Build step by step',
+    },
+  },
+
   // ─── Photo Order in 30 seconds (AI) ────
   instantOrder: {
     title: 'Photo Order in 30 Seconds',

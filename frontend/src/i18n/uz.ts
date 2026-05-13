@@ -1316,6 +1316,31 @@ const uz = {
     legal: 'Yuridik maʼlumot',
   },
 
+  // ─── Buyurtma turini tanlash ────────────
+  newOrder: {
+    title: 'Buyurtmani qanday yaratamiz?',
+    subtitle: 'Siz uchun qulay usulni tanlang',
+    hint: 'Istalgan paytda usulni almashtirishingiz mumkin',
+    instant: {
+      badge: 'Tez',
+      title: '30 soniyada buyurtma',
+      desc: 'Muammoni suratga oling — AI nima qilish kerakligini aniqlab, narx taklif qiladi',
+      bullet1: 'Kategoriya izlash shart emas',
+      bullet2: 'Bir daqiqada tayyor smeta',
+      bullet3: 'Aniq bilmasangiz ideal',
+      cta: 'Surat olish',
+    },
+    detailed: {
+      badge: 'Aniq',
+      title: 'Batafsil buyurtma',
+      desc: 'Kategoriya va aniq vazifalarni o‘zingiz tanlang — nima kerakligini bilganlar uchun',
+      bullet1: 'Ishlar ro‘yxati ustidan to‘liq nazorat',
+      bullet2: 'Belgilangan hajm va narx',
+      bullet3: 'Muntazam ishlar uchun mos',
+      cta: 'Bosqichma-bosqich yaratish',
+    },
+  },
+
   // ─── FotoZakaz 30 sekundda (AI) ─────────
   instantOrder: {
     title: '30 sekundda FotoZakaz',
