@@ -31,7 +31,7 @@ const extractErrorMessage = (error: unknown, fallback: string): string => {
 
 export function BecomeMasterPage() {
   const navigate = useNavigate();
-  const { user, setAuth } = useAuthStore();
+  const { user } = useAuthStore();
   const { t, language } = useTranslation();
 
   const [form, setForm] = useState({
@@ -188,18 +188,12 @@ export function BecomeMasterPage() {
         }
       }
 
-      // 3. Обновляем локальную роль
-      if (user) {
-        const state = useAuthStore.getState();
-        setAuth(
-          { ...user, role: 'MASTER' as any } as any,
-          state.accessToken!,
-          state.refreshToken!
-        );
-      }
-
       toast.success(t('becomeMasterPage.profileCreated'));
-      navigate('/dashboard');
+
+      // Жёсткий редирект: полностью перезагружаем приложение, чтобы
+      // забрать актуальный профиль мастера и роль с сервера. Это исключает
+      // расхождения в Zustand-стейте и каскадные ререндеры по useEffect.
+      window.location.assign('/dashboard');
     } catch (error) {
       toast.error(extractErrorMessage(error, t('common.error')));
     } finally {
