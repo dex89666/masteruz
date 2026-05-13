@@ -1161,31 +1161,56 @@ export function OrderDetailPage() {
         </div>
       )}
 
-      {/* Форма отклика для мастера */}
-      {isMaster && order.status === 'PUBLISHED' && !isOwner && (
+      {/* Блок принятия заказа для мастера (не для оценки — у неё свой блок выше) */}
+      {isMaster && order.status === 'PUBLISHED' && !isOwner && !order.isEstimationOrder && (
         <div
           ref={respondFormRef}
           className={`card transition-all duration-500 ${
             respondHighlight ? 'ring-2 ring-primary-500 shadow-xl scale-[1.01]' : ''
           }`}
         >
-          <h3 className="font-semibold mb-3 dark:text-white">{t('orderDetail.respondTitle')}</h3>
-          <div className="flex gap-3 items-end">
-            <div className="flex-1">
-              <label className="text-sm text-gray-600 dark:text-gray-400 mb-1 block">{t('orderDetail.yourPrice')}</label>
-              <input
-                type="number"
-                className="input"
-                placeholder={t('orderDetail.priceInSum')}
-                value={responsePrice}
-                onChange={(e) => setResponsePrice(e.target.value)}
-              />
-            </div>
-            <button onClick={handleRespond} disabled={submitting} className="btn-primary">
-              <Send size={16} className="mr-2" />
-              {t('orderDetail.respond')}
+          {order.isInstantAiOrder ? (
+            <button
+              onClick={async () => {
+                if (!window.confirm(t('orderDetail.acceptOrderConfirm'))) return;
+                setSubmitting(true);
+                try {
+                  await ordersApi.respond(id!, { message: '', priceOffer: undefined });
+                  toast.success(t('orderDetail.orderAccepted'));
+                  loadOrder();
+                } catch (error: any) {
+                  toast.error(error.response?.data?.error?.message || t('orderDetail.sendError'));
+                } finally {
+                  setSubmitting(false);
+                }
+              }}
+              disabled={submitting}
+              className="w-full py-3 bg-primary-600 hover:bg-primary-700 disabled:opacity-60 text-white rounded-xl font-bold flex items-center justify-center gap-2"
+            >
+              <Send size={18} />
+              {t('orderDetail.acceptOrderBtn')}
             </button>
-          </div>
+          ) : (
+            <>
+              <h3 className="font-semibold mb-3 dark:text-white">{t('orderDetail.respondTitle')}</h3>
+              <div className="flex gap-3 items-end">
+                <div className="flex-1">
+                  <label className="text-sm text-gray-600 dark:text-gray-400 mb-1 block">{t('orderDetail.yourPrice')}</label>
+                  <input
+                    type="number"
+                    className="input"
+                    placeholder={t('orderDetail.priceInSum')}
+                    value={responsePrice}
+                    onChange={(e) => setResponsePrice(e.target.value)}
+                  />
+                </div>
+                <button onClick={handleRespond} disabled={submitting} className="btn-primary">
+                  <Send size={16} className="mr-2" />
+                  {t('orderDetail.respond')}
+                </button>
+              </div>
+            </>
+          )}
         </div>
       )}
 
