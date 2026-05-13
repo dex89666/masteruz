@@ -18,6 +18,7 @@ import { OrderDetailSkeleton } from '../components/PageSkeletons';
 import { CommissionPaymentModal } from '../components/CommissionPaymentModal';
 import AutoCancelCountdown from '../components/AutoCancelCountdown';
 import { ClientRiskBadge } from '../components/ClientRiskBadge';
+import { ImageLightbox } from '../components/ImageLightbox';
 import { useAuthStore } from '../store';
 import { useFormatPrice } from '../hooks';
 import { useOrderEvents } from '../hooks/useOrderEvents';
@@ -42,6 +43,8 @@ export function OrderDetailPage() {
   const [loading, setLoading] = useState(true);
   const [responsePrice, setResponsePrice] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  // Лайтбокс для просмотра фотографий заказа
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   // Review state
   const [showReview, setShowReview] = useState(false);
@@ -465,25 +468,33 @@ export function OrderDetailPage() {
       )}
 
       {/* Фотографии заказа — видны всем */}
-      {order.images && order.images.filter((img: string) => img.startsWith('http') || img.startsWith('data:')).length > 0 && (
-        <div className="card mb-4">
-          <h2 className="text-sm text-gray-500 dark:text-gray-400 mb-2">Фотографии заказа</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-            {order.images.filter((img: string) => img.startsWith('http') || img.startsWith('data:')).map((img: string, idx: number) => (
-              <a key={idx} href={img.startsWith('data:') ? undefined : img} target="_blank" rel="noopener noreferrer" className="block">
-                <img
-                  src={img}
-                  alt={`Фото ${idx + 1}`}
-                  className="w-full h-32 object-cover rounded-lg border border-gray-200 dark:border-gray-700 hover:opacity-90 transition-opacity cursor-pointer"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = 'none';
-                  }}
-                />
-              </a>
-            ))}
+      {(() => {
+        const photos = (order.images || []).filter((img: string) => img.startsWith('http') || img.startsWith('data:'));
+        if (photos.length === 0) return null;
+        return (
+          <div className="card mb-4">
+            <h2 className="text-sm text-gray-500 dark:text-gray-400 mb-2">Фотографии заказа</h2>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {photos.map((img: string, idx: number) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => setLightboxIndex(idx)}
+                  className="block w-full focus:outline-none focus:ring-2 focus:ring-primary-500 rounded-lg"
+                  aria-label={`Открыть фото ${idx + 1}`}
+                >
+                  <img
+                    src={img}
+                    alt={`Фото ${idx + 1}`}
+                    className="w-full h-32 object-cover rounded-lg border border-gray-200 dark:border-gray-700 hover:opacity-90 transition-opacity cursor-zoom-in"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                  />
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Таймлайн хода выполнения */}
       <div className="mb-4">
@@ -1013,23 +1024,33 @@ export function OrderDetailPage() {
           )}
 
           {/* Фотографии заказа для мастера */}
-          {order.images && order.images.filter((img: string) => img.startsWith('http') || img.startsWith('data:')).length > 0 && (
-            <div className="mt-3 p-3 rounded-xl bg-white dark:bg-gray-800">
-              <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">Фотографии заказа</p>
-              <div className="grid grid-cols-3 gap-2">
-                {order.images.filter((img: string) => img.startsWith('http') || img.startsWith('data:')).map((img: string, idx: number) => (
-                  <a key={idx} href={img.startsWith('data:') ? undefined : img} target="_blank" rel="noopener noreferrer" className="block">
-                    <img
-                      src={img}
-                      alt={`Фото ${idx + 1}`}
-                      className="w-full h-24 object-cover rounded-lg border border-gray-200 dark:border-gray-700 hover:opacity-90 transition-opacity cursor-pointer"
-                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                    />
-                  </a>
-                ))}
+          {(() => {
+            const photos = (order.images || []).filter((img: string) => img.startsWith('http') || img.startsWith('data:'));
+            if (photos.length === 0) return null;
+            return (
+              <div className="mt-3 p-3 rounded-xl bg-white dark:bg-gray-800">
+                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">Фотографии заказа</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {photos.map((img: string, idx: number) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => setLightboxIndex(idx)}
+                      className="block w-full focus:outline-none focus:ring-2 focus:ring-primary-500 rounded-lg"
+                      aria-label={`Открыть фото ${idx + 1}`}
+                    >
+                      <img
+                        src={img}
+                        alt={`Фото ${idx + 1}`}
+                        className="w-full h-24 object-cover rounded-lg border border-gray-200 dark:border-gray-700 hover:opacity-90 transition-opacity cursor-zoom-in"
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                      />
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
         </div>
       )}
 
@@ -1279,6 +1300,19 @@ export function OrderDetailPage() {
         commissionAmount={order.commissionAmount}
         isUrgent={order.isUrgent}
       />
+
+      {/* Полноэкранный просмотрщик фото с зумом и навигацией */}
+      {lightboxIndex !== null && (() => {
+        const photos = (order.images || []).filter((img: string) => img.startsWith('http') || img.startsWith('data:'));
+        if (photos.length === 0) return null;
+        return (
+          <ImageLightbox
+            images={photos}
+            initialIndex={Math.min(lightboxIndex, photos.length - 1)}
+            onClose={() => setLightboxIndex(null)}
+          />
+        );
+      })()}
     </div>
   );
 }
