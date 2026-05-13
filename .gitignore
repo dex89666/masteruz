@@ -30,3 +30,8 @@ coverage/
 certbot/
 backups/
 .vite/
+
+# Local-only files
+.venv/
+biznes.md
+*.pptx
