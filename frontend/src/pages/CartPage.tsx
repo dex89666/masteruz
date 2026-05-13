@@ -167,7 +167,7 @@ export function CartPage() {
                         {getName(item.task)}
                       </h4>
                       <p className="text-xs text-primary-600 dark:text-primary-400 mt-1">
-                        {formatPrice(item.task.minPrice || 0)} / {t('cart.perUnit')}
+                        {formatPrice(Number(item.task.minPrice) || 0)} / {t('cart.perUnit')}
                       </p>
                     </div>
 
@@ -193,7 +193,7 @@ export function CartPage() {
 
                       {/* Line total */}
                       <span className="text-sm font-bold text-gray-800 dark:text-gray-200 min-w-[80px] text-right">
-                        {formatPrice((item.task.minPrice || 0) * item.quantity)}
+                        {formatPrice((Number(item.task.minPrice) || 0) * item.quantity)}
                       </span>
 
                       {/* Remove */}

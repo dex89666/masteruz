@@ -99,7 +99,8 @@ export interface Task {
   estimatedTime: string | null;
   estimatedTimeUz: string | null;
   estimatedTimeEn: string | null;
-  minPrice: number | null;
+  /** Prisma Decimal → JSON: приходит как строка "50000". Всегда оборачивай в Number(). */
+  minPrice: number | string | null;
   slug: string;
   sortOrder: number;
   isActive: boolean;
@@ -816,7 +817,8 @@ export interface AiAnalysisResult {
     name: string;
     nameUz: string | null;
     nameEn: string | null;
-    minPrice: number | null;
+    /** Prisma Decimal → JSON: приходит как строка. Оборачивай в Number(). */
+    minPrice: number | string | null;
     estimatedTime: string | null;
     categoryId?: string;
     categoryName?: string;

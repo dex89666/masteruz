@@ -106,7 +106,7 @@ export const useCartStore = create<CartState>()(
 
       getSubtotal: () => {
         return get().items.reduce(
-          (sum, item) => sum + (item.task.minPrice || 0) * item.quantity,
+          (sum, item) => sum + (Number(item.task.minPrice) || 0) * item.quantity,
           0
         );
       },

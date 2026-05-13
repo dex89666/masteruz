@@ -162,15 +162,16 @@ export function CreateOrderPage() {
 
   const totalMinPrice = useMemo(() => {
     return selectedTasksList.reduce(
-      (sum: number, t: Task) => sum + (t.minPrice ?? 0),
+      (sum: number, t: Task) => sum + Number(t.minPrice ?? 0),
       0
     );
   }, [selectedTasksList]);
 
   const minimumOrderPrice = totalMinPrice + VISIT_FEE;
 
-  /** Форматирование цены */
-  const fmtPrice = (n: number) => n.toLocaleString('ru-RU');
+  /** Форматирование цены: гарантированно число → локализованная строка */
+  const fmtPrice = (n: number | string | null | undefined) =>
+    (Number(n) || 0).toLocaleString('ru-RU');
 
   // Auto-generate title & description from selected tasks
   useEffect(() => {
@@ -457,7 +458,7 @@ export function CreateOrderPage() {
                         </p>
                       )}
                     </div>
-                    {task.minPrice != null && task.minPrice > 0 && (
+                    {task.minPrice != null && Number(task.minPrice) > 0 && (
                       <span className="text-xs font-semibold text-green-700 bg-green-100 px-2 py-1 rounded-lg whitespace-nowrap self-center">
                         {t('pricing.from')} {fmtPrice(task.minPrice)}
                       </span>
@@ -528,7 +529,7 @@ export function CreateOrderPage() {
                 >
                   <span className="text-green-600"><Check size={14} className="inline" /></span>
                   <span className="flex-1">{getLocalName(task)}</span>
-                  {task.minPrice != null && task.minPrice > 0 && (
+                  {task.minPrice != null && Number(task.minPrice) > 0 && (
                     <span className="text-xs font-medium text-green-700">
                       {fmtPrice(task.minPrice)} {t('pricing.currency')}
                     </span>
