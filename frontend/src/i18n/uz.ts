@@ -276,6 +276,8 @@ const uz = {
     descPlaceholder: "Nima qilish kerakligini, qanday materiallar kerakligini, maxsus talablarni batafsil tasvirlab bering...",
     budgetFrom: "Byudjet dan (so'm) *",
     budgetTo: "Byudjet gacha (so'm)",
+    yourPrice: "Ish uchun narxingiz (so'm) *",
+    priceHint: "Eng yaxshi ustalarni jalb qilish va sifatli ish olish uchun ko‘proq taklif qilishingiz mumkin.",
     city: 'Shahar',
     selectCity: 'Shahar tanlang',
     address: 'Manzil',

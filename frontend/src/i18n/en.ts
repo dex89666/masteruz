@@ -276,6 +276,8 @@ const en = {
     descPlaceholder: 'Describe in detail what needs to be done, what materials are needed, any special requirements...',
     budgetFrom: 'Budget from (sum) *',
     budgetTo: 'Budget to (sum)',
+    yourPrice: 'Your price for the job (sum) *',
+    priceHint: 'You can offer more to attract top masters and get more careful work.',
     city: 'City',
     selectCity: 'Select a city',
     address: 'Address',

@@ -114,7 +114,6 @@ export function CreateOrderPage() {
     title: '',
     description: '',
     price: '',
-    priceMax: '',
     city: '',
     district: '',
     street: '',
@@ -244,7 +243,7 @@ export function CreateOrderPage() {
 
   function goToDetails() {
     hapticImpact?.('medium');
-    setForm({ title: '', description: '', price: '', priceMax: '', city: '', district: '', street: '', address: '', deadline: '' });
+    setForm({ title: '', description: '', price: '', city: '', district: '', street: '', address: '', deadline: '' });
     setIsUrgent(false);
     setStep(4);
   }
@@ -288,10 +287,6 @@ export function CreateOrderPage() {
         region: form.city ? getRegionByCity(form.city)?.nameRu : undefined,
         deadline: form.deadline ? new Date(form.deadline).toISOString() : undefined,
       };
-
-      if (form.priceMax) {
-        payload.priceMax = Number(form.priceMax);
-      }
 
       if (location) {
         payload.latitude = location.latitude;
@@ -638,46 +633,30 @@ export function CreateOrderPage() {
               <p className="text-xs text-gray-400 mt-1">{form.description.length}/2000</p>
             </div>
 
-            {/* Бюджет */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  {t('createOrder.budgetFrom')}
-                </label>
-                <input
-                  type="number"
-                  name="price"
-                  value={form.price}
-                  onChange={handleChange}
-                  className="input"
-                  placeholder={fmtPrice(minimumOrderPrice)}
-                  min={minimumOrderPrice}
-                />
-                {form.price && Number(form.price) < minimumOrderPrice && (
-                  <p className="text-xs text-red-500 mt-1">
-                    {t('pricing.priceTooLow')} {fmtPrice(minimumOrderPrice)} {t('pricing.currency')}
-                  </p>
-                )}
-                {selectedTaskIds.size > 0 && (
-                  <p className="text-xs text-gray-400 mt-1">
-                    {t('pricing.minimum')}: {fmtPrice(minimumOrderPrice)} {t('pricing.currency')}
-                  </p>
-                )}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  {t('createOrder.budgetTo')}
-                </label>
-                <input
-                  type="number"
-                  name="priceMax"
-                  value={form.priceMax}
-                  onChange={handleChange}
-                  className="input"
-                  placeholder="200 000"
-                  min={0}
-                />
-              </div>
+            {/* Цена за работу — одно поле */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                {t('createOrder.yourPrice')}
+              </label>
+              <input
+                type="number"
+                name="price"
+                value={form.price}
+                onChange={handleChange}
+                className="input"
+                placeholder={fmtPrice(minimumOrderPrice)}
+                min={minimumOrderPrice}
+              />
+              {form.price && Number(form.price) < minimumOrderPrice && (
+                <p className="text-xs text-red-500 mt-1">
+                  {t('pricing.priceTooLow')} {fmtPrice(minimumOrderPrice)} {t('pricing.currency')}
+                </p>
+              )}
+              <p className="text-xs text-gray-500 mt-1">
+                {selectedTaskIds.size > 0
+                  ? `${t('pricing.minimum')}: ${fmtPrice(minimumOrderPrice)} ${t('pricing.currency')}. ${t('createOrder.priceHint')}`
+                  : t('createOrder.priceHint')}
+              </p>
             </div>
 
             {/* Город и район */}
