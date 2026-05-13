@@ -68,7 +68,8 @@ export function ImageLightbox({ images, initialIndex, onClose }: Props) {
     else zoomOut();
   };
 
-  const handleDoubleClick = () => {
+  const toggleZoom = (e: React.MouseEvent) => {
+    e.stopPropagation();
     setScale((s) => (s === 1 ? 2.5 : 1));
   };
 
@@ -77,8 +78,11 @@ export function ImageLightbox({ images, initialIndex, onClose }: Props) {
       className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center"
       onClick={onClose}
     >
-      {/* Верхняя панель */}
-      <div className="absolute top-0 left-0 right-0 flex items-center justify-between p-4 z-10 bg-gradient-to-b from-black/60 to-transparent">
+      {/* Верхняя панель — отступ под Telegram header / safe-area */}
+      <div
+        className="absolute top-0 left-0 right-0 flex items-center justify-between px-4 pb-4 z-10 bg-gradient-to-b from-black/60 to-transparent"
+        style={{ paddingTop: 'max(env(safe-area-inset-top), 3.75rem)' }}
+      >
         <span className="text-white/80 text-sm font-medium">
           {index + 1} / {total}
         </span>
@@ -146,11 +150,11 @@ export function ImageLightbox({ images, initialIndex, onClose }: Props) {
         <img
           src={current}
           alt={`Фото ${index + 1}`}
-          onDoubleClick={handleDoubleClick}
+          onClick={toggleZoom}
           className="select-none transition-transform duration-150 ease-out"
           style={{
             transform: `scale(${scale})`,
-            cursor: scale > 1 ? 'grab' : 'zoom-in',
+            cursor: scale > 1 ? 'zoom-out' : 'zoom-in',
             maxWidth: '90vw',
             maxHeight: '85vh',
             objectFit: 'contain',
