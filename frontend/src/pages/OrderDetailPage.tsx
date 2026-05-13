@@ -618,13 +618,13 @@ export function OrderDetailPage() {
             </Link>
           )}
 
-          {/* Клиент: посмотреть смету */}
-          {isOwner && ['ESTIMATE_SENT', 'ESTIMATE_APPROVED', 'ESTIMATE_REJECTED', 'MODERATION'].includes(order.status) && (
+          {/* Клиент / Админ: посмотреть смету */}
+          {(isOwner || isAdmin) && ['ESTIMATE_SENT', 'ESTIMATE_APPROVED', 'ESTIMATE_REJECTED', 'MODERATION'].includes(order.status) && (
             <Link
               to={`/estimation/${order.id}/estimate`}
               className="w-full py-3 bg-green-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-green-700 mt-2"
             >
-              Посмотреть смету
+              {isAdmin && !isOwner ? 'Просмотреть смету (модерация)' : 'Посмотреть смету'}
             </Link>
           )}
 

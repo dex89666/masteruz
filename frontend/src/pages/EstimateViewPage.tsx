@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { estimationApi } from '../api/client';
 import { Estimate, EstimateWorkItem, EstimateMaterialItem } from '../types';
+import { useAuthStore } from '../store';
 import {
   ArrowLeft, Check, X, Hammer, Package, Clock,
   Calculator, Image as ImageIcon, FileText, AlertTriangle,
@@ -17,6 +18,9 @@ import toast from 'react-hot-toast';
 export function EstimateViewPage() {
   const { orderId } = useParams<{ orderId: string }>();
   const navigate = useNavigate();
+  const { user } = useAuthStore();
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'MANAGER';
+  const isClient = user?.role === 'CLIENT';
 
   const [loading, setLoading] = useState(true);
   const [estimate, setEstimate] = useState<Estimate | null>(null);
@@ -115,7 +119,7 @@ export function EstimateViewPage() {
 
   const workItems = (estimate.workItems || []) as EstimateWorkItem[];
   const materialItems = (estimate.materialItems || []) as EstimateMaterialItem[];
-  const canDecide = estimate.status === 'SENT';
+  const canDecide = estimate.status === 'SENT' && isClient;
 
   return (
     <div className="max-w-2xl mx-auto p-4 pb-32">
@@ -266,6 +270,13 @@ export function EstimateViewPage() {
         <MessageCircle size={18} />
         Обсудить с мастером в чате
       </button>
+
+      {/* ===== Режим только для просмотра (админ/менеджер) ===== */}
+      {isAdmin && estimate.status === 'SENT' && (
+        <div className="bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-800 rounded-xl p-4 mb-4 text-sm text-violet-700 dark:text-violet-300">
+          <Shield size={16} className="inline mr-1" /> Режим модерации: смета доступна только для просмотра. Решение принимает клиент.
+        </div>
+      )}
 
       {/* ===== КНОПКИ РЕШЕНИЯ ===== */}
       {canDecide && (
