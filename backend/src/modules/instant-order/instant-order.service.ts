@@ -384,9 +384,15 @@ const UNIT_WORK_KEYWORDS = [
   'розет', 'выключател', 'светильник', 'люстр', 'лампочк', 'лампу', 'ламп ',
   'смесител', 'кран ', 'кран,', 'кран.', 'кран\n', 'смесителя',
   'унитаз', 'раковин', 'мойк', 'ванн',
-  'замок', 'замка', 'ручк', 'петл', 'петли', 'дверн',
+  'замок', 'замка', 'ручк', 'петл', 'петли', 'дверн', 'двер',
   'плинтус', 'карниз', 'крючок', 'полк',
   'точк',
+  // Мебель / фурнитура — штучный ремонт
+  'ящик', 'выдвижн', 'шкаф', 'дверц', 'фасад', 'фурнитур', 'направляющ',
+  'комод', 'тумб', 'столешн', 'стул', 'кроват', 'диван',
+  // Бытовая поломка одной единицы
+  'починить', 'не работает', 'не открывается', 'не закрывается', 'сломал', 'заел', 'заедает',
+  'подтекает', 'течёт', 'течет', 'капает',
 ];
 
 const SIMPLE_MAX_QTY = 3;
@@ -551,6 +557,9 @@ export class InstantOrderService {
     let detectedCategories: any[] = [];
     let aiAnalysis: AiAnalysisResult | null = null;
     let allCategoriesActive: any[] = [];
+    // Флаг: AI уверенно определил категорию (≥75%) → не задаём локальных уточнений,
+    // даже если эвристика не нашла ключевых слов (типа «розетка», «м²»).
+    let aiConfidentSkipClarify = false;
 
     if (explicitIds.length > 0) {
       const explicit = await prisma.category.findMany({
@@ -608,7 +617,13 @@ export class InstantOrderService {
 
       if (top && top.confidence >= CONFIDENT_THRESHOLD) {
         const cat = allCategoriesActive.find((c: any) => c.slug === top.slug);
-        if (cat) detectedCategories = [cat];
+        if (cat) {
+          detectedCategories = [cat];
+          // AI уверен в категории и не запросил выезд → доверяем ему и пропускаем
+          // локальные эвристики «уточняющих вопросов». Клиент уже описал суть проблемы —
+          // сразу собираем варианты Good/Better/Best.
+          aiConfidentSkipClarify = true;
+        }
       } else if (top && top.confidence >= POSSIBLE_THRESHOLD) {
         // Клиент должен подтвердить — возвращаем топ-3 с confidence
         const suggested = aiAnalysis.categories
@@ -652,9 +667,15 @@ export class InstantOrderService {
     //  SIMPLE   — штучная работа (1-3 розетки) или есть конкретные метрики → строим смету сразу
     //  CLARIFY  — категория есть, но непонятен объём → задаём уточняющие вопросы
     //  ON_SITE  — работа требует обмера (покраска/плитка/стяжка без площади) → выезд мастера
-    const complexity = classifyComplexity(combinedDescription, detectedCategories.length > 0);
+    //
+    //  Если AI уверенно определил категорию (≥75%) — пропускаем CLARIFY и идём к смете.
+    //  Принцип «макс. упрощения» для 30-секундного заказа: пусть AI сам анализирует.
+    const rawComplexity = classifyComplexity(combinedDescription, detectedCategories.length > 0);
+    const complexity: OrderComplexity = aiConfidentSkipClarify && rawComplexity === 'CLARIFY'
+      ? 'SIMPLE'
+      : rawComplexity;
     const tooShortWithoutExplicit =
-      combinedDescription.length < MIN_CLEAR_DESCRIPTION_LEN && explicitIds.length === 0;
+      combinedDescription.length < MIN_CLEAR_DESCRIPTION_LEN && explicitIds.length === 0 && !aiConfidentSkipClarify;
 
     if (complexity === 'ON_SITE') {
       logger.info(
