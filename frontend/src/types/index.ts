@@ -375,6 +375,7 @@ export interface EstimateWorkItem {
   unit: string;
   unitPrice: number;
   total: number;
+  cancelled?: boolean;
 }
 
 export interface EstimateMaterialItem {
@@ -383,6 +384,7 @@ export interface EstimateMaterialItem {
   unit: string;
   unitPrice: number;
   total: number;
+  cancelled?: boolean;
 }
 
 export interface Estimate {

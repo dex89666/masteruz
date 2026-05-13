@@ -193,11 +193,13 @@ export class EstimationService {
   }
 
   /**
-   * Мастер создаёт смету прямо на месте
+   * Мастер создаёт смету. Если смета уже существует — обновляет её (upsert).
+   * Поле `cancelled: true` на позиции исключает её из расчёта total.
+   * Для статусов SENT/APPROVED разрешено только: добавить новые позиции и пометить старые `cancelled`.
    */
   async createEstimate(orderId: string, masterId: string, data: {
-    workItems: Array<{ name: string; quantity: number; unitPrice: number; total: number }>;
-    materialItems: Array<{ name: string; quantity: number; unit: string; unitPrice: number; total: number }>;
+    workItems: Array<{ name: string; quantity: number; unitPrice: number; total: number; unit?: string; cancelled?: boolean }>;
+    materialItems: Array<{ name: string; quantity: number; unit: string; unitPrice: number; total: number; cancelled?: boolean }>;
     estimatedDays?: number;
     notes?: string;
     photos: string[];
@@ -207,17 +209,52 @@ export class EstimationService {
     if (!order) throw ApiError.notFound('Заказ не найден');
     if (!order.isEstimationOrder) throw ApiError.badRequest('Это не заказ на оценку');
     if (order.masterId !== masterId) throw ApiError.forbidden('Вы не назначены на этот заказ');
-    if (order.status !== OrderStatus.ESTIMATION_IN_PROGRESS) {
-      throw ApiError.badRequest('Заказ не в статусе оценки');
+
+    // Поиск существующей сметы — для upsert
+    const existing = await prisma.estimate.findFirst({
+      where: { orderId, masterId },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // Запрещены изменения после отклонения клиентом
+    if (existing && existing.status === EstimateStatus.REJECTED) {
+      throw ApiError.badRequest('Смета отклонена клиентом — изменения невозможны');
     }
 
-    // Считаем итоги
-    const workTotal = data.workItems.reduce((sum, item) => sum + item.total, 0);
-    const materialTotal = data.materialItems.reduce((sum, item) => sum + item.total, 0);
+    // Считаем итоги: cancelled-позиции не входят
+    const activeWork = data.workItems.filter(w => !w.cancelled);
+    const activeMaterial = data.materialItems.filter(m => !m.cancelled);
+    const workTotal = activeWork.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+    const materialTotal = activeMaterial.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
     const totalAmount = workTotal + materialTotal;
 
     if (totalAmount <= 0) {
       throw ApiError.badRequest('Общая сумма сметы должна быть больше 0');
+    }
+
+    if (existing) {
+      // Обновление существующей сметы
+      const updated = await prisma.estimate.update({
+        where: { id: existing.id },
+        data: {
+          workItems: data.workItems as any,
+          materialItems: data.materialItems as any,
+          workTotal,
+          materialTotal,
+          totalAmount,
+          estimatedDays: data.estimatedDays ?? existing.estimatedDays,
+          notes: data.notes ?? existing.notes,
+          photos: data.photos.length ? data.photos : existing.photos,
+          videos: (data.videos && data.videos.length) ? data.videos : existing.videos,
+        },
+      });
+      logger.info({ orderId, estimateId: updated.id, totalAmount }, 'Смета обновлена');
+      return updated;
+    }
+
+    // Только для первичного создания требуем статус ESTIMATION_IN_PROGRESS
+    if (order.status !== OrderStatus.ESTIMATION_IN_PROGRESS) {
+      throw ApiError.badRequest('Заказ не в статусе оценки');
     }
 
     // Создаём смету
@@ -226,8 +263,8 @@ export class EstimationService {
         orderId,
         masterId,
         status: EstimateStatus.DRAFT,
-        workItems: data.workItems,
-        materialItems: data.materialItems,
+        workItems: data.workItems as any,
+        materialItems: data.materialItems as any,
         workTotal,
         materialTotal,
         totalAmount,

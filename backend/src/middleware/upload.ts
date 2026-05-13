@@ -53,6 +53,31 @@ export const upload = multer({
   },
 });
 
+// ─── Медиа-загрузка (изображения + видео, до 60 МБ) ───────
+const MEDIA_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.mp4', '.mov', '.webm'];
+const MEDIA_TYPES = [
+  'image/jpeg', 'image/png', 'image/webp',
+  'video/mp4', 'video/quicktime', 'video/webm',
+];
+
+const mediaFilter = (_req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+  const ext = path.extname(file.originalname).toLowerCase();
+  if (!MEDIA_TYPES.includes(file.mimetype) || !MEDIA_EXTENSIONS.includes(ext)) {
+    cb(new ApiError(400, 'Разрешены изображения (JPEG/PNG/WebP) и видео (MP4/MOV/WebM)'));
+  } else {
+    cb(null, true);
+  }
+};
+
+export const uploadMedia = multer({
+  storage,
+  fileFilter: mediaFilter,
+  limits: {
+    fileSize: 60 * 1024 * 1024, // 60 МБ — достаточно для коротких видео с телефона
+    files: 1,
+  },
+});
+
 /**
  * Проверка магических байтов (защита от подмены типа: переименованный .php в .jpg).
  * Возвращает true, если первые байты соответствуют заявленному mime.

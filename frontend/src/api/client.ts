@@ -569,6 +569,13 @@ export const photosApi = {
     api.post<ApiResponse<{ url: string }>>('/photos/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     }),
+
+  // Загрузка медиа (фото или видео, FormData с полем 'file'). До 60 МБ.
+  uploadMedia: (formData: FormData) =>
+    api.post<ApiResponse<{ url: string; type: 'image' | 'video' }>>('/photos/upload-media', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 120000,
+    }),
 };
 
 // ─── Favorites API (избранные мастера) ──────

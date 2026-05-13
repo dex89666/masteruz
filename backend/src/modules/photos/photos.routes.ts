@@ -7,7 +7,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { prisma } from '../../config/database.js';
 import { authenticate } from '../../middleware/auth.js';
 import { ApiError } from '../../utils/ApiError.js';
-import { upload, saveUploadedFile, verifyFileMagic } from '../../middleware/upload.js';
+import { upload, uploadMedia, saveUploadedFile, verifyFileMagic } from '../../middleware/upload.js';
 
 const router = Router();
 
@@ -27,6 +27,24 @@ router.post('/upload', authenticate, upload.single('photo'), verifyFileMagic, as
       success: true,
       data: { url },
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /photos/upload-media — загрузка медиа-файла (фото или видео, до 60 МБ).
+ * Поле формы: 'file'. Возвращает { url, type: 'image'|'video' }.
+ * Используется в смете мастером.
+ */
+router.post('/upload-media', authenticate, uploadMedia.single('file'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    if (!req.file) {
+      throw ApiError.badRequest('Файл не найден. Используйте поле "file"');
+    }
+    const url = await saveUploadedFile(req.file);
+    const type = req.file.mimetype.startsWith('video/') ? 'video' : 'image';
+    res.json({ success: true, data: { url, type } });
   } catch (error) {
     next(error);
   }
