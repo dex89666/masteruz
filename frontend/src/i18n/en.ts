@@ -243,6 +243,7 @@ const en = {
     chooseMaster: 'Choose this master',
     respondTitle: 'Respond to order',
     acceptOrderBtn: 'Accept order',
+    backToOrders: 'Back to orders',
     acceptOrderConfirm: 'Accept this order at the listed price?',
     orderAccepted: 'Order accepted',
     respondPlaceholder: 'Tell about your experience and approach...',

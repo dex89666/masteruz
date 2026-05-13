@@ -149,7 +149,6 @@ export class EstimationService {
       where: { userId: masterId },
     });
     if (!masterProfile) throw ApiError.badRequest('Только мастера могут принимать заказы');
-    if (!masterProfile.registrationPaid) throw ApiError.forbidden('Оплатите регистрационный взнос');
 
     // Мастер платит комиссию (20% от стоимости выезда)
     const masterCommission = toNum(order.commissionAmount);
@@ -668,7 +667,7 @@ export class EstimationService {
 
     for (const mc of masterCategories) {
       if (!mc.masterProfile.user.isActive) continue;
-      if (!mc.masterProfile.registrationPaid) continue;
+      if (!mc.masterProfile) continue;
       if (!mc.masterProfile.isAvailable) continue;
 
       await notificationService.createNotification({

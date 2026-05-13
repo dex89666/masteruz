@@ -247,6 +247,7 @@ const ru = {
     priceInSum: 'Цена в сумах',
     respond: 'Откликнуться',
     acceptOrderBtn: 'Принять заказ',
+    backToOrders: 'К списку заказов',
     acceptOrderConfirm: 'Принять заказ по указанной цене?',
     orderAccepted: 'Заказ принят',
     orderNotFound: 'Заказ не найден',

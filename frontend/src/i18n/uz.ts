@@ -243,6 +243,7 @@ const uz = {
     chooseMaster: 'Ushbu ustani tanlash',
     respondTitle: 'Buyurtmaga javob berish',
     acceptOrderBtn: 'Buyurtmani qabul qilish',
+    backToOrders: 'Buyurtmalar roʻyxatiga',
     acceptOrderConfirm: 'Buyurtma belgilangan narxda qabul qilinsinmi?',
     orderAccepted: 'Buyurtma qabul qilindi',
     respondPlaceholder: "Tajribangiz va yondashuvingiz haqida gapirib bering...",

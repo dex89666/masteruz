@@ -27,7 +27,7 @@ import { useTranslation } from '../i18n';
 import {
   MapPin, Clock, DollarSign, User, Phone,
   CheckCircle, XCircle, MessageSquare, Star, Send, AlertTriangle,
-  Zap, CreditCard, Navigation, Map, Truck, Shield, ThumbsUp, Ban, Scale, Check, Search
+  Zap, CreditCard, Navigation, Map, Truck, Shield, ThumbsUp, Ban, Scale, Check, Search, ArrowLeft
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { Order, OrderResponse, OrderPhoto } from '../types';
@@ -368,6 +368,16 @@ export function OrderDetailPage() {
 
   return (
     <div className="page-container pb-20">
+      {/* Кнопка возврата к списку заказов */}
+      <button
+        type="button"
+        onClick={() => navigate('/orders')}
+        className="inline-flex items-center gap-1.5 mb-3 text-sm text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
+      >
+        <ArrowLeft size={16} />
+        {t('orderDetail.backToOrders')}
+      </button>
+
       {/* Навигация */}
       <Breadcrumbs items={[
         { label: t('orders.title'), href: '/orders' },
@@ -1172,14 +1182,19 @@ export function OrderDetailPage() {
           {order.isInstantAiOrder ? (
             <button
               onClick={async () => {
-                if (!window.confirm(t('orderDetail.acceptOrderConfirm'))) return;
                 setSubmitting(true);
                 try {
                   await ordersApi.respond(id!, { message: '', priceOffer: undefined });
                   toast.success(t('orderDetail.orderAccepted'));
-                  loadOrder();
+                  await loadOrder();
                 } catch (error: any) {
-                  toast.error(error.response?.data?.error?.message || t('orderDetail.sendError'));
+                  console.error('[acceptOrder] failed', error?.response?.data || error);
+                  const msg =
+                    error?.response?.data?.error?.message ||
+                    error?.response?.data?.message ||
+                    error?.message ||
+                    t('orderDetail.sendError');
+                  toast.error(msg, { duration: 5000 });
                 } finally {
                   setSubmitting(false);
                 }
@@ -1188,7 +1203,7 @@ export function OrderDetailPage() {
               className="w-full py-3 bg-primary-600 hover:bg-primary-700 disabled:opacity-60 text-white rounded-xl font-bold flex items-center justify-center gap-2"
             >
               <Send size={18} />
-              {t('orderDetail.acceptOrderBtn')}
+              {submitting ? t('common.loading') : t('orderDetail.acceptOrderBtn')}
             </button>
           ) : (
             <>
