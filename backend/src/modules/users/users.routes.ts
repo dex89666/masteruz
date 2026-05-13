@@ -37,6 +37,9 @@ router.post('/master-profile', validateBody(createMasterProfileSchema), (req, re
 router.put('/master-profile', validateBody(updateMasterProfileSchema), (req, res, next) =>
   usersController.updateMasterProfile(req, res, next)
 );
+router.delete('/master-profile', (req, res, next) =>
+  usersController.deleteMasterProfile(req, res, next)
+);
 
 // Категории мастера
 router.get('/master-categories', (req, res, next) =>

@@ -150,6 +150,18 @@ export class UsersController {
       next(error);
     }
   }
+
+  /**
+   * DELETE /api/users/master-profile — удалить профиль мастера
+   */
+  async deleteMasterProfile(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const result = await usersService.deleteMasterProfile(req.user!.userId);
+      res.json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const usersController = new UsersController();

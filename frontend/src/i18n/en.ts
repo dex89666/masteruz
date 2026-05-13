@@ -761,6 +761,11 @@ const en = {
     masterSettings: 'Master Settings',
     saved: 'Settings saved',
     firstNameRequired: 'Please enter your first name',
+    dangerZone: 'Danger zone',
+    deleteMasterBtn: 'Delete master profile',
+    deleteMasterDesc: 'Your master profile will be removed and your role will revert to Client. Order history and reviews will be preserved. You can register as a master again later.',
+    deleteMasterConfirm: 'Delete your master profile? You can register again later.',
+    deleteMasterSuccess: 'Master profile deleted',
   },
 
   // ─── Payments ────────────────────────────

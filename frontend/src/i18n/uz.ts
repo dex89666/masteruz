@@ -761,6 +761,11 @@ const uz = {
     masterSettings: 'Usta sozlamalari',
     saved: 'Sozlamalar saqlandi',
     firstNameRequired: 'Ismni kiriting',
+    dangerZone: 'Xavfli zona',
+    deleteMasterBtn: 'Usta profilini oʻchirish',
+    deleteMasterDesc: 'Usta profili oʻchiriladi, sizning rolingiz «Mijoz»ga qaytadi. Buyurtmalar tarixi va sharhlar saqlanadi. Keyinroq qaytadan roʻyxatdan oʻtishingiz mumkin.',
+    deleteMasterConfirm: 'Usta profilini oʻchirilsinmi? Keyinroq qaytadan roʻyxatdan oʻtishingiz mumkin.',
+    deleteMasterSuccess: 'Usta profili oʻchirildi',
   },
 
   // ─── To'lovlar ───────────────────────────

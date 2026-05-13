@@ -121,6 +121,9 @@ export const usersApi = {
   updateMasterProfile: (data: any) =>
     api.put<ApiResponse<any>>('/users/master-profile', data),
 
+  deleteMasterProfile: () =>
+    api.delete<ApiResponse<any>>('/users/master-profile'),
+
   uploadCertificate: (formData: FormData) =>
     api.post<ApiResponse<any>>('/users/certificates', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },

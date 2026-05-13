@@ -11,6 +11,7 @@ import { useLargeText } from '../hooks';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import {
   ArrowLeft, Save, User, FileText, Type, Layers, ChevronDown, Check,
+  Trash2, AlertTriangle,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -23,6 +24,7 @@ export function ProfileSettingsPage() {
   const { largeText, toggleLargeText } = useLargeText();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deletingMaster, setDeletingMaster] = useState(false);
 
   const [form, setForm] = useState({
     firstName: '',
@@ -175,9 +177,27 @@ export function ProfileSettingsPage() {
 
       toast.success(t('settings.saved'));
     } catch (error: any) {
-      toast.error(error.response?.data?.message || t('common.error'));
+      toast.error(error.response?.data?.error?.message || error.response?.data?.message || t('common.error'));
     } finally {
       setSaving(false);
+    }
+  }
+
+  // Удаление мастер-профиля с возможностью повторной регистрации.
+  // История заказов/отзывов сохраняется, роль пользователя возвращается в CLIENT.
+  async function handleDeleteMasterProfile() {
+    const confirmed = window.confirm(t('settings.deleteMasterConfirm'));
+    if (!confirmed) return;
+
+    setDeletingMaster(true);
+    try {
+      await usersApi.deleteMasterProfile();
+      toast.success(t('settings.deleteMasterSuccess'));
+      // Жёсткий редирект — заберём актуальную роль с сервера
+      window.location.assign('/');
+    } catch (error: any) {
+      toast.error(error.response?.data?.error?.message || error.response?.data?.message || t('common.error'));
+      setDeletingMaster(false);
     }
   }
 
@@ -423,6 +443,28 @@ export function ProfileSettingsPage() {
               onChange={(e) => setMasterForm({ ...masterForm, bio: e.target.value })}
             />
           </div>
+        </div>
+      )}
+
+      {/* Опасная зона — удаление профиля мастера */}
+      {isMaster && (
+        <div className="card border-2 border-red-200 dark:border-red-900/40 bg-red-50/30 dark:bg-red-900/10 mb-4">
+          <h2 className="font-semibold mb-2 flex items-center gap-2 text-red-700 dark:text-red-400">
+            <AlertTriangle size={18} />
+            {t('settings.dangerZone')}
+          </h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+            {t('settings.deleteMasterDesc')}
+          </p>
+          <button
+            type="button"
+            onClick={handleDeleteMasterProfile}
+            disabled={deletingMaster}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-sm font-medium transition-colors"
+          >
+            <Trash2 size={16} />
+            {deletingMaster ? t('common.loading') : t('settings.deleteMasterBtn')}
+          </button>
         </div>
       )}
 

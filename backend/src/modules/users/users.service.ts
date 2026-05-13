@@ -214,6 +214,33 @@ export class UsersService {
   }
 
   /**
+   * Удаление профиля мастера. Возвращает пользователя обратно в роль CLIENT.
+   * История заказов, отзывов и платежей сохраняется — она связана с User, не с MasterProfile.
+   * После удаления пользователь сможет повторно зарегистрироваться как мастер.
+   */
+  async deleteMasterProfile(userId: string) {
+    const masterProfile = await prisma.masterProfile.findUnique({
+      where: { userId },
+    });
+
+    if (!masterProfile) {
+      throw ApiError.notFound('Профиль мастера не найден');
+    }
+
+    // Каскад удалит masterCategories автоматически (onDelete: Cascade в schema.prisma)
+    await prisma.$transaction([
+      prisma.masterProfile.delete({ where: { userId } }),
+      prisma.user.update({
+        where: { id: userId },
+        data: { role: UserRole.CLIENT },
+      }),
+    ]);
+
+    logger.info({ userId }, 'Профиль мастера удалён, роль возвращена в CLIENT');
+    return { success: true };
+  }
+
+  /**
    * Загрузка сертификата
    */
   async uploadCertificate(userId: string, title: string, fileUrl: string) {
