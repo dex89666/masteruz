@@ -454,6 +454,18 @@ export const instantOrderApi = {
   getTemplate: (templateId: string) =>
     api.get<ApiResponse<any>>(`/instant-order/template/${templateId}`),
 
+  // Распознавание речи (Whisper) — fallback для Android, где Web Speech API недоступен
+  transcribe: (audio: Blob) => {
+    const fd = new FormData();
+    const ext = audio.type.includes('mp4') ? 'm4a' : audio.type.includes('ogg') ? 'ogg' : 'webm';
+    fd.append('audio', audio, `voice.${ext}`);
+    return api.post<ApiResponse<{ text: string; durationMs: number }>>(
+      '/instant-order/transcribe',
+      fd,
+      { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 60_000 }
+    );
+  },
+
   // Admin: AI-заказы на модерации
   getPendingModeration: (params?: { page?: number; limit?: number }) =>
     api.get<any>('/instant-order/admin/moderation', { params }),

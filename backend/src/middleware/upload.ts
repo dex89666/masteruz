@@ -78,6 +78,32 @@ export const uploadMedia = multer({
   },
 });
 
+// ─── Аудио для распознавания речи (Whisper) ──────────
+// Хранение в памяти: на S3/диск не пишем, сразу отдаём в OpenAI.
+const AUDIO_TYPES = [
+  'audio/webm', 'audio/mp4', 'audio/m4a', 'audio/mpeg', 'audio/mp3',
+  'audio/wav', 'audio/x-wav', 'audio/ogg', 'audio/aac', 'audio/3gpp',
+];
+
+const audioFilter = (_req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+  // Многие браузеры присылают audio/webm;codecs=opus — обрезаем суффикс
+  const baseType = (file.mimetype || '').split(';')[0].trim().toLowerCase();
+  if (AUDIO_TYPES.includes(baseType)) {
+    cb(null, true);
+  } else {
+    cb(new ApiError(400, `Неподдерживаемый аудиоформат: ${file.mimetype}`));
+  }
+};
+
+export const uploadAudio = multer({
+  storage: multer.memoryStorage(),
+  fileFilter: audioFilter,
+  limits: {
+    fileSize: 20 * 1024 * 1024, // 20 МБ — голосовое сообщение до ~5 мин
+    files: 1,
+  },
+});
+
 /**
  * Проверка магических байтов (защита от подмены типа: переименованный .php в .jpg).
  * Возвращает true, если первые байты соответствуют заявленному mime.

@@ -59,7 +59,12 @@ export function InstantOrderPage() {
   const [searchParams] = useSearchParams();
   const formatPrice = useFormatPrice();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const [showCamera, setShowCamera] = useState(false);
+
+  // На мобильных устройствах (Android/iOS) системная камера через `capture="environment"`
+  // работает надёжнее, чем getUserMedia в WebView Telegram. На десктопе оставляем live-preview.
+  const isMobileDevice = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
 
   // ─── State ─────────────────────────
   const [step, setStep] = useState<Step>('upload');
@@ -266,15 +271,84 @@ export function InstantOrderPage() {
     addFiles(files);
   }, [addFiles]);
 
-  // ─── Voice input (Web Speech API) ────
-  const startRecording = useCallback(async () => {
+  // ─── Voice input ────────────────────
+  // Стратегия: на устройствах с Web Speech API (Chrome Desktop, Android Chrome обычный)
+  // делаем live-распознавание. На Android Telegram WebView и iOS Safari — пишем аудио
+  // через MediaRecorder и отправляем на сервер (Whisper).
+  const transcribeWithWhisper = useCallback(async (blob: Blob) => {
     try {
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      if (!SpeechRecognition) {
-        toast.error('Ваш браузер не поддерживает распознавание речи. Попробуйте Chrome.');
+      toast('Распознаём речь...', { icon: '🎙️', duration: 2000 });
+      const res = await instantOrderApi.transcribe(blob);
+      const text = res.data.data?.text?.trim() || '';
+      if (!text) {
+        toast.error('Речь не распознана. Попробуйте ещё раз или введите текст.');
         return;
       }
+      setVoiceText(text);
+      setDescription((prev) => (prev?.trim() ? `${prev}. ${text}` : text));
+      toast.success('Голос распознан! Отредактируйте текст при необходимости.');
+    } catch (err: any) {
+      const msg = err.response?.data?.error?.message || err.message || 'Ошибка распознавания';
+      toast.error(msg);
+    }
+  }, []);
 
+  const startRecordingViaMediaRecorder = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Выбираем поддерживаемый mime-type (Android Telegram любит audio/webm;opus, iOS — audio/mp4)
+      const candidates = [
+        'audio/webm;codecs=opus',
+        'audio/webm',
+        'audio/mp4',
+        'audio/ogg;codecs=opus',
+      ];
+      const supported = candidates.find((m) => (window as any).MediaRecorder?.isTypeSupported?.(m));
+      const recorder = supported
+        ? new MediaRecorder(stream, { mimeType: supported })
+        : new MediaRecorder(stream);
+
+      chunksRef.current = [];
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+      recorder.onstop = async () => {
+        const blob = new Blob(chunksRef.current, { type: recorder.mimeType || 'audio/webm' });
+        stream.getTracks().forEach((t) => t.stop());
+        setIsRecording(false);
+        chunksRef.current = [];
+        if (blob.size < 1024) {
+          toast.error('Запись слишком короткая.');
+          return;
+        }
+        await transcribeWithWhisper(blob);
+      };
+
+      mediaRecorderRef.current = recorder;
+      recorder.start();
+      setIsRecording(true);
+      toast('Говорите... Нажмите кнопку ещё раз для завершения', { icon: '🎙️', duration: 2500 });
+    } catch (err: any) {
+      const name = err?.name || '';
+      if (name === 'NotAllowedError') {
+        toast.error('Доступ к микрофону запрещён. Разрешите его в настройках браузера.');
+      } else if (name === 'NotFoundError') {
+        toast.error('Микрофон не найден.');
+      } else {
+        toast.error('Не удалось получить доступ к микрофону.');
+      }
+      setIsRecording(false);
+    }
+  }, [transcribeWithWhisper]);
+
+  const startRecording = useCallback(async () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    // На Android и в Telegram WebView SpeechRecognition обычно недоступен либо ломается с error="network".
+    // Если его нет — сразу идём через MediaRecorder + Whisper.
+    if (!SpeechRecognition || isMobileDevice) {
+      await startRecordingViaMediaRecorder();
+      return;
+    }
+
+    try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const recorder = new MediaRecorder(stream);
       chunksRef.current = [];
@@ -290,6 +364,7 @@ export function InstantOrderPage() {
 
       let finalTranscript = '';
       let interimTranscript = '';
+      let fallbackTriggered = false;
 
       recognition.onresult = (event: any) => {
         interimTranscript = '';
@@ -308,12 +383,32 @@ export function InstantOrderPage() {
         }
       };
 
-      recognition.onerror = (event: any) => {
+      recognition.onerror = async (event: any) => {
+        // network / service-not-allowed / aborted → пробуем Whisper-фоллбэк
+        if (['network', 'service-not-allowed', 'audio-capture'].includes(event.error) && !fallbackTriggered) {
+          fallbackTriggered = true;
+          recognition.abort();
+          // Останавливаем mediaRecorder и переключаемся на Whisper
+          if (recorder.state === 'recording') {
+            recorder.onstop = async () => {
+              const blob = new Blob(chunksRef.current, { type: recorder.mimeType || 'audio/webm' });
+              stream.getTracks().forEach((t) => t.stop());
+              setIsRecording(false);
+              if (blob.size >= 1024) await transcribeWithWhisper(blob);
+            };
+            recorder.stop();
+          } else {
+            stream.getTracks().forEach((t) => t.stop());
+            setIsRecording(false);
+          }
+          return;
+        }
         if (event.error === 'no-speech') toast.error('Речь не обнаружена.');
         else if (event.error === 'not-allowed') toast.error('Доступ к микрофону запрещён.');
       };
 
       recognition.onend = () => {
+        if (fallbackTriggered) return;
         const result = finalTranscript.trim();
         if (result) {
           setVoiceText(result);
@@ -323,6 +418,7 @@ export function InstantOrderPage() {
           toast.error('Не удалось распознать речь.');
         }
         stream.getTracks().forEach((t) => t.stop());
+        if (recorder.state === 'recording') recorder.stop();
         setIsRecording(false);
       };
 
@@ -331,9 +427,10 @@ export function InstantOrderPage() {
       setIsRecording(true);
       toast('Говорите... Текст появится в реальном времени', { duration: 2000 });
     } catch {
-      toast.error('Не удалось получить доступ к микрофону');
+      // Если getUserMedia упал — пробуем альтернативный путь
+      await startRecordingViaMediaRecorder();
     }
-  }, []);
+  }, [isMobileDevice, startRecordingViaMediaRecorder, transcribeWithWhisper]);
 
   const stopRecording = useCallback(() => {
     if (recognitionRef.current) { recognitionRef.current.stop(); recognitionRef.current = null; }
@@ -756,7 +853,15 @@ export function InstantOrderPage() {
               {/* Camera / Gallery buttons */}
               <div className="flex gap-3 mt-4">
                 <button
-                  onClick={() => setShowCamera(true)}
+                  onClick={() => {
+                    // На мобильных открываем нативную камеру через input[capture],
+                    // т.к. getUserMedia часто заблокирован в Telegram WebView на Android.
+                    if (isMobileDevice) {
+                      cameraInputRef.current?.click();
+                    } else {
+                      setShowCamera(true);
+                    }
+                  }}
                   className="flex-1 flex items-center justify-center gap-2 min-h-[48px] rounded-xl border-2 border-orange-200 dark:border-orange-700 text-orange-600 dark:text-orange-400 font-semibold hover:bg-orange-50 dark:hover:bg-orange-900/10 transition-colors text-sm md:text-base"
                 >
                   <Camera size={20} /> Камера
@@ -770,6 +875,15 @@ export function InstantOrderPage() {
               </div>
 
               <input ref={fileInputRef} type="file" multiple accept="image/*" className="hidden" onChange={handleFileSelect} />
+              {/* Нативный «снимок с камеры» для мобильных — открывает приложение камеры */}
+              <input
+                ref={cameraInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={handleFileSelect}
+              />
 
               {showCamera && (
                 <CameraCapture

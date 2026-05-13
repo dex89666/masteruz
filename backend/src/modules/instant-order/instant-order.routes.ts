@@ -5,7 +5,9 @@
 
 import { Router, Request, Response, NextFunction } from 'express';
 import { authenticate, authorize } from '../../middleware/auth.js';
+import { uploadAudio } from '../../middleware/upload.js';
 import { instantOrderService } from './instant-order.service.js';
+import { transcribeAudio } from '../../services/transcribeService.js';
 import { z } from 'zod';
 
 const router = Router();
@@ -70,6 +72,32 @@ router.post('/analyze', authenticate, async (req: Request, res: Response, next: 
     next(error);
   }
 });
+
+/**
+ * POST /instant-order/transcribe — Whisper Speech-to-Text
+ * Принимает поле `audio` (multipart/form-data), возвращает распознанный текст.
+ * Fallback для Android-устройств, где Web Speech API недоступен.
+ */
+router.post(
+  '/transcribe',
+  authenticate,
+  uploadAudio.single('audio'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ success: false, error: { message: 'Аудио-файл не приложен' } });
+      }
+      const { text, durationMs } = await transcribeAudio({
+        buffer: req.file.buffer,
+        filename: req.file.originalname || 'voice.webm',
+        mimeType: (req.file.mimetype || 'audio/webm').split(';')[0],
+      });
+      res.json({ success: true, data: { text, durationMs } });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
 
 /**
  * POST /instant-order/create — Создать заказ из выбранного AI-варианта
