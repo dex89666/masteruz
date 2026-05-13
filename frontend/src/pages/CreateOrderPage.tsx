@@ -26,6 +26,7 @@ import {
   Sparkles,
   Camera,
 } from 'lucide-react';
+import CategoryIcon from '../components/CategoryIcon';
 import toast from 'react-hot-toast';
 import type { Task } from '../types';
 import { UZBEKISTAN_REGIONS, getDistrictsForCity, getRegionByCity, getLocalizedRegionName } from '../data/regions';
@@ -345,13 +346,19 @@ export function CreateOrderPage() {
             {t('createOrder.step1Category')}
           </h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            {catalog.map((cat: any) => (
+            {catalog
+              .filter((cat: any) => {
+                // Скрываем категории без подкатегорий — выбрать их всё равно нельзя.
+                const subs = cat.subcategories?.length ?? cat._count?.subcategories ?? 0;
+                return subs > 0;
+              })
+              .map((cat: any) => (
               <button
                 key={cat.id}
                 onClick={() => selectCategory(cat)}
-                className="card dark:bg-gray-800 dark:ring-gray-700 text-center hover:shadow-md hover:border-primary-300 dark:hover:border-primary-600 transition-all hover:-translate-y-0.5 p-4 border-2 border-transparent"
+                className="card dark:bg-gray-800 dark:ring-gray-700 text-center hover:shadow-md hover:border-primary-300 dark:hover:border-primary-600 transition-all hover:-translate-y-0.5 p-4 border-2 border-transparent flex flex-col items-center"
               >
-                <span className="text-3xl mb-2 block">{cat.icon}</span>
+                <CategoryIcon name={cat.icon} size="md" className="mb-2" />
                 <span className="text-sm font-medium text-gray-700 dark:text-gray-300 block">
                   {getLocalName(cat)}
                 </span>
@@ -367,9 +374,10 @@ export function CreateOrderPage() {
       {/* ═══ STEP 2: Subcategory Selection ═══ */}
       {step === 2 && selectedCategory && (
         <div>
-          <div className="mb-4 px-3 py-2 bg-primary-50 dark:bg-primary-900/30 rounded-lg text-sm">
+          <div className="mb-4 px-3 py-2 bg-primary-50 dark:bg-primary-900/30 rounded-lg text-sm flex items-center gap-2">
+            <CategoryIcon name={selectedCategory.icon} size="sm" />
             <span className="font-medium text-primary-700 dark:text-primary-300">
-              {t('createOrder.selectedCategory')}: {selectedCategory.icon} {getLocalName(selectedCategory)}
+              {t('createOrder.selectedCategory')}: {getLocalName(selectedCategory)}
             </span>
           </div>
           <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
@@ -384,7 +392,11 @@ export function CreateOrderPage() {
                   className="w-full flex items-center justify-between p-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 hover:border-primary-300 dark:hover:border-primary-600 hover:shadow-sm transition-all text-left"
                 >
                   <div className="flex items-center gap-3">
-                    <span className="text-xl">{sub.icon}</span>
+                    {sub.icon && /^[A-Z][A-Za-z0-9]+$/.test(sub.icon) ? (
+                      <CategoryIcon name={sub.icon} size="sm" />
+                    ) : (
+                      <span className="text-xl">{sub.icon}</span>
+                    )}
                     <div>
                       <span className="font-medium text-gray-800 dark:text-gray-200 block">
                         {getLocalName(sub)}
