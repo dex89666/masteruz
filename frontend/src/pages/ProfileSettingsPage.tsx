@@ -25,6 +25,7 @@ export function ProfileSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deletingMaster, setDeletingMaster] = useState(false);
+  const [confirmDeleteMaster, setConfirmDeleteMaster] = useState(false);
 
   const [form, setForm] = useState({
     firstName: '',
@@ -186,17 +187,21 @@ export function ProfileSettingsPage() {
   // Удаление мастер-профиля с возможностью повторной регистрации.
   // История заказов/отзывов сохраняется, роль пользователя возвращается в CLIENT.
   async function handleDeleteMasterProfile() {
-    const confirmed = window.confirm(t('settings.deleteMasterConfirm'));
-    if (!confirmed) return;
-
+    setConfirmDeleteMaster(false);
     setDeletingMaster(true);
     try {
       await usersApi.deleteMasterProfile();
       toast.success(t('settings.deleteMasterSuccess'));
       // Жёсткий редирект — заберём актуальную роль с сервера
-      window.location.assign('/');
+      setTimeout(() => window.location.assign('/'), 400);
     } catch (error: any) {
-      toast.error(error.response?.data?.error?.message || error.response?.data?.message || t('common.error'));
+      console.error('[deleteMasterProfile] failed', error?.response?.data || error);
+      const msg =
+        error?.response?.data?.error?.message ||
+        error?.response?.data?.message ||
+        error?.message ||
+        t('common.error');
+      toast.error(msg, { duration: 5000 });
       setDeletingMaster(false);
     }
   }
@@ -458,7 +463,7 @@ export function ProfileSettingsPage() {
           </p>
           <button
             type="button"
-            onClick={handleDeleteMasterProfile}
+            onClick={() => setConfirmDeleteMaster(true)}
             disabled={deletingMaster}
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-sm font-medium transition-colors"
           >
@@ -506,6 +511,49 @@ export function ProfileSettingsPage() {
         <Save size={18} className="mr-2" />
         {saving ? t('common.loading') : t('common.save')}
       </button>
+
+      {/* Модалка подтверждения удаления мастер-профиля */}
+      {confirmDeleteMaster && (
+        <div
+          className="fixed inset-0 z-[200] bg-black/60 flex items-center justify-center px-4"
+          onClick={() => setConfirmDeleteMaster(false)}
+        >
+          <div
+            className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-sm w-full p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                <AlertTriangle size={20} className="text-red-600 dark:text-red-400" />
+              </div>
+              <h3 className="font-bold text-gray-900 dark:text-white">
+                {t('settings.deleteMasterBtn')}
+              </h3>
+            </div>
+            <p className="text-sm text-gray-600 dark:text-gray-300 mb-5">
+              {t('settings.deleteMasterConfirm')}
+            </p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirmDeleteMaster(false)}
+                className="flex-1 py-2.5 rounded-xl bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-medium"
+              >
+                {t('common.cancel')}
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteMasterProfile}
+                disabled={deletingMaster}
+                className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white font-semibold inline-flex items-center justify-center gap-2"
+              >
+                <Trash2 size={16} />
+                {deletingMaster ? t('common.loading') : t('settings.deleteMasterBtn')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
