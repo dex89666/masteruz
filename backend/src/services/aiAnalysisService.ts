@@ -16,6 +16,21 @@ import OpenAI from 'openai';
 import { config } from '../config/index.js';
 import { logger } from '../utils/logger.js';
 import { ApiError } from '../utils/ApiError.js';
+import { notificationService } from './notificationService.js';
+
+// Анти-спам: не дёргаем админов чаще раза в 30 минут на одну причину
+const ADMIN_ALERT_COOLDOWN_MS = 30 * 60 * 1000;
+const lastAdminAlertAt = new Map<string, number>();
+
+function alertAdminsOnce(reason: 'quota_exhausted' | 'auth_failed' | 'model_unavailable' | 'unknown', detail?: string) {
+  const now = Date.now();
+  const last = lastAdminAlertAt.get(reason) ?? 0;
+  if (now - last < ADMIN_ALERT_COOLDOWN_MS) return;
+  lastAdminAlertAt.set(reason, now);
+  void notificationService
+    .notifyAdminsAiProviderIssue({ reason, provider: 'OpenAI', detail })
+    .catch((err) => logger.error({ err, reason }, 'alertAdminsOnce: не удалось отправить уведомление'));
+}
 
 // ─── Контракт ────────────────────────────────────────────────────────────
 
@@ -219,6 +234,15 @@ export async function analyzeOrder(input: AiAnalysisInput): Promise<AiAnalysisRe
       { err: err?.message, status, code },
       'OpenAI Vision: запрос провален после всех попыток'
     );
+
+    // Критичные постоянные ошибки → оповещаем админов (с троттлингом)
+    if (code === 'insufficient_quota') {
+      alertAdminsOnce('quota_exhausted', err?.message);
+    } else if (status === 401) {
+      alertAdminsOnce('auth_failed', err?.message);
+    } else if (code === 'model_not_found' || status === 404) {
+      alertAdminsOnce('model_unavailable', err?.message);
+    }
 
     const userMsg =
       status === 401

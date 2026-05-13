@@ -711,6 +711,71 @@ export class NotificationService {
       logger.error({ error, orderId, hoursLeft }, 'notifyAdminsOrderExpiring failed');
     }
   }
+
+  /**
+   * Оповестить администраторов о критической проблеме с AI-провайдером
+   * (например, исчерпана квота OpenAI). Используется при `insufficient_quota`,
+   * `model_not_found`, отсутствии авторизации и подобных постоянных ошибках.
+   */
+  async notifyAdminsAiProviderIssue(params: {
+    reason: 'quota_exhausted' | 'auth_failed' | 'model_unavailable' | 'unknown';
+    provider?: string;
+    detail?: string;
+  }) {
+    try {
+      const admins = await prisma.user.findMany({
+        where: { role: { in: ['ADMIN', 'MANAGER'] as any }, isActive: true },
+        select: { id: true, telegramId: true },
+      });
+      if (admins.length === 0) return;
+
+      const provider = params.provider || 'OpenAI';
+      const reasonMap: Record<typeof params.reason, { title: string; line: string }> = {
+        quota_exhausted: {
+          title: `⚠️ ${provider}: исчерпана квота`,
+          line: `Закончился баланс или превышен план ${provider}. AI-анализ заказов не работает — пополните аккаунт.`,
+        },
+        auth_failed: {
+          title: `🔐 ${provider}: неверный API-ключ`,
+          line: `Запросы к ${provider} возвращают 401. Проверьте OPENAI_API_KEY в Railway.`,
+        },
+        model_unavailable: {
+          title: `🚫 ${provider}: модель недоступна`,
+          line: `Запрошенная модель не подключена к аккаунту ${provider}. Включите gpt-4o-mini или измените конфиг.`,
+        },
+        unknown: {
+          title: `❗ ${provider}: ошибка интеграции`,
+          line: `AI-провайдер ${provider} вернул неожиданную ошибку. Проверьте логи backend.`,
+        },
+      };
+      const { title, line } = reasonMap[params.reason];
+      const fullMessage = params.detail ? `${line}\n\nДетали: ${params.detail}` : line;
+
+      await Promise.allSettled(
+        admins.map(async (admin) => {
+          await this.createNotification({
+            userId: admin.id,
+            type: 'admin_ai_provider_issue',
+            title,
+            message: fullMessage,
+            data: { reason: params.reason, provider, detail: params.detail },
+          });
+          if (admin.telegramId) {
+            const text =
+              `<b>${title}</b>\n\n` +
+              `${line}\n` +
+              (params.detail ? `\n<i>${params.detail}</i>\n` : '') +
+              `\nВремя: ${new Date().toLocaleString('ru-RU')}`;
+            await sendTelegramMessage({ chatId: admin.telegramId, text }).catch(() => {});
+          }
+        }),
+      );
+
+      logger.info({ reason: params.reason, provider, adminCount: admins.length }, 'notifyAdminsAiProviderIssue: отправлено');
+    } catch (error) {
+      logger.error({ error, params }, 'notifyAdminsAiProviderIssue failed');
+    }
+  }
 }
 
 export const notificationService = new NotificationService();
