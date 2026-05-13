@@ -21,6 +21,13 @@ const DEFAULT_COMMISSION_RATE = 15;
 const DEFAULT_VISIT_FEE = 100000;
 const VISIT_FEE_COMMISSION_RATE = 10;
 
+// Безопасно парсит дату из строки. Пустые/невалидные значения → null.
+const parseOptionalDate = (value?: string | null): Date | null => {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
 // ─── Коэффициенты для уровней AI ──────────────
 const TIER_MULTIPLIERS: Record<string, { price: number; days: number; label: string }> = {
   GOOD: { price: 1.0, days: 1.3, label: 'Хороший — стандарт' },
@@ -992,7 +999,7 @@ export class InstantOrderService {
           latitude: data.latitude,
           longitude: data.longitude,
           images: data.images,
-          deadline: data.deadline ? new Date(data.deadline) : null,
+          deadline: parseOptionalDate(data.deadline),
           // Задачи из шаблона
           ...(template.taskIds.length > 0
             ? { orderTasks: { create: template.taskIds.map((taskId: string) => ({ taskId })) } }
