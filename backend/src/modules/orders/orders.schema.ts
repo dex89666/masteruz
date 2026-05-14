@@ -63,6 +63,9 @@ export const updateStatusSchema = z.object({
   // Текущие координаты мастера — для геофенс-проверки при IN_PROGRESS
   latitude: z.number().min(-90).max(90).optional(),
   longitude: z.number().min(-180).max(180).optional(),
+  // Подтверждение выезда (используется только при ACCEPTED → IN_TRANSIT)
+  transitReason: z.enum(['MATERIAL', 'TO_CLIENT']).optional(),
+  etaMinutes: z.number().int().min(5).max(480).optional(), // 5 мин — 8 часов
 });
 
 export const masterLocationSchema = z.object({

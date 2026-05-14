@@ -170,6 +170,111 @@ export async function runReminderTick(): Promise<{ remindersSent: number }> {
 }
 
 /**
+ * Напоминания мастеру, который уже взял заказ.
+ *
+ * Два сценария:
+ * 1. ACCEPTED висит > ACCEPT_CONFIRM_DELAY_MIN минут без перехода в IN_TRANSIT
+ *    → пинг мастеру: «подтвердите выезд» (раз в ACCEPT_PING_EVERY_MIN мин).
+ * 2. IN_TRANSIT и transitEtaAt истёк > TRANSIT_OVERDUE_BUFFER_MIN
+ *    → пинг мастеру и клиенту (раз в TRANSIT_PING_EVERY_MIN мин).
+ *
+ * Анти-спам: поле `lastMasterPingAt` обновляется после каждой отправки,
+ * следующий пинг разрешён не раньше чем через указанный интервал.
+ */
+const ACCEPT_CONFIRM_DELAY_MIN = Number(process.env.MASTER_ACCEPT_CONFIRM_DELAY_MIN ?? 20);
+const ACCEPT_PING_EVERY_MIN    = Number(process.env.MASTER_ACCEPT_PING_EVERY_MIN ?? 30);
+const TRANSIT_OVERDUE_BUFFER_MIN = Number(process.env.MASTER_TRANSIT_OVERDUE_BUFFER_MIN ?? 10);
+const TRANSIT_PING_EVERY_MIN   = Number(process.env.MASTER_TRANSIT_PING_EVERY_MIN ?? 15);
+
+export async function runMasterReminderTick(): Promise<{ pinged: number }> {
+  const now = new Date();
+  let pinged = 0;
+
+  // ── 1. ACCEPTED без выезда дольше нормы ─────────────────────────
+  const acceptThreshold = new Date(now.getTime() - ACCEPT_CONFIRM_DELAY_MIN * 60_000);
+  const stalePingThreshold = new Date(now.getTime() - ACCEPT_PING_EVERY_MIN * 60_000);
+
+  const acceptedStale = await prisma.order.findMany({
+    where: {
+      status: OrderStatus.ACCEPTED,
+      masterId: { not: null },
+      acceptedAt: { lt: acceptThreshold },
+      OR: [
+        { lastMasterPingAt: null },
+        { lastMasterPingAt: { lt: stalePingThreshold } },
+      ],
+    },
+    select: { id: true },
+    take: 100,
+  });
+
+  for (const o of acceptedStale) {
+    const claim = await prisma.order.updateMany({
+      where: {
+        id: o.id,
+        status: OrderStatus.ACCEPTED,
+        OR: [
+          { lastMasterPingAt: null },
+          { lastMasterPingAt: { lt: stalePingThreshold } },
+        ],
+      },
+      data: { lastMasterPingAt: now },
+    });
+    if (claim.count === 0) continue;
+
+    notificationService
+      .notifyMasterToConfirmDeparture(o.id)
+      .catch((err) => logger.error({ err, orderId: o.id }, 'notifyMasterToConfirmDeparture failed'));
+    pinged++;
+  }
+
+  // ── 2. IN_TRANSIT, ETA истёк ────────────────────────────────────
+  const overdueThreshold = new Date(now.getTime() - TRANSIT_OVERDUE_BUFFER_MIN * 60_000);
+  const transitPingThreshold = new Date(now.getTime() - TRANSIT_PING_EVERY_MIN * 60_000);
+
+  const transitOverdue = await prisma.order.findMany({
+    where: {
+      status: OrderStatus.IN_TRANSIT,
+      transitEtaAt: { lt: overdueThreshold },
+      OR: [
+        { lastMasterPingAt: null },
+        { lastMasterPingAt: { lt: transitPingThreshold } },
+      ],
+    },
+    select: { id: true },
+    take: 100,
+  });
+
+  for (const o of transitOverdue) {
+    const claim = await prisma.order.updateMany({
+      where: {
+        id: o.id,
+        status: OrderStatus.IN_TRANSIT,
+        OR: [
+          { lastMasterPingAt: null },
+          { lastMasterPingAt: { lt: transitPingThreshold } },
+        ],
+      },
+      data: { lastMasterPingAt: now },
+    });
+    if (claim.count === 0) continue;
+
+    notificationService
+      .notifyTransitOverdue(o.id)
+      .catch((err) => logger.error({ err, orderId: o.id }, 'notifyTransitOverdue failed'));
+    pinged++;
+  }
+
+  if (pinged > 0) {
+    logger.info(
+      { pinged, acceptedStale: acceptedStale.length, transitOverdue: transitOverdue.length },
+      'master-reminder-tick: напоминания мастерам разосланы',
+    );
+  }
+  return { pinged };
+}
+
+/**
  * Запуск фоновой задачи. Один экземпляр на процесс.
  * Авто-отмена заказов отключена — заказ живёт, пока клиент не отменит его сам.
  */
@@ -187,11 +292,17 @@ export function startAutoCancellationJob(): void {
     runReminderTick().catch((err) =>
       logger.error({ err }, 'reminder-tick: первый прогон провалился'),
     );
+    runMasterReminderTick().catch((err) =>
+      logger.error({ err }, 'master-reminder-tick: первый прогон провалился'),
+    );
   }, 60_000);
 
   timer = setInterval(() => {
     runReminderTick().catch((err) =>
       logger.error({ err }, 'reminder-tick: провалился'),
+    );
+    runMasterReminderTick().catch((err) =>
+      logger.error({ err }, 'master-reminder-tick: провалился'),
     );
   }, TICK_INTERVAL_MS);
 

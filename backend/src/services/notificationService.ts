@@ -776,6 +776,149 @@ export class NotificationService {
       logger.error({ error, params }, 'notifyAdminsAiProviderIssue failed');
     }
   }
+
+  /**
+   * Клиент: «Мастер выехал к вам» / «Мастер поехал за материалом»
+   */
+  async notifyClientMasterDeparted(orderId: string) {
+    try {
+      const order = await prisma.order.findUnique({
+        where: { id: orderId },
+        include: {
+          client: true,
+          master: { include: { profile: true } },
+        },
+      });
+      if (!order || !order.master || !order.client) return;
+
+      const reason = order.transitReason;
+      const eta = order.transitEtaAt
+        ? new Date(order.transitEtaAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
+        : null;
+      const masterName = order.master.profile?.firstName || 'Мастер';
+
+      const title =
+        reason === 'TO_CLIENT'
+          ? `🚗 ${masterName} выехал к вам`
+          : `🛒 ${masterName} поехал за материалом`;
+      const message =
+        reason === 'TO_CLIENT'
+          ? `Прибудет примерно к ${eta ?? 'в течение часа'}.`
+          : `Сначала закупит материал, затем приедет к вам. Ориентир: к ${eta ?? '90 мин'}.`;
+
+      await this.createNotification({
+        userId: order.clientId,
+        type: 'master_departed',
+        title,
+        message,
+        data: { orderId, transitReason: reason, transitEtaAt: order.transitEtaAt },
+      });
+
+      if (order.client.telegramId) {
+        await sendTelegramMessage({
+          chatId: order.client.telegramId,
+          text: `<b>${title}</b>\n${message}\n\nЗаказ: ${order.title}`,
+        }).catch(() => {});
+      }
+    } catch (err) {
+      logger.error({ err, orderId }, 'notifyClientMasterDeparted failed');
+    }
+  }
+
+  /**
+   * Мастер: «Подтвердите выезд» (висит ACCEPTED без действий)
+   */
+  async notifyMasterToConfirmDeparture(orderId: string) {
+    try {
+      const order = await prisma.order.findUnique({
+        where: { id: orderId },
+        include: { master: true },
+      });
+      if (!order || !order.master) return;
+
+      const title = '⏰ Подтвердите выезд по заказу';
+      const message =
+        `Заказ «${order.title}» принят, но статус не обновлён. ` +
+        `Нажмите «Выехал за материалом» или «Выехал к клиенту», ` +
+        `чтобы клиент видел, что работа началась.`;
+
+      await this.createNotification({
+        userId: order.masterId!,
+        type: 'master_confirm_departure',
+        title,
+        message,
+        data: { orderId },
+      });
+
+      if (order.master.telegramId) {
+        await sendTelegramMessage({
+          chatId: order.master.telegramId,
+          text: `<b>${title}</b>\n\n${message}`,
+        }).catch(() => {});
+      }
+    } catch (err) {
+      logger.error({ err, orderId }, 'notifyMasterToConfirmDeparture failed');
+    }
+  }
+
+  /**
+   * Мастер: «Вы обещали прибыть, обновите статус»
+   * Клиент: «Мастер задерживается»
+   */
+  async notifyTransitOverdue(orderId: string) {
+    try {
+      const order = await prisma.order.findUnique({
+        where: { id: orderId },
+        include: { master: true, client: true },
+      });
+      if (!order || !order.master || !order.client) return;
+
+      const overdueMin = order.transitEtaAt
+        ? Math.max(0, Math.round((Date.now() - new Date(order.transitEtaAt).getTime()) / 60_000))
+        : 0;
+
+      // Мастеру
+      const masterTitle = '⚠️ Вы опаздываете по заказу';
+      const masterMsg =
+        `По заказу «${order.title}» вы обещали прибыть, но статус не обновлён ` +
+        `(прошло уже ${overdueMin} мин после ETA). ` +
+        `Свяжитесь с клиентом или нажмите «Я приехал».`;
+      await this.createNotification({
+        userId: order.masterId!,
+        type: 'master_transit_overdue',
+        title: masterTitle,
+        message: masterMsg,
+        data: { orderId, overdueMin },
+      });
+      if (order.master.telegramId) {
+        await sendTelegramMessage({
+          chatId: order.master.telegramId,
+          text: `<b>${masterTitle}</b>\n\n${masterMsg}`,
+        }).catch(() => {});
+      }
+
+      // Клиенту
+      const clientTitle = '⏳ Мастер задерживается';
+      const clientMsg =
+        `По вашему заказу «${order.title}» мастер опаздывает на ${overdueMin} мин. ` +
+        `Мы напомнили ему — следите за статусом в приложении.`;
+      await this.createNotification({
+        userId: order.clientId,
+        type: 'client_master_overdue',
+        title: clientTitle,
+        message: clientMsg,
+        data: { orderId, overdueMin },
+      });
+      if (order.client.telegramId) {
+        await sendTelegramMessage({
+          chatId: order.client.telegramId,
+          text: `<b>${clientTitle}</b>\n\n${clientMsg}`,
+        }).catch(() => {});
+      }
+    } catch (err) {
+      logger.error({ err, orderId }, 'notifyTransitOverdue failed');
+    }
+  }
 }
 
 export const notificationService = new NotificationService();

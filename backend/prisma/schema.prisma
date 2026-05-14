@@ -403,6 +403,10 @@ model Order {
   clientConfirmedAt DateTime?  @map("client_confirmed_at")
   acceptedAt       DateTime?   @map("accepted_at")
   inTransitAt      DateTime?   @map("in_transit_at")
+  // Подтверждение выезда мастера: причина и обещанное время прибытия
+  transitReason    String?     @map("transit_reason")        // 'MATERIAL' | 'TO_CLIENT'
+  transitEtaAt     DateTime?   @map("transit_eta_at")        // когда мастер обещал быть
+  lastMasterPingAt DateTime?   @map("last_master_ping_at")   // анти-спам для cron-напоминаний
   penaltyAmount    Decimal     @default(0) @map("penalty_amount") @db.Decimal(12, 2)
   cancelReason     String?     @map("cancel_reason")
   cancelledBy      String?     @map("cancelled_by")
@@ -462,6 +466,7 @@ model Order {
   @@index([masterId, status])
   @@index([aiTemplateId])
   @@index([source])
+  @@index([status, transitEtaAt])
   @@map("orders")
 }
 

@@ -172,6 +172,9 @@ export interface Order {
   additionalWishes: string | null;
   moderationRequired: boolean;
   voiceDescription: string | null;
+  // Подтверждение выезда мастера
+  transitReason?: 'MATERIAL' | 'TO_CLIENT' | null;
+  transitEtaAt?: string | null;
   // Admin
   adminComment: string | null;
   // Geo

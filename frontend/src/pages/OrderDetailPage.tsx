@@ -720,6 +720,22 @@ export function OrderDetailPage() {
                     ? 'Точка обновляется в реальном времени'
                     : 'Когда мастер начнёт движение, его позиция появится на карте'}
                 </p>
+                {order.status === 'IN_TRANSIT' && order.transitReason && (
+                  <p className="text-xs mt-1 text-indigo-700 dark:text-indigo-300 font-medium">
+                    {order.transitReason === 'MATERIAL'
+                      ? '🛒 Поехал за материалом'
+                      : '🚗 Едет к вам'}
+                    {order.transitEtaAt && (
+                      <>
+                        {' · прибытие к '}
+                        {new Date(order.transitEtaAt).toLocaleTimeString('ru-RU', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </>
+                    )}
+                  </p>
+                )}
               </div>
             </div>
             <OrderRouteMap
@@ -744,17 +760,48 @@ export function OrderDetailPage() {
               <Truck size={22} className="text-indigo-600 dark:text-indigo-400" />
             </div>
             <div className="flex-1">
-              <h3 className="font-bold text-gray-900 dark:text-white">{t('antiFraud.goToClient')}</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">{t('antiFraud.goToClientDesc')}</p>
+              <h3 className="font-bold text-gray-900 dark:text-white">Подтвердите выезд</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">
+                Выберите вариант — клиент получит уведомление и будет видеть статус.
+              </p>
             </div>
           </div>
-          <button
-            onClick={() => handleUpdateStatus('IN_TRANSIT')}
-            className="w-full mt-4 py-3 rounded-xl font-semibold text-white bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 transition-all flex items-center justify-center gap-2"
-          >
-            <Truck size={18} />
-            {t('antiFraud.iAmOnMyWay')}
-          </button>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-4">
+            <button
+              onClick={() =>
+                ordersApi
+                  .updateStatus(id!, 'IN_TRANSIT', { transitReason: 'MATERIAL', etaMinutes: 90 })
+                  .then(() => { toast.success('Вы поехали за материалом'); loadOrder(); })
+                  .catch((e: any) =>
+                    toast.error(
+                      e?.response?.data?.error?.message ||
+                        e?.response?.data?.message ||
+                        'Не удалось обновить статус'
+                    )
+                  )
+              }
+              className="py-3 px-4 rounded-xl font-semibold text-white bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 transition-all flex items-center justify-center gap-2"
+            >
+              🛒 Выехал за материалом
+            </button>
+            <button
+              onClick={() =>
+                ordersApi
+                  .updateStatus(id!, 'IN_TRANSIT', { transitReason: 'TO_CLIENT', etaMinutes: 60 })
+                  .then(() => { toast.success('Клиент уведомлён, что вы в пути'); loadOrder(); })
+                  .catch((e: any) =>
+                    toast.error(
+                      e?.response?.data?.error?.message ||
+                        e?.response?.data?.message ||
+                        'Не удалось обновить статус'
+                    )
+                  )
+              }
+              className="py-3 px-4 rounded-xl font-semibold text-white bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 transition-all flex items-center justify-center gap-2"
+            >
+              🚗 Выехал к клиенту · 1 ч
+            </button>
+          </div>
           {/* Встроенная карта с маршрутом и кнопками навигаторов */}
           {order.latitude && order.longitude && (
             <div className="mt-4">
@@ -774,6 +821,23 @@ export function OrderDetailPage() {
       {/* Мастер: IN_TRANSIT → Начать работу */}
       {isAssignedMaster && order.status === 'IN_TRANSIT' && (
         <div className="card mb-4 border-2 border-purple-400 dark:border-purple-600 bg-purple-50/50 dark:bg-purple-900/10">
+          {/* Бейдж: за чем выехал и когда обещал */}
+          {order.transitReason && (
+            <div className="mb-3 px-3 py-2 rounded-lg bg-white/70 dark:bg-gray-800/40 border border-purple-200 dark:border-purple-700 text-sm">
+              <span className="font-semibold text-purple-700 dark:text-purple-300">
+                {order.transitReason === 'MATERIAL' ? '🛒 Едете за материалом' : '🚗 Едете к клиенту'}
+              </span>
+              {order.transitEtaAt && (
+                <span className="text-gray-600 dark:text-gray-400 ml-2">
+                  · ETA{' '}
+                  {new Date(order.transitEtaAt).toLocaleTimeString('ru-RU', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </span>
+              )}
+            </div>
+          )}
           <div className="flex items-start gap-3">
             <div className="w-11 h-11 rounded-xl bg-purple-100 dark:bg-purple-900/40 flex items-center justify-center shrink-0">
               <CheckCircle size={22} className="text-purple-600 dark:text-purple-400" />

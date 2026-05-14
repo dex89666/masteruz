@@ -634,12 +634,25 @@ export class OrdersService {
 
   /**
    * Мастер обновляет статус: ACCEPTED → IN_TRANSIT → IN_PROGRESS
+   *
+   * При переходе ACCEPTED → IN_TRANSIT мастер указывает причину выезда:
+   * - 'MATERIAL'   — поехал за материалом
+   * - 'TO_CLIENT'  — поехал к клиенту, прибуду через `etaMinutes` минут
+   *
+   * Эти данные используются:
+   * - в чате/уведомлении клиенту («Мастер выехал за материалом»)
+   * - в cron-напоминаниях: если transitEtaAt истёк — пинг мастеру + клиенту
    */
   async updateOrderStatus(
     orderId: string,
     masterId: string,
     newStatus: string,
-    masterCoords?: { latitude?: number; longitude?: number }
+    extras?: {
+      latitude?: number;
+      longitude?: number;
+      transitReason?: 'MATERIAL' | 'TO_CLIENT';
+      etaMinutes?: number;
+    }
   ) {
     const order = await prisma.order.findUnique({ where: { id: orderId } });
     if (!order) throw ApiError.notFound('Заказ не найден');
@@ -660,7 +673,7 @@ export class OrdersService {
     // ─── Гео-фенс при «Я приехал» (IN_TRANSIT → IN_PROGRESS) ───
     // Не даём подтвердить «приехал», если мастер дальше 500м от точки заказа
     if (newStatus === 'IN_PROGRESS' && order.latitude && order.longitude) {
-      if (masterCoords?.latitude == null || masterCoords?.longitude == null) {
+      if (extras?.latitude == null || extras?.longitude == null) {
         throw ApiError.badRequest(
           'Чтобы подтвердить прибытие, разрешите доступ к геолокации'
         );
@@ -668,8 +681,8 @@ export class OrdersService {
       const distanceKm = calculateDistance(
         order.latitude,
         order.longitude,
-        masterCoords.latitude,
-        masterCoords.longitude
+        extras.latitude,
+        extras.longitude
       );
       const ARRIVAL_RADIUS_KM = 0.5; // 500 м
       if (distanceKm > ARRIVAL_RADIUS_KM) {
@@ -683,6 +696,21 @@ export class OrdersService {
     const updateData: any = { status: newStatus as OrderStatus };
     if (newStatus === 'IN_TRANSIT') {
       updateData.inTransitAt = new Date();
+      // Причина выезда обязательна — без неё клиент не понимает, что происходит
+      const reason = extras?.transitReason;
+      if (!reason) {
+        throw ApiError.badRequest(
+          'Укажите причину выезда: за материалом или к клиенту'
+        );
+      }
+      const etaMinutes = extras?.etaMinutes ?? (reason === 'TO_CLIENT' ? 60 : 90);
+      updateData.transitReason = reason;
+      updateData.transitEtaAt = new Date(Date.now() + etaMinutes * 60_000);
+      updateData.lastMasterPingAt = new Date(); // сбрасываем счётчик пингов
+    }
+    if (newStatus === 'IN_PROGRESS') {
+      // Прибыл — больше не пингуем по ETA
+      updateData.transitEtaAt = null;
     }
 
     const updatedOrder = await prisma.order.update({
@@ -695,7 +723,10 @@ export class OrdersService {
       },
     });
 
-    logger.info({ orderId, masterId, from: order.status, to: newStatus }, 'Статус обновлён мастером');
+    logger.info(
+      { orderId, masterId, from: order.status, to: newStatus, transitReason: updateData.transitReason },
+      'Статус обновлён мастером'
+    );
 
     // SSE: уведомляем всех участников о смене статуса
     eventBus.emit(orderId, 'status_changed', {
@@ -703,8 +734,19 @@ export class OrdersService {
       status: newStatus,
       previousStatus: order.status,
       updatedBy: masterId,
+      transitReason: updateData.transitReason,
+      transitEtaAt: updateData.transitEtaAt,
       timestamp: new Date().toISOString(),
     });
+
+    // Пуш-уведомление клиенту: мастер выехал
+    if (newStatus === 'IN_TRANSIT') {
+      notificationService
+        .notifyClientMasterDeparted(orderId)
+        .catch((err: unknown) =>
+          logger.error({ err, orderId }, 'notifyClientMasterDeparted failed')
+        );
+    }
 
     return updatedOrder;
   }

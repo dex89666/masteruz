@@ -67,12 +67,12 @@ export class OrdersController {
   /** PUT /api/orders/:id/status — Мастер обновляет статус (ACCEPTED→IN_TRANSIT→IN_PROGRESS) */
   async updateStatus(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { status, latitude, longitude } = req.body;
+      const { status, latitude, longitude, transitReason, etaMinutes } = req.body;
       const order = await ordersService.updateOrderStatus(
         req.params.id,
         req.user!.userId,
         status,
-        { latitude, longitude }
+        { latitude, longitude, transitReason, etaMinutes }
       );
       res.json({ success: true, data: order });
     } catch (error) {

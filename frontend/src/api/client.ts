@@ -172,8 +172,17 @@ export const ordersApi = {
     api.put<ApiResponse<any>>(`/orders/${id}/assign`, { masterId }),
 
   // Мастер обновляет статус: ACCEPTED → IN_TRANSIT → IN_PROGRESS
-  updateStatus: (id: string, status: string, coords?: { latitude: number; longitude: number }) =>
-    api.put<ApiResponse<any>>(`/orders/${id}/status`, { status, ...(coords ?? {}) }),
+  updateStatus: (
+    id: string,
+    status: string,
+    extras?: {
+      latitude?: number;
+      longitude?: number;
+      transitReason?: 'MATERIAL' | 'TO_CLIENT';
+      etaMinutes?: number;
+    }
+  ) =>
+    api.put<ApiResponse<any>>(`/orders/${id}/status`, { status, ...(extras ?? {}) }),
 
   // Live-позиция мастера в режиме доставки
   masterLocation: (id: string, data: { latitude: number; longitude: number; heading?: number; speed?: number }) =>
