@@ -10,6 +10,7 @@ import { authenticate, authorize } from '../../middleware/auth.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { clampPagination } from '../../utils/helpers.js';
 import { moderateMessage, censorMessage } from './chatModeration.js';
+import { applyModerationStrike } from './moderationStrikes.js';
 import { logger } from '../../utils/logger.js';
 import { detectContactExchangeInMessage, recordFraudSignal } from '../../services/fraudDetectionService.js';
 
@@ -59,7 +60,9 @@ router.get('/:orderId', authenticate, async (req: Request, res: Response, next: 
       id: msg.id,
       orderId: msg.orderId,
       senderId: msg.senderId,
-      text: msg.isBlocked ? '🚫 Сообщение заблокировано модерацией' : msg.text,
+      text: msg.isBlocked
+        ? (isAdmin ? msg.text : '🚫 Сообщение удалено модератором: нарушение правил')
+        : msg.text,
       imageUrl: msg.imageUrl,
       isSystem: msg.isSystem,
       isRead: msg.isRead,
@@ -123,22 +126,29 @@ router.post('/:orderId', authenticate, async (req: Request, res: Response, next:
     let isFlagged = false;
     let isBlocked = false;
     let flagReason: string | null = null;
+    let strikeNotice: string | null = null;
 
     if (text) {
       const modResult = moderateMessage(text);
 
       if (modResult.isBlocked) {
-        // Блокируем нецензурное сообщение — цензурируем
+        // Мат — цензурируем, но НЕ скрываем как нарушение правил коммуникации
         processedText = censorMessage(text);
-        isBlocked = false; // Показываем цензурированную версию
+        isBlocked = false;
         isFlagged = true;
         flagReason = modResult.reasons.join('; ');
         logger.warn({ orderId, userId, reasons: modResult.reasons }, 'Сообщение содержит мат — цензурировано');
+      } else if (modResult.isFlagged && modResult.severity === 'flag') {
+        // Серьёзное нарушение (попытка обхода, контакты) — скрываем сообщение, начисляем strike
+        isFlagged = true;
+        isBlocked = true;
+        flagReason = modResult.reasons.join('; ');
+        logger.warn({ orderId, userId, reasons: modResult.reasons }, 'Сообщение удалено модерацией');
       } else if (modResult.isFlagged) {
-        // Флагируем подозрительное — но не блокируем
+        // Лёгкое подозрение (warning) — только флаг для админа, сообщение остаётся
         isFlagged = true;
         flagReason = modResult.reasons.join('; ');
-        logger.warn({ orderId, userId, reasons: modResult.reasons }, 'Подозрительное сообщение в чате');
+        logger.info({ orderId, userId, reasons: modResult.reasons }, 'Подозрительное сообщение в чате');
       }
 
       // ─── Anti-fraud: попытка обмена контактами / договорённости вне платформы ──
@@ -175,9 +185,9 @@ router.post('/:orderId', authenticate, async (req: Request, res: Response, next:
       },
     });
 
-    // Создаём уведомление для получателя
+    // Создаём уведомление для получателя — НЕ показываем заблокированный текст
     const recipientId = order.clientId === userId ? order.masterId : order.clientId;
-    if (recipientId) {
+    if (recipientId && !isBlocked) {
       const senderName = message.sender.profile?.firstName || 'Пользователь';
 
       await prisma.notification.create({
@@ -191,6 +201,31 @@ router.post('/:orderId', authenticate, async (req: Request, res: Response, next:
       });
     }
 
+    // ─── Strike-система: предупреждение → штраф → блокировка ──
+    if (isBlocked) {
+      try {
+        const { notice } = await applyModerationStrike({
+          userId,
+          orderId,
+          messageId: message.id,
+          reason: flagReason || 'Нарушение правил чата',
+        });
+        strikeNotice = notice;
+        // Уведомляем автора нарушения
+        await prisma.notification.create({
+          data: {
+            userId,
+            type: 'CHAT_MODERATION',
+            title: '⚠️ Сообщение удалено модератором',
+            message: notice,
+            data: { orderId, messageId: message.id, flagReason },
+          },
+        });
+      } catch (err) {
+        logger.error({ err, userId, messageId: message.id }, 'Не удалось применить strike модерации');
+      }
+    }
+
     // Если сообщение флагированное — уведомляем модераторов
     if (isFlagged) {
       const admins = await prisma.user.findMany({
@@ -202,26 +237,29 @@ router.post('/:orderId', authenticate, async (req: Request, res: Response, next:
           data: {
             userId: admin.id,
             type: 'CHAT_FLAG',
-            title: '🚩 Подозрительное сообщение в чате',
-            message: `Заказ #${orderId.substring(0, 8)}: "${processedText?.substring(0, 80)}" — ${flagReason}`,
-            data: { orderId, messageId: message.id, flagReason },
+            title: isBlocked ? '🚫 Сообщение удалено модерацией' : '🚩 Подозрительное сообщение в чате',
+            message: `Заказ #${orderId.substring(0, 8)}: "${text?.substring(0, 80)}" — ${flagReason}`,
+            data: { orderId, messageId: message.id, flagReason, autoBlocked: isBlocked },
           },
         });
       }
     }
 
-    // Ответ без контактных данных
+    // Ответ — заблокированный текст НЕ возвращаем
     res.status(201).json({
       success: true,
       data: {
         id: message.id,
         orderId: message.orderId,
         senderId: message.senderId,
-        text: message.isBlocked ? '🚫 Сообщение заблокировано' : message.text,
+        text: message.isBlocked
+          ? '🚫 Сообщение удалено модератором: нарушение правил'
+          : message.text,
         imageUrl: message.imageUrl,
         isSystem: message.isSystem,
         isRead: message.isRead,
         isFlagged: message.isFlagged,
+        isBlocked: message.isBlocked,
         createdAt: message.createdAt,
         sender: {
           id: message.sender.id,
@@ -229,9 +267,11 @@ router.post('/:orderId', authenticate, async (req: Request, res: Response, next:
           avatarUrl: message.sender.profile?.avatarUrl,
         },
       },
-      ...(isFlagged && !isBlocked ? {
-        warning: '⚠️ Обмен контактами и обход платформы запрещён. Повторные нарушения приведут к блокировке.',
-      } : {}),
+      ...(strikeNotice
+        ? { warning: strikeNotice }
+        : isFlagged
+          ? { warning: '⚠️ Обмен контактами и обход платформы запрещён. Повторные нарушения приведут к блокировке.' }
+          : {}),
     });
   } catch (error) {
     next(error);

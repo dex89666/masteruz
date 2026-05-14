@@ -78,8 +78,13 @@ export function OrderChat({ orderId, isParticipant }: OrderChatProps) {
     if (!text.trim() || sending) return;
     setSending(true);
     try {
-      await chatApi.sendMessage(orderId, { text: text.trim() });
+      const res = await chatApi.sendMessage(orderId, { text: text.trim() });
       setText('');
+      const warning = (res.data as any)?.warning;
+      if (warning) {
+        const { default: toast } = await import('react-hot-toast');
+        toast.error(warning, { duration: 8000, style: { maxWidth: 420 } });
+      }
       await loadMessages();
     } catch {}
     setSending(false);

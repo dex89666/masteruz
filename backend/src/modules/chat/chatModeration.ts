@@ -18,14 +18,22 @@ const BANNED_PHRASES: Array<{ pattern: RegExp; reason: string; severity: 'warnin
   { pattern: /нал(ом|ичными)?/i, reason: 'Упоминание наличного расчёта', severity: 'warning' },
 
   // ─── Обмен контактами ──────────────────
-  { pattern: /скинь\s*(номер|телефон|контакт)/i, reason: 'Запрос контактных данных', severity: 'flag' },
-  { pattern: /дай\s*(номер|телефон|контакт)/i, reason: 'Запрос контактных данных', severity: 'flag' },
-  { pattern: /мой\s*(номер|телефон)/i, reason: 'Передача контактных данных', severity: 'warning' },
+  { pattern: /скинь\s*(номер|телефон|контакт|ник)/i, reason: 'Запрос контактных данных', severity: 'flag' },
+  { pattern: /дай\s*(номер|телефон|контакт|ник)/i, reason: 'Запрос контактных данных', severity: 'flag' },
+  { pattern: /мой\s*(номер|телефон|ник|тг|телеграм)/i, reason: 'Передача контактных данных', severity: 'flag' },
+  { pattern: /(пишите|пиши|напиши(те)?|написать)\s*(мне|в)?\s*(в\s*)?(личк|лс|директ|телеграм|тг|вайбер|whats|вотсап|ватсап|инст)/i, reason: 'Призыв уйти в личные сообщения', severity: 'flag' },
+  { pattern: /\bв\s*личк[уе]\b/i, reason: 'Призыв уйти в личные сообщения', severity: 'flag' },
+  { pattern: /\bв\s*лс\b/i, reason: 'Призыв уйти в личные сообщения', severity: 'flag' },
+  { pattern: /\bпо\s*тг\b/i, reason: 'Призыв уйти в Telegram', severity: 'flag' },
   { pattern: /позвони\s*мне/i, reason: 'Запрос контактных данных', severity: 'warning' },
   { pattern: /встретимся/i, reason: 'Попытка договориться вне платформы', severity: 'warning' },
   { pattern: /давай\s*встретимся/i, reason: 'Попытка договориться вне платформы', severity: 'flag' },
-  { pattern: /вотсап|whatsapp|ватсап|вайбер|viber/i, reason: 'Упоминание сторонних мессенджеров', severity: 'flag' },
-  { pattern: /телеграм|telegram|тг\s*чат/i, reason: 'Упоминание сторонних мессенджеров', severity: 'warning' },
+  { pattern: /вотсап|whatsapp|ватсап|вайбер|viber|инстаграм|instagram/i, reason: 'Упоминание сторонних мессенджеров', severity: 'flag' },
+  { pattern: /телеграм|telegram|тг\s*чат|\bтг\b/i, reason: 'Упоминание сторонних мессенджеров', severity: 'flag' },
+  // Никнейм Telegram/Instagram: @username (4+ символов)
+  { pattern: /(?:^|[^\w])@[a-zA-Z0-9_]{4,32}\b/i, reason: 'Передача никнейма', severity: 'flag' },
+  // Ссылки на мессенджеры
+  { pattern: /\b(?:t\.me|telegram\.me|wa\.me|api\.whatsapp\.com)\b/i, reason: 'Ссылка на сторонний мессенджер', severity: 'flag' },
 
   // ─── Телефонные номера ─────────────────
   { pattern: /\+?\d{3}[\s-]?\d{2}[\s-]?\d{3}[\s-]?\d{2}[\s-]?\d{2}/i, reason: 'Передача номера телефона', severity: 'flag' },
