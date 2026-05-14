@@ -22,6 +22,8 @@ export type StrikeAction =
 /**
  * Применяет санкцию по числу зафлагованных сообщений автора.
  * Возвращает применённую меру + сообщение для уведомления.
+ *
+ * @param reason — короткая категория нарушения (например, «Передача номера телефона»)
  */
 export async function applyModerationStrike(params: {
   userId: string;
@@ -46,12 +48,9 @@ export async function applyModerationStrike(params: {
       data: { isActive: false },
     });
     action = { kind: 'ban', strikeNumber };
-    notice =
-      `🚫 Ваш аккаунт заблокирован за систематические нарушения правил общения в чате (${strikeNumber} нарушений). ` +
-      `Свяжитесь с поддержкой для разблокировки.`;
+    notice = `🚫 Аккаунт заблокирован за систематические нарушения (${strikeNumber}). Обратитесь в поддержку.`;
     logger.warn({ userId, strikeNumber, orderId, messageId }, 'Аккаунт заблокирован модерацией чата');
   } else if (strikeNumber === FINE_THRESHOLD) {
-    // Списываем штраф с баланса (баланс может уйти в минус — взыщется при следующем пополнении).
     await prisma.$transaction(async (tx) => {
       const user = await tx.user.findUnique({ where: { id: userId }, select: { balance: true } });
       const before = new Prisma.Decimal(user?.balance ?? 0);
@@ -74,17 +73,11 @@ export async function applyModerationStrike(params: {
       });
     });
     action = { kind: 'fine', strikeNumber, amount: FINE_AMOUNT };
-    notice =
-      `💸 С вашего баланса списан штраф ${FINE_AMOUNT.toLocaleString('ru-RU')} сум за нарушение правил общения в чате. ` +
-      `Это ${strikeNumber}-е нарушение. Ещё ${BAN_THRESHOLD - strikeNumber} нарушения — и аккаунт будет заблокирован.`;
+    notice = `💸 Нарушение №${strikeNumber}: ${reason}. Штраф ${FINE_AMOUNT.toLocaleString('ru-RU')} сум списан с баланса.`;
     logger.warn({ userId, strikeNumber, amount: FINE_AMOUNT, orderId, messageId }, 'Штраф за нарушение чата');
   } else {
     action = { kind: 'warning', strikeNumber, remainingBeforeFine: FINE_THRESHOLD - strikeNumber };
-    notice =
-      `⚠️ Предупреждение: ваше сообщение удалено модератором. Причина: ${reason}. ` +
-      `Передача контактов и попытки обхода платформы запрещены. ` +
-      `Это ${strikeNumber}-е предупреждение. ` +
-      `После ${FINE_THRESHOLD}-го — штраф ${FINE_AMOUNT.toLocaleString('ru-RU')} сум, после ${BAN_THRESHOLD}-го — блокировка аккаунта.`;
+    notice = `⚠️ Нарушение №${strikeNumber}: ${reason}. Следующее — штраф ${FINE_AMOUNT.toLocaleString('ru-RU')} сум.`;
     logger.info({ userId, strikeNumber, orderId, messageId }, 'Предупреждение в чате');
   }
 

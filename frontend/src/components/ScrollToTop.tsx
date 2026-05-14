@@ -7,20 +7,28 @@ import { ArrowUp } from 'lucide-react';
 
 export function ScrollToTop() {
   const [visible, setVisible] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
 
   useEffect(() => {
     function handleScroll() {
       setVisible(window.scrollY > 400);
     }
+    function handleChatToggle(e: Event) {
+      setChatOpen(Boolean((e as CustomEvent<{ open: boolean }>).detail?.open));
+    }
     window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
+    window.addEventListener('masteruz:chat-toggle', handleChatToggle);
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('masteruz:chat-toggle', handleChatToggle);
+    };
   }, []);
 
   function scrollUp() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  if (!visible) return null;
+  if (!visible || chatOpen) return null;
 
   return (
     <button

@@ -37,6 +37,15 @@ export function OrderChat({ orderId, isParticipant }: OrderChatProps) {
     }
   }, [isParticipant, searchParams, setSearchParams]);
 
+  // Сигнализируем глобально об открытии/закрытии чата —
+  // чтобы скрыть кнопку scroll-to-top, перекрывающую поле ввода
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('masteruz:chat-toggle', { detail: { open } }));
+    return () => {
+      window.dispatchEvent(new CustomEvent('masteruz:chat-toggle', { detail: { open: false } }));
+    };
+  }, [open]);
+
   useEffect(() => {
     if (open && isParticipant) {
       loadMessages();

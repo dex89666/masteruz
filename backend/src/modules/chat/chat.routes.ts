@@ -126,26 +126,25 @@ router.post('/:orderId', authenticate, async (req: Request, res: Response, next:
     let isFlagged = false;
     let isBlocked = false;
     let flagReason: string | null = null;
+    let shortReason: string | null = null;
     let strikeNotice: string | null = null;
 
     if (text) {
       const modResult = moderateMessage(text);
+      shortReason = modResult.shortLabel || null;
 
       if (modResult.isBlocked) {
-        // Мат — цензурируем, но НЕ скрываем как нарушение правил коммуникации
         processedText = censorMessage(text);
         isBlocked = false;
         isFlagged = true;
         flagReason = modResult.reasons.join('; ');
         logger.warn({ orderId, userId, reasons: modResult.reasons }, 'Сообщение содержит мат — цензурировано');
       } else if (modResult.isFlagged && modResult.severity === 'flag') {
-        // Серьёзное нарушение (попытка обхода, контакты) — скрываем сообщение, начисляем strike
         isFlagged = true;
         isBlocked = true;
         flagReason = modResult.reasons.join('; ');
         logger.warn({ orderId, userId, reasons: modResult.reasons }, 'Сообщение удалено модерацией');
       } else if (modResult.isFlagged) {
-        // Лёгкое подозрение (warning) — только флаг для админа, сообщение остаётся
         isFlagged = true;
         flagReason = modResult.reasons.join('; ');
         logger.info({ orderId, userId, reasons: modResult.reasons }, 'Подозрительное сообщение в чате');
@@ -158,6 +157,7 @@ router.post('/:orderId', authenticate, async (req: Request, res: Response, next:
         flagReason = [flagReason, `bypass-attempt:${contactCheck.matchedPattern}`]
           .filter(Boolean)
           .join('; ');
+        if (!shortReason) shortReason = 'Обход платформы';
         recordFraudSignal({
           userId,
           signal: 'CHAT_CONTACT_EXCHANGE',
@@ -208,7 +208,7 @@ router.post('/:orderId', authenticate, async (req: Request, res: Response, next:
           userId,
           orderId,
           messageId: message.id,
-          reason: flagReason || 'Нарушение правил чата',
+          reason: shortReason || 'Нарушение правил чата',
         });
         strikeNotice = notice;
         // Уведомляем автора нарушения

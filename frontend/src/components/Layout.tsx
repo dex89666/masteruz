@@ -10,7 +10,6 @@ import { NotificationBell } from './NotificationBell';
 import { ScrollToTop } from './ScrollToTop';
 import { InstallPrompt } from './InstallPrompt';
 import { CookieConsent } from './CookieConsent';
-import { BackToTop } from './BackToTop';
 import { OfflineIndicator } from './OfflineIndicator';
 import { ThemeToggle } from './ThemeToggle';
 import { SearchOverlay } from './SearchOverlay';
@@ -547,9 +546,6 @@ export function Layout() {
 
       {/* Scroll to top */}
       <ScrollToTop />
-
-      {/* Back to top button */}
-      <BackToTop />
 
       {/* Offline indicator */}
       <OfflineIndicator />
