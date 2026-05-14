@@ -437,13 +437,26 @@ export class OrdersService {
    * RACE-SAFE: $transaction + unique constraint гарантируют атомарность
    */
   async respondToOrder(orderId: string, masterId: string, data: OrderResponseInput) {
-    // Предварительные проверки (вне транзакции — дешёвые)
-    const masterProfile = await prisma.masterProfile.findUnique({
+    // Предварительные проверки (вне транзакции — дешёвые).
+    // Самолечение: если пользователь зарегистрирован как мастер (role=MASTER),
+    // но строка masterProfile отсутствует (рассинхрон из-за частичного сбоя
+    // регистрации) — досоздаём её на лету, чтобы клиент не застревал.
+    let masterProfile = await prisma.masterProfile.findUnique({
       where: { userId: masterId },
     });
 
     if (!masterProfile) {
-      throw ApiError.badRequest('Только мастера могут откликаться на заказы');
+      const user = await prisma.user.findUnique({
+        where: { id: masterId },
+        select: { role: true },
+      });
+      if (!user || user.role !== 'MASTER') {
+        throw ApiError.badRequest('Только мастера могут откликаться на заказы');
+      }
+      logger.warn({ masterId }, 'MasterProfile отсутствовал при отклике — досоздаю');
+      masterProfile = await prisma.masterProfile.create({
+        data: { userId: masterId, specializations: ['general'] },
+      });
     }
 
     // ─── Атомарная транзакция: проверка + создание ───

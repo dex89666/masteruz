@@ -12,6 +12,33 @@ import { logger } from '../../utils/logger.js';
 
 export class UsersService {
   /**
+   * Гарантирует наличие MasterProfile для пользователя с ролью MASTER.
+   * Самолечение от рассинхронизации, когда роль уже выставлена, а профиль не создан
+   * (например, частичный сбой createMasterProfile до того, как обернули в транзакцию).
+   * Возвращает существующий или только что созданный MasterProfile.
+   * Если user.role !== 'MASTER' — выбрасывает 404, потому что это уже клиент.
+   */
+  async ensureMasterProfile(userId: string) {
+    const existing = await prisma.masterProfile.findUnique({ where: { userId } });
+    if (existing) return existing;
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+    if (!user) throw ApiError.notFound('Пользователь не найден');
+    if (user.role !== UserRole.MASTER) {
+      throw ApiError.notFound('Профиль мастера не найден');
+    }
+
+    // Роль MASTER без профиля — досоздаём с дефолтами
+    logger.warn({ userId }, 'MasterProfile отсутствовал для роли MASTER — досоздаю');
+    return prisma.masterProfile.create({
+      data: { userId, specializations: ['general'] },
+    });
+  }
+
+  /**
    * Обновление профиля пользователя
    */
   async updateProfile(userId: string, data: UpdateProfileInput) {
@@ -74,50 +101,47 @@ export class UsersService {
    * Создание профиля мастера
    */
   async createMasterProfile(userId: string, data: CreateMasterProfileInput) {
-    // Проверяем, нет ли уже профиля мастера
-    const existing = await prisma.masterProfile.findUnique({
-      where: { userId },
-    });
+    // Атомарно: проверка дубля + смена роли + создание профиля + привязка категорий.
+    // Без транзакции возможен «полупрофиль»: роль уже MASTER, а masterProfile не создан,
+    // и пользователь застревает с ошибками «Профиль мастера не найден» во всех экшенах.
+    const masterProfileId = await prisma.$transaction(async (tx) => {
+      const existing = await tx.masterProfile.findUnique({ where: { userId } });
+      if (existing) {
+        throw ApiError.conflict('Профиль мастера уже существует');
+      }
 
-    if (existing) {
-      throw ApiError.conflict('Профиль мастера уже существует');
-    }
-
-    // Обновляем роль пользователя
-    await prisma.user.update({
-      where: { id: userId },
-      data: { role: UserRole.MASTER },
-    });
-
-    // Создаём профиль мастера
-    const masterProfile = await prisma.masterProfile.create({
-      data: {
-        userId,
-        specializations: data.specializations,
-        experienceYears: data.experienceYears || 0,
-        maxDistanceKm: data.maxDistanceKm,
-        hourlyRate: data.hourlyRate,
-      },
-    });
-
-    // Если указаны категории — привязываем
-    if (data.categoryIds && data.categoryIds.length > 0) {
-      await prisma.masterCategory.createMany({
-        data: data.categoryIds.map((categoryId) => ({
-          masterProfileId: masterProfile.id,
-          categoryId,
-        })),
-        skipDuplicates: true,
-      });
-    }
-
-    // Возвращаем с категориями
-    return prisma.masterProfile.findUnique({
-      where: { id: masterProfile.id },
-      include: {
-        masterCategories: {
-          include: { category: true },
+      const mp = await tx.masterProfile.create({
+        data: {
+          userId,
+          specializations: data.specializations,
+          experienceYears: data.experienceYears || 0,
+          maxDistanceKm: data.maxDistanceKm,
+          hourlyRate: data.hourlyRate,
         },
+      });
+
+      await tx.user.update({
+        where: { id: userId },
+        data: { role: UserRole.MASTER },
+      });
+
+      if (data.categoryIds && data.categoryIds.length > 0) {
+        await tx.masterCategory.createMany({
+          data: data.categoryIds.map((categoryId) => ({
+            masterProfileId: mp.id,
+            categoryId,
+          })),
+          skipDuplicates: true,
+        });
+      }
+
+      return mp.id;
+    });
+
+    return prisma.masterProfile.findUnique({
+      where: { id: masterProfileId },
+      include: {
+        masterCategories: { include: { category: true } },
       },
     });
   }
@@ -126,13 +150,7 @@ export class UsersService {
    * Обновление профиля мастера
    */
   async updateMasterProfile(userId: string, data: UpdateMasterProfileInput) {
-    const masterProfile = await prisma.masterProfile.findUnique({
-      where: { userId },
-    });
-
-    if (!masterProfile) {
-      throw ApiError.notFound('Профиль мастера не найден');
-    }
+    await this.ensureMasterProfile(userId);
 
     return prisma.masterProfile.update({
       where: { userId },
@@ -150,13 +168,7 @@ export class UsersService {
    * Обновление категорий мастера (полная перезапись)
    */
   async updateMasterCategories(userId: string, data: UpdateMasterCategoriesInput) {
-    const masterProfile = await prisma.masterProfile.findUnique({
-      where: { userId },
-    });
-
-    if (!masterProfile) {
-      throw ApiError.notFound('Профиль мастера не найден');
-    }
+    const masterProfile = await this.ensureMasterProfile(userId);
 
     // Удаляем старые привязки и создаём новые в транзакции
     await prisma.$transaction([
@@ -186,6 +198,9 @@ export class UsersService {
    * Получение категорий мастера
    */
   async getMasterCategories(userId: string) {
+    // Самолечение: если роль MASTER, но профиль не создан — создаём пустой.
+    await this.ensureMasterProfile(userId).catch(() => null);
+
     const masterProfile = await prisma.masterProfile.findUnique({
       where: { userId },
       include: {
@@ -206,11 +221,7 @@ export class UsersService {
       },
     });
 
-    if (!masterProfile) {
-      throw ApiError.notFound('Профиль мастера не найден');
-    }
-
-    return masterProfile.masterCategories.map((mc) => mc.category);
+    return masterProfile?.masterCategories.map((mc) => mc.category) ?? [];
   }
 
   /**
