@@ -245,7 +245,7 @@ const en = {
     acceptOrderBtn: 'Accept order',
     backToOrders: 'Back to orders',
     acceptOrderConfirm: 'Accept this order at the listed price?',
-    orderAccepted: 'Order accepted',
+    orderAccepted: 'The order is yours! Client contacts and address — below',
     respondPlaceholder: 'Tell about your experience and approach...',
     yourPrice: 'Your price (optional)',
     priceInSum: 'Price in sum',

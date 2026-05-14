@@ -490,20 +490,33 @@ export class OrdersService {
 
     logger.info({ orderId, masterId }, 'Мастер откликнулся на заказ');
 
-    // Авто-назначение мастера (если включено в настройках)
+    // ─── Авто-назначение мастера ───
+    // 1) Для instant-photo-заказов (фиксированная цена + фото) ВСЕГДА авто-назначаем
+    //    первого откликнувшегося — клиенту нечего выбирать, задача предельно простая.
+    // 2) В остальных случаях — только если включён глобальный флаг auto_assign_master.
     try {
-      const autoAssignConfig = await prisma.platformConfig.findUnique({
-        where: { key: 'auto_assign_master' },
+      const fresh = await prisma.order.findUnique({
+        where: { id: orderId },
+        select: { clientId: true, status: true, isInstantAiOrder: true },
       });
-      if (autoAssignConfig?.value === 'true') {
-        const order = await prisma.order.findUnique({
-          where: { id: orderId },
-          select: { clientId: true, status: true },
+      if (!fresh || fresh.status !== OrderStatus.PUBLISHED) {
+        return response;
+      }
+
+      let shouldAutoAssign = fresh.isInstantAiOrder;
+      if (!shouldAutoAssign) {
+        const autoAssignConfig = await prisma.platformConfig.findUnique({
+          where: { key: 'auto_assign_master' },
         });
-        if (order && order.status === OrderStatus.PUBLISHED) {
-          logger.info({ orderId, masterId }, 'Авто-назначение мастера');
-          await this.assignMaster(orderId, order.clientId, masterId);
-        }
+        shouldAutoAssign = autoAssignConfig?.value === 'true';
+      }
+
+      if (shouldAutoAssign) {
+        logger.info(
+          { orderId, masterId, instant: fresh.isInstantAiOrder },
+          'Авто-назначение мастера',
+        );
+        await this.assignMaster(orderId, fresh.clientId, masterId);
       }
     } catch (err) {
       logger.error({ err, orderId, masterId }, 'Ошибка авто-назначения');

@@ -245,7 +245,7 @@ const uz = {
     acceptOrderBtn: 'Buyurtmani qabul qilish',
     backToOrders: 'Buyurtmalar roʻyxatiga',
     acceptOrderConfirm: 'Buyurtma belgilangan narxda qabul qilinsinmi?',
-    orderAccepted: 'Buyurtma qabul qilindi',
+    orderAccepted: 'Buyurtma sizniki! Mijoz kontaktlari va manzil — pastda',
     respondPlaceholder: "Tajribangiz va yondashuvingiz haqida gapirib bering...",
     yourPrice: 'Sizning narxingiz (ixtiyoriy)',
     priceInSum: "Narx so'mda",

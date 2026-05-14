@@ -936,7 +936,7 @@ export function OrderDetailPage() {
 
       {/* Данные клиента (видит мастер сразу после принятия заказа) */}
       {isAssignedMaster && order.client && ['ACCEPTED', 'IN_TRANSIT', 'IN_PROGRESS', 'COMPLETED'].includes(order.status) && (
-        <div className="card mb-4 bg-green-50/50 dark:bg-green-900/10 border-2 border-green-300 dark:border-green-700">
+        <div id="client-contacts-block" className="card mb-4 bg-green-50/50 dark:bg-green-900/10 border-2 border-green-300 dark:border-green-700">
           <div className="flex items-center gap-2 mb-3">
             <CheckCircle size={18} className="text-green-600 dark:text-green-400" />
             <h3 className="font-bold text-green-800 dark:text-green-300">{t('commissionPayment.clientData')}</h3>
@@ -1187,6 +1187,12 @@ export function OrderDetailPage() {
                   await ordersApi.respond(id!, { message: '', priceOffer: undefined });
                   toast.success(t('orderDetail.orderAccepted'));
                   await loadOrder();
+                  // Прокручиваем к блоку с контактами клиента/картой/фото
+                  setTimeout(() => {
+                    document
+                      .getElementById('client-contacts-block')
+                      ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }, 300);
                 } catch (error: any) {
                   console.error('[acceptOrder] failed', error?.response?.data || error);
                   const msg =

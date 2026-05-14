@@ -249,7 +249,7 @@ const ru = {
     acceptOrderBtn: 'Принять заказ',
     backToOrders: 'К списку заказов',
     acceptOrderConfirm: 'Принять заказ по указанной цене?',
-    orderAccepted: 'Заказ принят',
+    orderAccepted: 'Заказ ваш! Контакты клиента и адрес — ниже',
     orderNotFound: 'Заказ не найден',
     writeMessage: 'Напишите сообщение',
     responseSent: 'Отклик отправлен!',
