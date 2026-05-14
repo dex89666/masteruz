@@ -108,7 +108,8 @@ export function NotificationsPage() {
     }
     // Navigate based on notification type
     if (notification.data?.orderId) {
-      navigate(`/orders/${notification.data.orderId}`);
+      const isChatMessage = notification.type === 'CHAT_MESSAGE' || notification.type === 'NEW_MESSAGE';
+      navigate(`/orders/${notification.data.orderId}${isChatMessage ? '?openChat=1' : ''}`);
     }
   }
 

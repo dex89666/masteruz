@@ -3,6 +3,7 @@
 // ============================================
 
 import { useEffect, useState, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Send, X, MessageCircle } from 'lucide-react';
 import { chatApi } from '../api/client';
 import { useAuthStore } from '../store';
@@ -17,12 +18,24 @@ interface OrderChatProps {
 export function OrderChat({ orderId, isParticipant }: OrderChatProps) {
   const { user } = useAuthStore();
   const { t, locale } = useTranslation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [open, setOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval>>();
+
+  // Авто-открытие чата при переходе из уведомления (?openChat=1)
+  useEffect(() => {
+    if (!isParticipant) return;
+    if (searchParams.get('openChat') === '1') {
+      setOpen(true);
+      const next = new URLSearchParams(searchParams);
+      next.delete('openChat');
+      setSearchParams(next, { replace: true });
+    }
+  }, [isParticipant, searchParams, setSearchParams]);
 
   useEffect(() => {
     if (open && isParticipant) {

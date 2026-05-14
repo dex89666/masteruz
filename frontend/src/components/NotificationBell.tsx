@@ -154,7 +154,8 @@ export function NotificationBell() {
     // Навигация по типу
     const data = n.data as any;
     if (data?.orderId) {
-      navigate(`/orders/${data.orderId}`);
+      const isChatMessage = n.type === 'CHAT_MESSAGE' || n.type === 'NEW_MESSAGE';
+      navigate(`/orders/${data.orderId}${isChatMessage ? '?openChat=1' : ''}`);
     }
     setOpen(false);
   }
