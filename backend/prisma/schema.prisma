@@ -407,6 +407,10 @@ model Order {
   transitReason    String?     @map("transit_reason")        // 'MATERIAL' | 'TO_CLIENT'
   transitEtaAt     DateTime?   @map("transit_eta_at")        // когда мастер обещал быть
   lastMasterPingAt DateTime?   @map("last_master_ping_at")   // анти-спам для cron-напоминаний
+  // Live-позиция мастера во время доставки (обновляется с фронта раз в ~10с)
+  masterLat        Float?      @map("master_lat")
+  masterLng        Float?      @map("master_lng")
+  masterLocationAt DateTime?   @map("master_location_at")
   penaltyAmount    Decimal     @default(0) @map("penalty_amount") @db.Decimal(12, 2)
   cancelReason     String?     @map("cancel_reason")
   cancelledBy      String?     @map("cancelled_by")
@@ -467,6 +471,7 @@ model Order {
   @@index([aiTemplateId])
   @@index([source])
   @@index([status, transitEtaAt])
+  @@index([status, masterLocationAt])
   @@map("orders")
 }
 

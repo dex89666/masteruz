@@ -684,25 +684,41 @@ export class OrdersService {
     }
 
     // ─── Гео-фенс при «Я приехал» (IN_TRANSIT → IN_PROGRESS) ───
-    // Не даём подтвердить «приехал», если мастер дальше 500м от точки заказа
+    // Не даём подтвердить «приехал», если мастер дальше 500м от точки заказа.
+    // Если в момент клика фронт не получил свежие координаты — используем
+    // последнюю известную позицию мастера, переданную фоновым broadcast.
     if (newStatus === 'IN_PROGRESS' && order.latitude && order.longitude) {
-      if (extras?.latitude == null || extras?.longitude == null) {
+      const FRESH_LOCATION_TTL_MS = 120_000; // 2 минуты
+      let lat = extras?.latitude;
+      let lng = extras?.longitude;
+      let usedFallback = false;
+
+      if ((lat == null || lng == null) && order.masterLat != null && order.masterLng != null) {
+        const ageMs = order.masterLocationAt ? Date.now() - order.masterLocationAt.getTime() : Infinity;
+        if (ageMs <= FRESH_LOCATION_TTL_MS) {
+          lat = order.masterLat;
+          lng = order.masterLng;
+          usedFallback = true;
+        }
+      }
+
+      if (lat == null || lng == null) {
         throw ApiError.badRequest(
           'Чтобы подтвердить прибытие, разрешите доступ к геолокации'
         );
       }
-      const distanceKm = calculateDistance(
-        order.latitude,
-        order.longitude,
-        extras.latitude,
-        extras.longitude
-      );
+
+      const distanceKm = calculateDistance(order.latitude, order.longitude, lat, lng);
       const ARRIVAL_RADIUS_KM = 0.5; // 500 м
       if (distanceKm > ARRIVAL_RADIUS_KM) {
         const meters = Math.round(distanceKm * 1000);
         throw ApiError.badRequest(
           `Вы в ${meters} м от точки заказа. Подойдите ближе (до 500 м), чтобы подтвердить прибытие.`
         );
+      }
+
+      if (usedFallback) {
+        logger.info({ orderId, masterId, distanceKm }, 'Прибытие подтверждено по фоновой позиции');
       }
     }
 
@@ -765,9 +781,12 @@ export class OrdersService {
   }
 
   /**
-   * Live-позиция мастера во время доставки (IN_TRANSIT)
-   * Эмитит SSE-событие master_location клиенту/всем подписчикам заказа.
-   * НЕ записываем в БД — только в eventBus (мгновенный broadcast).
+   * Live-позиция мастера во время доставки.
+   * SSE-broadcast клиенту + персистентное сохранение последней известной точки
+   * (используется для подтверждения прибытия даже если в момент клика
+   * браузер не выдаст свежие координаты).
+   *
+   * Запись в БД throttled: не чаще, чем раз в 10с или при смещении > 50м.
    */
   async broadcastMasterLocation(
     orderId: string,
@@ -776,7 +795,16 @@ export class OrdersService {
   ) {
     const order = await prisma.order.findUnique({
       where: { id: orderId },
-      select: { id: true, masterId: true, status: true, latitude: true, longitude: true },
+      select: {
+        id: true,
+        masterId: true,
+        status: true,
+        latitude: true,
+        longitude: true,
+        masterLat: true,
+        masterLng: true,
+        masterLocationAt: true,
+      },
     });
     if (!order) throw ApiError.notFound('Заказ не найден');
     if (order.masterId !== masterId) throw ApiError.forbidden('Вы не назначены на этот заказ');
@@ -793,6 +821,25 @@ export class OrdersService {
         ? calculateDistance(order.latitude, order.longitude, coords.latitude, coords.longitude)
         : null;
 
+    // Throttled persist: либо прошло >10с, либо сместились >50м
+    const now = Date.now();
+    const lastAt = order.masterLocationAt ? order.masterLocationAt.getTime() : 0;
+    const movedMeters =
+      order.masterLat != null && order.masterLng != null
+        ? calculateDistance(order.masterLat, order.masterLng, coords.latitude, coords.longitude) * 1000
+        : Infinity;
+
+    if (now - lastAt >= 10_000 || movedMeters > 50) {
+      await prisma.order.update({
+        where: { id: orderId },
+        data: {
+          masterLat: coords.latitude,
+          masterLng: coords.longitude,
+          masterLocationAt: new Date(now),
+        },
+      });
+    }
+
     eventBus.emit(orderId, 'master_location', {
       orderId,
       masterId,
@@ -801,7 +848,7 @@ export class OrdersService {
       heading: coords.heading,
       speed: coords.speed,
       distanceKm,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date(now).toISOString(),
     });
 
     return { broadcast: true, distanceKm };

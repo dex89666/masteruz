@@ -203,33 +203,25 @@ export function OrderDetailPage() {
 
   // ─── Мастер обновляет статус ──────────────
   // Для перехода IN_TRANSIT → IN_PROGRESS («Я приехал») запрашиваем геолокацию
-  // и шлём на бэк для геофенс-проверки (расстояние до точки заказа).
+  // и шлём на бэк для геофенс-проверки. Если фронт не смог получить точку —
+  // бэк сам подставит последнюю известную из фонового broadcast (TTL 2 мин).
   async function handleUpdateStatus(newStatus: string) {
     const needsGeofence = newStatus === 'IN_PROGRESS';
 
     let coords: { latitude: number; longitude: number } | undefined;
-    if (needsGeofence) {
-      if (!navigator.geolocation) {
-        toast.error('Геолокация недоступна на этом устройстве');
-        return;
-      }
+    if (needsGeofence && navigator.geolocation) {
       setArriving(true);
       try {
         coords = await new Promise<{ latitude: number; longitude: number }>((resolve, reject) => {
           navigator.geolocation.getCurrentPosition(
             (pos) => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
             (err) => reject(err),
-            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+            { enableHighAccuracy: true, timeout: 8000, maximumAge: 30_000 }
           );
         });
-      } catch (geoErr: any) {
-        setArriving(false);
-        toast.error(
-          geoErr?.code === 1
-            ? 'Разрешите доступ к геолокации, чтобы подтвердить прибытие'
-            : 'Не удалось получить вашу геопозицию'
-        );
-        return;
+      } catch {
+        // Не блокируем — отдадим на бэк, он попробует fallback на сохранённую позицию
+        coords = undefined;
       }
     }
 
