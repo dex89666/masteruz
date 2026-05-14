@@ -168,6 +168,7 @@ export interface Order {
   // AI Instant Order
   isInstantAiOrder: boolean;
   aiTemplateId: string | null;
+  aiTemplate?: AiOrderTemplate | null;
   additionalWishes: string | null;
   moderationRequired: boolean;
   voiceDescription: string | null;

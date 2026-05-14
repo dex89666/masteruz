@@ -764,7 +764,12 @@ export class InstantOrderService {
 
     // ─── УМНЫЙ AI-анализ: сначала каталог расценок, потом fallback ──
     let analysisResult: any;
-    const smartResult = buildSmartVariants(category.slug, category.name, combinedDescription);
+    const smartResult = buildSmartVariants(
+      category.slug,
+      category.name,
+      combinedDescription,
+      aiAnalysis?.priceHint ?? null
+    );
 
     if (smartResult) {
       // Умный каталог нашёл конкретную проблему → точные цены Ташкента 2026

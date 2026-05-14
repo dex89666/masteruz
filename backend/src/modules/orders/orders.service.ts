@@ -49,14 +49,12 @@ export class OrdersService {
     }
 
     // Получаем текущую комиссию из конфигурации
-    const [commissionConfig, visitFeeConfig, visitFeeCommConfig] = await Promise.all([
-      prisma.platformConfig.findUnique({ where: { key: 'commission_rate' } }),
+    const [visitFeeConfig, visitFeeCommConfig] = await Promise.all([
       prisma.platformConfig.findUnique({ where: { key: 'visit_fee' } }),
       prisma.platformConfig.findUnique({ where: { key: 'visit_fee_commission_rate' } }),
     ]);
-    const commissionRate = commissionConfig ? parseFloat(commissionConfig.value) : 15;
-    const visitFee = visitFeeConfig ? parseFloat(visitFeeConfig.value) : 100000;
-    const visitFeeCommissionRate = visitFeeCommConfig ? parseFloat(visitFeeCommConfig.value) : 10;
+    const visitFee = visitFeeConfig ? parseFloat(visitFeeConfig.value) : 0;
+    const visitFeeCommissionRate = visitFeeCommConfig ? parseFloat(visitFeeCommConfig.value) : 0;
 
     // ─── Проверка минимальной цены ────────────────
     if (data.taskIds && data.taskIds.length > 0) {
@@ -69,9 +67,11 @@ export class OrdersService {
       const minimumRequired = totalMinPrice + visitFee;
 
       if (data.price < minimumRequired) {
+        const detail = visitFee > 0
+          ? `(работы: ${totalMinPrice.toLocaleString('ru')} + выезд: ${visitFee.toLocaleString('ru')})`
+          : `(минимум по выбранным работам)`;
         throw ApiError.badRequest(
-          `Минимальная стоимость заказа: ${minimumRequired.toLocaleString('ru')} сум ` +
-          `(работы: ${totalMinPrice.toLocaleString('ru')} + выезд: ${visitFee.toLocaleString('ru')})`
+          `Минимальная стоимость заказа: ${minimumRequired.toLocaleString('ru')} сум ${detail}`
         );
       }
     }
@@ -82,12 +82,19 @@ export class OrdersService {
     const urgentMultiplier = isUrgent ? URGENT_MULTIPLIER : 1.0;
     const effectivePrice = data.price * urgentMultiplier;
 
-    // Комиссия с работ + комиссия с выезда
+    // Ступенчатая комиссия от стоимости работ (без учёта первой/повторной пары — её применим
+    // при назначении мастера в assignMaster, когда станет известно masterId).
+    const { getTieredCommissionRate } = await import('../../services/platformConfigService.js');
+    const commissionRate = await getTieredCommissionRate(effectivePrice);
+
+    // Комиссия с работ + (опционально) комиссия с выезда
     const workCommission = calculateCommission(effectivePrice, commissionRate);
-    const visitFeeCommission = calculateCommission(visitFee, visitFeeCommissionRate);
+    const visitFeeCommission = visitFee > 0
+      ? calculateCommission(visitFee, visitFeeCommissionRate)
+      : 0;
     const commissionAmount = workCommission + visitFeeCommission;
 
-    // Полная сумма для эскроу: цена заказа + стоимость выезда
+    // Полная сумма для эскроу: цена заказа + (опц.) стоимость выезда
     const escrowAmount = effectivePrice + visitFee;
 
     // ─── Атомарная транзакция: проверка баланса + блокировка + создание заказа ────
@@ -559,14 +566,15 @@ export class OrdersService {
       throw ApiError.badRequest('Мастер не откликался на этот заказ');
     }
 
-    // ─── Дифференцированная комиссия: первый заказ клиент↔мастер → повышенная
-    //     ставка (защита от увода), повторные → льготная.
-    const { getEffectiveCommissionRate, getConfigNumber, PLATFORM_CONFIG_KEYS } = await import(
+    // ─── Ступенчатая комиссия + надбавка за первый заказ клиент↔мастер ───
+    //     База = ступень от стоимости работ. Поверх — surcharge first/repeat.
+    const { getTieredEffectiveCommissionRate, getConfigNumber, PLATFORM_CONFIG_KEYS } = await import(
       '../../services/platformConfigService.js'
     );
-    const effectiveRate = await getEffectiveCommissionRate(clientId, masterId);
-    const visitFeeRate = await getConfigNumber(PLATFORM_CONFIG_KEYS.visitFeeCommissionRate);
-    const recalcWorkCommission = calculateCommission(toNum(order.price), effectiveRate);
+    const workPrice = toNum(order.price);
+    const effectiveRate = await getTieredEffectiveCommissionRate(workPrice, clientId, masterId);
+    const visitFeeRate = await getConfigNumber(PLATFORM_CONFIG_KEYS.visitFeeCommissionRate, 0);
+    const recalcWorkCommission = calculateCommission(workPrice, effectiveRate);
     const recalcVisitCommission = calculateCommission(toNum(order.visitFee ?? 0), visitFeeRate);
     const recalcCommissionAmount = recalcWorkCommission + recalcVisitCommission;
 

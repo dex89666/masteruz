@@ -477,6 +477,47 @@ export function OrderDetailPage() {
         </div>
       )}
 
+      {/* AI-смета (для instant-ai-заказов) — материалы и работы из выбранного варианта */}
+      {order.aiTemplate && (
+        <div className="card mb-4">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-sm text-gray-500 dark:text-gray-400">AI-смета</h2>
+            <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300">
+              {order.aiTemplate.tierLabel}
+            </span>
+          </div>
+          {order.aiTemplate.description && (
+            <p className="text-sm text-gray-700 dark:text-gray-300 mb-3">{order.aiTemplate.description}</p>
+          )}
+          {Array.isArray(order.aiTemplate.materials) && order.aiTemplate.materials.length > 0 && (
+            <div className="space-y-1.5 mb-3">
+              <p className="text-xs font-semibold text-gray-500 dark:text-gray-400">Материалы и работы:</p>
+              {order.aiTemplate.materials.map((m, idx) => (
+                <div key={idx} className="flex items-center justify-between text-sm py-1 border-b border-gray-100 dark:border-gray-700 last:border-0">
+                  <span className="text-gray-700 dark:text-gray-300">
+                    {m.name} <span className="text-gray-400">×{m.quantity} {m.unit}</span>
+                  </span>
+                  <span className="font-medium text-gray-900 dark:text-gray-100">
+                    {formatPrice(m.total, t('common.currency'))}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="flex items-center justify-between pt-2 border-t border-gray-200 dark:border-gray-700">
+            <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">Итого AI-смета:</span>
+            <span className="text-base font-bold text-primary-600 dark:text-primary-400">
+              {formatPrice(order.aiTemplate.estimatedPrice, t('common.currency'))}
+            </span>
+          </div>
+          {order.aiTemplate.estimatedDays > 0 && (
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              Срок выполнения: ~{order.aiTemplate.estimatedDays} {order.aiTemplate.estimatedDays === 1 ? 'день' : 'дн.'}
+            </p>
+          )}
+        </div>
+      )}
+
       {/* Фотографии заказа — видны всем */}
       {(() => {
         const photos = (order.images || []).filter((img: string) => img.startsWith('http') || img.startsWith('data:'));
@@ -555,7 +596,14 @@ export function OrderDetailPage() {
                           setEditingAdminComment(false);
                           loadOrder();
                           toast.success('Комментарий сохранён');
-                        } catch { toast.error('Ошибка сохранения'); }
+                        } catch (err: any) {
+                          const msg =
+                            err?.response?.data?.message ||
+                            err?.response?.data?.error?.message ||
+                            err?.message ||
+                            'Ошибка сохранения';
+                          toast.error(msg);
+                        }
                       }}
                       className="px-3 py-1.5 text-xs rounded-lg bg-purple-500 text-white hover:bg-purple-600"
                     >

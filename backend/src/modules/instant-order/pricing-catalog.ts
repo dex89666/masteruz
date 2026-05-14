@@ -554,6 +554,60 @@ export const PRICING_CATALOG: CategoryPricing[] = [
     name: 'Сборка и ремонт мебели',
     defaultUnit: { unit: 'шт.', pricePerUnit: 100_000, minQty: 1, label: 'Единица мебели' },
     problems: [
+      // ── Разборка / демонтаж мебели (отдельная проблема, выше "Сборки") ──
+      // Важно: эти ключевые слова должны иметь приоритет над "сборка/шкаф",
+      // поэтому проблема идёт первой и слова более узкие.
+      {
+        keywords: [
+          'разобрать', 'разборка', 'демонтаж', 'демонтировать',
+          'разобрать шкаф', 'разобрать мебель', 'разбираю шкаф',
+          'демонтаж мебели', 'разборка шкафа', 'снять шкаф', 'убрать шкаф',
+        ],
+        problemName: 'Разборка / демонтаж мебели',
+        solutions: [
+          {
+            tier: 'GOOD',
+            title: 'Разборка 1 предмета (комод/стеллаж)',
+            description: 'Аккуратная разборка одного предмета мебели с сохранением фурнитуры.',
+            works: [
+              { name: 'Разборка мебели', qty: 1, unit: 'шт.', unitPrice: 150_000 },
+              { name: 'Сортировка фурнитуры', qty: 1, unit: 'компл.', unitPrice: 20_000 },
+            ],
+            materials: [],
+            days: 1,
+          },
+          {
+            tier: 'BETTER',
+            title: 'Разборка шкафа-купе / большого шкафа',
+            description: 'Разборка крупногабаритной мебели (шкаф-купе, гарнитур до 2.5м).',
+            works: [
+              { name: 'Разборка крупного шкафа', qty: 1, unit: 'шт.', unitPrice: 350_000 },
+              { name: 'Снятие зеркальных дверей', qty: 2, unit: 'шт.', unitPrice: 30_000 },
+              { name: 'Демонтаж крепежа к стене', qty: 1, unit: 'компл.', unitPrice: 30_000 },
+              { name: 'Сортировка и упаковка фурнитуры', qty: 1, unit: 'компл.', unitPrice: 30_000 },
+            ],
+            materials: [
+              { name: 'Упаковочная плёнка', qty: 1, unit: 'компл.', unitPrice: 20_000 },
+            ],
+            days: 1,
+          },
+          {
+            tier: 'BEST',
+            title: 'Разборка комплекта мебели (2-3 предмета)',
+            description: 'Полный демонтаж нескольких предметов мебели в комнате.',
+            works: [
+              { name: 'Разборка крупных предметов', qty: 2, unit: 'шт.', unitPrice: 300_000 },
+              { name: 'Разборка мелких предметов', qty: 1, unit: 'шт.', unitPrice: 150_000 },
+              { name: 'Снятие зеркал/полок', qty: 4, unit: 'шт.', unitPrice: 25_000 },
+              { name: 'Вынос на лестничную клетку', qty: 1, unit: 'компл.', unitPrice: 100_000 },
+            ],
+            materials: [
+              { name: 'Упаковка и стяжки', qty: 1, unit: 'компл.', unitPrice: 30_000 },
+            ],
+            days: 2,
+          },
+        ],
+      },
       {
         keywords: ['шкаф', 'собрать', 'сборка', 'комод', 'стеллаж', 'купе', 'полка', 'гардероб', 'ikea', 'икеа'],
         problemName: 'Сборка мебели',
@@ -561,10 +615,10 @@ export const PRICING_CATALOG: CategoryPricing[] = [
           {
             tier: 'GOOD',
             title: 'Сборка 1 предмета (стеллаж/комод)',
-            description: 'Сборка одного предмета мебели из комплекта.',
+            description: 'Сборка одного небольшого предмета мебели из готового комплекта.',
             works: [
-              { name: 'Выезд мастера', qty: 1, unit: 'выезд', unitPrice: 30_000 },
-              { name: 'Сборка мебели', qty: 1, unit: 'шт.', unitPrice: 100_000 },
+              { name: 'Сборка мебели', qty: 1, unit: 'шт.', unitPrice: 150_000 },
+              { name: 'Регулировка фурнитуры', qty: 1, unit: 'компл.', unitPrice: 30_000 },
             ],
             materials: [],
             days: 1,
@@ -572,28 +626,30 @@ export const PRICING_CATALOG: CategoryPricing[] = [
           {
             tier: 'BETTER',
             title: 'Сборка шкафа-купе / гарнитура',
-            description: 'Сборка крупного предмета мебели (шкаф, кухня и т.д.).',
+            description: 'Сборка крупного шкафа-купе или кухонного гарнитура (до 2.5 м).',
             works: [
-              { name: 'Выезд мастера', qty: 1, unit: 'выезд', unitPrice: 30_000 },
-              { name: 'Сборка крупной мебели', qty: 1, unit: 'шт.', unitPrice: 250_000 },
-              { name: 'Навеска зеркал/полок', qty: 2, unit: 'шт.', unitPrice: 20_000 },
+              { name: 'Сборка крупной мебели', qty: 1, unit: 'шт.', unitPrice: 400_000 },
+              { name: 'Установка зеркальных дверей', qty: 2, unit: 'шт.', unitPrice: 40_000 },
+              { name: 'Крепление к стене', qty: 1, unit: 'компл.', unitPrice: 50_000 },
+              { name: 'Регулировка и финальная подгонка', qty: 1, unit: 'компл.', unitPrice: 30_000 },
             ],
             materials: [
-              { name: 'Дополнительный крепёж', qty: 1, unit: 'компл.', unitPrice: 10_000 },
+              { name: 'Доп. крепёж / дюбели', qty: 1, unit: 'компл.', unitPrice: 30_000 },
             ],
             days: 1,
           },
           {
             tier: 'BEST',
             title: 'Сборка комплекта мебели (2-3 предмета)',
-            description: 'Сборка нескольких предметов: шкаф + комод + кровать и т.п.',
+            description: 'Сборка нескольких предметов: шкаф-купе + комод + кровать или аналогичный комплект.',
             works: [
-              { name: 'Выезд мастера', qty: 1, unit: 'выезд', unitPrice: 30_000 },
-              { name: 'Сборка мебели', qty: 3, unit: 'шт.', unitPrice: 120_000 },
-              { name: 'Навеска на стену', qty: 2, unit: 'шт.', unitPrice: 30_000 },
+              { name: 'Сборка крупных предметов', qty: 2, unit: 'шт.', unitPrice: 350_000 },
+              { name: 'Сборка дополнительного предмета', qty: 1, unit: 'шт.', unitPrice: 150_000 },
+              { name: 'Навеска на стену (зеркала, полки)', qty: 4, unit: 'шт.', unitPrice: 25_000 },
+              { name: 'Регулировка и подгонка', qty: 1, unit: 'компл.', unitPrice: 50_000 },
             ],
             materials: [
-              { name: 'Крепёж, дюбели', qty: 1, unit: 'компл.', unitPrice: 15_000 },
+              { name: 'Крепёж, дюбели, фурнитура', qty: 1, unit: 'компл.', unitPrice: 50_000 },
             ],
             days: 2,
           },
@@ -1492,12 +1548,20 @@ export function calculateSolutionPrice(
 }
 
 /**
- * Построить 3 варианта (GOOD / BETTER / BEST) из каталога расценок
+ * Построить 3 варианта (GOOD / BETTER / BEST) из каталога расценок.
+ *
+ * Опционально принимает `aiPriceHint` от AI Vision. Если AI оценил работу
+ * существенно дороже каталога (например, увидел крупный шкаф вместо маленького
+ * комода) — пропорционально масштабируем все варианты в диапазон AI.
+ *
+ * Для мелких работ (GOOD tier ≤ 70 000) убираем строку «Выезд мастера»,
+ * чтобы не накручивать стоимость на простых заказах (замена розетки, лампочки).
  */
 export function buildSmartVariants(
   categorySlug: string,
   categoryName: string,
-  description: string
+  description: string,
+  aiPriceHint?: { min: number; max: number } | null
 ): {
   problemName: string;
   variants: {
@@ -1526,7 +1590,8 @@ export function buildSmartVariants(
     BEST: 0.97,
   };
 
-  const variants = problem.solutions.map(sol => {
+  // ── Шаг 1: построение базовых вариантов из каталога ─────────────
+  let variants = problem.solutions.map(sol => {
     const pricing = calculateSolutionPrice(sol);
     return {
       tier: sol.tier,
@@ -1552,6 +1617,47 @@ export function buildSmartVariants(
       confidence: TIER_CONFIDENCE[sol.tier] || 0.85,
     };
   });
+
+  // ── Шаг 2: масштабирование под AI priceHint ──────────────────────
+  // Если AI Vision увидел нечто крупнее/дороже каталога (например,
+  // 2.5-метровый шкаф-купе вместо маленького комода), вариант GOOD
+  // в каталоге будет слишком дешёвым. Масштабируем все варианты
+  // пропорционально, чтобы BETTER попал в середину AI-диапазона.
+  if (aiPriceHint && aiPriceHint.min > 0 && aiPriceHint.max > 0 && variants.length > 0) {
+    const better = variants.find(v => v.tier === 'BETTER') ?? variants[Math.floor(variants.length / 2)];
+    const aiMid = (aiPriceHint.min + aiPriceHint.max) / 2;
+    const ratio = aiMid / Math.max(better.estimatedPrice, 1);
+    // Скейлим только если AI считает существенно дороже (>1.3x) и не безумно (<5x)
+    if (ratio >= 1.3 && ratio <= 5) {
+      const SCALE = ratio;
+      variants = variants.map(v => {
+        const scaledWorks = v.works.map(w => {
+          const newUnit = Math.round(w.unitPrice * SCALE / 5000) * 5000; // округление до 5к
+          return { ...w, unitPrice: newUnit, total: w.qty * newUnit };
+        });
+        const scaledMaterials = v.materials.map(m => {
+          const newUnit = Math.round(m.unitPrice * SCALE / 5000) * 5000;
+          return { ...m, unitPrice: newUnit, total: m.qty * newUnit };
+        });
+        const newPrice =
+          scaledWorks.reduce((s, w) => s + w.total, 0) +
+          scaledMaterials.reduce((s, m) => s + m.total, 0);
+        return { ...v, works: scaledWorks, materials: scaledMaterials, estimatedPrice: newPrice };
+      });
+    }
+  }
+
+  // ── Шаг 3: для мелких работ убираем «Выезд мастера» ──────────────
+  // Если итог GOOD-варианта ≤ 70 000, выезд платный делает заказ
+  // непропорционально дорогим (замена розетки 50к + выезд 50к = 100к = 100% накрутка).
+  const good = variants.find(v => v.tier === 'GOOD');
+  if (good && good.estimatedPrice <= 70_000 + 50_000) {
+    const visitRegex = /выезд\s+мастера|диагностика\s+и\s+выезд/i;
+    good.works = good.works.filter(w => !visitRegex.test(w.name));
+    good.estimatedPrice =
+      good.works.reduce((s, w) => s + w.total, 0) +
+      good.materials.reduce((s, m) => s + m.total, 0);
+  }
 
   return { problemName: problem.problemName, variants };
 }

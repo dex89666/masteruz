@@ -10,10 +10,21 @@ import logger from '../utils/logger';
 /** Все ключи настроек, которые использует платформа. */
 export const PLATFORM_CONFIG_KEYS = {
   // Комиссия с работ
-  commissionRate: 'commission_rate', // % — базовая ставка
+  commissionRate: 'commission_rate', // % — базовая ставка (legacy fallback)
   firstOrderCommissionRate: 'first_order_commission_rate', // % — для первого заказа клиент-мастер (защита от увода)
   repeatOrderCommissionRate: 'repeat_order_commission_rate', // % — для повторных заказов
   newbieMaxPriceRatio: 'newbie_max_price_ratio',
+
+  // ─── Ступенчатая комиссия (от стоимости работ) ───
+  // Мелкие заказы — выше %, крупные — ниже. Так платформа покрывает
+  // фикс. расходы на маленьких заявках, но не «жадничает» на крупных.
+  commissionTierSmall: 'commission_tier_small',   // % для price < tierSmallMax
+  commissionTierMid: 'commission_tier_mid',       // % для tierSmallMax ≤ price < tierMidMax
+  commissionTierLarge: 'commission_tier_large',   // % для tierMidMax ≤ price < tierLargeMax
+  commissionTierXL: 'commission_tier_xl',         // % для price ≥ tierLargeMax (минимум, обычно 15)
+  commissionTierSmallMax: 'commission_tier_small_max', // сум
+  commissionTierMidMax: 'commission_tier_mid_max',     // сум
+  commissionTierLargeMax: 'commission_tier_large_max', // сум
 
   // Выезд мастера
   visitFee: 'visit_fee', // сум — фикс. плата за выезд
@@ -37,11 +48,19 @@ export const PLATFORM_CONFIG_KEYS = {
 /** Дефолтные значения (используются, если ключа нет в БД). */
 const DEFAULTS: Record<string, string> = {
   [PLATFORM_CONFIG_KEYS.commissionRate]: '15',
-  [PLATFORM_CONFIG_KEYS.firstOrderCommissionRate]: '20',
-  [PLATFORM_CONFIG_KEYS.repeatOrderCommissionRate]: '12',
+  [PLATFORM_CONFIG_KEYS.firstOrderCommissionRate]: '5', // надбавка к ступени для первого заказа клиент↔мастер
+  [PLATFORM_CONFIG_KEYS.repeatOrderCommissionRate]: '0', // надбавки нет
   [PLATFORM_CONFIG_KEYS.newbieMaxPriceRatio]: '1.5',
-  [PLATFORM_CONFIG_KEYS.visitFee]: '100000',
-  [PLATFORM_CONFIG_KEYS.visitFeeCommissionRate]: '10',
+  // Ступени (сум и проценты)
+  [PLATFORM_CONFIG_KEYS.commissionTierSmall]: '25',
+  [PLATFORM_CONFIG_KEYS.commissionTierMid]: '22',
+  [PLATFORM_CONFIG_KEYS.commissionTierLarge]: '18',
+  [PLATFORM_CONFIG_KEYS.commissionTierXL]: '15',
+  [PLATFORM_CONFIG_KEYS.commissionTierSmallMax]: '100000',
+  [PLATFORM_CONFIG_KEYS.commissionTierMidMax]: '300000',
+  [PLATFORM_CONFIG_KEYS.commissionTierLargeMax]: '800000',
+  [PLATFORM_CONFIG_KEYS.visitFee]: '0', // ← по умолчанию ВЫКЛ. Выезд считается частью работы.
+  [PLATFORM_CONFIG_KEYS.visitFeeCommissionRate]: '0',
   [PLATFORM_CONFIG_KEYS.estimationFee]: '150000',
   [PLATFORM_CONFIG_KEYS.estimationCommissionRate]: '20',
   [PLATFORM_CONFIG_KEYS.bypassPenaltyMultiplier]: '3',
@@ -77,34 +96,69 @@ export async function getConfigString(key: string, fallback = ''): Promise<strin
 }
 
 /**
+ * Базовая ступенчатая комиссия по стоимости работ.
+ * Мелкие заказы → выше %, крупные → ниже. Возвращает ставку из 4 ступеней.
+ */
+export async function getTieredCommissionRate(workPrice: number): Promise<number> {
+  const [small, mid, large, xl, smallMax, midMax, largeMax] = await Promise.all([
+    getConfigNumber(PLATFORM_CONFIG_KEYS.commissionTierSmall, 25),
+    getConfigNumber(PLATFORM_CONFIG_KEYS.commissionTierMid, 22),
+    getConfigNumber(PLATFORM_CONFIG_KEYS.commissionTierLarge, 18),
+    getConfigNumber(PLATFORM_CONFIG_KEYS.commissionTierXL, 15),
+    getConfigNumber(PLATFORM_CONFIG_KEYS.commissionTierSmallMax, 100_000),
+    getConfigNumber(PLATFORM_CONFIG_KEYS.commissionTierMidMax, 300_000),
+    getConfigNumber(PLATFORM_CONFIG_KEYS.commissionTierLargeMax, 800_000),
+  ]);
+
+  if (workPrice < smallMax) return small;
+  if (workPrice < midMax) return mid;
+  if (workPrice < largeMax) return large;
+  return xl;
+}
+
+/**
  * Получить эффективную ставку комиссии для пары клиент-мастер.
  * Первый заказ → повышенная (защита от увода), повторные → базовая/льготная.
  * Если в БД не настроены отдельные ставки first/repeat — используется базовая commission_rate.
+ *
+ * @deprecated Используйте `getTieredEffectiveCommissionRate(price, clientId, masterId)`.
+ *             Эта функция оставлена для обратной совместимости и возвращает
+ *             ступенчатую базовую ставку без учёта надбавки за первый заказ.
  */
 export async function getEffectiveCommissionRate(
+  _clientId: string,
+  _masterId: string | null
+): Promise<number> {
+  return await getConfigNumber(PLATFORM_CONFIG_KEYS.commissionRate);
+}
+
+/**
+ * Ступенчатая комиссия с учётом истории клиент↔мастер.
+ * Базовая ставка определяется ступенью по `workPrice`, поверх неё —
+ * надбавка `first_order_commission_rate` для первого заказа этой пары
+ * (защита от увода) или `repeat_order_commission_rate` для повторных.
+ * Финальная ставка ограничена снизу значением tier XL (минимум платформы).
+ */
+export async function getTieredEffectiveCommissionRate(
+  workPrice: number,
   clientId: string,
   masterId: string | null
 ): Promise<number> {
-  const base = await getConfigNumber(PLATFORM_CONFIG_KEYS.commissionRate);
-
+  const base = await getTieredCommissionRate(workPrice);
   if (!masterId) return base;
 
-  // Был ли уже завершённый заказ между этой парой?
   const previousOrders = await prisma.order.count({
-    where: {
-      clientId,
-      masterId,
-      status: 'COMPLETED',
-    },
+    where: { clientId, masterId, status: 'COMPLETED' },
   });
 
-  if (previousOrders === 0) {
-    // Первый заказ — берём повышенную ставку (защита от увода клиента)
-    return await getConfigNumber(PLATFORM_CONFIG_KEYS.firstOrderCommissionRate, base);
-  }
+  const surchargeKey = previousOrders === 0
+    ? PLATFORM_CONFIG_KEYS.firstOrderCommissionRate
+    : PLATFORM_CONFIG_KEYS.repeatOrderCommissionRate;
 
-  // Повторный — льготная ставка
-  return await getConfigNumber(PLATFORM_CONFIG_KEYS.repeatOrderCommissionRate, base);
+  const surcharge = await getConfigNumber(surchargeKey, 0);
+  const minRate = await getConfigNumber(PLATFORM_CONFIG_KEYS.commissionTierXL, 15);
+
+  return Math.max(minRate, base + surcharge);
 }
 
 /** Получить дефолтные значения для админки (если ключа ещё нет в БД). */

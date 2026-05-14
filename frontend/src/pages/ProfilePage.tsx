@@ -348,7 +348,7 @@ export function ProfilePage() {
                     toast.success('Роль: Админ');
                   }
                 } catch (err: any) {
-                  toast.error(err.response?.data?.message || 'Ошибка');
+                  toast.error(err?.response?.data?.message || err?.response?.data?.error?.message || err?.message || 'Ошибка смены роли');
                 } finally {
                   setSwitchingRole(false);
                 }
@@ -382,7 +382,7 @@ export function ProfilePage() {
                     toast.success('Роль: Мастер');
                   }
                 } catch (err: any) {
-                  toast.error(err.response?.data?.message || 'Ошибка');
+                  toast.error(err?.response?.data?.message || err?.response?.data?.error?.message || err?.message || 'Ошибка смены роли');
                 } finally {
                   setSwitchingRole(false);
                 }
@@ -416,7 +416,7 @@ export function ProfilePage() {
                     toast.success('Роль: Клиент');
                   }
                 } catch (err: any) {
-                  toast.error(err.response?.data?.message || 'Ошибка');
+                  toast.error(err?.response?.data?.message || err?.response?.data?.error?.message || err?.message || 'Ошибка смены роли');
                 } finally {
                   setSwitchingRole(false);
                 }

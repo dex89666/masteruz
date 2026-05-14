@@ -69,7 +69,12 @@ export function MasterDashboardPage() {
         toast.success('Роль изменена на Админ');
       }
     } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Ошибка смены роли');
+      const msg =
+        err?.response?.data?.message ||
+        err?.response?.data?.error?.message ||
+        err?.message ||
+        'Ошибка смены роли';
+      toast.error(msg);
     } finally {
       setSwitchingRole(false);
     }
