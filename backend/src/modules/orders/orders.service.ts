@@ -14,17 +14,13 @@ import { notificationService } from '../../services/notificationService.js';
 import { balanceService } from '../balance/balance.service.js';
 import { auditService } from '../../services/auditService.js';
 import { eventBus } from '../../services/eventBus.js';
-import { AUTO_CANCEL_TIMEOUT_HOURS } from '../../services/orderAutoCancellation.js';
 import { safeRecalculate as recalcCustomerRisk } from '../../services/customerRiskService.js';
 import { safeScanUser as safeScanFraud } from '../../services/fraudDetectionService.js';
 
-// Дополняет публикуемый заказ дедлайном авто-отмены (для UI-таймера)
+// Авто-отмена опубликованных заказов отключена: заказ живёт, пока клиент не закроет сам.
+// Поле оставлено для обратной совместимости с фронтом — всегда null.
 function withAutoCancelAt<T extends { status: OrderStatus; masterId: string | null; createdAt: Date }>(order: T): T & { autoCancelAt: Date | null } {
-  const isWaiting = order.status === OrderStatus.PUBLISHED && !order.masterId;
-  const autoCancelAt = isWaiting
-    ? new Date(order.createdAt.getTime() + AUTO_CANCEL_TIMEOUT_HOURS * 60 * 60 * 1000)
-    : null;
-  return Object.assign(order, { autoCancelAt });
+  return Object.assign(order, { autoCancelAt: null });
 }
 
 // ─── Конфиг штрафов ─────────────────────────

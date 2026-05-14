@@ -101,6 +101,17 @@ export function Layout() {
     setMobileMenuOpen(false);
   }, [location.pathname]);
 
+  // Блокируем скролл body, пока открыто мобильное меню — иначе на Android
+  // URL-бар начинает прыгать на изменении высоты документа и экран мигает.
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [mobileMenuOpen]);
+
   // Desktop nav items
   const navItems = [
     { path: '/', icon: Home, label: t('nav.home') },
@@ -280,9 +291,23 @@ export function Layout() {
           </div>
         </div>
 
-        {/* Mobile fullscreen menu — slides down */}
-        {mobileMenuOpen && (
-          <div className="lg:hidden border-t border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-2xl max-h-[80vh] overflow-y-auto">
+        {/* Mobile fullscreen menu — fixed overlay, не меняет высоту header'а
+            (иначе на Android Chrome/Telegram URL-бар анимируется и экран мигает) */}
+      </header>
+
+      {mobileMenuOpen && (
+        <>
+          {/* Backdrop — глушит фон и закрывает меню по клику */}
+          <div
+            className="lg:hidden fixed inset-0 z-40 bg-black/40 backdrop-blur-sm"
+            onClick={() => setMobileMenuOpen(false)}
+            aria-hidden="true"
+          />
+          {/* Само меню — белый/тёмный лист поверх фона, 100dvh для корректной высоты на Android */}
+          <div
+            className="lg:hidden fixed inset-x-0 bottom-0 z-50 bg-white dark:bg-gray-900 shadow-2xl overflow-y-auto overscroll-contain"
+            style={{ top: isTgApp ? 136 : 56, maxHeight: '100dvh' }}
+          >
             <div className="px-4 py-4 space-y-1">
 
               {/* Quick actions row */}
@@ -426,8 +451,8 @@ export function Layout() {
               )}
             </div>
           </div>
-        )}
-      </header>
+        </>
+      )}
 
       {/* Main Content */}
       <main className="flex-1">

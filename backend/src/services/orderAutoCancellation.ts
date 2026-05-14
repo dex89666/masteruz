@@ -1,7 +1,8 @@
 // ============================================
-// MasterUz — Order Auto-Cancellation Service
-// Если опубликованный заказ не принят мастером в течение N часов,
-// заказ автоматически отменяется и эскроу возвращается клиенту до копейки.
+// MasterUz — Order Reminder Service
+// Опубликованные заказы НЕ сгорают автоматически.
+// Раз в N часов рассылаем подходящим мастерам (по категории + локации)
+// повторное уведомление, пока заказ не принят клиентом/мастером.
 // ============================================
 
 import { OrderStatus } from '@prisma/client';
@@ -12,48 +13,39 @@ import { auditService } from './auditService.js';
 import { notificationService } from './notificationService.js';
 
 // Конфиг (можно переопределить через ENV)
-export const AUTO_CANCEL_TIMEOUT_HOURS = Number(process.env.ORDER_AUTO_CANCEL_HOURS ?? 72);
+/** Интервал между повторными рассылками подходящим мастерам, часы */
+export const REMIND_EVERY_HOURS = Number(process.env.ORDER_REMIND_EVERY_HOURS ?? 3);
+/** Жёсткий предел повторов, чтобы счётчик не рос бесконечно */
+const MAX_REMINDERS = Number(process.env.ORDER_MAX_REMINDERS ?? 50);
 const TICK_INTERVAL_MS = Number(process.env.ORDER_AUTO_CANCEL_TICK_MS ?? 5 * 60 * 1000); // 5 минут
 
 /**
- * Стадии напоминаний перед авто-отменой.
- * elapsedHours — сколько часов прошло с момента создания заказа.
- * tier — индекс стадии, сохраняется в Order.remindersSent (1..N), 0 — ещё не было.
- * notifyAdmin — уведомлять админов на этой стадии.
- */
-const REMINDER_TIERS: { tier: number; elapsedHours: number; notifyAdmin: boolean }[] = [
-  { tier: 1, elapsedHours: AUTO_CANCEL_TIMEOUT_HOURS / 3,        notifyAdmin: false }, // 24ч
-  { tier: 2, elapsedHours: (AUTO_CANCEL_TIMEOUT_HOURS * 2) / 3,  notifyAdmin: true  }, // 48ч
-  { tier: 3, elapsedHours: AUTO_CANCEL_TIMEOUT_HOURS - 6,        notifyAdmin: true  }, // 66ч
-];
-
-/**
- * Автоматическая отмена одного «зависшего» заказа со 100% возвратом эскроу.
+ * Ручная отмена одного заказа со 100% возвратом эскроу.
+ * Оставлено для админских сценариев (например, кнопка «Закрыть зависший заказ»).
+ * В автоматическом тике больше НЕ вызывается — заказ живёт пока клиент не отменит сам.
  * Идемпотентно: повторный вызов после CANCELLED — no-op.
  */
 export async function autoCancelOrder(orderId: string): Promise<void> {
   await prisma.$transaction(async (tx) => {
     const order = await tx.order.findUnique({ where: { id: orderId } });
     if (!order) return;
-    if (order.status !== OrderStatus.PUBLISHED) return; // Кто-то успел принять — отбой
-    if (order.masterId) return; // Мастер уже назначен — не наш случай
+    if (order.status !== OrderStatus.PUBLISHED) return;
+    if (order.masterId) return;
 
     const escrowAmt = toNum(order.escrowAmount);
 
-    // 1. Помечаем заказ отменённым системой
     await tx.order.update({
       where: { id: orderId },
       data: {
         status: OrderStatus.CANCELLED,
         cancelledAt: new Date(),
         cancelledBy: 'SYSTEM',
-        cancelReason: `Автоматическая отмена: за ${AUTO_CANCEL_TIMEOUT_HOURS} ч. ни один мастер не принял заказ`,
+        cancelReason: 'Закрыто администратором: заказ не был принят мастером',
         penaltyAmount: 0,
         escrowAmount: 0,
       },
     });
 
-    // 2. 100% возврат клиенту (если эскроу было)
     if (escrowAmt > 0) {
       const client = await tx.user.findUnique({
         where: { id: order.clientId },
@@ -74,14 +66,13 @@ export async function autoCancelOrder(orderId: string): Promise<void> {
             balanceBefore,
             balanceAfter,
             orderId,
-            description: `Автовозврат: заказ отменён системой (нет откликов за ${AUTO_CANCEL_TIMEOUT_HOURS} ч.)`,
+            description: 'Возврат: заказ закрыт администратором (не был принят мастером)',
           },
         });
       }
     }
   });
 
-  // 3. Аудит и нотификация — вне транзакции, чтобы не блокировать БД на сетевые вызовы
   const order = await prisma.order.findUnique({
     where: { id: orderId },
     select: { clientId: true, title: true, escrowAmount: true },
@@ -94,8 +85,7 @@ export async function autoCancelOrder(orderId: string): Promise<void> {
     entityType: 'order',
     entityId: orderId,
     details: {
-      reason: 'no_master_response',
-      timeoutHours: AUTO_CANCEL_TIMEOUT_HOURS,
+      reason: 'admin_close_no_master_response',
       refundAmount: toNum(order.escrowAmount),
     },
   });
@@ -108,136 +98,100 @@ export async function autoCancelOrder(orderId: string): Promise<void> {
 }
 
 /**
- * Эскалация напоминаний по приближающейся авто-отмене.
- * Для каждой стадии находим заказы с createdAt < (now - tier.elapsedHours) и remindersSent < tier.tier,
- * атомарно поднимаем remindersSent → tier.tier и шлём уведомления:
- *   • мастерам, подписанным на категорию (повторная рассылка);
- *   • админам/менеджерам — на критических стадиях.
+ * Один проход повторных рассылок.
+ * Для каждого опубликованного заказа без мастера считаем, сколько «окон»
+ * по REMIND_EVERY_HOURS часов уже прошло с момента создания. Если это число
+ * больше счётчика `remindersSent` — атомарно поднимаем счётчик на 1
+ * и шлём свежую волну уведомлений подходящим мастерам (категория + город).
  *
- * Идемпотентность гарантируется условием `remindersSent: { lt: tier.tier }` в update.
+ * Атомарность гарантируется условием `remindersSent: { lt: nextCount }` в update.
  */
 export async function runReminderTick(): Promise<{ remindersSent: number }> {
   const now = Date.now();
+  const windowMs = REMIND_EVERY_HOURS * 60 * 60 * 1000;
+  const oldestCutoff = new Date(now - windowMs);
+
+  // Берём заказы, у которых прошло хотя бы одно «окно» с момента создания.
+  // Сортируем по «давности» — чем старше заказ, тем выше приоритет.
+  const candidates = await prisma.order.findMany({
+    where: {
+      status: OrderStatus.PUBLISHED,
+      masterId: null,
+      createdAt: { lt: oldestCutoff },
+      remindersSent: { lt: MAX_REMINDERS },
+    },
+    select: { id: true, createdAt: true, remindersSent: true },
+    take: 200,
+    orderBy: { createdAt: 'asc' },
+  });
+
   let total = 0;
 
-  // Идём от старшей стадии к младшей: заказ, прошедший stage 3, не должен повторно ловить stage 1
-  for (const tier of [...REMINDER_TIERS].sort((a, b) => b.tier - a.tier)) {
-    const cutoff = new Date(now - tier.elapsedHours * 60 * 60 * 1000);
+  for (const order of candidates) {
+    const elapsedMs = now - order.createdAt.getTime();
+    const expectedCount = Math.floor(elapsedMs / windowMs);
+    if (expectedCount <= order.remindersSent) continue;
 
-    const candidates = await prisma.order.findMany({
+    const nextCount = order.remindersSent + 1;
+
+    // Атомарно «застолбим» следующий пинг
+    const claim = await prisma.order.updateMany({
       where: {
+        id: order.id,
         status: OrderStatus.PUBLISHED,
         masterId: null,
-        createdAt: { lt: cutoff },
-        remindersSent: { lt: tier.tier },
+        remindersSent: { lt: nextCount },
       },
-      select: { id: true },
-      take: 100,
-      orderBy: { createdAt: 'asc' },
+      data: { remindersSent: nextCount },
     });
+    if (claim.count === 0) continue;
 
-    for (const { id } of candidates) {
-      // Атомарно «застолбим» эту стадию — если кто-то параллельно уже сделал, count будет 0
-      const claim = await prisma.order.updateMany({
-        where: {
-          id,
-          status: OrderStatus.PUBLISHED,
-          masterId: null,
-          remindersSent: { lt: tier.tier },
-        },
-        data: { remindersSent: tier.tier },
-      });
-      if (claim.count === 0) continue;
+    // Повторно шлём подходящим мастерам полноценное уведомление о новом заказе:
+    // ту же воронку, что и при публикации (категория + гео + город, ранжирование, волны).
+    notificationService
+      .notifyMastersNewOrder(order.id)
+      .catch((err: unknown) =>
+        logger.error(
+          { err, orderId: order.id, pingNumber: nextCount },
+          'reminder: notifyMastersNewOrder failed',
+        ),
+      );
 
-      const hoursLeft = Math.max(1, Math.round(AUTO_CANCEL_TIMEOUT_HOURS - tier.elapsedHours));
-
-      // Уведомления — вне транзакции, ошибки логируем, не валим тик
-      notificationService
-        .remindMastersOrderExpiring(id, hoursLeft)
-        .catch((err: unknown) =>
-          logger.error({ err, orderId: id, tier: tier.tier }, 'remindMastersOrderExpiring failed'),
-        );
-
-      if (tier.notifyAdmin) {
-        notificationService
-          .notifyAdminsOrderExpiring(id, hoursLeft)
-          .catch((err: unknown) =>
-            logger.error({ err, orderId: id, tier: tier.tier }, 'notifyAdminsOrderExpiring failed'),
-          );
-      }
-
-      total++;
-    }
+    total++;
   }
 
-  if (total > 0) logger.info({ total }, 'Auto-cancel: напоминания разосланы');
+  if (total > 0) {
+    logger.info(
+      { total, everyHours: REMIND_EVERY_HOURS },
+      'reminder-tick: повторные уведомления разосланы',
+    );
+  }
   return { remindersSent: total };
 }
 
 /**
- * Один проход по всем «зависшим» заказам.
- * Работает батчами по 100 — на случай большого backlog после простоя сервера.
- */
-export async function runAutoCancelTick(): Promise<{ cancelled: number }> {
-  const cutoff = new Date(Date.now() - AUTO_CANCEL_TIMEOUT_HOURS * 60 * 60 * 1000);
-
-  const stale = await prisma.order.findMany({
-    where: {
-      status: OrderStatus.PUBLISHED,
-      masterId: null,
-      createdAt: { lt: cutoff },
-    },
-    select: { id: true },
-    take: 100,
-    orderBy: { createdAt: 'asc' },
-  });
-
-  if (stale.length === 0) return { cancelled: 0 };
-
-  logger.info({ count: stale.length, cutoff }, 'Auto-cancel: найдены просроченные заказы');
-
-  let cancelled = 0;
-  for (const { id } of stale) {
-    try {
-      await autoCancelOrder(id);
-      cancelled++;
-    } catch (err) {
-      logger.error({ err, orderId: id }, 'Auto-cancel: ошибка при отмене заказа');
-    }
-  }
-
-  logger.info({ cancelled }, 'Auto-cancel: проход завершён');
-  return { cancelled };
-}
-
-/**
  * Запуск фоновой задачи. Один экземпляр на процесс.
+ * Авто-отмена заказов отключена — заказ живёт, пока клиент не отменит его сам.
  */
 let timer: NodeJS.Timeout | null = null;
 
 export function startAutoCancellationJob(): void {
   if (timer) return;
   logger.info(
-    { timeoutHours: AUTO_CANCEL_TIMEOUT_HOURS, tickMs: TICK_INTERVAL_MS },
-    '🕒 Order auto-cancellation job запущен',
+    { remindEveryHours: REMIND_EVERY_HOURS, tickMs: TICK_INTERVAL_MS },
+    '🔔 Order reminder job запущен (auto-cancel отключён)',
   );
 
   // Первый прогон — через минуту после старта (чтобы не мешать boot-у)
   setTimeout(() => {
     runReminderTick().catch((err) =>
-      logger.error({ err }, 'Auto-cancel: reminder-tick первый прогон провалился'),
-    );
-    runAutoCancelTick().catch((err) =>
-      logger.error({ err }, 'Auto-cancel: первый прогон провалился'),
+      logger.error({ err }, 'reminder-tick: первый прогон провалился'),
     );
   }, 60_000);
 
   timer = setInterval(() => {
     runReminderTick().catch((err) =>
-      logger.error({ err }, 'Auto-cancel: reminder-tick провалился'),
-    );
-    runAutoCancelTick().catch((err) =>
-      logger.error({ err }, 'Auto-cancel: tick провалился'),
+      logger.error({ err }, 'reminder-tick: провалился'),
     );
   }, TICK_INTERVAL_MS);
 
