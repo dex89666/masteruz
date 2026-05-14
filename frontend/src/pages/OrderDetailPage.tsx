@@ -1057,7 +1057,7 @@ export function OrderDetailPage() {
             )}
           </div>
 
-          {order.client.phone && (
+          {order.client.phone ? (
             <a href={`tel:${order.client.phone}`} className="flex items-center gap-3 p-3 rounded-xl bg-white dark:bg-gray-800 mb-2 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
               <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/40 flex items-center justify-center">
                 <Phone size={18} className="text-green-600 dark:text-green-400" />
@@ -1065,6 +1065,23 @@ export function OrderDetailPage() {
               <div>
                 <p className="text-xs text-gray-500 dark:text-gray-400">{t('commissionPayment.clientPhone')}</p>
                 <p className="font-semibold text-gray-900 dark:text-white">{order.client.phone}</p>
+              </div>
+            </a>
+          ) : (
+            <a
+              href="#order-chat"
+              onClick={(e) => {
+                e.preventDefault();
+                document.getElementById('order-chat')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }}
+              className="flex items-center gap-3 p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 mb-2 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors"
+            >
+              <div className="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center">
+                <MessageSquare size={18} className="text-amber-600 dark:text-amber-400" />
+              </div>
+              <div>
+                <p className="text-xs text-amber-700 dark:text-amber-300">Телефон клиента не указан</p>
+                <p className="font-semibold text-gray-900 dark:text-white">Свяжитесь через чат с клиентом</p>
               </div>
             </a>
           )}
@@ -1097,7 +1114,7 @@ export function OrderDetailPage() {
             </div>
           )}
 
-          {order.latitude && order.longitude && (
+          {order.latitude && order.longitude ? (
             <div className="space-y-2">
               {/* Кнопка Яндекс.Навигатор */}
               <a
@@ -1135,7 +1152,28 @@ export function OrderDetailPage() {
                 </div>
               </a>
             </div>
-          )}
+          ) : (order.city || order.address) && (() => {
+            // Фолбэк: координат нет, но есть адрес — прокидываем в навигатор поиском
+            const addr = [order.region, order.city, order.district, order.street, order.address].filter(Boolean).join(', ');
+            const encoded = encodeURIComponent(addr);
+            return (
+              <a
+                href={`https://yandex.ru/maps/?text=${encoded}&rtt=auto`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-red-500 to-red-600 text-white hover:from-red-600 hover:to-red-700 transition-colors"
+              >
+                <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
+                  <Navigation size={18} />
+                </div>
+                <div className="flex-1">
+                  <p className="font-semibold">Открыть адрес в Яндекс.Картах</p>
+                  <p className="text-xs text-white/80">Точные координаты не указаны — поиск по адресу</p>
+                </div>
+                <Map size={16} className="opacity-60" />
+              </a>
+            );
+          })()}
 
           {/* Описание заказа для мастера — полное */}
           {order.description && (
@@ -1349,7 +1387,9 @@ export function OrderDetailPage() {
 
       {/* Чат заказа */}
       {order.masterId && (isOwner || order.masterId === user?.id) && (
-        <OrderChat orderId={order.id} isParticipant={true} />
+        <div id="order-chat">
+          <OrderChat orderId={order.id} isParticipant={true} />
+        </div>
       )}
 
       {/* ═══════ МОДАЛКИ ═══════ */}
