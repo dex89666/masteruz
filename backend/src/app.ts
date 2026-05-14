@@ -166,7 +166,10 @@ if (process.env.NODE_ENV !== 'test') {
   });
   app.use('/api/auth', authLimiter);
 
-  // Rate Limiting — лимит для создания заказов
+  // Rate Limiting — лимит для создания заказов.
+  // Важно: применяется ТОЛЬКО к POST /api/orders (создание),
+  // иначе расходуется на чтение, отклики, принятие и любые другие экшены —
+  // и мастер не может принять заказ через 20 кликов по странице.
   const createOrderLimiter = makeLimiter('orders', {
     windowMs: 60 * 60 * 1000, // 1 час
     max: 20, // Максимум 20 заказов в час
@@ -174,6 +177,8 @@ if (process.env.NODE_ENV !== 'test') {
       success: false,
       error: { message: 'Превышен лимит создания заказов', statusCode: 429 },
     },
+    // Skip всё, что не является корневым POST (т.е. POST /api/orders/)
+    skip: (req) => !(req.method === 'POST' && (req.path === '/' || req.path === '')),
   });
   app.use('/api/orders', createOrderLimiter);
 
