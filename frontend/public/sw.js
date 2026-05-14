@@ -5,15 +5,13 @@
 
 // Версия кеша — обновляется при деплое (дата + инкрементное число)
 // При обновлении достаточно изменить CACHE_VERSION на новую дату
-const CACHE_VERSION = '2026-05-08-multicat';
+const CACHE_VERSION = '2026-05-15-network-first-html';
 const STATIC_CACHE = `masteruz-static-${CACHE_VERSION}`;
 const API_CACHE = `masteruz-api-${CACHE_VERSION}`;
 const IMAGE_CACHE = `masteruz-images-${CACHE_VERSION}`;
 const ALL_CACHES = [STATIC_CACHE, API_CACHE, IMAGE_CACHE];
 
 const STATIC_ASSETS = [
-  '/',
-  '/index.html',
   '/manifest.json',
 ];
 
@@ -73,6 +71,25 @@ self.addEventListener('fetch', (event) => {
 
   // Skip API requests in development — let Vite proxy handle them
   if (url.hostname === 'localhost' && url.pathname.startsWith('/api/')) return;
+
+  // ——— Навигация (HTML/SPA-routes) ———
+  // Критическое: index.html НИКОГДА не отдаём из кэша первым, иначе после
+  // деплоя пользователь видит старый HTML со ссылками на удалённые хэш-ассеты.
+  // Network-first с фолбэком на кэш только в offline.
+  if (request.mode === 'navigate' || request.destination === 'document') {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(STATIC_CACHE).then((cache) => cache.put(request, clone));
+          }
+          return response;
+        })
+        .catch(() => caches.match(request).then((cached) => cached || caches.match('/index.html')))
+    );
+    return;
+  }
 
   // Image requests — cache-first, long TTL
   if (request.destination === 'image' || url.pathname.match(/\.(png|jpg|jpeg|webp|svg|gif|ico)$/)) {
