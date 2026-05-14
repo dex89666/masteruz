@@ -1068,22 +1068,23 @@ export function OrderDetailPage() {
               </div>
             </a>
           ) : (
-            <a
-              href="#order-chat"
-              onClick={(e) => {
-                e.preventDefault();
-                document.getElementById('order-chat')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            <button
+              type="button"
+              onClick={() => {
+                window.dispatchEvent(
+                  new CustomEvent('masteruz:open-chat', { detail: { orderId: order.id } })
+                );
               }}
-              className="flex items-center gap-3 p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 mb-2 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors"
+              className="w-full text-left flex items-center gap-3 p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 mb-2 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors"
             >
               <div className="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center">
                 <MessageSquare size={18} className="text-amber-600 dark:text-amber-400" />
               </div>
               <div>
                 <p className="text-xs text-amber-700 dark:text-amber-300">Телефон клиента не указан</p>
-                <p className="font-semibold text-gray-900 dark:text-white">Свяжитесь через чат с клиентом</p>
+                <p className="font-semibold text-gray-900 dark:text-white">Открыть чат с клиентом</p>
               </div>
-            </a>
+            </button>
           )}
 
           {order.client.profile && (
@@ -1153,12 +1154,13 @@ export function OrderDetailPage() {
               </a>
             </div>
           ) : (order.city || order.address) && (() => {
-            // Фолбэк: координат нет, но есть адрес — прокидываем в навигатор поиском
+            // Фолбэк: координат нет, но есть адрес — яндекс геокодирует и строит маршрут.
+            // rtext=~<адрес> в Я.Картах: первая точка опущена = «от моего местоположения».
             const addr = [order.region, order.city, order.district, order.street, order.address].filter(Boolean).join(', ');
             const encoded = encodeURIComponent(addr);
             return (
               <a
-                href={`https://yandex.ru/maps/?text=${encoded}&rtt=auto`}
+                href={`https://yandex.ru/maps/?rtext=~${encoded}&rtt=auto`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-red-500 to-red-600 text-white hover:from-red-600 hover:to-red-700 transition-colors"
@@ -1167,7 +1169,7 @@ export function OrderDetailPage() {
                   <Navigation size={18} />
                 </div>
                 <div className="flex-1">
-                  <p className="font-semibold">Открыть адрес в Яндекс.Картах</p>
+                  <p className="font-semibold">Проложить маршрут в Яндекс.Картах</p>
                   <p className="text-xs text-white/80">Точные координаты не указаны — поиск по адресу</p>
                 </div>
                 <Map size={16} className="opacity-60" />
@@ -1387,9 +1389,7 @@ export function OrderDetailPage() {
 
       {/* Чат заказа */}
       {order.masterId && (isOwner || order.masterId === user?.id) && (
-        <div id="order-chat">
-          <OrderChat orderId={order.id} isParticipant={true} />
-        </div>
+        <OrderChat orderId={order.id} isParticipant={true} />
       )}
 
       {/* ═══════ МОДАЛКИ ═══════ */}

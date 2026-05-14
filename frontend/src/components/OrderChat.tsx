@@ -35,6 +35,19 @@ export function OrderChat({ orderId, isParticipant }: OrderChatProps) {
     };
   }, [open, orderId]);
 
+  // Подписка на глобальное событие открытия чата
+  // (например, из блока «Свяжитесь через чат» в карточке заказа)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<{ orderId?: string }>).detail;
+      if (!detail?.orderId || detail.orderId === orderId) {
+        setOpen(true);
+      }
+    };
+    window.addEventListener('masteruz:open-chat', handler);
+    return () => window.removeEventListener('masteruz:open-chat', handler);
+  }, [orderId]);
+
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
