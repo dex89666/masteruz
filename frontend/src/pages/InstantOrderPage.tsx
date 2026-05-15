@@ -1667,16 +1667,36 @@ export function InstantOrderPage() {
                 <button
                   type="button"
                   onClick={async () => {
-                    if (!navigator.geolocation) {
-                      toast.error('Геолокация недоступна на этом устройстве');
+                    const TOAST_ID = 'geo-detect';
+                    toast.dismiss(TOAST_ID);
+
+                    // Геолокация требует secure context (HTTPS или localhost)
+                    const isLocalhost = ['localhost', '127.0.0.1'].includes(location.hostname);
+                    const isSecure = window.isSecureContext || isLocalhost;
+                    if (!isSecure) {
+                      toast.error('Геолокация работает только на HTTPS. Откройте сайт по https:// или впишите адрес вручную', { id: TOAST_ID, duration: 6000 });
                       return;
                     }
+                    if (!navigator.geolocation) {
+                      toast.error('Геолокация недоступна на этом устройстве', { id: TOAST_ID });
+                      return;
+                    }
+
+                    // Проверяем разрешение заранее, чтобы дать понятную ошибку
+                    try {
+                      const perm = await (navigator.permissions as any)?.query?.({ name: 'geolocation' });
+                      if (perm?.state === 'denied') {
+                        toast.error('Доступ к геолокации заблокирован. Разрешите его в настройках браузера (иконка замка в адресной строке)', { id: TOAST_ID, duration: 6000 });
+                        return;
+                      }
+                    } catch { /* Permissions API не во всех браузерах */ }
+
                     setDetectingLocation(true);
                     try {
                       const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
                         navigator.geolocation.getCurrentPosition(resolve, reject, {
                           enableHighAccuracy: true,
-                          timeout: 15_000,
+                          timeout: 20_000,
                           maximumAge: 0,
                         });
                       });
@@ -1690,12 +1710,14 @@ export function InstantOrderPage() {
                       if (parts.district) setDistrict(parts.district);
                       if (parts.street) setStreet(parts.street);
                       if (parts.house) setHouse(parts.house);
-                      toast.success('Адрес определён — проверьте и впишите номер квартиры');
+                      toast.success('Адрес определён — впишите номер квартиры', { id: TOAST_ID });
                     } catch (err: any) {
-                      const msg = err?.code === 1
-                        ? 'Разрешите доступ к геолокации в настройках браузера'
-                        : err?.response?.data?.error?.message || 'Не удалось определить адрес';
-                      toast.error(msg);
+                      let msg = 'Не удалось определить адрес';
+                      if (err?.code === 1) msg = 'Доступ к геолокации запрещён. Разрешите его в настройках браузера (иконка замка слева от адреса)';
+                      else if (err?.code === 2) msg = 'GPS-сигнал недоступен. Попробуйте на улице или впишите адрес вручную';
+                      else if (err?.code === 3) msg = 'Время ожидания вышло. Попробуйте ещё раз или впишите адрес вручную';
+                      else if (err?.response?.data?.error?.message) msg = err.response.data.error.message;
+                      toast.error(msg, { id: TOAST_ID, duration: 6000 });
                     } finally {
                       setDetectingLocation(false);
                     }

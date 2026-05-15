@@ -179,10 +179,11 @@ export function ReviewFormPage() {
               >
                 <Star
                   size={40}
+                  strokeWidth={2}
                   className={`transition-colors ${
                     i <= rating
                       ? 'text-yellow-400 fill-yellow-400'
-                      : 'text-gray-200 hover:text-yellow-200'
+                      : 'text-gray-400 dark:text-gray-500 fill-gray-100 dark:fill-gray-700 hover:text-yellow-300 hover:fill-yellow-100'
                   }`}
                 />
               </button>

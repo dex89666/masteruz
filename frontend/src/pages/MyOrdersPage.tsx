@@ -64,7 +64,7 @@ export function MyOrdersPage() {
       <div className="flex items-center justify-between mb-4">
         <h1 className="page-title mb-0">{t('myOrders.title')}</h1>
         {!isMaster && (
-          <Link to="/orders/create" className="btn-primary text-sm">
+          <Link to="/new-order" className="btn-primary text-sm">
             <PlusCircle size={16} className="mr-1" />
             {t('orders.createOrder')}
           </Link>
@@ -105,7 +105,7 @@ export function MyOrdersPage() {
           <p className="text-gray-500 dark:text-gray-400 mb-6">
             {isMaster ? t('myOrders.noOrdersMaster') : t('myOrders.noOrdersClient')}
           </p>
-          <Link to={isMaster ? '/orders' : '/orders/create'} className="btn-primary">
+          <Link to={isMaster ? '/orders' : '/new-order'} className="btn-primary">
             {isMaster ? t('masterDashboard.findOrders') : t('orders.createOrder')}
           </Link>
         </div>
