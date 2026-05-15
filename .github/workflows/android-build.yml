@@ -38,7 +38,7 @@ jobs:
       # ── 4. Зависимости frontend ────────────────────────────────────
       - name: Установить npm зависимости
         working-directory: frontend
-        run: npm ci
+        run: npm install --no-audit --no-fund
 
       # ── 5. Создать .env для Android сборки ─────────────────────────
       - name: Создать .env.android
