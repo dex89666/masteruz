@@ -6,7 +6,24 @@
 import axios from 'axios';
 import type { ApiResponse, PaginatedResponse } from '../types';
 
-const API_URL = import.meta.env.VITE_API_URL || '/api';
+// Определяем backend URL автоматически:
+// 1) Если VITE_API_URL задан явно — используем его (для Android APK, Vercel)
+// 2) localhost → через Vite proxy на /api
+// 3) Railway production → прямой URL backend сервиса (frontend не проксирует /api)
+function resolveApiUrl(): string {
+  const envUrl = import.meta.env.VITE_API_URL;
+  if (envUrl && envUrl !== '/api') return envUrl;
+
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname;
+    if (host.includes('masteruz-frontend-production.up.railway.app')) {
+      return 'https://masteruz-backend-production.up.railway.app/api';
+    }
+  }
+  return '/api';
+}
+
+const API_URL = resolveApiUrl();
 
 export const api = axios.create({
   baseURL: API_URL,
