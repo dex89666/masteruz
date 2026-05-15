@@ -393,6 +393,12 @@ const UNIT_WORK_KEYWORDS = [
   // Бытовая поломка одной единицы
   'починить', 'не работает', 'не открывается', 'не закрывается', 'сломал', 'заел', 'заедает',
   'подтекает', 'течёт', 'течет', 'капает',
+  // Мелкий локальный ремонт (щели, трещины, локальная заделка)
+  'щель', 'щел', 'трещин', 'дырк', 'дыр ', 'дыру', 'дыры',
+  'заделать', 'замазать', 'затереть', 'подкрасить', 'подмазать',
+  'герметик', 'силикон', 'шпаклев', 'шпатлев', 'затирк',
+  'залить раствор', 'залить щель', 'залить цемент',
+  'приклеить', 'прикрутить', 'повесить', 'установить',
 ];
 
 const SIMPLE_MAX_QTY = 3;
@@ -587,7 +593,17 @@ export class InstantOrderService {
       });
 
       // AI сказал — нужен выезд для замеров → сразу ON_SITE
-      if (aiAnalysis.needsOnSite) {
+      // НО: если AI уверенно определил категорию и дал ценовой диапазон —
+      // он реально знает работу, просто перестраховался. Игнорируем needsOnSite и строим смету.
+      const aiTop = aiAnalysis.categories[0];
+      const aiHasConfidentPrice =
+        !!aiAnalysis.priceHint &&
+        aiAnalysis.priceHint.min > 0 &&
+        aiAnalysis.priceHint.max >= aiAnalysis.priceHint.min &&
+        !!aiTop &&
+        aiTop.confidence >= 70;
+
+      if (aiAnalysis.needsOnSite && !aiHasConfidentPrice) {
         logger.info(
           { topCat: aiAnalysis.categories[0]?.slug, conf: aiAnalysis.categories[0]?.confidence },
           'AI-анализ: требуется выезд мастера для обмера (определено AI)'
