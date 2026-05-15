@@ -70,6 +70,7 @@ const ComplaintPage = lazy(() => import('./pages/ComplaintPage').then(m => ({ de
 const ForumPage = lazy(() => import('./pages/ForumPage').then(m => ({ default: m.ForumPage })));
 const ForumTopicPage = lazy(() => import('./pages/ForumPage').then(m => ({ default: m.ForumTopicPage })));
 const LinkedCardsPage = lazy(() => import('./pages/LinkedCardsPage').then(m => ({ default: m.LinkedCardsPage })));
+const DownloadAppPage = lazy(() => import('./pages/DownloadAppPage').then(m => ({ default: m.DownloadAppPage })));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -93,7 +94,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 // Глобальный guard: вся аппа требует логин.
 // Разрешены без авторизации: страница логина и юридические документы (privacy/terms/offer),
 // чтобы пользователь мог прочесть, с чем соглашается, ДО входа.
-const PUBLIC_ROUTES = ['/login', '/privacy', '/terms', '/public-offer'];
+const PUBLIC_ROUTES = ['/login', '/privacy', '/terms', '/public-offer', '/download'];
 
 function AuthGate({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuthStore();
@@ -166,6 +167,7 @@ function AppContent() {
         <Route path="public-offer" element={<PublicOfferPage />} />
         <Route path="terms" element={<TermsOfServicePage />} />
         <Route path="complaint" element={<ComplaintPage />} />
+        <Route path="download" element={<DownloadAppPage />} />
         <Route path="forum" element={<ForumPage />} />
         <Route path="forum/:id" element={<ForumTopicPage />} />
 

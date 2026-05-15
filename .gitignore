@@ -35,3 +35,13 @@ backups/
 .venv/
 biznes.md
 *.pptx
+.env.android
+
+# Android build artifacts (Capacitor)
+frontend/android/build/
+frontend/android/app/build/
+frontend/android/.gradle/
+frontend/android/local.properties
+frontend/android/.idea/
+frontend/dist/
+frontend/.env.android
