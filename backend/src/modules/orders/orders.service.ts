@@ -399,11 +399,12 @@ export class OrdersService {
     }
 
     // ─── Виртуальные номера (anti-bypass) ───────────────────
-    // Когда включён флаг virtual_numbers_enabled, реальные телефоны
-    // маскируются для всех, кроме админов. До подключения SIP-провайдера
-    // это переходная мера — клиент и мастер видят формат +998 ** *** ** 12,
-    // реальный звонок осуществляется через кнопку «Позвонить» (TODO: SIP).
-    if (!isAdminRequester) {
+    // Маскировка телефонов включается флагом virtual_numbers_enabled, но
+    // НЕ применяется к двум сторонам активного заказа: владелец-клиент
+    // должен видеть телефон назначенного мастера, а мастер — телефон клиента.
+    // Маскировка остаётся для публичных эндпоинтов / откликов / третьих сторон.
+    const isPartyOfOrder = isOwner || isAssignedMaster;
+    if (!isAdminRequester && !isPartyOfOrder) {
       const { shouldMaskPhones, maskPhone } = await import('../../utils/phoneMask.js');
       if (await shouldMaskPhones()) {
         if (order.client && (order.client as any).phone) {

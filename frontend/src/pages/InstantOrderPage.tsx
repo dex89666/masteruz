@@ -11,12 +11,12 @@ import {
   Camera, Upload, Mic, MicOff, Sparkles, Zap, Star, Crown,
   ChevronRight, ChevronDown, ArrowLeft, MapPin, Calendar, AlertTriangle,
   CheckCircle, Loader2, X, Package, Clock, Wallet, Image,
-  Plus, Trash2, Check, ListChecks,
+  Plus, Trash2, Check, ListChecks, Navigation,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useTranslation } from '../i18n';
 import { useFormatPrice } from '../hooks';
-import { instantOrderApi, catalogApi, photosApi } from '../api/client';
+import { instantOrderApi, catalogApi, photosApi, geoApi } from '../api/client';
 import type { AiAnalysisResult, AiOrderTemplate, Category } from '../types';
 import CategoryIcon from '../components/CategoryIcon';
 import { CameraCapture } from '../components/CameraCapture';
@@ -95,11 +95,24 @@ export function InstantOrderPage() {
 
   // Order form
   const [title, setTitle] = useState('');
-  const [address, setAddress] = useState('');
+  const [region, setRegion] = useState('');
   const [city, setCity] = useState('');
+  const [district, setDistrict] = useState('');
+  const [street, setStreet] = useState('');
+  const [house, setHouse] = useState('');
+  const [apartment, setApartment] = useState('');
+  const [latitude, setLatitude] = useState<number | null>(null);
+  const [longitude, setLongitude] = useState<number | null>(null);
+  const [detectingLocation, setDetectingLocation] = useState(false);
   const [additionalWishes, setAdditionalWishes] = useState('');
   const [isUrgent, setIsUrgent] = useState(false);
   const [offerAccepted, setOfferAccepted] = useState(false);
+
+  // Полный адрес для отправки = собирается из частей
+  const composedAddress = [
+    [street, house].filter(Boolean).join(' '),
+    apartment ? `кв. ${apartment}` : '',
+  ].filter(Boolean).join(', ');
 
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -641,7 +654,10 @@ export function InstantOrderPage() {
   const handleCreateOrder = async () => {
     if (!selectedVariant) { toast.error('Выберите вариант'); return; }
     if (!title.trim()) { toast.error('Введите название заказа'); return; }
-    if (!address.trim()) { toast.error('Укажите адрес'); return; }
+    if (!city.trim() || !street.trim() || !house.trim()) {
+      toast.error('Укажите город, улицу и номер дома');
+      return;
+    }
     if (!offerAccepted) { toast.error('Необходимо принять условия оферты'); return; }
 
     setCreating(true);
@@ -686,8 +702,12 @@ export function InstantOrderPage() {
         description: description || voiceText || title,
         additionalWishes: additionalWishes || undefined,
         voiceDescription: voiceText || undefined,
-        address,
+        address: composedAddress || street || '—',
         city: city || undefined,
+        district: district || undefined,
+        region: region || undefined,
+        latitude: latitude ?? undefined,
+        longitude: longitude ?? undefined,
         images: orderImages.length > 0 ? orderImages : [],
         deadline: deadlineStr,
         isUrgent,
@@ -1640,26 +1660,102 @@ export function InstantOrderPage() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                  <MapPin size={14} className="inline mr-1" /> Адрес *
+                  <MapPin size={14} className="inline mr-1" /> Адрес заказа *
                 </label>
-                <input
-                  type="text"
-                  value={address}
-                  onChange={(e) => setAddress(e.target.value)}
-                  className="w-full rounded-xl border-2 border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white px-4 py-3 min-h-[48px] text-base focus:ring-2 focus:ring-orange-500"
-                  placeholder="Город, улица, дом, квартира"
-                />
-              </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Город</label>
-                <input
-                  type="text"
-                  value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                  className="w-full rounded-xl border-2 border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white px-4 py-3 min-h-[48px] text-base focus:ring-2 focus:ring-orange-500"
-                  placeholder="Ташкент"
-                />
+                {/* Кнопка автоопределения местоположения */}
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!navigator.geolocation) {
+                      toast.error('Геолокация недоступна на этом устройстве');
+                      return;
+                    }
+                    setDetectingLocation(true);
+                    try {
+                      const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+                        navigator.geolocation.getCurrentPosition(resolve, reject, {
+                          enableHighAccuracy: true,
+                          timeout: 15_000,
+                          maximumAge: 0,
+                        });
+                      });
+                      const { latitude: lat, longitude: lng } = pos.coords;
+                      setLatitude(lat);
+                      setLongitude(lng);
+                      const { data } = await geoApi.reverseGeocode(lat, lng);
+                      const parts = data.data;
+                      if (parts.region) setRegion(parts.region);
+                      if (parts.city) setCity(parts.city);
+                      if (parts.district) setDistrict(parts.district);
+                      if (parts.street) setStreet(parts.street);
+                      if (parts.house) setHouse(parts.house);
+                      toast.success('Адрес определён — проверьте и впишите номер квартиры');
+                    } catch (err: any) {
+                      const msg = err?.code === 1
+                        ? 'Разрешите доступ к геолокации в настройках браузера'
+                        : err?.response?.data?.error?.message || 'Не удалось определить адрес';
+                      toast.error(msg);
+                    } finally {
+                      setDetectingLocation(false);
+                    }
+                  }}
+                  disabled={detectingLocation}
+                  className="w-full mb-3 min-h-[48px] flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-semibold hover:from-blue-600 hover:to-indigo-700 disabled:opacity-60 transition-all shadow-sm"
+                >
+                  {detectingLocation ? <Loader2 size={18} className="animate-spin" /> : <Navigation size={18} />}
+                  {detectingLocation ? 'Определяем…' : 'Определить моё местоположение'}
+                </button>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="text"
+                    value={region}
+                    onChange={(e) => setRegion(e.target.value)}
+                    className="rounded-xl border-2 border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white px-3 py-2.5 min-h-[44px] text-sm focus:ring-2 focus:ring-orange-500"
+                    placeholder="Область"
+                  />
+                  <input
+                    type="text"
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    className="rounded-xl border-2 border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white px-3 py-2.5 min-h-[44px] text-sm focus:ring-2 focus:ring-orange-500"
+                    placeholder="Город *"
+                  />
+                  <input
+                    type="text"
+                    value={district}
+                    onChange={(e) => setDistrict(e.target.value)}
+                    className="rounded-xl border-2 border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white px-3 py-2.5 min-h-[44px] text-sm focus:ring-2 focus:ring-orange-500"
+                    placeholder="Район / квартал"
+                  />
+                  <input
+                    type="text"
+                    value={street}
+                    onChange={(e) => setStreet(e.target.value)}
+                    className="rounded-xl border-2 border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white px-3 py-2.5 min-h-[44px] text-sm focus:ring-2 focus:ring-orange-500"
+                    placeholder="Улица *"
+                  />
+                  <input
+                    type="text"
+                    value={house}
+                    onChange={(e) => setHouse(e.target.value)}
+                    className="rounded-xl border-2 border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white px-3 py-2.5 min-h-[44px] text-sm focus:ring-2 focus:ring-orange-500"
+                    placeholder="Дом *"
+                  />
+                  <input
+                    type="text"
+                    value={apartment}
+                    onChange={(e) => setApartment(e.target.value)}
+                    className="rounded-xl border-2 border-orange-300 dark:border-orange-600 dark:bg-gray-700 dark:text-white px-3 py-2.5 min-h-[44px] text-sm focus:ring-2 focus:ring-orange-500"
+                    placeholder="Квартира / офис"
+                  />
+                </div>
+                {latitude && longitude && (
+                  <p className="text-xs text-green-600 dark:text-green-400 mt-1.5 flex items-center gap-1">
+                    <CheckCircle size={12} /> Координаты определены — мастер построит точный маршрут
+                  </p>
+                )}
               </div>
 
               {/* Urgency */}
@@ -1723,7 +1819,7 @@ export function InstantOrderPage() {
             {/* Create button */}
             <button
               onClick={handleCreateOrder}
-              disabled={creating || !offerAccepted || !title.trim() || !address.trim()}
+              disabled={creating || !offerAccepted || !title.trim() || !city.trim() || !street.trim() || !house.trim()}
               className="w-full min-h-[60px] md:min-h-[64px] bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-2xl font-bold text-lg md:text-xl flex items-center justify-center gap-3 hover:from-green-600 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-xl shadow-green-500/25"
             >
               {creating ? (

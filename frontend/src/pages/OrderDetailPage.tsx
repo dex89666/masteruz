@@ -27,7 +27,7 @@ import { useTranslation } from '../i18n';
 import {
   MapPin, Clock, DollarSign, User, Phone,
   CheckCircle, XCircle, MessageSquare, Star, Send, AlertTriangle,
-  Zap, CreditCard, Navigation, Map, Truck, Shield, ThumbsUp, Ban, Scale, Check, Search, ArrowLeft
+  Zap, CreditCard, Navigation, Map, Truck, Shield, ThumbsUp, Ban, Scale, Check, Search, ArrowLeft, Loader2 as Loader
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { Order, OrderResponse, OrderPhoto } from '../types';
@@ -64,6 +64,10 @@ export function OrderDetailPage() {
   // Cancel confirm state
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
+
+  // Client confirmation modal
+  const [showClientConfirm, setShowClientConfirm] = useState(false);
+  const [confirmingClient, setConfirmingClient] = useState(false);
 
   // Admin comment state
   const [editingAdminComment, setEditingAdminComment] = useState(false);
@@ -253,12 +257,16 @@ export function OrderDetailPage() {
 
   // ─── Клиент подтверждает завершение ───────
   async function handleClientConfirm() {
+    setConfirmingClient(true);
     try {
       await ordersApi.clientConfirm(id!);
       toast.success(t('antiFraud.clientConfirmed'));
+      setShowClientConfirm(false);
       loadOrder();
     } catch (error: any) {
       toast.error(error.response?.data?.message || t('common.error'));
+    } finally {
+      setConfirmingClient(false);
     }
   }
 
@@ -918,7 +926,7 @@ export function OrderDetailPage() {
           </div>
           <div className="flex gap-3 mt-4">
             <button
-              onClick={handleClientConfirm}
+              onClick={() => setShowClientConfirm(true)}
               className="flex-1 py-3 rounded-xl font-semibold text-white bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 transition-all flex items-center justify-center gap-2"
             >
               <ThumbsUp size={18} />
@@ -1109,25 +1117,49 @@ export function OrderDetailPage() {
 
           {order.latitude && order.longitude ? (
             <div className="space-y-2">
-              {/* Кнопка Яндекс.Навигатор */}
-              <a
-                href={`yandexnavi://build_route_on_map?lat_to=${order.latitude}&lon_to=${order.longitude}`}
-                onClick={() => {
-                  setTimeout(() => {
-                    window.open(`https://yandex.ru/maps/?rtext=~${order.latitude},${order.longitude}&rtt=auto`, '_blank');
-                  }, 500);
+              {/* Кнопка Яндекс.Навигатор — строит маршрут от текущего местоположения мастера */}
+              <button
+                type="button"
+                onClick={async () => {
+                  const dst = `${order.latitude},${order.longitude}`;
+                  // Пытаемся получить точку А мастера, чтобы маршрут построился точно
+                  let from = '';
+                  if (navigator.geolocation) {
+                    try {
+                      const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+                        navigator.geolocation.getCurrentPosition(resolve, reject, {
+                          enableHighAccuracy: true,
+                          timeout: 6000,
+                          maximumAge: 30_000,
+                        });
+                      });
+                      from = `${pos.coords.latitude},${pos.coords.longitude}`;
+                    } catch {
+                      // Без точки А — Я.Карты подставят «моё местоположение» сами
+                    }
+                  }
+                  const rtext = from ? `${from}~${dst}` : `~${dst}`;
+                  // Сначала пытаемся открыть мобильное приложение Я.Навигатор
+                  const naviUrl = from
+                    ? `yandexnavi://build_route_on_map?lat_from=${from.split(',')[0]}&lon_from=${from.split(',')[1]}&lat_to=${order.latitude}&lon_to=${order.longitude}`
+                    : `yandexnavi://build_route_on_map?lat_to=${order.latitude}&lon_to=${order.longitude}`;
+                  const webUrl = `https://yandex.ru/maps/?rtext=${rtext}&rtt=auto&z=14`;
+                  // Открываем веб-версию надёжно (deep-link не везде поддерживается)
+                  window.open(webUrl, '_blank', 'noopener,noreferrer');
+                  // Параллельно пробуем приложение
+                  try { window.location.href = naviUrl; } catch { /* noop */ }
                 }}
-                className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-red-500 to-red-600 text-white hover:from-red-600 hover:to-red-700 transition-colors"
+                className="w-full flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-red-500 to-red-600 text-white hover:from-red-600 hover:to-red-700 transition-colors text-left"
               >
                 <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
                   <Navigation size={18} />
                 </div>
                 <div className="flex-1">
                   <p className="font-semibold">Яндекс.Навигатор</p>
-                  <p className="text-xs text-white/80">Проложить маршрут к клиенту</p>
+                  <p className="text-xs text-white/80">Маршрут от вашего местоположения к клиенту</p>
                 </div>
                 <Map size={16} className="opacity-60" />
-              </a>
+              </button>
 
               {/* Запасная ссылка на карту */}
               <a
@@ -1385,6 +1417,48 @@ export function OrderDetailPage() {
       )}
 
       {/* ═══════ МОДАЛКИ ═══════ */}
+
+      {/* Модалка подтверждения завершения работы клиентом */}
+      {showClientConfirm && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-md animate-in slide-in-from-bottom">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-xl bg-green-100 dark:bg-green-900/40 flex items-center justify-center">
+                <ThumbsUp size={24} className="text-green-600 dark:text-green-400" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white">Подтвердите выполненную работу</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Вы подтверждаете, что мастер качественно выполнил работу?</p>
+              </div>
+            </div>
+
+            <div className="mb-4 p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+              <p className="text-xs text-amber-700 dark:text-amber-300">
+                ⚠️ После подтверждения средства будут переведены мастеру и оспорить работу будет нельзя.
+                Если есть претензии — нажмите «Открыть спор» вместо подтверждения.
+              </p>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={handleClientConfirm}
+                disabled={confirmingClient}
+                className="flex-1 py-3 rounded-xl font-semibold text-white bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 disabled:opacity-60 transition-all flex items-center justify-center gap-2"
+              >
+                {confirmingClient ? <Loader size={16} className="animate-spin" /> : <ThumbsUp size={16} />}
+                Да, подтверждаю
+              </button>
+              <button
+                onClick={() => setShowClientConfirm(false)}
+                disabled={confirmingClient}
+                className="flex-1 py-3 rounded-xl font-semibold text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+              >
+                Отмена
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Модалка подтверждения отмены со штрафом */}
       {showCancelConfirm && (

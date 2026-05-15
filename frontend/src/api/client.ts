@@ -292,6 +292,16 @@ export const geoApi = {
     api.get<ApiResponse<any[]>>('/geo/masters-nearby', {
       params: { latitude, longitude, radius, specialization },
     }),
+
+  reverseGeocode: (lat: number, lng: number) =>
+    api.get<ApiResponse<{
+      region?: string;
+      city?: string;
+      district?: string;
+      street?: string;
+      house?: string;
+      formatted?: string;
+    }>>('/geo/reverse', { params: { lat, lng } }),
 };
 
 // ─── School API ────────────────────────────

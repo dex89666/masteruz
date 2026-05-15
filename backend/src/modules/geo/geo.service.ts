@@ -154,6 +154,50 @@ export class GeoService {
       return null;
     }
   }
+
+  /**
+   * Обратное геокодирование: координаты → разобранный адрес (Я.Геокодер).
+   * Возвращает поля: region, city, district, street, house, formatted.
+   */
+  async reverseGeocode(latitude: number, longitude: number): Promise<{
+    region?: string;
+    city?: string;
+    district?: string;
+    street?: string;
+    house?: string;
+    formatted?: string;
+  } | null> {
+    const apiKey = config.yandexMaps?.apiKey;
+    if (!apiKey || !Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+    try {
+      const url = `https://geocode-maps.yandex.ru/1.x/?apikey=${apiKey}&geocode=${longitude},${latitude}&format=json&results=1&lang=ru_RU&kind=house`;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const _fetch = (globalThis as any).fetch as (u: string) => Promise<{ ok: boolean; json: () => Promise<any> }>;
+      const res = await _fetch(url);
+      if (!res.ok) return null;
+      const data = await res.json();
+      const obj = data?.response?.GeoObjectCollection?.featureMember?.[0]?.GeoObject;
+      if (!obj) return null;
+
+      const meta = obj?.metaDataProperty?.GeocoderMetaData;
+      const formatted: string | undefined = meta?.text;
+      const components: Array<{ kind: string; name: string }> =
+        meta?.Address?.Components ?? [];
+
+      const find = (kind: string) => components.find((c) => c.kind === kind)?.name;
+
+      return {
+        region: find('province') || find('area'),
+        city: find('locality'),
+        district: find('district'),
+        street: find('street'),
+        house: find('house'),
+        formatted,
+      };
+    } catch {
+      return null;
+    }
+  }
 }
 
 export const geoService = new GeoService();
