@@ -48,7 +48,7 @@ jobs:
         working-directory: frontend
         run: |
           cat > .env.android << 'EOF'
-          VITE_API_URL=${{ secrets.VITE_API_URL || 'https://masteruz-ecru.vercel.app/api' }}
+          VITE_API_URL=${{ secrets.VITE_API_URL || 'https://masteruz-backend-production.up.railway.app/api' }}
           VITE_TELEGRAM_BOT_NAME=Handymanuzbot
           NODE_ENV=production
           EOF
