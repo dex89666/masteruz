@@ -37,6 +37,7 @@ const ALERT_ROUTING: Record<string, TeamRole[]> = {
   payment_failed:            ['FINANCE'],
   refund_large:              ['FINANCE'],
   chargeback_received:       ['FINANCE'],
+  subscription_purchased:    ['FINANCE'],
 
   // Модерация
   chat_message_flagged:      ['MODERATOR'],

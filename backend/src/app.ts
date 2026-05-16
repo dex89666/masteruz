@@ -59,6 +59,7 @@ import cardsRoutes from './modules/cards/cards.routes.js';
 import localRegistryRoutes from './modules/local-registry/local-registry.routes.js';
 import announcementsRoutes from './modules/announcements/announcements.routes.js';
 import complaintsRoutes from './modules/complaints/complaints.routes.js';
+import subscriptionsRoutes from './modules/subscriptions/subscriptions.routes.js';
 
 const app = express();
 
@@ -285,6 +286,7 @@ app.use('/api/risk', riskRoutes);
 app.use('/api/cards', cardsRoutes);
 app.use('/api/announcements', announcementsRoutes);
 app.use('/api/complaints', complaintsRoutes);
+app.use('/api/subscriptions', subscriptionsRoutes);
 app.use('/api/local-registry', localRegistryRoutes);
 
 // ─── Healthcheck ───────────────────────────────

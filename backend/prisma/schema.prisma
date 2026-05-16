@@ -180,6 +180,8 @@ model User {
   linkedCards         LinkedCard[]
   clientReviewsGiven    MasterReviewClient[] @relation("MRC_Master")
   clientReviewsReceived MasterReviewClient[] @relation("MRC_Client")
+  masterSubscriptions   MasterSubscription[] @relation("MasterSubscriptions")
+  referredSubscriptions MasterSubscription[] @relation("ReferrerSubscriptions")
 
   @@map("users")
 }
@@ -544,6 +546,57 @@ model MasterReviewClient {
 }
 
 // ════════════════════════════════════════════════
+// PRO-ПОДПИСКА МАСТЕРА
+// ════════════════════════════════════════════════
+// Активная подписка = currentPeriodEnd > now() AND status = ACTIVE.
+// Trial учитывается отдельно (plan = TRIAL).
+// Все алгоритмы (top-выдача, 0% комиссия, приоритетный пуш)
+// делают `getActiveMasterSubscription(userId)` и решают по результату.
+
+enum MasterPlan {
+  TRIAL       // 14 дней при регистрации, бесплатно
+  MONTH       // 99 000 сум / 30 дней
+  QUARTER     // 249 000 сум / 90 дней
+  FIVE_MONTH  // 300 000 сум / 150 дней — флагман
+  YEAR        // 590 000 сум / 365 дней
+  REFERRAL    // +30 дней за приведённого мастера (бесплатно)
+  FOUNDER     // Founder pricing — первые 1000 мастеров
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+  REFUNDED
+}
+
+model MasterSubscription {
+  id                 String              @id @default(uuid())
+  masterId           String              @map("master_id")
+  plan               MasterPlan
+  status             SubscriptionStatus  @default(ACTIVE)
+  // Период действия (UTC, end = exclusive)
+  currentPeriodStart DateTime            @map("current_period_start")
+  currentPeriodEnd   DateTime            @map("current_period_end")
+  // Сколько уплачено (для trial/referral = 0)
+  amountPaid         Decimal             @default(0) @map("amount_paid") @db.Decimal(12, 2)
+  // Связь с платежом (если был)
+  paymentId          String?             @unique @map("payment_id")
+  // Кто привёл (для REFERRAL-плана)
+  referrerMasterId   String?             @map("referrer_master_id")
+  createdAt          DateTime            @default(now()) @map("created_at")
+  updatedAt          DateTime            @updatedAt @map("updated_at")
+
+  master   User     @relation("MasterSubscriptions", fields: [masterId], references: [id], onDelete: Cascade)
+  payment  Payment? @relation(fields: [paymentId], references: [id])
+  referrer User?    @relation("ReferrerSubscriptions", fields: [referrerMasterId], references: [id])
+
+  @@index([masterId, status, currentPeriodEnd])
+  @@index([currentPeriodEnd])
+  @@map("master_subscriptions")
+}
+
+// ════════════════════════════════════════════════
 // ПЛАТЕЖИ
 // ════════════════════════════════════════════════
 
@@ -562,6 +615,7 @@ model Payment {
 
   order Order? @relation(fields: [orderId], references: [id])
   user  User   @relation(fields: [userId], references: [id])
+  masterSubscription MasterSubscription?
 
   @@index([status])
   @@index([userId, createdAt])

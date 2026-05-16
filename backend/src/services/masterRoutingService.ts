@@ -28,6 +28,7 @@ import { calculateDistance } from '../utils/helpers.js';
 export interface RoutingMasterInput {
   id: string;
   telegramId?: string | bigint | null;
+  isPro?: boolean;
   profile?: { latitude: number | null; longitude: number | null; city: string | null } | null;
   masterProfile?: {
     rating: number;
@@ -59,6 +60,7 @@ export interface ScoreBreakdown {
   freshness: number;      // 0..10
   priceFit: number;       // 0..10
   urgencyBoost: number;   // 0..5
+  proBoost: number;       // 0..15 — PRO-подписка (top-выдача)
 }
 
 export interface RankedMaster {
@@ -195,6 +197,7 @@ export function rankMasters(
       freshness: scoreFreshness(mp?.isOnline ?? false, mp?.lastSeenAt ?? null),
       priceFit: scorePriceFit(hourlyRate, order.estimatedPrice),
       urgencyBoost: scoreUrgencyBoost(order.isUrgent, mp?.isOnline ?? false),
+      proBoost: m.isPro ? 15 : 0,
     };
 
     const score =
@@ -204,7 +207,8 @@ export function rankMasters(
       breakdown.specialization +
       breakdown.freshness +
       breakdown.priceFit +
-      breakdown.urgencyBoost;
+      breakdown.urgencyBoost +
+      breakdown.proBoost;
 
     const tg = m.telegramId;
     const telegramId: bigint | null =

@@ -147,6 +147,10 @@ export async function getTieredEffectiveCommissionRate(
   const base = await getTieredCommissionRate(workPrice);
   if (!masterId) return base;
 
+  // PRO-подписка → 0% комиссии (главное преимущество тарифа)
+  const { subscriptionService } = await import('./subscriptionService.js');
+  if (await subscriptionService.isPro(masterId)) return 0;
+
   const previousOrders = await prisma.order.count({
     where: { clientId, masterId, status: 'COMPLETED' },
   });

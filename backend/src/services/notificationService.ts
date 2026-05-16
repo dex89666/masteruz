@@ -288,11 +288,23 @@ export class NotificationService {
 
       logger.info({ orderId, filteredCount: filteredMasters.length }, 'notifyMastersNewOrder: после фильтрации');
 
+      // ─── PRO-флаг батчем (1 SQL вместо N) ───
+      const proIds = await prisma.masterSubscription.findMany({
+        where: {
+          masterId: { in: filteredMasters.map((m) => m.id) },
+          status: 'ACTIVE',
+          currentPeriodEnd: { gt: new Date() },
+        },
+        select: { masterId: true },
+      });
+      const proSet = new Set(proIds.map((r) => r.masterId));
+
       // ─── Итерация 3: композитный скоринг + волновая рассылка ───
       const ranked = rankMasters(
         filteredMasters.map((m) => ({
           id: m.id,
           telegramId: m.telegramId,
+          isPro: proSet.has(m.id),
           profile: m.profile,
           masterProfile: m.masterProfile,
         })),

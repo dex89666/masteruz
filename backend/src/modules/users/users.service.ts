@@ -9,6 +9,7 @@ import { UserRole } from '@prisma/client';
 import type { UpdateProfileInput, CreateMasterProfileInput, UpdateMasterProfileInput, UpdateMasterCategoriesInput } from './users.schema.js';
 import { geoService } from '../geo/geo.service.js';
 import { logger } from '../../utils/logger.js';
+import { subscriptionService } from '../../services/subscriptionService.js';
 
 export class UsersService {
   /**
@@ -136,6 +137,11 @@ export class UsersService {
       }
 
       return mp.id;
+    });
+
+    // Trial PRO 14 дней — поощряем нового мастера. Idempotent, ошибки не блокируют регистрацию.
+    subscriptionService.startTrial(userId).catch((err) => {
+      logger.warn({ err, userId }, 'не удалось активировать trial PRO');
     });
 
     return prisma.masterProfile.findUnique({
