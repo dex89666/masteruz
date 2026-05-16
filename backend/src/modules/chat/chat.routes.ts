@@ -46,9 +46,16 @@ router.get('/:orderId', authenticate, async (req: Request, res: Response, next: 
       throw ApiError.forbidden('Вы не участник этого заказа');
     }
 
+    // Keyset-пагинация: ?before=<cursorId>&limit=50 — для подгрузки старых сообщений вверх.
+    // По умолчанию — последние 100 сообщений; фронт может догружать историю по необходимости.
+    const before = (req.query.before as string) || null;
+    const limit = Math.min(parseInt(req.query.limit as string) || 100, 200);
+
     const messages = await prisma.chatMessage.findMany({
       where: { orderId },
-      orderBy: { createdAt: 'asc' },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: limit + 1,
+      ...(before ? { cursor: { id: before }, skip: 1 } : {}),
       include: {
         sender: {
           include: { profile: { select: { firstName: true, avatarUrl: true } } },
@@ -56,8 +63,14 @@ router.get('/:orderId', authenticate, async (req: Request, res: Response, next: 
       },
     });
 
+    const hasMore = messages.length > limit;
+    const sliced = hasMore ? messages.slice(0, limit) : messages;
+    const nextCursor = hasMore ? sliced[sliced.length - 1]!.id : null;
+    // На фронт отдаём в хронологическом порядке (старые → новые), как раньше.
+    const chronological = sliced.slice().reverse();
+
     // Убираем контактные данные — только имя и аватар
-    const sanitizedMessages = messages.map(msg => ({
+    const sanitizedMessages = chronological.map(msg => ({
       id: msg.id,
       orderId: msg.orderId,
       senderId: msg.senderId,
@@ -91,7 +104,7 @@ router.get('/:orderId', authenticate, async (req: Request, res: Response, next: 
       });
     }
 
-    res.json({ success: true, data: sanitizedMessages });
+    res.json({ success: true, data: sanitizedMessages, pagination: { limit, nextCursor, hasMore } });
   } catch (error) {
     next(error);
   }

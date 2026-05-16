@@ -77,13 +77,27 @@ export class AuthService {
    */
   async refreshToken(refreshToken: string): Promise<{ accessToken: string; refreshToken: string }> {
     try {
-      const payload = jwt.verify(refreshToken, config.jwt.refreshSecret) as JwtPayload;
+      const payload = jwt.verify(refreshToken, config.jwt.refreshSecret) as JwtPayload & { jti?: string; family?: string };
 
       // Проверяем, не отозван ли токен
       const redis = getRedis();
       const isRevoked = await redis.get(`revoked:${refreshToken}`);
       if (isRevoked) {
+        // Reuse detection: токен уже использовался → вероятно угон.
+        // Убиваем всё семейство (все refresh, порожденные от этого логина).
+        if (payload.family) {
+          await redis.del(`refresh-family:${payload.userId}:${payload.family}`).catch(() => {});
+        }
         throw ApiError.unauthorized('Токен отозван');
+      }
+
+      // Проверяем, что jti совпадает с current в family — иначе семейство убито/устарело
+      if (payload.family && payload.jti) {
+        const currentJti = await redis.get(`refresh-family:${payload.userId}:${payload.family}`);
+        if (currentJti && currentJti !== payload.jti) {
+          await redis.del(`refresh-family:${payload.userId}:${payload.family}`).catch(() => {});
+          throw ApiError.unauthorized('Токен устарел');
+        }
       }
 
       // Проверяем существование пользователя
@@ -95,12 +109,12 @@ export class AuthService {
         throw ApiError.unauthorized('Пользователь не найден или заблокирован');
       }
 
-      // Сначала генерируем новые токены, затем отзываем старый
+      // Сначала генерируем новые токены (сохраняя family), затем отзываем старый
       const newTokens = this.generateTokens({
         userId: user.id,
         telegramId: Number(user.telegramId),
         role: user.role,
-      });
+      }, payload.family);
 
       // Отзываем старый refresh token после успешной генерации
       await redis.set(`revoked:${refreshToken}`, '1', 'EX', 60 * 60 * 24 * 30);
@@ -184,11 +198,19 @@ export class AuthService {
   }
 
   /**
-   * Выход (отзыв токена)
+   * Выход (отзыв токена + убийство family — все refresh, порождённые от этого логина)
    */
   async logout(refreshToken: string): Promise<void> {
     const redis = getRedis();
     await redis.set(`revoked:${refreshToken}`, '1', 'EX', 60 * 60 * 24 * 30);
+    try {
+      const payload = jwt.decode(refreshToken) as (JwtPayload & { family?: string }) | null;
+      if (payload?.family && payload?.userId) {
+        await redis.del(`refresh-family:${payload.userId}:${payload.family}`);
+      }
+    } catch {
+      /* ignore — токен мог быть мусором */
+    }
   }
 
   // ─── Приватные методы ─────────────────────
@@ -322,16 +344,25 @@ export class AuthService {
     };
   }
 
-  private generateTokens(payload: JwtPayload): { accessToken: string; refreshToken: string } {
+  private generateTokens(payload: JwtPayload, family?: string): { accessToken: string; refreshToken: string } {
     const jti = crypto.randomUUID();
+    const familyId = family ?? crypto.randomUUID();
+    const refreshJti = crypto.randomUUID();
 
     const accessToken = jwt.sign({ ...payload, jti }, config.jwt.secret, {
       expiresIn: config.jwt.expiresIn,
     } as jwt.SignOptions);
 
-    const refreshToken = jwt.sign({ ...payload, jti: crypto.randomUUID() }, config.jwt.refreshSecret, {
-      expiresIn: config.jwt.refreshExpiresIn,
-    } as jwt.SignOptions);
+    const refreshToken = jwt.sign(
+      { ...payload, jti: refreshJti, family: familyId },
+      config.jwt.refreshSecret,
+      { expiresIn: config.jwt.refreshExpiresIn } as jwt.SignOptions,
+    );
+
+    // Семейство хранит «current jti» — если придёт refresh с другим jti, это реиспользование.
+    getRedis()
+      .set(`refresh-family:${payload.userId}:${familyId}`, refreshJti, 'EX', 60 * 60 * 24 * 30)
+      .catch(() => { /* fail-open: в худшем случае просто без reuse-detection */ });
 
     return { accessToken, refreshToken };
   }

@@ -137,6 +137,11 @@ if (process.env.NODE_ENV !== 'test') {
       standardHeaders: true,
       legacyHeaders: false,
       store: redisStoreFactory?.(prefix),
+      // Per-user когда возможно (один NAT = тысячи клиентов; IP-only режет всех разом)
+      keyGenerator: (req) => {
+        const userId = (req as any).user?.userId as string | undefined;
+        return userId ? `u:${userId}` : `ip:${req.ip ?? 'unknown'}`;
+      },
       ...opts,
     });
 
@@ -283,8 +288,15 @@ app.use('/api/complaints', complaintsRoutes);
 app.use('/api/local-registry', localRegistryRoutes);
 
 // ─── Healthcheck ───────────────────────────────
+// /api/health/live   — лёгкий liveness probe (просто 200, без БД)
+// /api/health/ready  — readiness probe (DB+Redis ping; 503 если упало)
+// /api/health        — alias на /ready для обратной совместимости
 
-app.get('/api/health', async (_req, res) => {
+app.get('/api/health/live', (_req, res) => {
+  res.json({ success: true, data: { status: 'ok', timestamp: new Date().toISOString() } });
+});
+
+app.get(['/api/health', '/api/health/ready'], async (_req, res) => {
   let dbStatus = 'ok';
   let redisStatus = 'ok';
 
