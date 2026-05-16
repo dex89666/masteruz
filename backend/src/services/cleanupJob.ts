@@ -11,6 +11,7 @@
 
 import { prisma } from '../config/database.js';
 import { logger } from '../utils/logger.js';
+import { withLock } from './distributedLock.js';
 
 const NOTIFICATIONS_TTL_DAYS = Number(process.env.NOTIFICATIONS_TTL_DAYS ?? 30);
 const DELIVERY_LOG_TTL_DAYS  = Number(process.env.DELIVERY_LOG_TTL_DAYS ?? 14);
@@ -53,11 +54,13 @@ export function startCleanupJob(): void {
 
   // Первый прогон через 5 минут после старта — не мешаем boot'у.
   setTimeout(() => {
-    runCleanupTick().catch((err) => logger.error({ err }, 'cleanup-tick: первый прогон провалился'));
+    withLock('cron:cleanup', TICK_INTERVAL_MS, runCleanupTick)
+      .catch((err) => logger.error({ err }, 'cleanup-tick: первый прогон провалился'));
   }, 5 * 60_000);
 
   timer = setInterval(() => {
-    runCleanupTick().catch((err) => logger.error({ err }, 'cleanup-tick: ошибка'));
+    withLock('cron:cleanup', TICK_INTERVAL_MS, runCleanupTick)
+      .catch((err) => logger.error({ err }, 'cleanup-tick: ошибка'));
   }, TICK_INTERVAL_MS);
 }
 

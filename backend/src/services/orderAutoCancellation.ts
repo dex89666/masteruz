@@ -11,6 +11,7 @@ import { logger } from '../utils/logger.js';
 import { moneyAdd, toNum } from '../utils/helpers.js';
 import { auditService } from './auditService.js';
 import { notificationService } from './notificationService.js';
+import { withLock } from './distributedLock.js';
 
 // Конфиг (можно переопределить через ENV)
 /** Интервал между повторными рассылками подходящим мастерам, часы */
@@ -291,21 +292,17 @@ export function startAutoCancellationJob(): void {
 
   // Первый прогон — через минуту после старта (чтобы не мешать boot-у)
   setTimeout(() => {
-    runReminderTick().catch((err) =>
-      logger.error({ err }, 'reminder-tick: первый прогон провалился'),
-    );
-    runMasterReminderTick().catch((err) =>
-      logger.error({ err }, 'master-reminder-tick: первый прогон провалился'),
-    );
+    withLock('cron:order-reminder', TICK_INTERVAL_MS, runReminderTick)
+      .catch((err) => logger.error({ err }, 'reminder-tick: первый прогон провалился'));
+    withLock('cron:master-reminder', TICK_INTERVAL_MS, runMasterReminderTick)
+      .catch((err) => logger.error({ err }, 'master-reminder-tick: первый прогон провалился'));
   }, 60_000);
 
   timer = setInterval(() => {
-    runReminderTick().catch((err) =>
-      logger.error({ err }, 'reminder-tick: провалился'),
-    );
-    runMasterReminderTick().catch((err) =>
-      logger.error({ err }, 'master-reminder-tick: провалился'),
-    );
+    withLock('cron:order-reminder', TICK_INTERVAL_MS, runReminderTick)
+      .catch((err) => logger.error({ err }, 'reminder-tick: провалился'));
+    withLock('cron:master-reminder', TICK_INTERVAL_MS, runMasterReminderTick)
+      .catch((err) => logger.error({ err }, 'master-reminder-tick: провалился'));
   }, TICK_INTERVAL_MS);
 
   // Не держим event loop, если процесс хочет завершиться

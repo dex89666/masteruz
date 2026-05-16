@@ -146,8 +146,26 @@ export function verifyFileMagic(req: any, _res: any, next: any) {
 }
 
 /**
- * Возвращает публичный URL загруженного файла (multer уже сохранил его на диск).
+ * Сохраняет файл в постоянное хранилище и возвращает публичный URL.
+ * - local-режим: оставляет multer'овский файл на диске, возвращает /uploads/...
+ * - s3-режим: заливает в облако, удаляет временную копию с диска.
  */
 export async function saveUploadedFile(file: Express.Multer.File): Promise<string> {
-  return `/uploads/${file.filename}`;
+  const driver = (process.env.STORAGE_DRIVER ?? 'local').toLowerCase();
+  if (driver !== 's3') {
+    return `/uploads/${file.filename}`;
+  }
+
+  const { getStorage } = await import('../services/storage.js');
+  const storage = await getStorage();
+  const body = await fs.promises.readFile(file.path);
+  const key = file.filename; // multer уже даёт уникальное имя
+  const url = await storage.put({
+    key,
+    body,
+    contentType: file.mimetype,
+  });
+  // Удаляем временную локальную копию — она нужна была только multer'у
+  try { await fs.promises.unlink(file.path); } catch { /* ignore */ }
+  return url;
 }

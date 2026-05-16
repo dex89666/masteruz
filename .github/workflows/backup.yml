@@ -1,0 +1,72 @@
+name: Daily Postgres backup
+
+# Ежедневный pg_dump production-базы Railway → S3-совместимое хранилище.
+# Запускается по расписанию + вручную (workflow_dispatch).
+#
+# Требуемые GitHub Secrets:
+#   PG_DUMP_URL          — postgres://… (DATABASE_PUBLIC_URL из Railway)
+#   BACKUP_S3_ENDPOINT   — например https://<acct>.r2.cloudflarestorage.com
+#   BACKUP_S3_REGION     — auto (для R2) или us-east-1
+#   BACKUP_S3_BUCKET     — masteruz-backups
+#   BACKUP_S3_KEY        — Access Key ID
+#   BACKUP_S3_SECRET     — Secret Access Key
+
+on:
+  schedule:
+    - cron: '0 2 * * *'   # каждый день в 02:00 UTC
+  workflow_dispatch:
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Install postgresql-client (16)
+        run: |
+          sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+          sudo apt-get update -qq
+          sudo apt-get install -y postgresql-client-16
+
+      - name: Install AWS CLI
+        run: |
+          curl -sS "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o awscliv2.zip
+          unzip -q awscliv2.zip
+          sudo ./aws/install --update
+
+      - name: Dump database
+        env:
+          PG_URL: ${{ secrets.PG_DUMP_URL }}
+        run: |
+          STAMP=$(date -u +%Y%m%d-%H%M%S)
+          FILE="masteruz-${STAMP}.sql.gz"
+          pg_dump --no-owner --no-privileges --format=plain "$PG_URL" | gzip -9 > "$FILE"
+          echo "FILE=$FILE" >> $GITHUB_ENV
+          ls -lh "$FILE"
+
+      - name: Upload to S3
+        env:
+          AWS_ACCESS_KEY_ID:     ${{ secrets.BACKUP_S3_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_S3_SECRET }}
+          AWS_DEFAULT_REGION:    ${{ secrets.BACKUP_S3_REGION }}
+        run: |
+          aws s3 cp "$FILE" "s3://${{ secrets.BACKUP_S3_BUCKET }}/$FILE" \
+            --endpoint-url "${{ secrets.BACKUP_S3_ENDPOINT }}"
+
+      - name: Cleanup backups older than 30 days
+        env:
+          AWS_ACCESS_KEY_ID:     ${{ secrets.BACKUP_S3_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_S3_SECRET }}
+          AWS_DEFAULT_REGION:    ${{ secrets.BACKUP_S3_REGION }}
+        run: |
+          CUTOFF=$(date -u -d '30 days ago' +%Y%m%d)
+          aws s3 ls "s3://${{ secrets.BACKUP_S3_BUCKET }}/" \
+            --endpoint-url "${{ secrets.BACKUP_S3_ENDPOINT }}" | \
+          awk '{print $4}' | grep -E '^masteruz-[0-9]{8}-' | while read -r key; do
+            STAMP=$(echo "$key" | sed -E 's/^masteruz-([0-9]{8}).*/\1/')
+            if [ "$STAMP" -lt "$CUTOFF" ]; then
+              echo "deleting old: $key"
+              aws s3 rm "s3://${{ secrets.BACKUP_S3_BUCKET }}/$key" \
+                --endpoint-url "${{ secrets.BACKUP_S3_ENDPOINT }}"
+            fi
+          done
