@@ -113,6 +113,8 @@ export async function runReminderTick(): Promise<{ remindersSent: number }> {
 
   // Берём заказы, у которых прошло хотя бы одно «окно» с момента создания.
   // Сортируем по «давности» — чем старше заказ, тем выше приоритет.
+  // Лимит вынесен в ENV: при росте трафика поднимаем без передеплоя.
+  const tickBatch = Number(process.env.ORDER_REMINDER_TICK_BATCH ?? 1000);
   const candidates = await prisma.order.findMany({
     where: {
       status: OrderStatus.PUBLISHED,
@@ -121,7 +123,7 @@ export async function runReminderTick(): Promise<{ remindersSent: number }> {
       remindersSent: { lt: MAX_REMINDERS },
     },
     select: { id: true, createdAt: true, remindersSent: true },
-    take: 200,
+    take: tickBatch,
     orderBy: { createdAt: 'asc' },
   });
 

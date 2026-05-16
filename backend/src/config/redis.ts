@@ -6,7 +6,7 @@
 import { config } from './index.js';
 import { logger } from '../utils/logger.js';
 
-// Универсальный интерфейс Redis (расширенный для heartbeat/cache)
+// Универсальный интерфейс Redis (расширенный для heartbeat/cache/rate-limit)
 export interface RedisLike {
   get(key: string): Promise<string | null>;
   set(key: string, value: string, ...args: any[]): Promise<any>;
@@ -18,6 +18,9 @@ export interface RedisLike {
   sadd(key: string, ...members: string[]): Promise<number>;
   smembers(key: string): Promise<string[]>;
   srem(key: string, ...members: string[]): Promise<number>;
+  // Rate-limit / счётчики (опциональны: in-memory fallback не поддерживает atomic)
+  incr?(key: string): Promise<number>;
+  expire?(key: string, seconds: number): Promise<number>;
 }
 
 let redis: RedisLike | null = null;

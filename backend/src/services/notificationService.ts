@@ -3,10 +3,12 @@
 // Централизованная служба уведомлений: БД + Telegram Push
 // ============================================
 
+import { OrderStatus } from '@prisma/client';
 import { prisma } from '../config/database.js';
 import { sendTelegramMessage, notifyMasterOrderApproved, notifyMasterNewOrder, notifyMasterResponseAccepted } from '../utils/telegramBot.js';
 import { logger } from '../utils/logger.js';
 import { toNum, calculateDistance } from '../utils/helpers.js';
+import { alertRouter } from './alertRouter.js';
 import {
   rankMasters,
   splitIntoWaves,
@@ -394,40 +396,55 @@ export class NotificationService {
       return description.slice(0, 80);
     };
 
+    // ─── 1. Batch insert in-app уведомлений одной транзакцией ────
+    // Раньше делалось N отдельных INSERT — при 50 мастерах × 500 заказов/час
+    // это 25 000 round-trip к Postgres. createMany сводит до 1 запроса на волну.
+    const inAppPayload = wave.masters.map((master: RankedMaster) => {
+      const distLabel = master.distanceKm !== null ? ` • ${master.distanceKm} км от вас` : '';
+      return {
+        userId: master.masterId,
+        type: 'new_order',
+        title: order.isUrgent ? '🚨 Новый срочный заказ!' : '🆕 Новый заказ!',
+        message: `${order.title} — ${toNum(order.price).toLocaleString('ru')} сум${order.city ? ` • ${order.city}` : ''}${order.district ? `, ${order.district}` : ''}${distLabel}`,
+        data: {
+          orderId,
+          city: order.city,
+          district: order.district,
+          isUrgent: order.isUrgent,
+          distance: master.distanceKm,
+          routingScore: master.score,
+          wave: wave.wave,
+        } as any,
+      };
+    });
+
+    let inAppOk = true;
+    if (inAppPayload.length > 0) {
+      try {
+        await prisma.notification.createMany({ data: inAppPayload, skipDuplicates: false });
+      } catch (err) {
+        inAppOk = false;
+        logger.error({ err, orderId, wave: wave.wave }, 'createMany notification failed');
+      }
+    }
+
+    for (const master of wave.masters) {
+      deliveryRecords.push({
+        orderId,
+        userId: master.masterId,
+        channel: 'in_app',
+        status: inAppOk ? 'success' : 'failed',
+        reason: inAppOk ? null : 'db_error',
+        errorCode: null,
+        description: null,
+        matchMode,
+        distanceKm: master.distanceKm,
+      });
+    }
+
+    // ─── 2. Telegram push (per-user, под rate-limit) ─────────────
     const results = await Promise.allSettled(
       wave.masters.map(async (master: RankedMaster) => {
-        const distLabel = master.distanceKm !== null ? ` • ${master.distanceKm} км от вас` : '';
-
-        // 1) In-app уведомление
-        const inApp = await this.createNotification({
-          userId: master.masterId,
-          type: 'new_order',
-          title: order.isUrgent ? '🚨 Новый срочный заказ!' : '🆕 Новый заказ!',
-          message: `${order.title} — ${toNum(order.price).toLocaleString('ru')} сум${order.city ? ` • ${order.city}` : ''}${order.district ? `, ${order.district}` : ''}${distLabel}`,
-          data: {
-            orderId,
-            city: order.city,
-            district: order.district,
-            isUrgent: order.isUrgent,
-            distance: master.distanceKm,
-            routingScore: master.score,
-            wave: wave.wave,
-          },
-        });
-
-        deliveryRecords.push({
-          orderId,
-          userId: master.masterId,
-          channel: 'in_app',
-          status: inApp ? 'success' : 'failed',
-          reason: inApp ? null : 'db_error',
-          errorCode: null,
-          description: null,
-          matchMode,
-          distanceKm: master.distanceKm,
-        });
-
-        // 2) Telegram push
         if (!master.telegramId) {
           deliveryRecords.push({
             orderId,
@@ -661,7 +678,9 @@ export class NotificationService {
   }
 
   /**
-   * Уведомить администраторов, что заказ скоро будет авто-отменён.
+   * Диспетчер: «Заказ висит без мастера слишком долго».
+   * Перед рассылкой ПЕРЕПРОВЕРЯЕМ статус — если заказ уже принят, отменён
+   * или завершён, ничего не шлём (защита от фантомных алертов после ребилда).
    */
   async notifyAdminsOrderExpiring(orderId: string, hoursLeft: number) {
     try {
@@ -670,12 +689,10 @@ export class NotificationService {
         include: { category: true, client: { include: { profile: true } } },
       });
       if (!order) return;
-
-      const admins = await prisma.user.findMany({
-        where: { role: { in: ['ADMIN', 'MANAGER'] as any }, isActive: true },
-        select: { id: true, telegramId: true },
-      });
-      if (admins.length === 0) return;
+      if (order.status !== OrderStatus.PUBLISHED || order.masterId) {
+        logger.debug({ orderId, status: order.status }, 'notifyAdminsOrderExpiring: заказ уже не висит — пропуск');
+        return;
+      }
 
       const clientName =
         `${order.client.profile?.firstName || ''} ${order.client.profile?.lastName || ''}`.trim() ||
@@ -683,30 +700,18 @@ export class NotificationService {
         'клиент';
       const priceLabel = `${toNum(order.price).toLocaleString('ru')} сум`;
 
-      await Promise.allSettled(
-        admins.map(async (admin) => {
-          await this.createNotification({
-            userId: admin.id,
-            type: 'admin_order_expiring',
-            title: `⚠️ Заказ скоро авто-отменится (${hoursLeft}ч)`,
-            message: `${order.title} • ${priceLabel} • ${order.category?.name || ''} • клиент: ${clientName}`,
-            data: { orderId, hoursLeft },
-          });
-          if (admin.telegramId) {
-            const text =
-              `⚠️ <b>Заказ без откликов</b>\n\n` +
-              `<b>${order.title}</b>\n` +
-              `Категория: ${order.category?.name || '—'}\n` +
-              `Клиент: ${clientName}\n` +
-              `Сумма: ${priceLabel}\n` +
-              `До авто-отмены: <b>${hoursLeft} ч.</b>\n\n` +
-              `Можно вручную помочь клиенту: связаться или подсветить заказ мастерам.`;
-            await sendTelegramMessage({ chatId: admin.telegramId, text }).catch(() => {});
-          }
-        }),
-      );
-
-      logger.info({ orderId, hoursLeft, adminCount: admins.length }, 'notifyAdminsOrderExpiring: отправлено');
+      await alertRouter.dispatch({
+        type: 'order_stuck_no_master',
+        title: `⚠️ Заказ без откликов (${hoursLeft}ч до авто-отмены)`,
+        message:
+          `${order.title}\n` +
+          `Категория: ${order.category?.name || '—'}\n` +
+          `Клиент: ${clientName}\n` +
+          `Сумма: ${priceLabel}\n` +
+          `До авто-отмены: ${hoursLeft} ч.\n\n` +
+          `Можно вручную помочь клиенту: связаться или подсветить заказ мастерам.`,
+        data: { orderId, hoursLeft, category: order.category?.name },
+      });
     } catch (error) {
       logger.error({ error, orderId, hoursLeft }, 'notifyAdminsOrderExpiring failed');
     }
@@ -723,12 +728,6 @@ export class NotificationService {
     detail?: string;
   }) {
     try {
-      const admins = await prisma.user.findMany({
-        where: { role: { in: ['ADMIN', 'MANAGER'] as any }, isActive: true },
-        select: { id: true, telegramId: true },
-      });
-      if (admins.length === 0) return;
-
       const provider = params.provider || 'OpenAI';
       const reasonMap: Record<typeof params.reason, { title: string; line: string }> = {
         quota_exhausted: {
@@ -749,29 +748,16 @@ export class NotificationService {
         },
       };
       const { title, line } = reasonMap[params.reason];
-      const fullMessage = params.detail ? `${line}\n\nДетали: ${params.detail}` : line;
+      const message =
+        (params.detail ? `${line}\n\nДетали: ${params.detail}\n\n` : `${line}\n\n`) +
+        `Время: ${new Date().toLocaleString('ru-RU')}`;
 
-      await Promise.allSettled(
-        admins.map(async (admin) => {
-          await this.createNotification({
-            userId: admin.id,
-            type: 'admin_ai_provider_issue',
-            title,
-            message: fullMessage,
-            data: { reason: params.reason, provider, detail: params.detail },
-          });
-          if (admin.telegramId) {
-            const text =
-              `<b>${title}</b>\n\n` +
-              `${line}\n` +
-              (params.detail ? `\n<i>${params.detail}</i>\n` : '') +
-              `\nВремя: ${new Date().toLocaleString('ru-RU')}`;
-            await sendTelegramMessage({ chatId: admin.telegramId, text }).catch(() => {});
-          }
-        }),
-      );
-
-      logger.info({ reason: params.reason, provider, adminCount: admins.length }, 'notifyAdminsAiProviderIssue: отправлено');
+      await alertRouter.dispatch({
+        type: 'ai_provider_issue',
+        title,
+        message,
+        data: { reason: params.reason, provider, detail: params.detail },
+      });
     } catch (error) {
       logger.error({ error, params }, 'notifyAdminsAiProviderIssue failed');
     }
@@ -826,7 +812,8 @@ export class NotificationService {
   }
 
   /**
-   * Мастер: «Подтвердите выезд» (висит ACCEPTED без действий)
+   * Мастер: «Подтвердите выезд» (висит ACCEPTED без действий).
+   * Guard: если заказ уже не ACCEPTED или мастер сменился — молчим.
    */
   async notifyMasterToConfirmDeparture(orderId: string) {
     try {
@@ -835,6 +822,10 @@ export class NotificationService {
         include: { master: true },
       });
       if (!order || !order.master) return;
+      if (order.status !== OrderStatus.ACCEPTED || !order.masterId) {
+        logger.debug({ orderId, status: order.status }, 'notifyMasterToConfirmDeparture: статус изменился — пропуск');
+        return;
+      }
 
       const title = '⏰ Подтвердите выезд по заказу';
       const message =
@@ -869,9 +860,13 @@ export class NotificationService {
     try {
       const order = await prisma.order.findUnique({
         where: { id: orderId },
-        include: { master: true, client: true },
+        include: { master: true, client: true, category: true },
       });
       if (!order || !order.master || !order.client) return;
+      if (order.status !== OrderStatus.IN_TRANSIT) {
+        logger.debug({ orderId, status: order.status }, 'notifyTransitOverdue: заказ уже не в транзите — пропуск');
+        return;
+      }
 
       const overdueMin = order.transitEtaAt
         ? Math.max(0, Math.round((Date.now() - new Date(order.transitEtaAt).getTime()) / 60_000))
@@ -915,6 +910,19 @@ export class NotificationService {
           text: `<b>${clientTitle}</b>\n\n${clientMsg}`,
         }).catch(() => {});
       }
+
+      // Диспетчер: эскалация — нужно вмешательство человека.
+      await alertRouter.dispatch({
+        type: 'order_master_overdue',
+        title: `🚨 Мастер опаздывает на заказе`,
+        message:
+          `${order.title}\n` +
+          `Категория: ${order.category?.name || '—'}\n` +
+          `Опоздание: ${overdueMin} мин\n` +
+          `Мастер ID: ${order.masterId}\n` +
+          `Клиент ID: ${order.clientId}`,
+        data: { orderId, overdueMin, masterId: order.masterId, clientId: order.clientId },
+      });
     } catch (err) {
       logger.error({ err, orderId }, 'notifyTransitOverdue failed');
     }

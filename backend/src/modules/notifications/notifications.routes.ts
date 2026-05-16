@@ -15,31 +15,69 @@ const router = Router();
 router.get('/', authenticate, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.user!.userId;
-    const page = parseInt(req.query.page as string) || 1;
     const limit = Math.min(parseInt(req.query.limit as string) || 30, 100);
-    const skip = (page - 1) * limit;
+    const cursor = (req.query.cursor as string) || null;
+
+    // Keyset-пагинация: быстро при тысячах уведомлений
+    if (cursor) {
+      const [notifications, unreadCount] = await Promise.all([
+        prisma.notification.findMany({
+          where: { userId },
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          take: limit + 1,
+          cursor: { id: cursor },
+          skip: 1,
+        }),
+        prisma.notification.count({ where: { userId, isRead: false } }),
+      ]);
+
+      const hasMore = notifications.length > limit;
+      const items = hasMore ? notifications.slice(0, limit) : notifications;
+      const nextCursor = hasMore ? items[items.length - 1]!.id : null;
+
+      return res.json({
+        success: true,
+        data: {
+          notifications: items,
+          unreadCount,
+          pagination: { limit, nextCursor, hasMore },
+        },
+      });
+    }
+
+    // Первая страница — без offset, тоже keyset
+    const page = parseInt(req.query.page as string) || 1;
+    const useOffset = page > 1;
+    const skip = useOffset ? (page - 1) * limit : 0;
 
     const [notifications, total, unreadCount] = await Promise.all([
       prisma.notification.findMany({
         where: { userId },
-        orderBy: { createdAt: 'desc' },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        take: limit + 1,
         skip,
-        take: limit,
       }),
-      prisma.notification.count({ where: { userId } }),
+      // total больше не считаем при первой загрузке через cursor — оставляем для совместимости старого фронта
+      useOffset ? prisma.notification.count({ where: { userId } }) : Promise.resolve(0),
       prisma.notification.count({ where: { userId, isRead: false } }),
     ]);
+
+    const hasMore = notifications.length > limit;
+    const items = hasMore ? notifications.slice(0, limit) : notifications;
+    const nextCursor = hasMore ? items[items.length - 1]!.id : null;
 
     res.json({
       success: true,
       data: {
-        notifications,
+        notifications: items,
         unreadCount,
         pagination: {
-          total,
+          total: useOffset ? total : undefined,
           page,
           limit,
-          totalPages: Math.ceil(total / limit),
+          totalPages: useOffset ? Math.ceil(total / limit) : undefined,
+          nextCursor,
+          hasMore,
         },
       },
     });

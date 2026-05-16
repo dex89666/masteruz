@@ -26,6 +26,7 @@ import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { checkUserActive } from './middleware/auth.js';
 import { betaGate } from './middleware/betaGate.js';
 import { startAutoCancellationJob, stopAutoCancellationJob } from './services/orderAutoCancellation.js';
+import { startCleanupJob, stopCleanupJob } from './services/cleanupJob.js';
 
 // Импорт маршрутов модулей
 import authRoutes from './modules/auth/auth.routes.js';
@@ -373,6 +374,8 @@ if (process.env.NODE_ENV !== 'test') {
 
       // Фоновая задача: авто-отмена «зависших» заказов с возвратом эскроу
       startAutoCancellationJob();
+      // Фоновая задача: уборка устаревших уведомлений/журналов доставки
+      startCleanupJob();
     } catch (error) {
       logger.error({ error }, '❌ Ошибка запуска сервера');
       process.exit(1);
@@ -383,6 +386,7 @@ if (process.env.NODE_ENV !== 'test') {
   process.on('SIGTERM', async () => {
     logger.info('SIGTERM получен, завершаю...');
     stopAutoCancellationJob();
+    stopCleanupJob();
     await prisma.$disconnect();
     process.exit(0);
   });
@@ -390,6 +394,7 @@ if (process.env.NODE_ENV !== 'test') {
   process.on('SIGINT', async () => {
     logger.info('SIGINT получен, завершаю...');
     stopAutoCancellationJob();
+    stopCleanupJob();
     await prisma.$disconnect();
     process.exit(0);
   });

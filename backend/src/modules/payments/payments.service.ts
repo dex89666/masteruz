@@ -12,6 +12,7 @@ import { toNum } from '../../utils/helpers.js';
 import { notificationService } from '../../services/notificationService.js';
 import { balanceService } from '../balance/balance.service.js';
 import { auditService } from '../../services/auditService.js';
+import { alertRouter } from '../../services/alertRouter.js';
 import crypto from 'crypto';
 
 export class PaymentsService {
@@ -363,6 +364,26 @@ export class PaymentsService {
           metadata: { error: clickError },
         },
       });
+
+      // FINANCE-алерт: платёж от провайдера упал на webhook.
+      alertRouter.dispatch({
+        type: 'payment_failed',
+        title: '💳 Платёж Click отклонён',
+        message:
+          `Платёж ${payment.id} от провайдера Click завершился ошибкой.\n` +
+          `Сумма: ${toNum(payment.amount).toLocaleString('ru')} сум\n` +
+          `Тип: ${payment.type}\n` +
+          `Код ошибки Click: ${clickError ?? '—'}\n` +
+          `User ID: ${payment.userId}`,
+        data: {
+          paymentId: payment.id,
+          provider: 'CLICK',
+          amount: toNum(payment.amount),
+          type: payment.type,
+          userId: payment.userId,
+          error: clickError,
+        },
+      }).catch(() => {});
     }
 
     return { success: true };
@@ -459,6 +480,28 @@ export class PaymentsService {
           entityId: payment.id,
           details: { provider: 'PAYME', amount: toNum(payment.amount), providerTxId: params.id },
         });
+
+        // FINANCE-алерт: крупный возврат требует внимания финансиста.
+        const refundAmount = toNum(payment.amount);
+        const LARGE_REFUND_THRESHOLD = Number(process.env.FINANCE_LARGE_REFUND_THRESHOLD ?? 500_000);
+        if (refundAmount >= LARGE_REFUND_THRESHOLD) {
+          alertRouter.dispatch({
+            type: 'refund_large',
+            title: '💸 Крупный возврат Payme',
+            message:
+              `Возврат ${refundAmount.toLocaleString('ru')} сум по платежу ${payment.id}.\n` +
+              `Тип: ${payment.type}\n` +
+              `User ID: ${payment.userId}\n` +
+              `Payme TX: ${params.id}`,
+            data: {
+              paymentId: payment.id,
+              provider: 'PAYME',
+              amount: refundAmount,
+              userId: payment.userId,
+              providerTxId: params.id,
+            },
+          }).catch(() => {});
+        }
 
         return {
           result: {

@@ -5,6 +5,7 @@
 
 import { config } from '../config/index.js';
 import { logger } from './logger.js';
+import { acquireTelegramSlot } from '../services/telegramRateLimiter.js';
 
 // Node.js 18+ global fetch — обход strict типизации
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -45,6 +46,10 @@ export async function sendTelegramMessage(options: SendMessageOptions): Promise<
       logger.warn('Telegram Bot Token не настроен, сообщение не отправлено');
       return { ok: false, description: 'bot_token_missing' };
     }
+
+    // Глобальный rate-limit на исходящие (30 msg/sec ограничение Telegram).
+    const slot = await acquireTelegramSlot();
+    if (!slot) return { ok: false, description: 'rate_limit_local' };
 
     const body: any = {
       chat_id: options.chatId,

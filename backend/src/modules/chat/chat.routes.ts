@@ -13,6 +13,7 @@ import { moderateMessage, censorMessage } from './chatModeration.js';
 import { applyModerationStrike } from './moderationStrikes.js';
 import { logger } from '../../utils/logger.js';
 import { detectContactExchangeInMessage, recordFraudSignal } from '../../services/fraudDetectionService.js';
+import { alertRouter } from '../../services/alertRouter.js';
 
 const router = Router();
 
@@ -184,6 +185,22 @@ router.post('/:orderId', authenticate, async (req: Request, res: Response, next:
         },
       },
     });
+
+    // MODERATOR-алерт: сообщение зафлагано — нужно ручное ревью.
+    // Шлём ТОЛЬКО на блок/жёсткий флаг — обычные «подозрительные» не спамят.
+    if (isFlagged && (isBlocked || flagReason?.includes('bypass-attempt'))) {
+      alertRouter.dispatch({
+        type: 'chat_message_flagged',
+        title: '🛡 Сообщение чата заблокировано',
+        message:
+          `Заказ: ${orderId}\n` +
+          `Отправитель: ${userId}\n` +
+          `Причина: ${flagReason ?? shortReason ?? '—'}\n` +
+          `Действие: ${isBlocked ? 'удалено' : 'помечено'}\n\n` +
+          `Фрагмент: ${(text ?? '').slice(0, 200)}`,
+        data: { orderId, messageId: message.id, senderId: userId, flagReason, isBlocked },
+      }).catch(() => {});
+    }
 
     // Создаём уведомление для получателя — НЕ показываем заблокированный текст
     const recipientId = order.clientId === userId ? order.masterId : order.clientId;

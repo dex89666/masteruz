@@ -19,6 +19,16 @@ const env = (key: string, fallback = ''): string => {
   return v;
 };
 
+/**
+ * Парсинг списка Telegram-никнеймов из ENV: убираем `@`, пробелы, пустые,
+ * приводим к lowercase (Telegram username регистронезависим).
+ */
+const parseUsernames = (raw: string): string[] =>
+  raw
+    .split(',')
+    .map(s => s.trim().replace(/^@/, '').toLowerCase())
+    .filter(Boolean);
+
 export const config = {
   // Сервер
   env: process.env.NODE_ENV || 'development',
@@ -102,6 +112,17 @@ export const config = {
     .split(',')
     .map(s => s.trim())
     .filter(Boolean),
+
+  // Команда: маршрутизация алертов по ролям.
+  // Один человек может быть в нескольких ролях — алерт уйдёт без дубля,
+  // alertRouter дедуплицирует получателей.
+  team: {
+    owner:      parseUsernames(env('ROLE_OWNER_USERNAMES')),
+    dispatcher: parseUsernames(env('ROLE_DISPATCHER_USERNAMES')),
+    support:    parseUsernames(env('ROLE_SUPPORT_USERNAMES')),
+    finance:    parseUsernames(env('ROLE_FINANCE_USERNAMES')),
+    moderator:  parseUsernames(env('ROLE_MODERATOR_USERNAMES')),
+  },
 
   // Бэкапы Postgres → S3-совместимое хранилище
   backup: {
