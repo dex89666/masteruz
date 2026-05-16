@@ -100,4 +100,29 @@ router.post('/purchase', authenticate, async (req: Request, res: Response, next:
   }
 });
 
+/**
+ * POST /api/subscriptions/purchase-from-balance — оплата с внутреннего баланса.
+ * Тело: { plan }. Атомарно списывает priceSum и активирует подписку.
+ */
+router.post('/purchase-from-balance', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.user!.userId;
+    const { plan } = req.body as { plan?: string };
+    if (!plan) throw ApiError.badRequest('plan обязателен');
+    if (!(plan in PLANS)) throw ApiError.badRequest('Неизвестный план');
+
+    const sub = await subscriptionService.purchaseFromBalance({
+      masterId: userId,
+      plan: plan as any,
+    });
+    res.json({ success: true, data: sub });
+  } catch (err: any) {
+    if (err?.message?.includes('Недостаточно средств') || err?.message?.includes('только мастерам')) {
+      next(ApiError.badRequest(err.message));
+      return;
+    }
+    next(err);
+  }
+});
+
 export default router;

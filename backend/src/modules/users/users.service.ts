@@ -313,7 +313,12 @@ export class UsersService {
       throw ApiError.notFound('Мастер не найден');
     }
 
-    return user;
+    const activeSub = await prisma.masterSubscription.findFirst({
+      where: { masterId: userId, status: 'ACTIVE', currentPeriodEnd: { gt: new Date() } },
+      select: { id: true, plan: true, currentPeriodEnd: true },
+    });
+
+    return { ...user, isPro: !!activeSub, proSubscription: activeSub };
   }
 
   /**
@@ -436,8 +441,23 @@ export class UsersService {
       prisma.user.count({ where }),
     ]);
 
+    const proIds = masters.length
+      ? new Set(
+          (
+            await prisma.masterSubscription.findMany({
+              where: {
+                masterId: { in: masters.map((m) => m.id) },
+                status: 'ACTIVE',
+                currentPeriodEnd: { gt: new Date() },
+              },
+              select: { masterId: true },
+            })
+          ).map((r) => r.masterId),
+        )
+      : new Set<string>();
+
     return {
-      data: masters,
+      data: masters.map((m) => ({ ...m, isPro: proIds.has(m.id) })),
       pagination: {
         total,
         page,

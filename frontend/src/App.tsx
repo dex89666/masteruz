@@ -46,6 +46,7 @@ const NotFoundPage = lazy(() => import('./pages/NotFoundPage').then(m => ({ defa
 const HelpSupportPage = lazy(() => import('./pages/HelpSupportPage').then(m => ({ default: m.HelpSupportPage })));
 const MasterPortfolioPage = lazy(() => import('./pages/MasterPortfolioPage').then(m => ({ default: m.MasterPortfolioPage })));
 const BalancePage = lazy(() => import('./pages/BalancePage').then(m => ({ default: m.BalancePage })));
+const MasterProPage = lazy(() => import('./pages/MasterProPage').then(m => ({ default: m.MasterProPage })));
 const CatalogPage = lazy(() => import('./pages/CatalogPage').then(m => ({ default: m.CatalogPage })));
 const SubcategoryPage = lazy(() => import('./pages/SubcategoryPage').then(m => ({ default: m.SubcategoryPage })));
 const ServicesCatalogPage = lazy(() => import('./pages/ServicesCatalogPage').then(m => ({ default: m.ServicesCatalogPage })));
@@ -312,6 +313,14 @@ function AppContent() {
             <ProtectedRoute>
               <BalancePage />
             </ProtectedRoute>
+          }
+        />
+        <Route
+          path="pro"
+          element={
+            <MasterRoute>
+              <MasterProPage />
+            </MasterRoute>
           }
         />
         <Route

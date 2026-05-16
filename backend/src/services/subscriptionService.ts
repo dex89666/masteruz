@@ -240,6 +240,57 @@ class SubscriptionService {
   }
 
   /**
+   * Покупка с внутреннего баланса мастера: атомарное списание + Payment(COMPLETED) + purchase().
+   * Используется как простейший канал оплаты (без редиректа на Click/Payme).
+   */
+  async purchaseFromBalance(args: {
+    masterId: string;
+    plan: Exclude<MasterPlan, 'TRIAL' | 'REFERRAL'>;
+  }): Promise<MasterSubscription> {
+    const def = PLANS[args.plan];
+    if (!def) throw new Error(`Неизвестный план: ${args.plan}`);
+
+    const payment = await prisma.$transaction(async (tx) => {
+      const user = await tx.user.findUnique({
+        where: { id: args.masterId },
+        select: { balance: true, role: true },
+      });
+      if (!user) throw new Error('Пользователь не найден');
+      if (user.role !== 'MASTER') throw new Error('Подписка доступна только мастерам');
+
+      const balance = Number(user.balance);
+      if (balance < def.priceSum) {
+        throw new Error(
+          `Недостаточно средств. Баланс: ${balance.toLocaleString('ru-RU')} сум, нужно: ${def.priceSum.toLocaleString('ru-RU')} сум`,
+        );
+      }
+
+      await tx.user.update({
+        where: { id: args.masterId },
+        data: { balance: { decrement: def.priceSum } },
+      });
+
+      return tx.payment.create({
+        data: {
+          userId: args.masterId,
+          amount: def.priceSum,
+          type: 'SUBSCRIPTION',
+          provider: 'INTERNAL',
+          status: 'COMPLETED',
+          metadata: { plan: args.plan, source: 'balance' },
+        },
+      });
+    });
+
+    return this.purchase({
+      masterId: args.masterId,
+      plan: args.plan,
+      paymentId: payment.id,
+      amountPaid: def.priceSum,
+    });
+  }
+
+  /**
    * Бонус +30 дней PRO для приведшего мастера.
    * Безопасно: если активной нет — стартуем с now.
    */

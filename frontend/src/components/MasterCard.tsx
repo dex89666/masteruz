@@ -5,7 +5,7 @@
 
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Star, Heart, MapPin, CheckCircle, Briefcase, Clock } from 'lucide-react';
+import { Star, Heart, MapPin, CheckCircle, Briefcase, Clock, Crown } from 'lucide-react';
 import { favoritesApi } from '../api/client';
 import { useTranslation } from '../i18n';
 import { useTelegram } from '../hooks';
@@ -30,6 +30,7 @@ interface MasterCardProps {
       lastSeenAt: string | null;
     } | null;
     isVerified?: boolean;
+    isPro?: boolean;
   };
   isFavorite?: boolean;
   showFavorite?: boolean;
@@ -117,6 +118,14 @@ export function MasterCard({ master, isFavorite = false, showFavorite = false, o
             </h3>
             {master.isVerified && (
               <CheckCircle size={14} className="text-green-500 shrink-0" />
+            )}
+            {master.isPro && (
+              <span
+                title="PRO-мастер"
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold text-white bg-gradient-to-r from-amber-500 to-orange-500 shrink-0"
+              >
+                <Crown size={10} /> PRO
+              </span>
             )}
           </div>
 

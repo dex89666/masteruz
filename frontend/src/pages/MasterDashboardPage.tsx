@@ -31,6 +31,7 @@ import {
   Image,
   ShieldCheck,
   MapPin,
+  Crown,
 } from 'lucide-react';
 import type { Order } from '../types';
 
@@ -159,6 +160,21 @@ export function MasterDashboardPage() {
         </h1>
         <p className="text-gray-500 dark:text-gray-400 mt-1">{t('masterDashboard.subtitle')}</p>
       </div>
+
+      {/* PRO CTA */}
+      <Link
+        to="/pro"
+        className="mb-4 flex items-center gap-3 p-4 rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 text-white shadow-lg shadow-amber-500/30 hover:opacity-95 transition active:scale-[0.99]"
+      >
+        <div className="w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm">
+          <Crown size={22} />
+        </div>
+        <div className="flex-1">
+          <p className="font-bold">MasterUz PRO</p>
+          <p className="text-[12px] text-amber-50/90">0% комиссии и топ-выдача — подробнее</p>
+        </div>
+        <ArrowRight size={20} />
+      </Link>
 
       {/* Онлайн-статус — кликабельный toggle */}
       <button

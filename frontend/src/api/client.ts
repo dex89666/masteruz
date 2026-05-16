@@ -277,6 +277,44 @@ export const paymentsApi = {
     api.get<PaginatedResponse<any>>('/payments/history', { params: { page, limit } }),
 };
 
+// ─── Subscriptions API (PRO) ───────────────
+export interface SubscriptionPlan {
+  plan: 'MONTH' | 'QUARTER' | 'FIVE_MONTH' | 'YEAR' | 'FOUNDER';
+  label: string;
+  priceSum: number;
+  days: number;
+  effectivePerMonth: number;
+  discountPercent: number;
+  isFlagship?: boolean;
+  isBestValue?: boolean;
+}
+
+export interface ActiveSubscription {
+  id: string;
+  plan: 'TRIAL' | 'MONTH' | 'QUARTER' | 'FIVE_MONTH' | 'YEAR' | 'FOUNDER' | 'REFERRAL';
+  status: 'ACTIVE' | 'EXPIRED' | 'CANCELLED' | 'REFUNDED';
+  currentPeriodStart: string;
+  currentPeriodEnd: string;
+  amountPaid: string | number;
+}
+
+export const subscriptionsApi = {
+  listPlans: () =>
+    api.get<ApiResponse<{ plans: SubscriptionPlan[]; founderAvailable: boolean; trialAvailable: boolean }>>(
+      '/subscriptions/plans',
+    ),
+
+  me: () =>
+    api.get<ApiResponse<{ active: ActiveSubscription | null; history: ActiveSubscription[]; isPro: boolean }>>(
+      '/subscriptions/me',
+    ),
+
+  startTrial: () => api.post<ApiResponse<ActiveSubscription>>('/subscriptions/trial'),
+
+  purchaseFromBalance: (plan: SubscriptionPlan['plan']) =>
+    api.post<ApiResponse<ActiveSubscription>>('/subscriptions/purchase-from-balance', { plan }),
+};
+
 // ─── Referrals API ─────────────────────────
 export const referralsApi = {
   getLink: () =>
