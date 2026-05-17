@@ -94,8 +94,22 @@ const corsOrigins = config.corsOrigin.split(',').map(s => s.trim()).filter(Boole
 if (config.env === 'production' && (corsOrigins.includes('*') || corsOrigins.length === 0)) {
   throw new Error('FATAL: CORS_ORIGIN не должен быть пустым или "*" в production');
 }
+// Capacitor Android/iOS webview шлёт Origin: https://localhost, http://localhost, capacitor://localhost
+// или вовсе без Origin (file://). Их разрешаем безусловно — это родное приложение MasterUz.
+const CAPACITOR_ORIGINS = new Set([
+  'http://localhost',
+  'https://localhost',
+  'capacitor://localhost',
+  'ionic://localhost',
+]);
 app.use(cors({
-  origin: corsOrigins,
+  origin: (origin, callback) => {
+    // Запросы без Origin (мобильные webview, server-to-server, curl) — пропускаем
+    if (!origin) return callback(null, true);
+    if (CAPACITOR_ORIGINS.has(origin)) return callback(null, true);
+    if (corsOrigins.includes('*') || corsOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error(`CORS: origin ${origin} не разрешён`));
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],

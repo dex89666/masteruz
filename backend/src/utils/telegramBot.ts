@@ -14,7 +14,9 @@ const _fetch = (globalThis as any).fetch as (
   init?: Record<string, unknown>
 ) => Promise<{ ok: boolean; json: () => Promise<unknown> }>;
 
-const BOT_API = `https://api.telegram.org/bot${config.telegram.botToken}`;
+// Ленивая сборка URL — config.telegram может быть не определён в момент загрузки модуля
+// (например, в unit-тестах, где config мокается частично).
+const botApi = () => `https://api.telegram.org/bot${config.telegram?.botToken ?? ''}`;
 
 interface SendMessageOptions {
   chatId: number | string | bigint;
@@ -61,7 +63,7 @@ export async function sendTelegramMessage(options: SendMessageOptions): Promise<
       body.reply_markup = JSON.stringify(options.replyMarkup);
     }
 
-    const response = await _fetch(`${BOT_API}/sendMessage`, {
+    const response = await _fetch(`${botApi()}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -92,7 +94,7 @@ export async function sendTelegramLocation(options: SendLocationOptions): Promis
   try {
     if (!config.telegram.botToken) return false;
 
-    const response = await _fetch(`${BOT_API}/sendLocation`, {
+    const response = await _fetch(`${botApi()}/sendLocation`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
