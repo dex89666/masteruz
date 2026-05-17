@@ -3,9 +3,9 @@
 // Управление PRO-подписками: grant / extend / cancel.
 // ============================================
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Crown, Plus, Clock, X, Search, Loader2 } from 'lucide-react';
+import { ArrowLeft, Crown, Plus, Clock, X, Search, Loader2, Check } from 'lucide-react';
 import { adminApi } from '../api/client';
 
 interface SubRow {
@@ -66,11 +66,16 @@ export function AdminSubscriptionsPage() {
 
   const [grantOpen, setGrantOpen] = useState(false);
   const [grantUserId, setGrantUserId] = useState('');
+  const [grantUserLabel, setGrantUserLabel] = useState('');
+  const [grantQuery, setGrantQuery] = useState('');
+  const [grantSuggestions, setGrantSuggestions] = useState<Array<{ id: string; username: string; profile?: { firstName?: string | null; lastName?: string | null } | null }>>([]);
+  const [grantSearching, setGrantSearching] = useState(false);
   const [grantPlan, setGrantPlan] = useState<string>('MONTH');
   const [grantDays, setGrantDays] = useState<number>(30);
   const [grantReason, setGrantReason] = useState('');
   const [grantBusy, setGrantBusy] = useState(false);
   const [grantError, setGrantError] = useState<string | null>(null);
+  const searchTimer = useRef<number | null>(null);
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / limit)), [total, limit]);
 
@@ -124,14 +129,14 @@ export function AdminSubscriptionsPage() {
   async function handleGrant(e: React.FormEvent) {
     e.preventDefault();
     setGrantError(null);
+    if (!grantUserId) {
+      setGrantError('Выберите мастера из списка');
+      return;
+    }
     setGrantBusy(true);
     try {
-      await adminApi.grantSubscription(grantUserId.trim(), grantPlan, grantDays, grantReason || undefined);
-      setGrantOpen(false);
-      setGrantUserId('');
-      setGrantReason('');
-      setGrantDays(30);
-      setGrantPlan('MONTH');
+      await adminApi.grantSubscription(grantUserId, grantPlan, grantDays, grantReason || undefined);
+      closeGrant();
       await load();
     } catch (err: any) {
       setGrantError(err?.response?.data?.error?.message || 'Не удалось выдать');
@@ -139,6 +144,44 @@ export function AdminSubscriptionsPage() {
       setGrantBusy(false);
     }
   }
+
+  function closeGrant() {
+    setGrantOpen(false);
+    setGrantUserId('');
+    setGrantUserLabel('');
+    setGrantQuery('');
+    setGrantSuggestions([]);
+    setGrantReason('');
+    setGrantDays(30);
+    setGrantPlan('MONTH');
+    setGrantError(null);
+  }
+
+  // Debounced master search
+  useEffect(() => {
+    if (!grantOpen) return;
+    if (grantUserId) return; // уже выбран
+    if (searchTimer.current) window.clearTimeout(searchTimer.current);
+    const q = grantQuery.trim();
+    if (q.length < 2) {
+      setGrantSuggestions([]);
+      return;
+    }
+    setGrantSearching(true);
+    searchTimer.current = window.setTimeout(async () => {
+      try {
+        const res = await adminApi.getUsers({ role: 'MASTER', search: q, page: 1, limit: 10 });
+        setGrantSuggestions((res.data.data as any[]) || []);
+      } catch {
+        setGrantSuggestions([]);
+      } finally {
+        setGrantSearching(false);
+      }
+    }, 300);
+    return () => {
+      if (searchTimer.current) window.clearTimeout(searchTimer.current);
+    };
+  }, [grantQuery, grantOpen, grantUserId]);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -297,21 +340,74 @@ export function AdminSubscriptionsPage() {
           <form onSubmit={handleGrant} className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-slate-900">Выдать PRO вручную</h2>
-              <button type="button" onClick={() => setGrantOpen(false)} className="text-slate-400 hover:text-slate-600">
+              <button type="button" onClick={closeGrant} className="text-slate-400 hover:text-slate-600">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="space-y-3">
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">ID мастера</label>
-                <input
-                  required
-                  value={grantUserId}
-                  onChange={(e) => setGrantUserId(e.target.value)}
-                  placeholder="uuid пользователя"
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
-                />
+                <label className="block text-xs font-medium text-slate-600 mb-1">Мастер</label>
+                {grantUserId ? (
+                  <div className="flex items-center justify-between px-3 py-2 rounded-lg border border-emerald-300 bg-emerald-50">
+                    <div className="flex items-center gap-2 text-sm text-emerald-900">
+                      <Check className="w-4 h-4 text-emerald-600" />
+                      <span className="font-medium">{grantUserLabel}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { setGrantUserId(''); setGrantUserLabel(''); setGrantQuery(''); }}
+                      className="text-xs text-emerald-700 hover:text-emerald-900 underline"
+                    >
+                      Сменить
+                    </button>
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                      <input
+                        autoFocus
+                        value={grantQuery}
+                        onChange={(e) => setGrantQuery(e.target.value)}
+                        placeholder="Поиск по username, имени или телефону…"
+                        className="w-full pl-8 pr-3 py-2 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                      />
+                      {grantSearching && (
+                        <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 animate-spin" />
+                      )}
+                    </div>
+                    {grantQuery.trim().length >= 2 && (
+                      <div className="absolute z-10 mt-1 w-full max-h-64 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg">
+                        {grantSuggestions.length === 0 && !grantSearching && (
+                          <div className="px-3 py-2 text-sm text-slate-400">Не найдено</div>
+                        )}
+                        {grantSuggestions.map((u) => {
+                          const name = [u.profile?.firstName, u.profile?.lastName].filter(Boolean).join(' ');
+                          return (
+                            <button
+                              key={u.id}
+                              type="button"
+                              onClick={() => {
+                                setGrantUserId(u.id);
+                                setGrantUserLabel(name ? `${name} (@${u.username})` : `@${u.username}`);
+                                setGrantSuggestions([]);
+                                setGrantQuery('');
+                              }}
+                              className="w-full text-left px-3 py-2 hover:bg-amber-50 transition flex items-center justify-between gap-2"
+                            >
+                              <div>
+                                <div className="text-sm font-medium text-slate-900">{name || `@${u.username}`}</div>
+                                <div className="text-xs text-slate-400">@{u.username}</div>
+                              </div>
+                              <Plus className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -354,14 +450,14 @@ export function AdminSubscriptionsPage() {
             <div className="mt-5 flex gap-2 justify-end">
               <button
                 type="button"
-                onClick={() => setGrantOpen(false)}
+                onClick={closeGrant}
                 className="px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-100 text-sm"
               >
                 Отмена
               </button>
               <button
                 type="submit"
-                disabled={grantBusy}
+                disabled={grantBusy || !grantUserId}
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium disabled:opacity-60"
               >
                 {grantBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}

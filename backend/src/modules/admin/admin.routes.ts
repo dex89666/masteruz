@@ -12,6 +12,7 @@ import { prisma } from '../../config/database.js';
 import { balanceService } from '../balance/balance.service.js';
 import { subscriptionService } from '../../services/subscriptionService.js';
 import { auditService } from '../../services/auditService.js';
+import { ApiError } from '../../utils/ApiError.js';
 import { clampPagination } from '../../utils/helpers.js';
 import { MasterPlan, SubscriptionStatus } from '@prisma/client';
 
@@ -217,8 +218,9 @@ router.post('/users/:id/subscriptions/grant', authorize('ADMIN'), async (req: Re
       ipAddress: req.ip,
     });
     res.json({ success: true, data: sub });
-  } catch (error) {
-    next(error);
+  } catch (error: any) {
+    if (error instanceof ApiError) return next(error);
+    return next(ApiError.badRequest(error?.message || 'Не удалось выдать подписку'));
   }
 });
 
@@ -243,8 +245,9 @@ router.post('/subscriptions/:id/extend', authorize('ADMIN'), async (req: Request
       ipAddress: req.ip,
     });
     res.json({ success: true, data: sub });
-  } catch (error) {
-    next(error);
+  } catch (error: any) {
+    if (error instanceof ApiError) return next(error);
+    return next(ApiError.badRequest(error?.message || 'Не удалось продлить подписку'));
   }
 });
 
@@ -265,8 +268,9 @@ router.post('/subscriptions/:id/cancel', authorize('ADMIN'), async (req: Request
       ipAddress: req.ip,
     });
     res.json({ success: true, data: sub });
-  } catch (error) {
-    next(error);
+  } catch (error: any) {
+    if (error instanceof ApiError) return next(error);
+    return next(ApiError.badRequest(error?.message || 'Не удалось отменить подписку'));
   }
 });
 
