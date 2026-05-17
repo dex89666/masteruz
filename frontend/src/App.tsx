@@ -32,6 +32,7 @@ const MapPage = lazy(() => import('./pages/MapPage').then(m => ({ default: m.Map
 const SchoolPage = lazy(() => import('./pages/SchoolPage').then(m => ({ default: m.SchoolPage })));
 const AdminDashboardPage = lazy(() => import('./pages/AdminDashboardPage').then(m => ({ default: m.AdminDashboardPage })));
 const AdminRegistryPage = lazy(() => import('./pages/AdminRegistryPage').then(m => ({ default: m.AdminRegistryPage })));
+const AdminSubscriptionsPage = lazy(() => import('./pages/AdminSubscriptionsPage').then(m => ({ default: m.AdminSubscriptionsPage })));
 const BecomeMasterPage = lazy(() => import('./pages/BecomeMasterPage').then(m => ({ default: m.BecomeMasterPage })));
 const FavoritesPage = lazy(() => import('./pages/FavoritesPage').then(m => ({ default: m.FavoritesPage })));
 const MasterSearchPage = lazy(() => import('./pages/MasterSearchPage').then(m => ({ default: m.MasterSearchPage })));
@@ -397,6 +398,14 @@ function AppContent() {
           element={
             <AdminRoute>
               <AdminRegistryPage />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="admin/subscriptions"
+          element={
+            <AdminRoute>
+              <AdminSubscriptionsPage />
             </AdminRoute>
           }
         />

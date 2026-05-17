@@ -318,6 +318,168 @@ class SubscriptionService {
     return sub;
   }
 
+  // ─── Админ-операции ────────────────────────────
+  // Все методы ниже — только для ADMIN, аудит выполняется в admin.routes.
+
+  /**
+   * Все подписки конкретного мастера (для админ-карточки).
+   */
+  async listForMaster(masterId: string): Promise<MasterSubscription[]> {
+    return prisma.masterSubscription.findMany({
+      where: { masterId },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  /**
+   * Список всех подписок с фильтрами и пагинацией (для админ-таблицы).
+   */
+  async adminList(filters: {
+    plan?: MasterPlan;
+    status?: SubscriptionStatus;
+    search?: string;
+    page: number;
+    limit: number;
+  }): Promise<{
+    rows: Array<MasterSubscription & {
+      master: { id: string; username: string; profile: { firstName: string | null; lastName: string | null } | null };
+    }>;
+    total: number;
+  }> {
+    const where: any = {};
+    if (filters.plan) where.plan = filters.plan;
+    if (filters.status) where.status = filters.status;
+    if (filters.search) {
+      where.master = {
+        OR: [
+          { username: { contains: filters.search, mode: 'insensitive' } },
+          { profile: { firstName: { contains: filters.search, mode: 'insensitive' } } },
+          { profile: { lastName: { contains: filters.search, mode: 'insensitive' } } },
+        ],
+      };
+    }
+    const [rows, total] = await Promise.all([
+      prisma.masterSubscription.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (filters.page - 1) * filters.limit,
+        take: filters.limit,
+        include: {
+          master: {
+            select: {
+              id: true,
+              username: true,
+              profile: { select: { firstName: true, lastName: true } },
+            },
+          },
+        },
+      }),
+      prisma.masterSubscription.count({ where }),
+    ]);
+    return { rows: rows as any, total };
+  }
+
+  /**
+   * Выдать подписку вручную (без оплаты). Используется для маркетинга, компенсаций, тестов.
+   * - Если активная есть → добавляет дни к её концу.
+   * - Если plan не указан, по умолчанию `MONTH` с заданным `days` (или 30).
+   */
+  async adminGrant(args: {
+    masterId: string;
+    plan: MasterPlan;
+    days: number;
+    reason?: string;
+  }): Promise<MasterSubscription> {
+    if (args.days <= 0 || args.days > 3650) {
+      throw new Error('Срок должен быть от 1 до 3650 дней');
+    }
+    const master = await prisma.user.findUnique({
+      where: { id: args.masterId },
+      select: { id: true, role: true },
+    });
+    if (!master) throw new Error('Пользователь не найден');
+    if (master.role !== 'MASTER') throw new Error('Подписка доступна только мастерам');
+
+    const active = await this.getActiveSubscription(args.masterId);
+    const now = new Date();
+    const start = active ? active.currentPeriodEnd : now;
+    const end = new Date(start.getTime() + args.days * 86_400_000);
+
+    const sub = await prisma.masterSubscription.create({
+      data: {
+        masterId: args.masterId,
+        plan: args.plan,
+        status: SubscriptionStatus.ACTIVE,
+        currentPeriodStart: start,
+        currentPeriodEnd: end,
+        amountPaid: 0,
+      },
+    });
+    logger.info(
+      { masterId: args.masterId, plan: args.plan, days: args.days, reason: args.reason },
+      '🎫 PRO выдан админом',
+    );
+    return sub;
+  }
+
+  /**
+   * Продлить существующую подписку на N дней.
+   * Если она EXPIRED — возвращает ACTIVE и пересчитывает period от now.
+   */
+  async adminExtend(args: {
+    subscriptionId: string;
+    days: number;
+  }): Promise<MasterSubscription> {
+    if (args.days <= 0 || args.days > 3650) {
+      throw new Error('Срок должен быть от 1 до 3650 дней');
+    }
+    const sub = await prisma.masterSubscription.findUnique({
+      where: { id: args.subscriptionId },
+    });
+    if (!sub) throw new Error('Подписка не найдена');
+
+    const now = new Date();
+    const baseEnd = sub.currentPeriodEnd > now ? sub.currentPeriodEnd : now;
+    const newEnd = new Date(baseEnd.getTime() + args.days * 86_400_000);
+
+    const updated = await prisma.masterSubscription.update({
+      where: { id: sub.id },
+      data: {
+        currentPeriodEnd: newEnd,
+        status: SubscriptionStatus.ACTIVE,
+      },
+    });
+    logger.info(
+      { subscriptionId: sub.id, masterId: sub.masterId, days: args.days, newEnd },
+      '⏩ PRO-подписка продлена админом',
+    );
+    return updated;
+  }
+
+  /**
+   * Отменить подписку (status=CANCELLED, currentPeriodEnd=now). Без возврата средств.
+   */
+  async adminCancel(args: { subscriptionId: string; reason?: string }): Promise<MasterSubscription> {
+    const sub = await prisma.masterSubscription.findUnique({
+      where: { id: args.subscriptionId },
+    });
+    if (!sub) throw new Error('Подписка не найдена');
+    if (sub.status === SubscriptionStatus.CANCELLED) return sub;
+
+    const updated = await prisma.masterSubscription.update({
+      where: { id: sub.id },
+      data: {
+        status: SubscriptionStatus.CANCELLED,
+        currentPeriodEnd: new Date(),
+      },
+    });
+    logger.info(
+      { subscriptionId: sub.id, masterId: sub.masterId, reason: args.reason },
+      '⛔ PRO-подписка отменена админом',
+    );
+    return updated;
+  }
+
   /**
    * Отметить устаревшие подписки EXPIRED. Вызывается из cronCleanup периодически
    * (не критично — getActiveSubscription уже фильтрует по дате).

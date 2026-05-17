@@ -829,6 +829,22 @@ export const adminApi = {
   removeFromBlacklist: (id: string) =>
     api.delete<ApiResponse<any>>(`/admin/blacklist/${id}`),
 
+  // ─── Управление PRO-подписками ─────────
+  listSubscriptions: (params?: { page?: number; limit?: number; plan?: string; status?: string; search?: string }) =>
+    api.get<PaginatedResponse<any>>('/admin/subscriptions', { params }),
+
+  getUserSubscriptions: (userId: string) =>
+    api.get<ApiResponse<any[]>>(`/admin/users/${userId}/subscriptions`),
+
+  grantSubscription: (userId: string, plan: string, days: number, reason?: string) =>
+    api.post<ApiResponse<any>>(`/admin/users/${userId}/subscriptions/grant`, { plan, days, reason }),
+
+  extendSubscription: (id: string, days: number, reason?: string) =>
+    api.post<ApiResponse<any>>(`/admin/subscriptions/${id}/extend`, { days, reason }),
+
+  cancelSubscription: (id: string, reason?: string) =>
+    api.post<ApiResponse<any>>(`/admin/subscriptions/${id}/cancel`, { reason }),
+
   updateTaskPrice: (taskId: string, minPrice: number) =>
     api.patch<ApiResponse<any>>(`/catalog/admin/tasks/${taskId}/price`, { minPrice }),
 

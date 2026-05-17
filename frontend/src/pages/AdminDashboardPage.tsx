@@ -4,7 +4,7 @@
 // ============================================
 
 import { useEffect, useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { adminApi, storesApi, turnkeyApi, estimationApi, chatApi, supportChatApi, instantOrderApi, schoolApi } from '../api/client';
 import { useAuthStore } from '../store';
 import { useTranslation } from '../i18n';
@@ -1141,10 +1141,18 @@ export function AdminDashboardPage() {
 
               {/* PRO Subscription Metrics */}
               <div className="card bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/10 dark:to-orange-900/10 border-amber-200 dark:border-amber-800">
-                <h3 className="font-semibold mb-4 dark:text-white flex items-center gap-2">
-                  <Crown size={18} className="text-amber-600 dark:text-amber-400" />
-                  PRO-подписки
-                </h3>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold dark:text-white flex items-center gap-2">
+                    <Crown size={18} className="text-amber-600 dark:text-amber-400" />
+                    PRO-подписки
+                  </h3>
+                  <Link
+                    to="/admin/subscriptions"
+                    className="text-xs px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-medium transition"
+                  >
+                    Управление →
+                  </Link>
+                </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   <div>
                     <p className="text-[11px] text-gray-500 dark:text-gray-400">Активных платных</p>

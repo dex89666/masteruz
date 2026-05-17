@@ -10,7 +10,10 @@ import { validateBody, validateQuery } from '../../middleware/validate.js';
 import { adminUsersQuerySchema, blockUserSchema, changeRoleSchema, adminBalanceSchema, adminOrderCommentSchema, adminConfigSchema } from './admin.schema.js';
 import { prisma } from '../../config/database.js';
 import { balanceService } from '../balance/balance.service.js';
+import { subscriptionService } from '../../services/subscriptionService.js';
+import { auditService } from '../../services/auditService.js';
 import { clampPagination } from '../../utils/helpers.js';
+import { MasterPlan, SubscriptionStatus } from '@prisma/client';
 
 const router = Router();
 
@@ -139,6 +142,129 @@ router.post('/users/:id/balance/withdraw', authorize('ADMIN'), validateBody(admi
       reason
     );
     res.json({ success: true, data: result });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ═══ УПРАВЛЕНИЕ PRO-ПОДПИСКАМИ ═══
+
+const MASTER_PLANS = new Set<MasterPlan>(['TRIAL', 'MONTH', 'QUARTER', 'FIVE_MONTH', 'YEAR', 'REFERRAL', 'FOUNDER']);
+const SUB_STATUSES = new Set<SubscriptionStatus>(['ACTIVE', 'EXPIRED', 'CANCELLED', 'REFUNDED']);
+
+// Список всех подписок с фильтрами
+router.get('/subscriptions', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { page, limit } = clampPagination(req.query.page, req.query.limit);
+    const plan = req.query.plan as MasterPlan | undefined;
+    const status = req.query.status as SubscriptionStatus | undefined;
+    if (plan && !MASTER_PLANS.has(plan)) {
+      return res.status(400).json({ success: false, error: { message: 'Неверный план' } });
+    }
+    if (status && !SUB_STATUSES.has(status)) {
+      return res.status(400).json({ success: false, error: { message: 'Неверный статус' } });
+    }
+    const { rows, total } = await subscriptionService.adminList({
+      plan,
+      status,
+      search: (req.query.search as string) || undefined,
+      page,
+      limit,
+    });
+    res.json({
+      success: true,
+      data: rows,
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Подписки конкретного мастера
+router.get('/users/:id/subscriptions', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const rows = await subscriptionService.listForMaster(req.params.id);
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Выдать подписку вручную (только ADMIN)
+router.post('/users/:id/subscriptions/grant', authorize('ADMIN'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { plan, days, reason } = req.body as { plan?: string; days?: number; reason?: string };
+    if (!plan || !MASTER_PLANS.has(plan as MasterPlan)) {
+      return res.status(400).json({ success: false, error: { message: 'Укажите корректный план' } });
+    }
+    const dayCount = Number(days);
+    if (!Number.isFinite(dayCount) || dayCount <= 0) {
+      return res.status(400).json({ success: false, error: { message: 'Срок должен быть положительным' } });
+    }
+    const sub = await subscriptionService.adminGrant({
+      masterId: req.params.id,
+      plan: plan as MasterPlan,
+      days: dayCount,
+      reason,
+    });
+    await auditService.log({
+      actorId: req.user!.userId,
+      action: 'SUBSCRIPTION_GRANT',
+      entityType: 'MasterSubscription',
+      entityId: sub.id,
+      details: { masterId: req.params.id, plan, days: dayCount, reason: reason ?? null },
+      ipAddress: req.ip,
+    });
+    res.json({ success: true, data: sub });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Продлить подписку (только ADMIN)
+router.post('/subscriptions/:id/extend', authorize('ADMIN'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { days, reason } = req.body as { days?: number; reason?: string };
+    const dayCount = Number(days);
+    if (!Number.isFinite(dayCount) || dayCount <= 0) {
+      return res.status(400).json({ success: false, error: { message: 'Срок должен быть положительным' } });
+    }
+    const sub = await subscriptionService.adminExtend({
+      subscriptionId: req.params.id,
+      days: dayCount,
+    });
+    await auditService.log({
+      actorId: req.user!.userId,
+      action: 'SUBSCRIPTION_EXTEND',
+      entityType: 'MasterSubscription',
+      entityId: sub.id,
+      details: { days: dayCount, reason: reason ?? null },
+      ipAddress: req.ip,
+    });
+    res.json({ success: true, data: sub });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Отменить подписку (только ADMIN)
+router.post('/subscriptions/:id/cancel', authorize('ADMIN'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { reason } = req.body as { reason?: string };
+    const sub = await subscriptionService.adminCancel({
+      subscriptionId: req.params.id,
+      reason,
+    });
+    await auditService.log({
+      actorId: req.user!.userId,
+      action: 'SUBSCRIPTION_CANCEL',
+      entityType: 'MasterSubscription',
+      entityId: sub.id,
+      details: { reason: reason ?? null },
+      ipAddress: req.ip,
+    });
+    res.json({ success: true, data: sub });
   } catch (error) {
     next(error);
   }
