@@ -45,3 +45,6 @@ frontend/android/local.properties
 frontend/android/.idea/
 frontend/dist/
 frontend/.env.android
+
+# Локальный скрипт с секретами Railway
+scripts/railway-set-env.sh

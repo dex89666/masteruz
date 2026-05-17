@@ -10,6 +10,7 @@ import { ApiError } from '../../utils/ApiError.js';
 import { logger } from '../../utils/logger.js';
 import { sendTelegramMessage } from '../../utils/telegramBot.js';
 import { alertRouter } from '../../services/alertRouter.js';
+import { config } from '../../config/index.js';
 
 const DATA_DIR = path.resolve(process.cwd(), 'data');
 const FILE = path.join(DATA_DIR, 'complaints.json');
@@ -135,8 +136,8 @@ export const complaintsService = {
 
   async notifyAdmin(record: ComplaintRecord): Promise<void> {
     // Маршрутизация через alertRouter → команда SUPPORT.
-    // Legacy TELEGRAM_ADMIN_CHAT_ID оставлен как «канал последней надежды»
-    // (одно общее уведомление в админ-чат), если он задан в ENV.
+    // ADMIN_TELEGRAM_CHAT_ID — «канал последней надежды» (одно общее
+    // уведомление в админ-чат), если он задан в ENV.
     await alertRouter.dispatch({
       type: 'complaint_new',
       title: '⚠️ Новая жалоба MasterUz',
@@ -158,8 +159,8 @@ export const complaintsService = {
       },
     });
 
-    // Legacy: общий админ-чат (если настроен) — для обратной совместимости.
-    const adminChatId = process.env.TELEGRAM_ADMIN_CHAT_ID;
+    // Общий админ-чат (ADMIN_TELEGRAM_CHAT_ID) — единая точка конфигурации.
+    const adminChatId = config.telegram.adminChatId;
     if (!adminChatId) return;
     const text = [
       '⚠️ <b>Новая жалоба MasterUz</b>',
