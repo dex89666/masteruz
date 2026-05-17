@@ -41,6 +41,7 @@ const ProfileSettingsPage = lazy(() => import('./pages/ProfileSettingsPage').the
 const PaymentHistoryPage = lazy(() => import('./pages/PaymentHistoryPage').then(m => ({ default: m.PaymentHistoryPage })));
 const NotificationsPage = lazy(() => import('./pages/NotificationsPage').then(m => ({ default: m.NotificationsPage })));
 const ReviewFormPage = lazy(() => import('./pages/ReviewFormPage').then(m => ({ default: m.ReviewFormPage })));
+const ClientReviewPage = lazy(() => import('./pages/ClientReviewPage').then(m => ({ default: m.ClientReviewPage })));
 const ReportPage = lazy(() => import('./pages/ReportPage').then(m => ({ default: m.ReportPage })));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage').then(m => ({ default: m.NotFoundPage })));
 const HelpSupportPage = lazy(() => import('./pages/HelpSupportPage').then(m => ({ default: m.HelpSupportPage })));
@@ -337,6 +338,14 @@ function AppContent() {
             <ProtectedRoute>
               <ReviewFormPage />
             </ProtectedRoute>
+          }
+        />
+        <Route
+          path="orders/:orderId/client-review"
+          element={
+            <MasterRoute>
+              <ClientReviewPage />
+            </MasterRoute>
           }
         />
         <Route

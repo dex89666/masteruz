@@ -990,6 +990,17 @@ export function OrderDetailPage() {
         </div>
       )}
 
+      {/* Мастер: оценить клиента (двусторонние отзывы) */}
+      {isMaster && order.masterId === user?.id && ['COMPLETED', 'CANCELLED', 'DISPUTED'].includes(order.status) && (
+        <Link
+          to={`/orders/${order.id}/client-review`}
+          className="mb-4 flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-500 hover:opacity-95 text-white font-semibold transition active:scale-[0.99]"
+        >
+          <Star size={18} />
+          Оценить клиента
+        </Link>
+      )}
+
       {/* Информация о штрафе (если заказ отменён) */}
       {order.status === 'CANCELLED' && order.penaltyAmount > 0 && (
         <div className="card mb-4 bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800">

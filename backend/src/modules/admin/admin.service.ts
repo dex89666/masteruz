@@ -32,6 +32,7 @@ export class AdminService {
       unpaidMasters,
       urgentOrders,
       ordersBySource,
+      proStats,
     ] = await Promise.all([
       prisma.user.count(),
       prisma.user.count({ where: { role: 'MASTER' } }),
@@ -82,6 +83,7 @@ export class AdminService {
         by: ['source'],
         _count: { source: true },
       }),
+      this.getProStats(),
     ]);
 
     return {
@@ -98,6 +100,10 @@ export class AdminService {
         registrationFeesPaid,
         unpaidMasters,
         urgentOrders,
+        proActive: proStats.active,
+        proTrial: proStats.trial,
+        proRevenue: proStats.revenue,
+        proFounderUsed: proStats.founderUsed,
       },
       topMasters,
       recentOrders,
@@ -109,6 +115,38 @@ export class AdminService {
         source: item.source,
         count: item._count.source,
       })),
+      proByPlan: proStats.byPlan,
+    };
+  }
+
+  /**
+   * PRO-метрики для дашборда.
+   */
+  private async getProStats() {
+    const now = new Date();
+    const [active, trial, byPlan, revenue, founderUsed] = await Promise.all([
+      prisma.masterSubscription.count({
+        where: { status: 'ACTIVE', currentPeriodEnd: { gt: now }, plan: { notIn: ['TRIAL', 'REFERRAL'] } },
+      }),
+      prisma.masterSubscription.count({
+        where: { status: 'ACTIVE', currentPeriodEnd: { gt: now }, plan: 'TRIAL' },
+      }),
+      prisma.masterSubscription.groupBy({
+        by: ['plan'],
+        where: { status: 'ACTIVE', currentPeriodEnd: { gt: now } },
+        _count: { plan: true },
+      }),
+      prisma.masterSubscription.aggregate({
+        _sum: { amountPaid: true },
+      }),
+      prisma.masterSubscription.count({ where: { plan: 'FOUNDER' } }),
+    ]);
+    return {
+      active,
+      trial,
+      revenue: revenue._sum.amountPaid ?? 0,
+      founderUsed,
+      byPlan: byPlan.map((r) => ({ plan: r.plan, count: r._count.plan })),
     };
   }
 

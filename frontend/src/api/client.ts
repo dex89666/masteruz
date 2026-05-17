@@ -336,6 +336,24 @@ export const reviewsApi = {
     api.get<any>(`/reviews/master/${masterId}`, { params: { page } }),
 };
 
+// ─── Risk / Master→Client review API ───────
+export interface ClientReviewInput {
+  orderId: string;
+  overall: number;
+  wasRude?: boolean;
+  wasNoShow?: boolean;
+  haggledHard?: boolean;
+  changedScope?: boolean;
+  delayedPayment?: boolean;
+  comment?: string;
+}
+
+export const riskApi = {
+  getUserRisk: (id: string) => api.get<ApiResponse<any>>(`/risk/users/${id}`),
+  reviewClient: (data: ClientReviewInput) =>
+    api.post<ApiResponse<any>>('/risk/master-review', data),
+};
+
 // ─── Geo API ───────────────────────────────
 export const geoApi = {
   ordersNearby: (latitude: number, longitude: number, radius?: number, categoryId?: string) =>

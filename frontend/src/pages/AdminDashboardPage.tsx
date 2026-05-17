@@ -22,7 +22,7 @@ import {
   FolderTree, Plus, Trash2, Edit3, ChevronDown, ChevronUp,
   Headphones, Send, MessageCircle, FileText, Sparkles,
   GraduationCap, HelpCircle, BookOpen, Phone,
-  Bell,
+  Bell, Crown,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { Dashboard } from '../types';
@@ -1137,6 +1137,44 @@ export function AdminDashboardPage() {
                   <p className="text-lg font-bold dark:text-white">{stats.urgentOrders || 0}</p>
                   <p className="text-[10px] text-gray-500 dark:text-gray-400">{t('admin.urgentOrders')}</p>
                 </div>
+              </div>
+
+              {/* PRO Subscription Metrics */}
+              <div className="card bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/10 dark:to-orange-900/10 border-amber-200 dark:border-amber-800">
+                <h3 className="font-semibold mb-4 dark:text-white flex items-center gap-2">
+                  <Crown size={18} className="text-amber-600 dark:text-amber-400" />
+                  PRO-подписки
+                </h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div>
+                    <p className="text-[11px] text-gray-500 dark:text-gray-400">Активных платных</p>
+                    <p className="text-2xl font-bold text-amber-700 dark:text-amber-300">{stats.proActive ?? 0}</p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] text-gray-500 dark:text-gray-400">Trial сейчас</p>
+                    <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">{stats.proTrial ?? 0}</p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] text-gray-500 dark:text-gray-400">Выручка PRO</p>
+                    <p className="text-2xl font-bold text-gray-900 dark:text-white">{formatPrice(Number(stats.proRevenue) || 0, t('common.currency'))}</p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] text-gray-500 dark:text-gray-400">Founder выдано</p>
+                    <p className="text-2xl font-bold text-rose-700 dark:text-rose-300">{stats.proFounderUsed ?? 0} / 1000</p>
+                  </div>
+                </div>
+                {dashboard?.proByPlan && dashboard.proByPlan.length > 0 && (
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {dashboard.proByPlan.map((p: any) => (
+                      <span
+                        key={p.plan}
+                        className="text-xs px-2.5 py-1 rounded-full bg-white dark:bg-gray-900 border border-amber-200 dark:border-amber-800 text-gray-700 dark:text-gray-200"
+                      >
+                        {p.plan}: <b>{p.count}</b>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Order Status Distribution */}

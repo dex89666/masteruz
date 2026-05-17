@@ -550,6 +550,10 @@ export interface DashboardStats {
   registrationFeesPaid: number;
   unpaidMasters: number;
   urgentOrders: number;
+  proActive?: number;
+  proTrial?: number;
+  proRevenue?: number | string;
+  proFounderUsed?: number;
 }
 
 export interface Dashboard {
@@ -558,6 +562,7 @@ export interface Dashboard {
   recentOrders: Order[];
   ordersByStatus: { status: string; count: number }[];
   ordersBySource?: { source: 'INSTANT_AI' | 'DETAILED_WIZARD'; count: number }[];
+  proByPlan?: { plan: string; count: number }[];
 }
 
 // ─── Транзакции баланса ────────────────────
