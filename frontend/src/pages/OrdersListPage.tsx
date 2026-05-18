@@ -3,14 +3,14 @@
 // ============================================
 
 import { useEffect, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { ClipboardList } from 'lucide-react';
 import { ordersApi, catalogApi } from '../api/client';
 import { OrderCard } from '../components/OrderCard';
 import { OrdersListSkeleton } from '../components/PageSkeletons';
 import { useFormatPrice, useGeolocation } from '../hooks';
 import { useTranslation } from '../i18n';
-import { PlusCircle, MapPin, X, Zap } from 'lucide-react';
+import { ArrowLeft, PlusCircle, MapPin, X, Zap } from 'lucide-react';
 import { useAuthStore } from '../store';
 import { getDistrictsForCity, getLocalizedRegionName } from '../data/regions';
 import type { Order, Category, Subcategory } from '../types';
@@ -28,6 +28,7 @@ export function OrdersListPage() {
   const formatPrice = useFormatPrice();
   const { location, requestLocation } = useGeolocation();
   const { t, language } = useTranslation();
+  const navigate = useNavigate();
 
   const [filters, setFilters] = useState({
     status: 'PUBLISHED',
@@ -142,10 +143,19 @@ export function OrdersListPage() {
   }
 
   return (
-    <div className="page-container pb-20">
+    <dibutton
+        onClick={() => navigate(-1)}
+        className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 mb-3 -ml-1 px-2 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+        aria-label={t('common.back')}
+      >
+        <ArrowLeft size={18} />
+        <span>{t('common.back')}</span>
+      </button>
+
       <div className="flex items-center justify-between mb-4">
         <h1 className="page-title mb-0">{t('orders.title')}</h1>
         {isAuthenticated && (
+          <Link to="/new-order
           <Link to="/orders/create" className="btn-primary">
             <PlusCircle size={18} className="mr-2" />
             {t('orders.createOrder')}
@@ -293,12 +303,7 @@ export function OrdersListPage() {
           </button>
         )}
       </div>
-
-      {/* Orders Grid */}
-      {loading ? (
-        <OrdersListSkeleton count={6} />
-      ) : orders.length === 0 ? (
-        <div className="text-center py-16">
+<div className="text-center py-16">
           <ClipboardList size={48} className="text-gray-300 dark:text-gray-600 mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">{t('orders.noOrders')}</h3>
           <p className="text-gray-500 dark:text-gray-400 mb-6">{t('orders.noOrdersDesc')}</p>
