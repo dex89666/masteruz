@@ -33,8 +33,8 @@ WHERE "payment_model" = 'DEPOSIT_30'
   AND "created_at" < NOW();
 
 -- ── Дефолт для новых заказов — настраиваемый процент депозита ─────────────────
-INSERT INTO "platform_config" ("key", "value", "description")
+INSERT INTO "platform_config" ("id", "key", "value", "description", "updated_at")
 VALUES
-  ('deposit_rate', '30', 'Процент депозита, который клиент платит при создании заказа (0..100). Остаток оплачивается при завершении наличными или картой.'),
-  ('false_dispute_penalty', '50000', 'Штраф клиенту (в сум) за ложный диспут после отказа от CASH-оплаты остатка.')
+  (gen_random_uuid(), 'deposit_rate', '30', 'Процент депозита, который клиент платит при создании заказа (0..100). Остаток оплачивается при завершении наличными или картой.', NOW()),
+  (gen_random_uuid(), 'false_dispute_penalty', '50000', 'Штраф клиенту (в сум) за ложный диспут после отказа от CASH-оплаты остатка.', NOW())
 ON CONFLICT ("key") DO NOTHING;
