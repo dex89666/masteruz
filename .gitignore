@@ -48,3 +48,6 @@ frontend/.env.android
 
 # Локальный скрипт с секретами Railway
 scripts/railway-set-env.sh
+
+# R2 credentials
+.env.r2
