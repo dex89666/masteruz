@@ -14,6 +14,7 @@ import {
   Plus, Trash2, Check, ListChecks, Navigation,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { reverseGeocode as reverseGeocodeClient } from '../lib/reverseGeocode';
 import { useTranslation } from '../i18n';
 import { useFormatPrice } from '../hooks';
 import { instantOrderApi, catalogApi, photosApi, geoApi } from '../api/client';
@@ -1703,14 +1704,45 @@ export function InstantOrderPage() {
                       const { latitude: lat, longitude: lng } = pos.coords;
                       setLatitude(lat);
                       setLongitude(lng);
-                      const { data } = await geoApi.reverseGeocode(lat, lng);
-                      const parts = data.data;
-                      if (parts.region) setRegion(parts.region);
-                      if (parts.city) setCity(parts.city);
-                      if (parts.district) setDistrict(parts.district);
-                      if (parts.street) setStreet(parts.street);
-                      if (parts.house) setHouse(parts.house);
-                      toast.success('Адрес определён — впишите номер квартиры', { id: TOAST_ID });
+
+                      // 1) Пробуем backend (Яндекс / Nominatim).
+                      // 2) Если не вышло — fallback на клиентский Nominatim напрямую.
+                      // Всегда перезаписываем поля: GPS точнее ручного ввода.
+                      let parts: {
+                        region?: string;
+                        city?: string;
+                        district?: string;
+                        street?: string;
+                        house?: string;
+                      } | null = null;
+                      try {
+                        const { data } = await geoApi.reverseGeocode(lat, lng);
+                        parts = data.data || null;
+                      } catch {
+                        parts = null;
+                      }
+                      if (!parts || (!parts.city && !parts.street)) {
+                        const fallback = await reverseGeocodeClient(lat, lng, 'ru');
+                        if (fallback) {
+                          parts = {
+                            city: fallback.rawCity,
+                            district: fallback.rawDistrict,
+                            street: fallback.street,
+                            house: fallback.houseNumber,
+                          };
+                        }
+                      }
+                      if (!parts) {
+                        toast(`Координаты определены (${lat.toFixed(4)}, ${lng.toFixed(4)}). Заполните адрес вручную.`, { id: TOAST_ID, icon: '📍', duration: 5000 });
+                      } else {
+                        // Полная перезапись — GPS приоритетнее
+                        setRegion(parts.region ?? '');
+                        setCity(parts.city ?? '');
+                        setDistrict(parts.district ?? '');
+                        setStreet(parts.street ?? '');
+                        setHouse(parts.house ?? '');
+                        toast.success('Адрес определён — впишите номер квартиры', { id: TOAST_ID });
+                      }
                     } catch (err: any) {
                       let msg = 'Не удалось определить адрес';
                       if (err?.code === 1) msg = 'Доступ к геолокации запрещён. Разрешите его в настройках браузера (иконка замка слева от адреса)';

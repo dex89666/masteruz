@@ -132,9 +132,9 @@ export function CreateOrderPage() {
   const [geocoding, setGeocoding] = useState(false);
   const [geocodedKey, setGeocodedKey] = useState<string | null>(null);
 
-  // Автозаполнение города/района/улицы/дома по координатам (Nominatim).
-  // Срабатывает один раз на каждые уникальные координаты, не затирает то, что
-  // пользователь уже ввёл вручную.
+  // Автозаполнение города/района/улицы/дома по координатам.
+  // Срабатывает один раз на каждые уникальные координаты.
+  // ВСЕГДА перезаписывает поля — GPS точнее ручного ввода.
   useEffect(() => {
     if (!location) return;
     const key = `${location.latitude.toFixed(5)},${location.longitude.toFixed(5)}`;
@@ -144,15 +144,18 @@ export function CreateOrderPage() {
     setGeocoding(true);
     reverseGeocode(location.latitude, location.longitude, language)
       .then((result) => {
-        if (cancelled || !result) return;
-        setForm((prev) => {
-          const next = { ...prev };
-          if (!prev.city && result.cityKey) next.city = result.cityKey;
-          if (!prev.district && result.districtKey) next.district = result.districtKey;
-          if (!prev.street && result.street) next.street = result.street;
-          if (!prev.address && result.houseNumber) next.address = result.houseNumber;
-          return next;
-        });
+        if (cancelled) return;
+        if (!result) {
+          toast.error(t('createOrder.locationFailed') || 'Не удалось определить адрес — заполните вручную');
+          return;
+        }
+        setForm((prev) => ({
+          ...prev,
+          city: result.cityKey ?? prev.city,
+          district: result.districtKey ?? (result.cityKey ? '' : prev.district),
+          street: result.street ?? prev.street,
+          address: result.houseNumber ?? prev.address,
+        }));
         if (result.cityKey || result.street) {
           toast.success(t('createOrder.locationFilled') || 'Адрес определён по геолокации');
         } else if (result.displayName) {

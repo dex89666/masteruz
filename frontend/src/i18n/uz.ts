@@ -289,6 +289,7 @@ const uz = {
     creating: 'Yaratilmoqda...',
     coordsDetermined: "Koordinatalar aniqlandi:",
     locationFilled: "Manzil geolokatsiya bo'yicha aniqlandi",
+    locationFailed: "Manzilni aniqlab bo'lmadi — qo'lda kiriting",
     loginRequired: 'Buyurtma yaratish uchun tizimga kiring',
     maxPhotos: 'Maksimum 5 ta rasm',
     enterTitle: 'Buyurtma nomini kiriting',

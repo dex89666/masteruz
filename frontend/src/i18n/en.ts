@@ -289,6 +289,7 @@ const en = {
     creating: 'Creating...',
     coordsDetermined: 'Coordinates determined:',
     locationFilled: 'Address filled from your location',
+    locationFailed: 'Could not detect address — please fill manually',
     loginRequired: 'Log in to create an order',
     maxPhotos: 'Maximum 5 photos',
     enterTitle: 'Enter order title',

@@ -156,7 +156,8 @@ export class GeoService {
   }
 
   /**
-   * Обратное геокодирование: координаты → разобранный адрес (Я.Геокодер).
+   * Обратное геокодирование: координаты → разобранный адрес.
+   * Пробует Я.Геокодер (если есть API-ключ), иначе fallback на Nominatim (OSM, без ключа).
    * Возвращает поля: region, city, district, street, house, formatted.
    */
   async reverseGeocode(latitude: number, longitude: number): Promise<{
@@ -167,8 +168,16 @@ export class GeoService {
     house?: string;
     formatted?: string;
   } | null> {
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+
+    const yandex = await this.reverseGeocodeYandex(latitude, longitude);
+    if (yandex) return yandex;
+    return this.reverseGeocodeNominatim(latitude, longitude);
+  }
+
+  private async reverseGeocodeYandex(latitude: number, longitude: number) {
     const apiKey = config.yandexMaps?.apiKey;
-    if (!apiKey || !Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+    if (!apiKey) return null;
     try {
       const url = `https://geocode-maps.yandex.ru/1.x/?apikey=${apiKey}&geocode=${longitude},${latitude}&format=json&results=1&lang=ru_RU&kind=house`;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -181,9 +190,7 @@ export class GeoService {
 
       const meta = obj?.metaDataProperty?.GeocoderMetaData;
       const formatted: string | undefined = meta?.text;
-      const components: Array<{ kind: string; name: string }> =
-        meta?.Address?.Components ?? [];
-
+      const components: Array<{ kind: string; name: string }> = meta?.Address?.Components ?? [];
       const find = (kind: string) => components.find((c) => c.kind === kind)?.name;
 
       return {
@@ -193,6 +200,32 @@ export class GeoService {
         street: find('street'),
         house: find('house'),
         formatted,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  private async reverseGeocodeNominatim(latitude: number, longitude: number) {
+    try {
+      const url =
+        `https://nominatim.openstreetmap.org/reverse?format=jsonv2` +
+        `&lat=${latitude}&lon=${longitude}&addressdetails=1&zoom=18&accept-language=ru`;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const _fetch = (globalThis as any).fetch as (u: string, init?: any) => Promise<{ ok: boolean; json: () => Promise<any> }>;
+      const res = await _fetch(url, {
+        headers: { 'User-Agent': 'MasterUz/1.0 (https://masteruz.com)' },
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      const addr = data?.address ?? {};
+      return {
+        region: addr.state || addr.region,
+        city: addr.city || addr.town || addr.village,
+        district: addr.city_district || addr.district || addr.suburb || addr.neighbourhood,
+        street: addr.road || addr.pedestrian || addr.footway,
+        house: addr.house_number,
+        formatted: data?.display_name,
       };
     } catch {
       return null;
