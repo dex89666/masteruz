@@ -94,7 +94,7 @@ export function OrderDetailPage() {
 
   // Авто-прокрутка к форме отклика при переходе из Telegram-кнопки «Подтвердить заявку»
   useEffect(() => {
-    if (!respondAction || !order || !isMaster || isOwner) return;
+    if (!respondAction || !order || !isMaster || (isOwner && !isAdmin)) return;
     if (order.status !== 'PUBLISHED') return;
     const timer = setTimeout(() => {
       respondFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -104,7 +104,7 @@ export function OrderDetailPage() {
       setSearchParams((p) => { p.delete('action'); return p; }, { replace: true });
     }, 350);
     return () => clearTimeout(timer);
-  }, [respondAction, order, isMaster, isOwner]);
+  }, [respondAction, order, isMaster, isOwner, isAdmin]);
 
   function formatLastSeen(lastSeenAt: string | null): string {
     if (!lastSeenAt) return '';
@@ -1491,7 +1491,7 @@ export function OrderDetailPage() {
       )}
 
       {/* Блок принятия заказа для мастера (не для оценки — у неё свой блок выше) */}
-      {isMaster && order.status === 'PUBLISHED' && !isOwner && !order.isEstimationOrder && (
+      {isMaster && order.status === 'PUBLISHED' && (!isOwner || isAdmin) && !order.isEstimationOrder && (
         <div
           ref={respondFormRef}
           className={`card transition-all duration-500 ${

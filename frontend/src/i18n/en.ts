@@ -288,6 +288,7 @@ const en = {
     publish: 'Publish order',
     creating: 'Creating...',
     coordsDetermined: 'Coordinates determined:',
+    locationFilled: 'Address filled from your location',
     loginRequired: 'Log in to create an order',
     maxPhotos: 'Maximum 5 photos',
     enterTitle: 'Enter order title',

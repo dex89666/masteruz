@@ -288,6 +288,7 @@ const ru = {
     publish: 'Опубликовать заказ',
     creating: 'Создание...',
     coordsDetermined: 'Координаты определены:',
+    locationFilled: 'Адрес определён по геолокации',
     loginRequired: 'Войдите, чтобы создать заказ',
     maxPhotos: 'Максимум 5 фотографий',
     enterTitle: 'Укажите название заказа',

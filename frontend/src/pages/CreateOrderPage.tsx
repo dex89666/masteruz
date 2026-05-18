@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import CategoryIcon from '../components/CategoryIcon';
 import toast from 'react-hot-toast';
+import { reverseGeocode } from '../lib/reverseGeocode';
 import type { Task } from '../types';
 import { UZBEKISTAN_REGIONS, getDistrictsForCity, getRegionByCity, getLocalizedRegionName } from '../data/regions';
 import { CameraCapture } from '../components/CameraCapture';
@@ -128,6 +129,47 @@ export function CreateOrderPage() {
   const [previews, setPreviews] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [_appliedPromo, setAppliedPromo] = useState<any>(null);
+  const [geocoding, setGeocoding] = useState(false);
+  const [geocodedKey, setGeocodedKey] = useState<string | null>(null);
+
+  // Автозаполнение города/района/улицы/дома по координатам (Nominatim).
+  // Срабатывает один раз на каждые уникальные координаты, не затирает то, что
+  // пользователь уже ввёл вручную.
+  useEffect(() => {
+    if (!location) return;
+    const key = `${location.latitude.toFixed(5)},${location.longitude.toFixed(5)}`;
+    if (geocodedKey === key) return;
+
+    let cancelled = false;
+    setGeocoding(true);
+    reverseGeocode(location.latitude, location.longitude, language)
+      .then((result) => {
+        if (cancelled || !result) return;
+        setForm((prev) => {
+          const next = { ...prev };
+          if (!prev.city && result.cityKey) next.city = result.cityKey;
+          if (!prev.district && result.districtKey) next.district = result.districtKey;
+          if (!prev.street && result.street) next.street = result.street;
+          if (!prev.address && result.houseNumber) next.address = result.houseNumber;
+          return next;
+        });
+        if (result.cityKey || result.street) {
+          toast.success(t('createOrder.locationFilled') || 'Адрес определён по геолокации');
+        } else if (result.displayName) {
+          toast(result.displayName, { icon: '📍' });
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setGeocoding(false);
+          setGeocodedKey(key);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [location, language, geocodedKey, t]);
 
   // Redirect unauthenticated
   useEffect(() => {
@@ -794,10 +836,11 @@ export function CreateOrderPage() {
                 <button
                   type="button"
                   onClick={requestLocation}
-                  className="btn-secondary whitespace-nowrap"
+                  disabled={geocoding}
+                  className="btn-secondary whitespace-nowrap disabled:opacity-60"
                 >
                   <MapPin size={16} className="mr-1" />
-                  GPS
+                  {geocoding ? '…' : 'GPS'}
                 </button>
               </div>
               {location && (

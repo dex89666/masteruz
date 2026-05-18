@@ -288,6 +288,7 @@ const uz = {
     publish: 'Buyurtmani chop etish',
     creating: 'Yaratilmoqda...',
     coordsDetermined: "Koordinatalar aniqlandi:",
+    locationFilled: "Manzil geolokatsiya bo'yicha aniqlandi",
     loginRequired: 'Buyurtma yaratish uchun tizimga kiring',
     maxPhotos: 'Maksimum 5 ta rasm',
     enterTitle: 'Buyurtma nomini kiriting',
