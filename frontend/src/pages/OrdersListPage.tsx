@@ -143,7 +143,8 @@ export function OrdersListPage() {
   }
 
   return (
-    <dibutton
+    <div className="page-container pb-20">
+      <button
         onClick={() => navigate(-1)}
         className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 mb-3 -ml-1 px-2 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
         aria-label={t('common.back')}
@@ -155,8 +156,7 @@ export function OrdersListPage() {
       <div className="flex items-center justify-between mb-4">
         <h1 className="page-title mb-0">{t('orders.title')}</h1>
         {isAuthenticated && (
-          <Link to="/new-order
-          <Link to="/orders/create" className="btn-primary">
+          <Link to="/new-order" className="btn-primary">
             <PlusCircle size={18} className="mr-2" />
             {t('orders.createOrder')}
           </Link>
@@ -303,15 +303,15 @@ export function OrdersListPage() {
           </button>
         )}
       </div>
-<div className="text-center py-16">
+
+      {/* Orders Grid */}
+      {loading ? (
+        <OrdersListSkeleton count={6} />
+      ) : orders.length === 0 ? (
+        <div className="text-center py-16">
           <ClipboardList size={48} className="text-gray-300 dark:text-gray-600 mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">{t('orders.noOrders')}</h3>
           <p className="text-gray-500 dark:text-gray-400 mb-6">{t('orders.noOrdersDesc')}</p>
-          {isAuthenticated && (
-            <Link to="/orders/create" className="btn-primary">
-              {t('orders.createOrder')}
-            </Link>
-          )}
         </div>
       ) : (
         <>
