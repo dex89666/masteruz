@@ -69,6 +69,9 @@ export function OrderDetailPage() {
   const [showClientConfirm, setShowClientConfirm] = useState(false);
   const [confirmingClient, setConfirmingClient] = useState(false);
 
+  // Оплата остатка (AWAITING_REMAINDER) — выбор способа клиентом
+  const [submittingRemainder, setSubmittingRemainder] = useState<'CASH' | 'CARD' | null>(null);
+
   // Admin comment state
   const [editingAdminComment, setEditingAdminComment] = useState(false);
   const [adminCommentDraft, setAdminCommentDraft] = useState('');
@@ -140,6 +143,9 @@ export function OrderDetailPage() {
     }
     if (event === 'order_completed') {
       toast.success(t('antiFraud.orderCompleted'), { duration: 6000 });
+    }
+    if (event === 'awaiting_remainder' && isOwner) {
+      toast('Мастер завершил работу — выберите способ доплаты', { duration: 6000, icon: '💳' });
     }
     if (event === 'master_assigned') {
       toast(t('antiFraud.masterAssignedNotify'), { duration: 5000 });
@@ -270,6 +276,24 @@ export function OrderDetailPage() {
     }
   }
 
+  // ─── Клиент оплачивает остаток: CASH / CARD ───────
+  async function handleSubmitRemainder(method: 'CASH' | 'CARD') {
+    setSubmittingRemainder(method);
+    try {
+      await ordersApi.submitRemainder(id!, method);
+      toast.success(
+        method === 'CASH'
+          ? 'Заказ закрыт. Передайте остаток мастеру наличными.'
+          : 'Доплата списана с баланса. Заказ закрыт.',
+      );
+      loadOrder();
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || t('common.error'));
+    } finally {
+      setSubmittingRemainder(null);
+    }
+  }
+
   // ─── Отмена с предупреждением о штрафе ────
   async function handleCancel() {
     try {
@@ -349,6 +373,7 @@ export function OrderDetailPage() {
     ACCEPTED: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400',
     IN_TRANSIT: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400',
     IN_PROGRESS: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
+    AWAITING_REMAINDER: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
     COMPLETED: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
     CANCELLED: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
     DISPUTED: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400',
@@ -433,8 +458,47 @@ export function OrderDetailPage() {
           </div>
         </div>
 
-        {/* Эскроу инфо */}
-        {order.escrowAmount > 0 && (
+        {/* Депозит / эскроу — наглядная разбивка для DEPOSIT_30 */}
+        {order.paymentModel === 'DEPOSIT_30' && Number(order.depositAmount || 0) > 0 && (
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <div className={`p-3 rounded-xl border ${
+              ['COMPLETED'].includes(order.status)
+                ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800'
+                : 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
+            }`}>
+              <div className="text-[10px] uppercase tracking-wide font-semibold text-blue-700 dark:text-blue-300 flex items-center gap-1">
+                <Shield size={11} /> Депозит (оплачен)
+              </div>
+              <div className="text-sm font-bold text-blue-900 dark:text-blue-100 mt-1">
+                {formatPrice(order.depositAmount ?? 0, t('common.currency'))}
+              </div>
+            </div>
+            <div className={`p-3 rounded-xl border ${
+              order.remainderPaidAt
+                ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800'
+                : 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800'
+            }`}>
+              <div className={`text-[10px] uppercase tracking-wide font-semibold flex items-center gap-1 ${
+                order.remainderPaidAt
+                  ? 'text-emerald-700 dark:text-emerald-300'
+                  : 'text-amber-700 dark:text-amber-300'
+              }`}>
+                {order.remainderPaidAt ? <Check size={11} /> : <Clock size={11} />}
+                {order.remainderPaidAt
+                  ? `Доплата (${order.remainderMethod === 'CASH' ? 'наличными' : 'картой'})`
+                  : 'Остаток (при завершении)'}
+              </div>
+              <div className={`text-sm font-bold mt-1 ${
+                order.remainderPaidAt ? 'text-emerald-900 dark:text-emerald-100' : 'text-amber-900 dark:text-amber-100'
+              }`}>
+                {formatPrice(order.remainingAmount ?? 0, t('common.currency'))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Старая модель FULL_ESCROW — единая плашка */}
+        {order.paymentModel !== 'DEPOSIT_30' && order.escrowAmount > 0 && (
           <div className="mt-3 p-2.5 bg-blue-50 dark:bg-blue-900/20 rounded-lg flex items-center gap-2">
             <Shield size={14} className="text-blue-500 dark:text-blue-400 shrink-0" />
             <span className="text-xs text-blue-700 dark:text-blue-400">
@@ -951,6 +1015,74 @@ export function OrderDetailPage() {
             <div>
               <p className="font-semibold text-yellow-800 dark:text-yellow-300">{t('antiFraud.waitingMasterConfirm')}</p>
               <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-0.5">{t('antiFraud.bothMustConfirm')}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ AWAITING_REMAINDER: Клиент выбирает способ доплаты ═══ */}
+      {isOwner && order.status === 'AWAITING_REMAINDER' && (
+        <div className="card mb-4 border-2 border-blue-400 dark:border-blue-600 bg-gradient-to-br from-blue-50 to-emerald-50 dark:from-blue-900/20 dark:to-emerald-900/10">
+          <div className="flex items-start gap-3 mb-3">
+            <div className="w-11 h-11 rounded-xl bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center shrink-0">
+              <CheckCircle size={22} className="text-blue-600 dark:text-blue-400" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-bold text-gray-900 dark:text-white">Работа выполнена — оплатите остаток</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">
+                Мастер завершил работу. Депозит {formatPrice(order.depositAmount ?? 0, t('common.currency'))} уже оплачен. Осталось доплатить:
+              </p>
+              <p className="text-lg font-bold text-blue-700 dark:text-blue-300 mt-1">
+                {formatPrice(order.remainingAmount ?? 0, t('common.currency'))}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 mt-3">
+            <button
+              onClick={() => handleSubmitRemainder('CASH')}
+              disabled={!!submittingRemainder}
+              className="py-3 px-3 rounded-xl font-semibold text-white bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 transition-all flex flex-col items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {submittingRemainder === 'CASH' ? <Loader size={20} className="animate-spin" /> : <DollarSign size={20} />}
+              <span className="text-sm">Наличными мастеру</span>
+              <span className="text-[10px] opacity-80">Передадите при встрече</span>
+            </button>
+            <button
+              onClick={() => handleSubmitRemainder('CARD')}
+              disabled={!!submittingRemainder}
+              className="py-3 px-3 rounded-xl font-semibold text-white bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 transition-all flex flex-col items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {submittingRemainder === 'CARD' ? <Loader size={20} className="animate-spin" /> : <CreditCard size={20} />}
+              <span className="text-sm">Картой через приложение</span>
+              <span className="text-[10px] opacity-80">Списать с баланса</span>
+            </button>
+          </div>
+
+          <button
+            onClick={() => setShowDispute(true)}
+            className="w-full mt-3 py-2 px-3 rounded-lg text-sm font-medium text-orange-600 dark:text-orange-400 bg-orange-100/60 dark:bg-orange-900/20 hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-all flex items-center justify-center gap-2"
+          >
+            <AlertTriangle size={14} />
+            Что-то пошло не так — открыть спор
+          </button>
+
+          <p className="text-[11px] leading-relaxed text-gray-500 dark:text-gray-400 mt-3">
+            💡 Депозит уже включает комиссию платформы. При оплате наличными мастер получит свою часть из депозита, вы заплатите ему оставшуюся сумму напрямую.
+          </p>
+        </div>
+      )}
+
+      {/* Мастер ждёт оплаты остатка клиентом */}
+      {isAssignedMaster && order.status === 'AWAITING_REMAINDER' && (
+        <div className="card mb-4 bg-blue-50 dark:bg-blue-900/10 border border-blue-300 dark:border-blue-700">
+          <div className="flex items-center gap-3">
+            <Clock size={20} className="text-blue-600 dark:text-blue-400" />
+            <div>
+              <p className="font-semibold text-blue-800 dark:text-blue-300">Ожидание оплаты остатка клиентом</p>
+              <p className="text-xs text-blue-600 dark:text-blue-400 mt-0.5">
+                Клиент выбирает способ: наличными вам или картой ({formatPrice(order.remainingAmount ?? 0, t('common.currency'))})
+              </p>
             </div>
           </div>
         </div>

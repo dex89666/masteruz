@@ -120,6 +120,7 @@ const en = {
     ACCEPTED: 'Accepted',
     IN_TRANSIT: 'Master en route',
     IN_PROGRESS: 'In progress',
+    AWAITING_REMAINDER: 'Awaiting remainder payment',
     COMPLETED: 'Completed',
     CANCELLED: 'Cancelled',
     DISPUTED: 'Disputed',

@@ -36,6 +36,7 @@ enum OrderStatus {
   ACCEPTED
   IN_TRANSIT
   IN_PROGRESS
+  AWAITING_REMAINDER   // Мастер подтвердил выполнение. Клиент выбирает способ оплаты остатка (CASH/CARD).
   COMPLETED
   CANCELLED
   DISPUTED
@@ -400,6 +401,17 @@ model Order {
   // Anti-fraud: Escrow / подтверждения / штрафы
   visitFee         Decimal?    @map("visit_fee") @db.Decimal(12, 2)
   escrowAmount     Decimal     @default(0) @map("escrow_amount") @db.Decimal(12, 2)
+  // ─── Модель оплаты ──────────────────────────────────────────────
+  // FULL_ESCROW  — legacy: клиент при создании блокирует 100% суммы.
+  // DEPOSIT_30   — клиент платит депозит при создании (по умолчанию 30%),
+  //                остаток выбирает при завершении: наличными мастеру (CASH)
+  //                или списать с баланса (CARD). Комиссия платформы всегда
+  //                уже включена в депозит — мастер ничего не должен.
+  paymentModel     String      @default("DEPOSIT_30") @map("payment_model")
+  depositAmount    Decimal     @default(0) @map("deposit_amount") @db.Decimal(12, 2)
+  remainingAmount  Decimal     @default(0) @map("remaining_amount") @db.Decimal(12, 2)
+  remainderMethod  String?     @map("remainder_method")     // 'CASH' | 'CARD'
+  remainderPaidAt  DateTime?   @map("remainder_paid_at")
   offerAccepted    Boolean     @default(false) @map("offer_accepted")
   masterConfirmedAt DateTime?  @map("master_confirmed_at")
   clientConfirmedAt DateTime?  @map("client_confirmed_at")
@@ -1240,9 +1252,12 @@ model Estimate {
 
 enum BalanceTransactionType {
   TOPUP           // Пополнение баланса
-  ESCROW_HOLD     // Блокировка средств при создании заказа
+  ESCROW_HOLD     // Блокировка средств при создании заказа (legacy / DEPOSIT_HOLD теперь предпочтительнее)
   ESCROW_RELEASE  // Разблокировка / перевод мастеру
+  DEPOSIT_HOLD    // Блокировка депозита 30% при создании заказа
+  REMAINDER_PAYMENT // Доплата клиентом остатка 70% картой при завершении
   PENALTY         // Штраф за отмену
+  FALSE_DISPUTE_PENALTY // Штраф клиенту за ложный диспут (наличку получил, но отказался)
   REFUND          // Возврат средств
   COMMISSION      // Оплата комиссии
   PAYOUT          // Выплата мастеру

@@ -122,6 +122,7 @@ export type OrderStatus =
   | 'ACCEPTED'
   | 'IN_TRANSIT'
   | 'IN_PROGRESS'
+  | 'AWAITING_REMAINDER'
   | 'COMPLETED'
   | 'CANCELLED'
   | 'DISPUTED'
@@ -150,6 +151,12 @@ export interface Order {
   // Anti-fraud fields
   visitFee: number | null;
   escrowAmount: number;
+  // Раздельная оплата: депозит + остаток (CASH/CARD)
+  paymentModel?: 'FULL_ESCROW' | 'DEPOSIT_30';
+  depositAmount?: number;
+  remainingAmount?: number;
+  remainderMethod?: 'CASH' | 'CARD' | null;
+  remainderPaidAt?: string | null;
   offerAccepted: boolean;
   masterConfirmedAt: string | null;
   clientConfirmedAt: string | null;

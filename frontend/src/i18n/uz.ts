@@ -120,6 +120,7 @@ const uz = {
     ACCEPTED: 'Qabul qilindi',
     IN_TRANSIT: 'Usta yo\'lda',
     IN_PROGRESS: 'Bajarilmoqda',
+    AWAITING_REMAINDER: 'Qoldiq toʼlovi kutilmoqda',
     COMPLETED: 'Tugallangan',
     CANCELLED: 'Bekor qilingan',
     DISPUTED: 'Nizo',

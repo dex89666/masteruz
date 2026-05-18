@@ -120,6 +120,7 @@ const ru = {
     ACCEPTED: 'Принят',
     IN_TRANSIT: 'Мастер в пути',
     IN_PROGRESS: 'В работе',
+    AWAITING_REMAINDER: 'Ждёт доплаты',
     COMPLETED: 'Завершён',
     CANCELLED: 'Отменён',
     DISPUTED: 'Спор',

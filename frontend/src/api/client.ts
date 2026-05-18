@@ -222,8 +222,12 @@ export const ordersApi = {
   dispute: (id: string, reason: string) =>
     api.put<ApiResponse<any>>(`/orders/${id}/dispute`, { reason }),
 
-  resolveDispute: (id: string, resolution: string, note?: string) =>
-    api.put<ApiResponse<any>>(`/orders/${id}/resolve-dispute`, { resolution, note }),
+  resolveDispute: (id: string, resolution: string, note?: string, falseDispute?: boolean) =>
+    api.put<ApiResponse<any>>(`/orders/${id}/resolve-dispute`, { resolution, note, falseDispute }),
+
+  // Клиент оплачивает остаток после подтверждения мастером (CASH / CARD)
+  submitRemainder: (id: string, method: 'CASH' | 'CARD') =>
+    api.put<ApiResponse<any>>(`/orders/${id}/remainder`, { method }),
 
   myClientOrders: (status?: string) =>
     api.get<ApiResponse<any[]>>('/orders/my/client', { params: { status } }),

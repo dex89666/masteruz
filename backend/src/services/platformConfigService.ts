@@ -43,6 +43,10 @@ export const PLATFORM_CONFIG_KEYS = {
 
   // Срочность
   urgencyMultiplier: 'urgency_multiplier',
+
+  // ─── Модель оплаты «30% депозит + 70% при завершении» ───
+  depositRate: 'deposit_rate',                       // % от полной стоимости (0..100). Default 30.
+  falseDisputePenalty: 'false_dispute_penalty',      // штраф клиенту за ложный диспут после CASH (в сум).
 } as const;
 
 /** Дефолтные значения (используются, если ключа нет в БД). */
@@ -67,6 +71,8 @@ const DEFAULTS: Record<string, string> = {
   [PLATFORM_CONFIG_KEYS.virtualNumbersEnabled]: 'false',
   [PLATFORM_CONFIG_KEYS.guaranteeDays]: '30',
   [PLATFORM_CONFIG_KEYS.urgencyMultiplier]: '1.3',
+  [PLATFORM_CONFIG_KEYS.depositRate]: '30',
+  [PLATFORM_CONFIG_KEYS.falseDisputePenalty]: '50000',
 };
 
 /** Получить числовое значение настройки. */

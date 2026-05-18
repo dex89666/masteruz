@@ -6,7 +6,7 @@ import { Router } from 'express';
 import { ordersController } from './orders.controller.js';
 import { authenticate, optionalAuth } from '../../middleware/auth.js';
 import { validateBody, validateQuery } from '../../middleware/validate.js';
-import { createOrderSchema, orderResponseSchema, listOrdersSchema, assignMasterSchema, updateStatusSchema, masterLocationSchema, cancelOrderSchema, disputeOrderSchema, resolveDisputeSchema } from './orders.schema.js';
+import { createOrderSchema, orderResponseSchema, listOrdersSchema, assignMasterSchema, updateStatusSchema, masterLocationSchema, cancelOrderSchema, disputeOrderSchema, resolveDisputeSchema, submitRemainderSchema } from './orders.schema.js';
 import { eventBus } from '../../services/eventBus.js';
 import { prisma } from '../../config/database.js';
 import { ApiError } from '../../utils/ApiError.js';
@@ -73,6 +73,11 @@ router.put('/:id/dispute', authenticate, validateBody(disputeOrderSchema), (req,
 // Разрешение спора (admin)
 router.put('/:id/resolve-dispute', authenticate, validateBody(resolveDisputeSchema), (req, res, next) =>
   ordersController.resolveDispute(req, res, next)
+);
+
+// Клиент оплачивает остаток (CASH/CARD) после подтверждения мастером
+router.put('/:id/remainder', authenticate, validateBody(submitRemainderSchema), (req, res, next) =>
+  ordersController.submitRemainder(req, res, next)
 );
 
 // Мои заказы

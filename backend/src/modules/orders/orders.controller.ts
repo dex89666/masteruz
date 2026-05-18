@@ -159,7 +159,22 @@ export class OrdersController {
         req.params.id,
         req.user!.userId,
         req.body.resolution,
-        req.body.note
+        req.body.note,
+        req.body.falseDispute === true,
+      );
+      res.json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /** PUT /api/orders/:id/remainder — клиент выбирает способ доплаты остатка (CASH/CARD) */
+  async submitRemainder(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const result = await ordersService.submitRemainder(
+        req.params.id,
+        req.user!.userId,
+        req.body.method,
       );
       res.json({ success: true, data: result });
     } catch (error) {

@@ -669,6 +669,51 @@ export function CreateOrderPage() {
                   ? `${t('pricing.minimum')}: ${fmtPrice(minimumOrderPrice)} ${t('pricing.currency')}. ${t('createOrder.priceHint')}`
                   : t('createOrder.priceHint')}
               </p>
+
+              {/* ─── Раздельная оплата: 30% сейчас + 70% при завершении ─── */}
+              {form.price && Number(form.price) >= minimumOrderPrice && (() => {
+                const total = Math.round(Number(form.price) * (isUrgent ? 1.4 : 1));
+                const depositRate = 0.3;
+                const deposit = Math.round(total * depositRate);
+                const remainder = total - deposit;
+                return (
+                  <div className="mt-3 rounded-xl border-2 border-emerald-200 dark:border-emerald-800 bg-gradient-to-br from-emerald-50 to-white dark:from-emerald-900/20 dark:to-gray-800 p-4 space-y-3">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700 dark:text-emerald-300">
+                      <Check size={16} className="shrink-0" />
+                      Как вы будете платить
+                    </div>
+
+                    <div className="flex items-stretch gap-2">
+                      <div className="flex-1 rounded-lg bg-emerald-100 dark:bg-emerald-900/40 p-3 text-center">
+                        <div className="text-xs text-emerald-700 dark:text-emerald-300 font-medium">Сейчас (30%)</div>
+                        <div className="text-base font-bold text-emerald-800 dark:text-emerald-200 mt-1">
+                          {fmtPrice(deposit)}
+                        </div>
+                        <div className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-0.5">с баланса</div>
+                      </div>
+                      <div className="flex items-center text-emerald-400 dark:text-emerald-600 font-bold">+</div>
+                      <div className="flex-1 rounded-lg bg-blue-100 dark:bg-blue-900/40 p-3 text-center">
+                        <div className="text-xs text-blue-700 dark:text-blue-300 font-medium">При завершении</div>
+                        <div className="text-base font-bold text-blue-800 dark:text-blue-200 mt-1">
+                          {fmtPrice(remainder)}
+                        </div>
+                        <div className="text-[11px] text-blue-600 dark:text-blue-400 mt-0.5">наличными или картой</div>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-between items-center pt-2 border-t border-emerald-200 dark:border-emerald-800">
+                      <span className="text-sm text-gray-600 dark:text-gray-400">Итого:</span>
+                      <span className="text-base font-bold text-gray-900 dark:text-gray-100">
+                        {fmtPrice(total)} {t('pricing.currency')}
+                      </span>
+                    </div>
+
+                    <p className="text-[11px] leading-relaxed text-gray-500 dark:text-gray-400">
+                      💡 Депозит 30% подтверждает заказ и блокируется в системе. После приёма мастером и подтверждения завершения — выберете, оплатить остаток наличными мастеру или картой через приложение.
+                    </p>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Город и район */}

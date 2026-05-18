@@ -86,9 +86,15 @@ export const disputeOrderSchema = z.object({
 export const resolveDisputeSchema = z.object({
   resolution: z.enum(['refund_client', 'pay_master', 'split']),
   note: z.string().max(1000).optional(),
+  falseDispute: z.boolean().optional(), // true → списать штраф клиенту за ложный спор
+});
+
+export const submitRemainderSchema = z.object({
+  method: z.enum(['CASH', 'CARD']),
 });
 
 export type CreateOrderInput = z.infer<typeof createOrderSchema>;
+export type SubmitRemainderInput = z.infer<typeof submitRemainderSchema>;
 export type UpdateOrderInput = z.infer<typeof updateOrderSchema>;
 export type OrderResponseInput = z.infer<typeof orderResponseSchema>;
 export type ListOrdersInput = z.infer<typeof listOrdersSchema>;

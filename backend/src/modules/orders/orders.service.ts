@@ -84,7 +84,7 @@ export class OrdersService {
 
     // Ступенчатая комиссия от стоимости работ (без учёта первой/повторной пары — её применим
     // при назначении мастера в assignMaster, когда станет известно masterId).
-    const { getTieredCommissionRate } = await import('../../services/platformConfigService.js');
+    const { getTieredCommissionRate, getConfigNumber, PLATFORM_CONFIG_KEYS } = await import('../../services/platformConfigService.js');
     const commissionRate = await getTieredCommissionRate(effectivePrice);
 
     // Комиссия с работ + (опционально) комиссия с выезда
@@ -94,8 +94,21 @@ export class OrdersService {
       : 0;
     const commissionAmount = workCommission + visitFeeCommission;
 
-    // Полная сумма для эскроу: цена заказа + (опц.) стоимость выезда
-    const escrowAmount = effectivePrice + visitFee;
+    // Полная сумма заказа: цена работ + (опц.) стоимость выезда
+    const totalAmount = effectivePrice + visitFee;
+
+    // ─── Модель оплаты «30% депозит + 70% при завершении» ─────────────────────
+    // Клиент при создании платит депозит = max(depositRate% * total, commission).
+    // Гарантия: депозит всегда ≥ комиссии платформы — мастер ничего не должен,
+    // даже если клиент потом выберет CASH-оплату остатка наличными.
+    const depositRatePct = await getConfigNumber(PLATFORM_CONFIG_KEYS.depositRate, 30);
+    const depositRate = Math.min(100, Math.max(0, depositRatePct)) / 100;
+    const depositByRate = moneyMul(totalAmount, depositRate);
+    const depositAmount = Math.min(totalAmount, Math.max(depositByRate, commissionAmount));
+    const remainingAmount = moneySub(totalAmount, depositAmount);
+
+    // escrowAmount = что заблокировано в эскроу = именно депозит (а не полная сумма).
+    const escrowAmount = depositAmount;
 
     // ─── Атомарная транзакция: проверка баланса + блокировка + создание заказа ────
     const order = await prisma.$transaction(async (tx) => {
@@ -127,6 +140,9 @@ export class OrdersService {
           commissionAmount,
           visitFee,
           escrowAmount,
+          paymentModel: 'DEPOSIT_30',
+          depositAmount,
+          remainingAmount,
           offerAccepted: true,
           status: OrderStatus.PUBLISHED,
           isUrgent,
@@ -160,12 +176,12 @@ export class OrdersService {
         tx.balanceTransaction.create({
           data: {
             userId: clientId,
-            type: 'ESCROW_HOLD',
+            type: 'DEPOSIT_HOLD',
             amount: -escrowAmount,
             balanceBefore: balance,
             balanceAfter,
             orderId: newOrder.id,
-            description: 'Блокировка средств по заказу',
+            description: `Депозит ${depositRatePct}% по заказу (остаток ${remainingAmount.toLocaleString('ru')} сум — при завершении)`,
           },
         }),
       ]);
@@ -937,7 +953,9 @@ export class OrdersService {
 
   /**
    * Финализация заказа: оба подтвердили → COMPLETED + выплата
-   * Атомарная транзакция: статус + выплата мастеру + счётчик
+   * Ветвится по paymentModel:
+   *   • FULL_ESCROW (старая модель) — сразу выплата
+   *   • DEPOSIT_30 (новая модель)   — переходим в AWAITING_REMAINDER, ждём выбор CASH/CARD
    */
   private async finalizeOrder(orderId: string) {
     const order = await prisma.order.findUnique({
@@ -945,6 +963,51 @@ export class OrdersService {
       select: {
         id: true, escrowAmount: true, clientId: true, masterId: true,
         price: true, commissionAmount: true, visitFee: true,
+        paymentModel: true, depositAmount: true, remainingAmount: true,
+      },
+    });
+    if (!order) throw ApiError.notFound('Заказ не найден');
+    if (!order.masterId) throw ApiError.badRequest('Мастер не назначен');
+
+    // ─── Новая модель: депозит уже у платформы, ждём выбор клиента ─────────────
+    if (order.paymentModel === 'DEPOSIT_30' && toNum(order.remainingAmount) > 0) {
+      await prisma.order.update({
+        where: { id: orderId },
+        data: { status: OrderStatus.AWAITING_REMAINDER },
+      });
+
+      logger.info({ orderId, remainingAmount: toNum(order.remainingAmount) }, 'Заказ ждёт доплаты остатка');
+
+      eventBus.emit(orderId, 'awaiting_remainder', {
+        orderId,
+        clientId: order.clientId,
+        masterId: order.masterId,
+        remainingAmount: toNum(order.remainingAmount),
+        timestamp: new Date().toISOString(),
+      });
+
+      // Толкаем клиенту push: «выберите способ доплаты»
+      notificationService.notifyOrderAwaitingRemainder(orderId).catch((err) => {
+        logger.error({ error: err, orderId }, 'Ошибка уведомления о доплате');
+      });
+
+      return { orderId, status: 'AWAITING_REMAINDER', remainingAmount: toNum(order.remainingAmount) };
+    }
+
+    // ─── Старая модель FULL_ESCROW: выплачиваем сразу ──────────────────────────
+    return this.payoutAndComplete(orderId);
+  }
+
+  /**
+   * Финальная выплата мастеру + перевод в COMPLETED.
+   * Используется и старой моделью (FULL_ESCROW), и новой после оплаты остатка.
+   */
+  private async payoutAndComplete(orderId: string) {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: {
+        id: true, escrowAmount: true, clientId: true, masterId: true,
+        commissionAmount: true,
       },
     });
     if (!order) throw ApiError.notFound('Заказ не найден');
@@ -955,7 +1018,6 @@ export class OrdersService {
     const masterPayout = moneySub(escrow, commission);
 
     await prisma.$transaction(async (tx) => {
-      // 1. Обновляем статус заказа
       await tx.order.update({
         where: { id: orderId },
         data: {
@@ -966,7 +1028,6 @@ export class OrdersService {
         },
       });
 
-      // 2. Начисляем мастеру (если есть что начислять)
       if (escrow > 0) {
         const master = await tx.user.findUnique({
           where: { id: order.masterId! },
@@ -1007,13 +1068,10 @@ export class OrdersService {
         ]);
       }
 
-      // 3. Обновляем счётчик завершённых заказов
-      if (order.masterId) {
-        await tx.masterProfile.update({
-          where: { userId: order.masterId },
-          data: { completedOrders: { increment: 1 } },
-        });
-      }
+      await tx.masterProfile.update({
+        where: { userId: order.masterId! },
+        data: { completedOrders: { increment: 1 } },
+      });
     });
 
     logger.info({ orderId, masterPayout, commission }, 'Заказ финализирован, средства переведены');
@@ -1023,10 +1081,9 @@ export class OrdersService {
       action: 'order_finalized',
       entityType: 'order',
       entityId: orderId,
-      details: { masterPayout, commission, escrow: toNum(order.escrowAmount), clientId: order.clientId },
+      details: { masterPayout, commission, escrow, clientId: order.clientId },
     });
 
-    // SSE: заказ завершён, средства переведены
     eventBus.emit(orderId, 'order_completed', {
       orderId,
       masterId: order.masterId,
@@ -1036,10 +1093,193 @@ export class OrdersService {
       timestamp: new Date().toISOString(),
     });
 
-    // Customer Risk Score: пересчёт после успешного завершения
     void recalcCustomerRisk(order.clientId);
 
     return { orderId };
+  }
+
+  /**
+   * Клиент выбирает способ доплаты остатка (CASH / CARD).
+   * • CASH — клиент платит мастеру наличными напрямую. Платформа выплачивает мастеру
+   *          (deposit − commission) из заблокированных средств. Мастер ничего не должен платформе.
+   * • CARD — списываем remainingAmount с баланса клиента (он должен быть пополнен через Click/Payme),
+   *          мастер получает (deposit − commission + remaining) на баланс.
+   */
+  async submitRemainder(orderId: string, clientId: string, method: 'CASH' | 'CARD') {
+    const order = await prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) throw ApiError.notFound('Заказ не найден');
+    if (order.clientId !== clientId) throw ApiError.forbidden('Только клиент может оплатить остаток');
+    if (order.status !== OrderStatus.AWAITING_REMAINDER) {
+      throw ApiError.badRequest('Заказ не в статусе ожидания доплаты');
+    }
+    if (!order.masterId) throw ApiError.badRequest('Мастер не назначен');
+
+    const remaining = toNum(order.remainingAmount);
+    const escrow = toNum(order.escrowAmount);
+    const commission = toNum(order.commissionAmount);
+    const masterPayoutFromDeposit = moneySub(escrow, commission);
+
+    if (method === 'CASH') {
+      // Депозит → комиссия платформе + остаток мастеру. Доплата идёт мимо платформы.
+      await prisma.$transaction(async (tx) => {
+        await tx.order.update({
+          where: { id: orderId },
+          data: {
+            status: OrderStatus.COMPLETED,
+            completedAt: new Date(),
+            remainderMethod: 'CASH',
+            remainderPaidAt: new Date(),
+            escrowAmount: 0,
+            commissionPaid: true,
+          },
+        });
+
+        if (escrow > 0) {
+          const master = await tx.user.findUnique({
+            where: { id: order.masterId! },
+            select: { balance: true },
+          });
+          if (!master) throw ApiError.notFound('Мастер не найден');
+
+          const before = toNum(master.balance);
+          const after = moneyAdd(before, masterPayoutFromDeposit);
+
+          await Promise.all([
+            tx.user.update({ where: { id: order.masterId! }, data: { balance: after } }),
+            tx.balanceTransaction.create({
+              data: {
+                userId: order.masterId!,
+                type: 'PAYOUT',
+                amount: masterPayoutFromDeposit,
+                balanceBefore: before,
+                balanceAfter: after,
+                orderId,
+                description: `Выплата из депозита (остаток ${remaining.toLocaleString('ru')} сум получен наличными)`,
+              },
+            }),
+            tx.balanceTransaction.create({
+              data: {
+                userId: order.masterId!,
+                type: 'COMMISSION',
+                amount: -commission,
+                balanceBefore: after,
+                balanceAfter: after,
+                orderId,
+                description: `Комиссия платформы (${commission} сум)`,
+              },
+            }),
+          ]);
+        }
+
+        await tx.masterProfile.update({
+          where: { userId: order.masterId! },
+          data: { completedOrders: { increment: 1 } },
+        });
+      });
+    } else {
+      // CARD: списываем остаток с баланса клиента, мастер получает всё.
+      await prisma.$transaction(async (tx) => {
+        const client = await tx.user.findUnique({
+          where: { id: clientId },
+          select: { balance: true },
+        });
+        if (!client) throw ApiError.notFound('Клиент не найден');
+        const clientBalance = toNum(client.balance);
+        if (clientBalance < remaining) {
+          throw ApiError.badRequest(
+            `Недостаточно средств для доплаты. Баланс: ${clientBalance.toLocaleString('ru')} сум, ` +
+            `необходимо: ${remaining.toLocaleString('ru')} сум. Пополните баланс или выберите оплату наличными.`
+          );
+        }
+
+        const clientAfter = moneySub(clientBalance, remaining);
+
+        const master = await tx.user.findUnique({
+          where: { id: order.masterId! },
+          select: { balance: true },
+        });
+        if (!master) throw ApiError.notFound('Мастер не найден');
+        const masterBefore = toNum(master.balance);
+        const totalPayout = moneyAdd(masterPayoutFromDeposit, remaining);
+        const masterAfter = moneyAdd(masterBefore, totalPayout);
+
+        await Promise.all([
+          tx.user.update({ where: { id: clientId }, data: { balance: clientAfter } }),
+          tx.balanceTransaction.create({
+            data: {
+              userId: clientId,
+              type: 'REMAINDER_PAYMENT',
+              amount: -remaining,
+              balanceBefore: clientBalance,
+              balanceAfter: clientAfter,
+              orderId,
+              description: `Доплата за заказ (${remaining.toLocaleString('ru')} сум)`,
+            },
+          }),
+          tx.user.update({ where: { id: order.masterId! }, data: { balance: masterAfter } }),
+          tx.balanceTransaction.create({
+            data: {
+              userId: order.masterId!,
+              type: 'PAYOUT',
+              amount: totalPayout,
+              balanceBefore: masterBefore,
+              balanceAfter: masterAfter,
+              orderId,
+              description: `Полная оплата за заказ (депозит + доплата картой)`,
+            },
+          }),
+          tx.balanceTransaction.create({
+            data: {
+              userId: order.masterId!,
+              type: 'COMMISSION',
+              amount: -commission,
+              balanceBefore: masterAfter,
+              balanceAfter: masterAfter,
+              orderId,
+              description: `Комиссия платформы (${commission} сум)`,
+            },
+          }),
+          tx.order.update({
+            where: { id: orderId },
+            data: {
+              status: OrderStatus.COMPLETED,
+              completedAt: new Date(),
+              remainderMethod: 'CARD',
+              remainderPaidAt: new Date(),
+              escrowAmount: 0,
+              commissionPaid: true,
+            },
+          }),
+          tx.masterProfile.update({
+            where: { userId: order.masterId! },
+            data: { completedOrders: { increment: 1 } },
+          }),
+        ]);
+      });
+    }
+
+    logger.info({ orderId, clientId, method, remaining }, 'Оплата остатка завершена, заказ закрыт');
+
+    await auditService.log({
+      actorId: clientId,
+      action: 'order_remainder_paid',
+      entityType: 'order',
+      entityId: orderId,
+      details: { method, remaining, masterId: order.masterId },
+    });
+
+    eventBus.emit(orderId, 'order_completed', {
+      orderId,
+      masterId: order.masterId,
+      clientId: order.clientId,
+      method,
+      remaining,
+      timestamp: new Date().toISOString(),
+    });
+
+    void recalcCustomerRisk(order.clientId);
+
+    return { orderId, status: 'COMPLETED', method, remaining };
   }
 
   /**
@@ -1199,8 +1439,8 @@ export class OrdersService {
     if (!order) throw ApiError.notFound('Заказ не найден');
     if (order.clientId !== clientId) throw ApiError.forbidden('Только клиент может открыть спор');
 
-    if (![OrderStatus.IN_PROGRESS, OrderStatus.COMPLETED].includes(order.status as any)) {
-      throw ApiError.badRequest('Спор можно открыть только для заказов в работе или завершённых');
+    if (![OrderStatus.IN_PROGRESS, OrderStatus.AWAITING_REMAINDER, OrderStatus.COMPLETED].includes(order.status as any)) {
+      throw ApiError.badRequest('Спор можно открыть только для заказов в работе, ожидающих доплаты или завершённых');
     }
 
     const updatedOrder = await prisma.order.update({
@@ -1228,9 +1468,11 @@ export class OrdersService {
   }
 
   /**
-   * Разрешение спора (администратор)
+   * Разрешение спора (администратор).
+   * Если falseDispute=true и решение «в пользу мастера» — клиент получает штраф за ложный спор
+   * (размер берётся из platform_config: false_dispute_penalty, по умолчанию 50 000 сум).
    */
-  async resolveDispute(orderId: string, adminId: string, resolution: string, note?: string) {
+  async resolveDispute(orderId: string, adminId: string, resolution: string, note?: string, falseDispute = false) {
     const order = await prisma.order.findUnique({ where: { id: orderId } });
     if (!order) throw ApiError.notFound('Заказ не найден');
     if (order.status !== OrderStatus.DISPUTED) throw ApiError.badRequest('Заказ не в статусе спора');
@@ -1324,17 +1566,46 @@ export class OrdersService {
         throw ApiError.badRequest('Неверный тип решения');
     }
 
-    logger.info({ orderId, adminId, resolution }, 'Спор разрешён');
+    // ─── Штраф за ложный спор (если решено в пользу мастера) ─────────────────
+    if (falseDispute && resolution === 'pay_master') {
+      const { getConfigNumber, PLATFORM_CONFIG_KEYS } = await import('../../services/platformConfigService.js');
+      const penaltyAmount = await getConfigNumber(PLATFORM_CONFIG_KEYS.falseDisputePenalty, 50000);
+      if (penaltyAmount > 0) {
+        await prisma.$transaction(async (tx) => {
+          const client = await tx.user.findUnique({ where: { id: order.clientId }, select: { balance: true } });
+          if (!client) return;
+          const before = toNum(client.balance);
+          const after = moneySub(before, penaltyAmount);
+          await Promise.all([
+            tx.user.update({ where: { id: order.clientId }, data: { balance: after } }),
+            tx.balanceTransaction.create({
+              data: {
+                userId: order.clientId,
+                type: 'FALSE_DISPUTE_PENALTY',
+                amount: -penaltyAmount,
+                balanceBefore: before,
+                balanceAfter: after,
+                orderId,
+                description: `Штраф за ложный спор (${penaltyAmount.toLocaleString('ru')} сум)`,
+              },
+            }),
+          ]);
+        });
+        logger.warn({ orderId, clientId: order.clientId, penaltyAmount }, 'Штраф за ложный спор начислен клиенту');
+      }
+    }
+
+    logger.info({ orderId, adminId, resolution, falseDispute }, 'Спор разрешён');
 
     await auditService.log({
       actorId: adminId,
       action: 'dispute_resolved',
       entityType: 'order',
       entityId: orderId,
-      details: { resolution, note, escrow: toNum(order.escrowAmount), masterId: order.masterId, clientId: order.clientId },
+      details: { resolution, note, falseDispute, escrow: toNum(order.escrowAmount), masterId: order.masterId, clientId: order.clientId },
     });
 
-    return { orderId, resolution, note };
+    return { orderId, resolution, note, falseDispute };
   }
 
   /**

@@ -939,6 +939,42 @@ export class NotificationService {
       logger.error({ err, orderId }, 'notifyTransitOverdue failed');
     }
   }
+
+  /**
+   * Заказ ждёт доплаты остатка (новая модель «30% депозит»):
+   * мастер подтвердил выполнение → клиенту нужно выбрать способ доплаты CASH/CARD.
+   */
+  async notifyOrderAwaitingRemainder(orderId: string) {
+    try {
+      const order = await prisma.order.findUnique({
+        where: { id: orderId },
+        include: { client: true },
+      });
+      if (!order) return;
+
+      const remaining = toNum(order.remainingAmount ?? 0);
+
+      await this.createNotification({
+        userId: order.clientId,
+        type: 'order_awaiting_remainder',
+        title: '✅ Мастер завершил работу',
+        message: `Подтвердите завершение и выберите способ доплаты: наличными мастеру или картой (${remaining.toLocaleString('ru')} сум).`,
+        data: { orderId, remaining },
+      });
+
+      if (order.client.telegramId) {
+        await sendTelegramMessage({
+          chatId: order.client.telegramId,
+          text:
+            `<b>✅ Мастер завершил работу по заказу «${order.title}»</b>\n\n` +
+            `Остаток к доплате: <b>${remaining.toLocaleString('ru')} сум</b>\n` +
+            `Откройте приложение и выберите способ оплаты — наличными или картой.`,
+        }).catch(() => {});
+      }
+    } catch (err) {
+      logger.error({ err, orderId }, 'notifyOrderAwaitingRemainder failed');
+    }
+  }
 }
 
 export const notificationService = new NotificationService();
