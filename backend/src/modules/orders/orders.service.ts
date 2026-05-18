@@ -6,7 +6,7 @@
 
 import { prisma } from '../../config/database.js';
 import { ApiError } from '../../utils/ApiError.js';
-import { calculateDistance, calculateCommission, getPagination, paginatedResponse, moneyMul, moneyAdd, moneySub, moneyDiv, toNum, isSuperAdmin } from '../../utils/helpers.js';
+import { calculateDistance, calculateCommission, getPagination, paginatedResponse, moneyMul, moneyAdd, moneySub, moneyDiv, toNum, isSuperAdmin, isAdminUser } from '../../utils/helpers.js';
 import { OrderStatus, Prisma } from '@prisma/client';
 import type { CreateOrderInput, ListOrdersInput, OrderResponseInput } from './orders.schema.js';
 import { logger } from '../../utils/logger.js';
@@ -469,7 +469,11 @@ export class OrdersService {
 
       if (!order) throw ApiError.notFound('Заказ не найден');
       if (order.status !== OrderStatus.PUBLISHED) throw ApiError.badRequest('Заказ недоступен для откликов');
-      if (order.clientId === masterId) throw ApiError.badRequest('Нельзя откликнуться на свой заказ');
+      // Запрет на отклик на собственный заказ — кроме админов в тест-режиме
+      // (админ переключает роль и должен иметь возможность пройти весь сценарий).
+      if (order.clientId === masterId && !(await isAdminUser(masterId))) {
+        throw ApiError.badRequest('Нельзя откликнуться на свой заказ');
+      }
 
       // Ограничение для новичков (< 5 заказов)
       if (masterProfile.completedOrders < 5 && data.priceOffer) {

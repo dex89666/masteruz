@@ -22,6 +22,34 @@ export function isSuperAdmin(username: string | null | undefined): boolean {
 }
 
 /**
+ * Проверка, что userId принадлежит админу (ADMIN/MANAGER/SUPER_ADMIN или
+ * включён в PlatformConfig.admin_user_ids). Используется в местах, где
+ * нужно дать админу обойти бизнес-ограничения для тестирования
+ * (например, откликнуться на свой же заказ после смены роли).
+ *
+ * Импортируется лениво — модуль helpers.ts не должен тянуть Prisma на загрузке.
+ */
+export async function isAdminUser(userId: string): Promise<boolean> {
+  if (!userId) return false;
+  const { prisma } = await import('../config/database.js');
+  const [user, adminConfig] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true, username: true },
+    }),
+    prisma.platformConfig.findUnique({ where: { key: 'admin_user_ids' } }),
+  ]);
+  if (!user) return false;
+  if (user.role === 'ADMIN' || user.role === 'MANAGER') return true;
+  if (isSuperAdmin(user.username)) return true;
+  if (adminConfig) {
+    const ids = adminConfig.value.split(',').map(s => s.trim()).filter(Boolean);
+    if (ids.includes(userId)) return true;
+  }
+  return false;
+}
+
+/**
  * Генерация уникального реферального кода
  */
 export function generateReferralCode(): string {
