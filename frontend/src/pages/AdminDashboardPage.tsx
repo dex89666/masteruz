@@ -3091,6 +3091,8 @@ export function AdminDashboardPage() {
                   { key: 'default_guarantee_days', label: 'Гарантийный срок (дни)', icon: Shield, color: 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400', desc: 'Гарантия по умолчанию на все работы', suffix: ' дн.' },
                   { key: 'material_cancel_compensation', label: 'Компенсация мастеру при отказе (%)', icon: AlertTriangle, color: 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400', desc: 'Процент компенсации после закупки материала', suffix: '%' },
                   { key: 'max_response_time', label: 'Макс. время отклика мастера (ч)', icon: Clock, color: 'bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400', desc: 'Максимальное время на отклик мастера', suffix: ' ч' },
+                  { key: 'deposit_rate', label: 'Депозит при создании заказа (%)', icon: CreditCard, color: 'bg-sky-50 dark:bg-sky-900/20 text-sky-600 dark:text-sky-400', desc: 'Процент от стоимости заказа, который клиент вносит сразу. Остаток оплачивается после выполнения работ', suffix: '%' },
+                  { key: 'false_dispute_penalty', label: 'Штраф за ложный спор', icon: AlertTriangle, color: 'bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400', desc: 'Штраф клиенту, если арбитраж признал спор необоснованным (сум)', suffix: ' сум' },
                 ].map(({ key, label, icon: Icon, color, desc, suffix }) => {
                   const configItem = config.find((c: any) => c.key === key);
                   const value = configItem?.value || '';
@@ -3153,18 +3155,19 @@ export function AdminDashboardPage() {
               </div>
 
               {/* Остальные настройки — таблица */}
-              {config.filter((c: any) => ![
-                'commission_rate', 'material_commission_rate', 'urgency_multiplier',
-                'min_order_amount', 'visit_fee', 'visit_fee_commission_rate',
-                'default_guarantee_days', 'material_cancel_compensation', 'max_response_time'
-              ].includes(c.key)).length > 0 && (
+              {(() => {
+                const curatedKeys = new Set([
+                  'commission_rate', 'first_order_commission_rate', 'repeat_order_commission_rate',
+                  'bypass_penalty_multiplier', 'virtual_numbers_enabled', 'material_commission_rate',
+                  'urgency_multiplier', 'min_order_amount', 'visit_fee', 'visit_fee_commission_rate',
+                  'default_guarantee_days', 'material_cancel_compensation', 'max_response_time',
+                  'deposit_rate', 'false_dispute_penalty',
+                ]);
+                const other = config.filter((c: any) => !curatedKeys.has(c.key));
+                return other.length > 0 && (
                 <div className="space-y-2">
                   <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Прочие настройки</h3>
-                  {config.filter((c: any) => ![
-                    'commission_rate', 'material_commission_rate', 'urgency_multiplier',
-                    'min_order_amount', 'visit_fee', 'visit_fee_commission_rate',
-                    'default_guarantee_days', 'material_cancel_compensation', 'max_response_time'
-                  ].includes(c.key)).map((c: any) => (
+                  {other.map((c: any) => (
                     <div key={c.id} className="card">
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex-1 min-w-0">
@@ -3210,12 +3213,12 @@ export function AdminDashboardPage() {
                     </div>
                   ))}
                 </div>
-              )}
+                );
+              })()}
             </>
           )}
         </div>
       )}
-
       {/* ═══════════════════════════════════════ */}
       {/* TAB: SECURITY — fraud-сигналы          */}
       {/* ═══════════════════════════════════════ */}
