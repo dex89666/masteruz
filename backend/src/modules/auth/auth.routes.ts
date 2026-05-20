@@ -33,6 +33,8 @@ router.post('/telegram-bot/poll', (req, res, next) =>
 router.post('/telegram-bot/webhook', (req, res) =>
   authController.botAuthWebhook(req, res)
 );
+// HTML-страница для возврата из Telegram в приложение по deep-link
+router.get('/open-app', (req, res) => authController.openApp(req, res));
 
 // Telegram Mini App
 router.post('/mini-app', validateBody(telegramMiniAppAuthSchema), (req, res, next) =>

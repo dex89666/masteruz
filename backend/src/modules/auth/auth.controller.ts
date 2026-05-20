@@ -167,6 +167,44 @@ export class AuthController {
   }
 
   /**
+   * GET /api/auth/open-app
+   * Открывается по тапу на inline-кнопку в Telegram после успешной авторизации.
+   * Делает редирект на deep-link приложения, чтобы пользователь автоматически
+   * вернулся в MasterUz уже залогиненным (фронт поллит токены и подхватит их).
+   */
+  async openApp(_req: Request, res: Response): Promise<void> {
+    const scheme = process.env.MOBILE_DEEPLINK_SCHEME ?? 'uz.masteruz.app';
+    const deepLink = `${scheme}://auth?ok=1`;
+    res.set('Content-Type', 'text/html; charset=utf-8');
+    res.send(`<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>MasterUz</title>
+<style>
+  html,body{margin:0;height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#0b0f17;color:#f5f7fb;display:flex;align-items:center;justify-content:center}
+  .card{max-width:360px;padding:32px 24px;text-align:center}
+  h1{font-size:20px;margin:0 0 8px;font-weight:600}
+  p{font-size:14px;color:#a3aec1;margin:0 0 24px;line-height:1.5}
+  a.btn{display:inline-block;padding:14px 28px;background:#2563eb;color:#fff;border-radius:14px;text-decoration:none;font-weight:600;font-size:15px}
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>Возвращаемся в MasterUz…</h1>
+    <p>Если приложение не открылось автоматически, нажмите кнопку ниже.</p>
+    <a class="btn" href="${deepLink}">Открыть MasterUz</a>
+  </div>
+  <script>
+    window.location.replace(${JSON.stringify(deepLink)});
+    setTimeout(function(){ window.location.href = ${JSON.stringify(deepLink)}; }, 400);
+  </script>
+</body>
+</html>`);
+  }
+
+  /**
    * POST /api/auth/telegram-bot/start
    * Создаёт одноразовый токен. Фронт открывает t.me/<bot>?start=auth_<token>,
    * затем поллит /telegram-bot/poll до готовности.
@@ -273,9 +311,18 @@ export class AuthController {
       });
 
       if (tokens) {
+        const publicUrl = (
+          process.env.BACKEND_PUBLIC_URL ||
+          'https://masteruz-backend-production.up.railway.app'
+        ).replace(/\/$/, '');
         await sendTelegramMessage({
           chatId,
-          text: '✅ <b>Вы вошли в MasterUz!</b>\n\nВозвращайтесь в приложение — авторизация уже подтверждена.',
+          text: '✅ <b>Вы вошли в MasterUz!</b>\n\nНажмите кнопку ниже, чтобы вернуться в приложение.',
+          replyMarkup: {
+            inline_keyboard: [
+              [{ text: '🔧 Открыть MasterUz', url: `${publicUrl}/api/auth/open-app` }],
+            ],
+          },
         });
       } else {
         await sendTelegramMessage({
