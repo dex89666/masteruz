@@ -14,6 +14,7 @@ import { Layout } from './components/Layout';
 import { ConsentGate } from './components/ConsentGate';
 import { UpdateChecker } from './components/UpdateChecker';
 import { useAppInit } from './hooks';
+import { useTelegramDeepLinkAuth } from './hooks/useTelegramDeepLinkAuth';
 import { trackPageView } from './lib/analytics';
 import { useAuthStore } from './store';
 import { lazy, Suspense, useEffect } from 'react';
@@ -135,6 +136,8 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
 function AppContent() {
   // Initialize app (restore JWT session, detect Telegram Mini App, etc.)
   useAppInit();
+  // Слушаем deep-link uz.masteruz.app://auth от внешнего Telegram OAuth.
+  useTelegramDeepLinkAuth();
 
   const location = useLocation();
   useEffect(() => {

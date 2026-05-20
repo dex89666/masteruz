@@ -17,6 +17,11 @@ router.post('/telegram', validateBody(telegramAuthSchema), (req, res, next) =>
   authController.loginTelegram(req, res, next)
 );
 
+// Telegram OAuth callback (для нативного APK через oauth.telegram.org → deep-link)
+router.get('/telegram-callback', (req, res, next) =>
+  authController.telegramCallback(req, res, next)
+);
+
 // Telegram Mini App
 router.post('/mini-app', validateBody(telegramMiniAppAuthSchema), (req, res, next) =>
   authController.loginMiniApp(req, res, next)

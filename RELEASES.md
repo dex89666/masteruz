@@ -111,6 +111,44 @@ BACKEND_URL=https://masteruz-backend-production.up.railway.app
 
 CI после публикации релиза дёргает `POST /api/app/version/refresh`.
 
+## Авторизация через Telegram в APK (deep-link OAuth)
+
+В мобильном APK обычный Telegram Login Widget не работает — он встроен в iframe от `telegram.org`
+и валидирует `origin`, а в WebView Capacitor origin = `https://localhost`, не разрешённый в BotFather
+(ошибка «Bot domain invalid»). Поэтому в native APK используется внешний OAuth-flow с deep-link:
+
+```
+APK             Внешний браузер        Telegram OAuth       Backend                       APK
+──              ───────────────        ──────────────       ───────                       ──
+Кнопка       →  oauth.telegram.org  →  user OK           →  /api/auth/telegram-callback →  uz.masteruz.app://auth
+«Войти                                                       302 на deep-link               Capacitor App.appUrlOpen
+через                                                                                       сохраняет токены → /
+Telegram»
+```
+
+### Что нужно настроить вручную (один раз)
+
+1. **BotFather → `/setdomain`** → указать домен бэкенда `masteruz-backend-production.up.railway.app`
+   (это `origin` и `return_to` в OAuth-URL — Telegram требует совпадения с зарегистрированным доменом).
+2. **GitHub Secrets** (для CI Android):
+   - `VITE_TELEGRAM_BOT_ID` — численный ID бота (показывает `@BotFather`, команда `/mybots → бот → API Token` — первое число до `:`).
+   - `VITE_TELEGRAM_OAUTH_ORIGIN` — `https://masteruz-backend-production.up.railway.app` (необязательно, есть default).
+3. **Railway → Backend Variables** (необязательно):
+   - `MOBILE_DEEPLINK_SCHEME` — по умолчанию `uz.masteruz.app`.
+
+### Custom URL scheme
+
+- Android: intent-filter в `frontend/android/app/src/main/AndroidManifest.xml` (`<data android:scheme="uz.masteruz.app" />`).
+- iOS: `CFBundleURLTypes` в `frontend/ios/App/App/Info.plist`.
+
+### Локальный тест
+
+```bash
+# Из терминала на подключённом Android-устройстве:
+adb shell am start -a android.intent.action.VIEW \
+  -d "uz.masteruz.app://auth?access=fakejwt&refresh=fakejwt&new=0"
+```
+
 ## iOS
 
 Скаффолд создан в `frontend/ios/`. Сборка `.ipa` требует:

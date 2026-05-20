@@ -4,13 +4,31 @@
 
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Capacitor } from '@capacitor/core';
 import { useAuthStore } from '../store';
 import { authApi } from '../api/client';
 import { useTelegram } from '../hooks';
 import { useTranslation } from '../i18n';
 import { LoadingSpinner } from '../components/LoadingSpinner';
-import { Wrench, Zap, Shield, Wallet } from 'lucide-react';
+import { Wrench, Zap, Shield, Wallet, Send } from 'lucide-react';
 import toast from 'react-hot-toast';
+
+const TELEGRAM_BOT_ID = import.meta.env.VITE_TELEGRAM_BOT_ID as string | undefined;
+const BACKEND_ORIGIN =
+  (import.meta.env.VITE_TELEGRAM_OAUTH_ORIGIN as string | undefined) ??
+  'https://masteruz-backend-production.up.railway.app';
+
+function buildTelegramOAuthUrl(): string {
+  const returnTo = `${BACKEND_ORIGIN}/api/auth/telegram-callback`;
+  const params = new URLSearchParams({
+    bot_id: TELEGRAM_BOT_ID ?? '',
+    origin: BACKEND_ORIGIN,
+    return_to: returnTo,
+    request_access: 'write',
+    embed: '0',
+  });
+  return `https://oauth.telegram.org/auth?${params.toString()}`;
+}
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -50,8 +68,13 @@ export function LoginPage() {
     }
   }
 
-  // Telegram Login Widget callback (для веб-сайта)
+  // Telegram Login Widget callback (для веб-сайта).
+  // В нативном APK Login Widget не работает (Bot domain invalid) —
+  // там используем OAuth-flow через внешний браузер + deep-link.
+  const isNative = Capacitor.isNativePlatform();
+
   useEffect(() => {
+    if (isNative) return; // на native не грузим widget — он всё равно не пройдёт проверку домена
     (window as any).onTelegramAuth = async (user: any) => {
       setLoading(true);
       try {
@@ -86,7 +109,16 @@ export function LoginPage() {
     return () => {
       delete (window as any).onTelegramAuth;
     };
-  }, [setAuth, navigate]);
+  }, [setAuth, navigate, isNative, t]);
+
+  function handleNativeTelegramLogin() {
+    if (!TELEGRAM_BOT_ID) {
+      toast.error('VITE_TELEGRAM_BOT_ID не задан в сборке');
+      return;
+    }
+    // Открываем во внешнем браузере — Capacitor сам делегирует системе.
+    window.open(buildTelegramOAuthUrl(), '_system', 'noopener,noreferrer');
+  }
 
   if (loading) {
     return (
@@ -137,7 +169,18 @@ export function LoginPage() {
 
         {/* Telegram Login Widget */}
         <div id="telegram-login-widget" className="flex justify-center mb-6">
-          <div className="text-sm text-gray-400 dark:text-gray-500">{t('auth.telegramLoading')}</div>
+          {isNative ? (
+            <button
+              type="button"
+              onClick={handleNativeTelegramLogin}
+              className="inline-flex items-center gap-3 rounded-2xl bg-[#229ED9] px-6 py-3.5 text-base font-semibold text-white shadow-lg shadow-[#229ED9]/30 transition active:scale-[0.98] hover:bg-[#1c8bc0]"
+            >
+              <Send size={20} />
+              Войти через Telegram
+            </button>
+          ) : (
+            <div className="text-sm text-gray-400 dark:text-gray-500">{t('auth.telegramLoading')}</div>
+          )}
         </div>
 
         <div className="border-t border-gray-100 dark:border-gray-700 pt-4">
