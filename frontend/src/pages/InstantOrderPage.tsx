@@ -656,8 +656,8 @@ export function InstantOrderPage() {
   const handleCreateOrder = async () => {
     if (!selectedVariant) { toast.error('Выберите вариант'); return; }
     if (!title.trim()) { toast.error('Введите название заказа'); return; }
-    if (!city.trim() || !street.trim() || !house.trim()) {
-      toast.error('Укажите город, улицу и номер дома');
+    if (!city.trim() || !house.trim()) {
+      toast.error('Укажите город и номер дома');
       return;
     }
     if (!offerAccepted) { toast.error('Необходимо принять условия оферты'); return; }
@@ -1674,11 +1674,27 @@ export function InstantOrderPage() {
 
                     setDetectingLocation(true);
                     try {
-                      const { latitude: lat, longitude: lng } = await getCurrentPosition({
-                        enableHighAccuracy: true,
-                        timeout: 20_000,
-                        maximumAge: 0,
-                      });
+                      // Сначала быстрый фикс (Wi-Fi/cell, до 6 сек, кэш до минуты).
+                      // Если не вышло — fallback на точный GPS (до 15 сек).
+                      let lat: number;
+                      let lng: number;
+                      try {
+                        const pos = await getCurrentPosition({
+                          enableHighAccuracy: false,
+                          timeout: 6_000,
+                          maximumAge: 60_000,
+                        });
+                        lat = pos.latitude;
+                        lng = pos.longitude;
+                      } catch {
+                        const pos = await getCurrentPosition({
+                          enableHighAccuracy: true,
+                          timeout: 15_000,
+                          maximumAge: 0,
+                        });
+                        lat = pos.latitude;
+                        lng = pos.longitude;
+                      }
                       setLatitude(lat);
                       setLongitude(lng);
 
@@ -1764,7 +1780,7 @@ export function InstantOrderPage() {
                     value={street}
                     onChange={(e) => setStreet(e.target.value)}
                     className="rounded-xl border-2 border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white px-3 py-2.5 min-h-[44px] text-sm focus:ring-2 focus:ring-orange-500"
-                    placeholder="Улица *"
+                    placeholder="Улица (если есть)"
                   />
                   <input
                     type="text"
@@ -1849,7 +1865,7 @@ export function InstantOrderPage() {
             {/* Create button */}
             <button
               onClick={handleCreateOrder}
-              disabled={creating || !offerAccepted || !title.trim() || !city.trim() || !street.trim() || !house.trim()}
+              disabled={creating || !offerAccepted || !title.trim() || !city.trim() || !house.trim()}
               className="w-full min-h-[60px] md:min-h-[64px] bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-2xl font-bold text-lg md:text-xl flex items-center justify-center gap-3 hover:from-green-600 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-xl shadow-green-500/25"
             >
               {creating ? (
