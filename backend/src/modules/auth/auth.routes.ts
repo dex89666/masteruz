@@ -22,6 +22,18 @@ router.get('/telegram-callback', (req, res, next) =>
   authController.telegramCallback(req, res, next)
 );
 
+// One-tap авторизация через Telegram-бота (без ввода телефона)
+router.post('/telegram-bot/start', (req, res, next) =>
+  authController.botAuthStart(req, res, next)
+);
+router.post('/telegram-bot/poll', (req, res, next) =>
+  authController.botAuthPoll(req, res, next)
+);
+// Webhook от Telegram — без rate-limit, защищён secret_token заголовком.
+router.post('/telegram-bot/webhook', (req, res) =>
+  authController.botAuthWebhook(req, res)
+);
+
 // Telegram Mini App
 router.post('/mini-app', validateBody(telegramMiniAppAuthSchema), (req, res, next) =>
   authController.loginMiniApp(req, res, next)

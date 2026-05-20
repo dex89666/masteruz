@@ -55,6 +55,27 @@ export class AuthService {
   }
 
   /**
+   * Авторизация через Telegram-бота (webhook).
+   * Источник доверия — сам Telegram (мы валидируем `X-Telegram-Bot-Api-Secret-Token`
+   * в роуте webhook). Подпись от клиента здесь не нужна.
+   */
+  async loginWithTelegramByUserId(data: {
+    id: number;
+    first_name: string;
+    last_name?: string;
+    username?: string;
+    photo_url?: string;
+  }): Promise<AuthResult> {
+    return this.findOrCreateUser({
+      telegramId: data.id,
+      firstName: data.first_name,
+      lastName: data.last_name,
+      username: data.username,
+      photoUrl: data.photo_url,
+    });
+  }
+
+  /**
    * Авторизация через Telegram Mini App
    */
   async loginWithMiniApp(initData: string): Promise<AuthResult> {

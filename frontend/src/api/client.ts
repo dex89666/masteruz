@@ -111,6 +111,18 @@ export const authApi = {
   loginMiniApp: (initData: string) =>
     api.post<ApiResponse<any>>('/auth/mini-app', { initData }),
 
+  // One-tap логин через бота: создать сессию + поллить готовность.
+  botAuthStart: () =>
+    api.post<ApiResponse<{ token: string; deepLink: string; webLink: string; ttl: number }>>(
+      '/auth/telegram-bot/start',
+    ),
+
+  botAuthPoll: (token: string) =>
+    api.post<ApiResponse<{ ready: boolean; accessToken?: string; refreshToken?: string; user?: any; isNewUser?: boolean }>>(
+      '/auth/telegram-bot/poll',
+      { token },
+    ),
+
   refresh: (refreshToken: string) =>
     api.post<ApiResponse<any>>('/auth/refresh', { refreshToken }),
 

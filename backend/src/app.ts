@@ -30,6 +30,7 @@ import { startCleanupJob, stopCleanupJob } from './services/cleanupJob.js';
 
 // Импорт маршрутов модулей
 import authRoutes from './modules/auth/auth.routes.js';
+import { botWebhookSecret } from './modules/auth/auth.controller.js';
 import usersRoutes from './modules/users/users.routes.js';
 import ordersRoutes from './modules/orders/orders.routes.js';
 import paymentsRoutes from './modules/payments/payments.routes.js';
@@ -183,7 +184,13 @@ if (process.env.NODE_ENV !== 'test') {
     skip: (req) => {
       // /auth/me и /auth/switch-role не считаются login-попытками
       const p = req.path;
-      return p === '/me' || p === '/switch-role' || p === '/refresh';
+      return (
+        p === '/me' ||
+        p === '/switch-role' ||
+        p === '/refresh' ||
+        p === '/telegram-bot/poll' ||
+        p === '/telegram-bot/webhook'
+      );
     },
   });
   app.use('/api/auth', authLimiter);
@@ -367,6 +374,60 @@ if (sentryEnabled) {
 
 app.use(errorHandler);
 
+// ─── Telegram webhook setup ────────────────────
+
+/**
+ * Регистрирует webhook у Telegram, чтобы получать апдейты бота на наш сервер.
+ * URL вычисляется из ENV `BACKEND_PUBLIC_URL` (или дефолт — Railway-домен).
+ * Идемпотентно: если webhook уже выставлен на тот же URL — повторно не дёргаем.
+ */
+async function setupTelegramBotWebhook(): Promise<void> {
+  const token = config.telegram?.botToken;
+  if (!token) {
+    logger.info('Telegram bot token не задан — webhook не настраиваем');
+    return;
+  }
+  const publicUrl = (
+    process.env.BACKEND_PUBLIC_URL ||
+    'https://masteruz-backend-production.up.railway.app'
+  ).replace(/\/$/, '');
+  const webhookUrl = `${publicUrl}/api/auth/telegram-bot/webhook`;
+  const secretToken = botWebhookSecret();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const _fetch = (globalThis as any).fetch as (
+    input: string,
+    init?: Record<string, unknown>,
+  ) => Promise<{ ok: boolean; json: () => Promise<any> }>;
+
+  try {
+    const info = await _fetch(`https://api.telegram.org/bot${token}/getWebhookInfo`).then(r =>
+      r.json(),
+    );
+    if (info?.result?.url === webhookUrl) {
+      logger.info({ webhookUrl }, '✅ Telegram webhook уже настроен');
+      return;
+    }
+    const res = await _fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        url: webhookUrl,
+        secret_token: secretToken,
+        allowed_updates: ['message'],
+        drop_pending_updates: true,
+      }),
+    }).then(r => r.json());
+    if (res?.ok) {
+      logger.info({ webhookUrl }, '✅ Telegram webhook зарегистрирован');
+    } else {
+      logger.error({ res, webhookUrl }, '❌ Telegram отказал в setWebhook');
+    }
+  } catch (err) {
+    logger.error({ err }, 'Ошибка при регистрации Telegram webhook');
+  }
+}
+
 // ─── Запуск сервера ────────────────────────────
 
 if (process.env.NODE_ENV !== 'test') {
@@ -406,6 +467,13 @@ if (process.env.NODE_ENV !== 'test') {
       startAutoCancellationJob();
       // Фоновая задача: уборка устаревших уведомлений/журналов доставки
       startCleanupJob();
+
+      // Регистрация Telegram webhook для one-tap авторизации.
+      // Делаем после старта сервера, без await — сервер не должен падать,
+      // если Telegram недоступен или URL не настроен.
+      setupTelegramBotWebhook().catch((err) =>
+        logger.error({ err }, '⚠️ Не удалось настроить Telegram webhook')
+      );
     } catch (error) {
       logger.error({ error }, '❌ Ошибка запуска сервера');
       process.exit(1);

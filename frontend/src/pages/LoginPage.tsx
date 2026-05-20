@@ -2,9 +2,10 @@
 // MasterUz — Login Page (i18n)
 // ============================================
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
+import { App as CapacitorApp } from '@capacitor/app';
 import { useAuthStore } from '../store';
 import { authApi } from '../api/client';
 import { useTelegram } from '../hooks';
@@ -13,29 +14,13 @@ import { LoadingSpinner } from '../components/LoadingSpinner';
 import { Wrench, Zap, Shield, Wallet, Send } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-const TELEGRAM_BOT_ID = import.meta.env.VITE_TELEGRAM_BOT_ID as string | undefined;
-const BACKEND_ORIGIN =
-  (import.meta.env.VITE_TELEGRAM_OAUTH_ORIGIN as string | undefined) ??
-  'https://masteruz-backend-production.up.railway.app';
-
-function buildTelegramOAuthUrl(): string {
-  const returnTo = `${BACKEND_ORIGIN}/api/auth/telegram-callback`;
-  const params = new URLSearchParams({
-    bot_id: TELEGRAM_BOT_ID ?? '',
-    origin: BACKEND_ORIGIN,
-    return_to: returnTo,
-    request_access: 'write',
-    embed: '0',
-  });
-  return `https://oauth.telegram.org/auth?${params.toString()}`;
-}
-
 export function LoginPage() {
   const navigate = useNavigate();
   const { setAuth, isAuthenticated } = useAuthStore();
   const { isMiniApp, initData } = useTelegram();
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
+  const [waitingForBot, setWaitingForBot] = useState(false);
 
   // Если уже авторизован — редирект
   useEffect(() => {
@@ -68,13 +53,11 @@ export function LoginPage() {
     }
   }
 
-  // Telegram Login Widget callback (для веб-сайта).
-  // В нативном APK Login Widget не работает (Bot domain invalid) —
-  // там используем OAuth-flow через внешний браузер + deep-link.
+  // Telegram Login Widget для веба. В нативном APK не грузим — используем бот-flow.
   const isNative = Capacitor.isNativePlatform();
 
   useEffect(() => {
-    if (isNative) return; // на native не грузим widget — он всё равно не пройдёт проверку домена
+    if (isNative) return;
     (window as any).onTelegramAuth = async (user: any) => {
       setLoading(true);
       try {
@@ -111,13 +94,108 @@ export function LoginPage() {
     };
   }, [setAuth, navigate, isNative, t]);
 
-  function handleNativeTelegramLogin() {
-    if (!TELEGRAM_BOT_ID) {
-      toast.error('VITE_TELEGRAM_BOT_ID не задан в сборке');
-      return;
+  // ─── One-tap логин через бота (native) ──────────────
+  // Идея: создаём токен на бэке → открываем чат с ботом по deep-link →
+  // юзер тапает Start → webhook бота кладёт JWT в Redis → мы поллим и забираем.
+  // Никаких номеров телефона и SMS-кодов.
+  const pollAbortRef = useRef<{ stop: () => void } | null>(null);
+
+  useEffect(() => () => pollAbortRef.current?.stop(), []);
+
+  // Когда пользователь возвращается из Telegram в наше приложение —
+  // ускоряем следующий poll, не ждём интервал.
+  const lastTokenRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!isNative) return;
+    const handle = CapacitorApp.addListener('appStateChange', ({ isActive }) => {
+      if (isActive && lastTokenRef.current) {
+        pollOnce(lastTokenRef.current).catch(() => {});
+      }
+    });
+    return () => {
+      handle.then(h => h.remove());
+    };
+  }, [isNative]);
+
+  async function pollOnce(token: string): Promise<boolean> {
+    try {
+      const res = await authApi.botAuthPoll(token);
+      if (res.data?.success && res.data.data?.ready) {
+        const { accessToken, refreshToken, user } = res.data.data;
+        if (accessToken && refreshToken) {
+          setAuth(user, accessToken, refreshToken);
+          toast.success(t('auth.welcome'));
+          navigate('/');
+          return true;
+        }
+      }
+    } catch (err: any) {
+      // 410 — сессия истекла
+      if (err?.response?.status === 410) {
+        pollAbortRef.current?.stop();
+        toast.error('Сессия авторизации истекла, попробуйте ещё раз');
+        setWaitingForBot(false);
+      }
     }
-    // Открываем во внешнем браузере — Capacitor сам делегирует системе.
-    window.open(buildTelegramOAuthUrl(), '_system', 'noopener,noreferrer');
+    return false;
+  }
+
+  async function handleNativeTelegramLogin() {
+    // Защита от двойного клика
+    if (waitingForBot) return;
+    setWaitingForBot(true);
+    try {
+      const startRes = await authApi.botAuthStart();
+      const data = startRes.data?.data;
+      if (!startRes.data?.success || !data) {
+        throw new Error('Не удалось начать авторизацию');
+      }
+      lastTokenRef.current = data.token;
+
+      // Открываем Telegram. tg:// откроет нативное приложение мгновенно,
+      // если оно установлено. Если нет — браузер автоматически уйдёт на webLink.
+      window.open(data.deepLink, '_system', 'noopener,noreferrer');
+      // Подстраховка для устройств без Telegram-app: чуть позже открываем web.
+      setTimeout(() => {
+        if (waitingForBot) {
+          window.open(data.webLink, '_system', 'noopener,noreferrer');
+        }
+      }, 800);
+
+      // Поллим до 2 минут с интервалом 1.5 сек.
+      const startedAt = Date.now();
+      const deadline = startedAt + 2 * 60 * 1000;
+      let stopped = false;
+      pollAbortRef.current = {
+        stop: () => {
+          stopped = true;
+          setWaitingForBot(false);
+        },
+      };
+
+      while (!stopped && Date.now() < deadline) {
+        await new Promise(r => setTimeout(r, 1500));
+        if (stopped) break;
+        const done = await pollOnce(data.token);
+        if (done) {
+          pollAbortRef.current = null;
+          return;
+        }
+      }
+      if (!stopped) {
+        setWaitingForBot(false);
+        toast.error('Время ожидания истекло. Попробуйте ещё раз.');
+      }
+    } catch (err: any) {
+      setWaitingForBot(false);
+      toast.error(err?.response?.data?.error?.message || err?.message || 'Ошибка авторизации');
+    }
+  }
+
+  function cancelBotAuth() {
+    pollAbortRef.current?.stop();
+    pollAbortRef.current = null;
+    lastTokenRef.current = null;
   }
 
   if (loading) {
@@ -170,14 +248,32 @@ export function LoginPage() {
         {/* Telegram Login Widget */}
         <div id="telegram-login-widget" className="flex justify-center mb-6">
           {isNative ? (
-            <button
-              type="button"
-              onClick={handleNativeTelegramLogin}
-              className="inline-flex items-center gap-3 rounded-2xl bg-[#229ED9] px-6 py-3.5 text-base font-semibold text-white shadow-lg shadow-[#229ED9]/30 transition active:scale-[0.98] hover:bg-[#1c8bc0]"
-            >
-              <Send size={20} />
-              Войти через Telegram
-            </button>
+            waitingForBot ? (
+              <div className="flex flex-col items-center gap-3 w-full">
+                <div className="flex items-center gap-3 rounded-2xl bg-blue-50 dark:bg-blue-900/20 px-5 py-4 w-full justify-center">
+                  <LoadingSpinner size="sm" />
+                  <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                    Откройте бота и нажмите Start
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={cancelBotAuth}
+                  className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                >
+                  Отменить
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={handleNativeTelegramLogin}
+                className="inline-flex items-center gap-3 rounded-2xl bg-[#229ED9] px-6 py-3.5 text-base font-semibold text-white shadow-lg shadow-[#229ED9]/30 transition active:scale-[0.98] hover:bg-[#1c8bc0]"
+              >
+                <Send size={20} />
+                Войти через Telegram
+              </button>
+            )
           ) : (
             <div className="text-sm text-gray-400 dark:text-gray-500">{t('auth.telegramLoading')}</div>
           )}

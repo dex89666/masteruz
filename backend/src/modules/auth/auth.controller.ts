@@ -4,7 +4,12 @@
 // ============================================
 
 import { Request, Response, NextFunction } from 'express';
+import crypto from 'crypto';
 import { authService } from './auth.service.js';
+import { botAuthService } from './bot-auth.service.js';
+import { config } from '../../config/index.js';
+import { sendTelegramMessage } from '../../utils/telegramBot.js';
+import { logger } from '../../utils/logger.js';
 import { setAuthCookies, clearAuthCookies } from '../../utils/authCookies.js';
 
 function applyTokens(res: Response, result: any) {
@@ -160,6 +165,142 @@ export class AuthController {
       next(error);
     }
   }
+
+  /**
+   * POST /api/auth/telegram-bot/start
+   * Создаёт одноразовый токен. Фронт открывает t.me/<bot>?start=auth_<token>,
+   * затем поллит /telegram-bot/poll до готовности.
+   */
+  async botAuthStart(_req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { token } = await botAuthService.start();
+      const botUsername = config.telegram.botUsername || 'Handymanuzbot';
+      res.json({
+        success: true,
+        data: {
+          token,
+          // tg:// открывает Telegram-приложение напрямую. https://t.me/... —
+          // фолбэк, если приложение не установлено (откроется веб-Telegram).
+          deepLink: `tg://resolve?domain=${botUsername}&start=auth_${token}`,
+          webLink: `https://t.me/${botUsername}?start=auth_${token}`,
+          ttl: 300,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * POST /api/auth/telegram-bot/poll  { token }
+   * 200 + { ready: true, tokens, user } если webhook уже принял Start;
+   * 200 + { ready: false } если ещё ждём;
+   * 410 если токен истёк/не существует.
+   */
+  async botAuthPoll(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const token = String(req.body?.token ?? '');
+      if (!token) {
+        res.status(400).json({ success: false, error: { message: 'token обязателен' } });
+        return;
+      }
+      const record = await botAuthService.poll(token);
+      if (record.status === 'expired') {
+        res.status(410).json({ success: false, error: { message: 'Сессия авторизации истекла' } });
+        return;
+      }
+      if (record.status === 'ready' && record.tokens) {
+        const result = {
+          accessToken: record.tokens.accessToken,
+          refreshToken: record.tokens.refreshToken,
+          user: record.user,
+          isNewUser: record.isNewUser ?? false,
+        };
+        applyTokens(res, result);
+        res.json({ success: true, data: { ready: true, ...result } });
+        return;
+      }
+      res.json({ success: true, data: { ready: false } });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * POST /api/auth/telegram-bot/webhook
+   * Принимает Update от Telegram. Защита — заголовок X-Telegram-Bot-Api-Secret-Token,
+   * который мы передаём в setWebhook на старте сервера.
+   */
+  async botAuthWebhook(req: Request, res: Response): Promise<void> {
+    // Всегда отвечаем 200 — Telegram иначе будет повторять.
+    try {
+      const expected = botWebhookSecret();
+      const got = req.header('x-telegram-bot-api-secret-token');
+      if (expected && got !== expected) {
+        logger.warn({ got }, 'bot webhook: невалидный secret token');
+        res.sendStatus(200);
+        return;
+      }
+
+      const msg = (req.body?.message ?? req.body?.edited_message) as
+        | {
+            text?: string;
+            from?: { id: number; first_name: string; last_name?: string; username?: string };
+            chat?: { id: number };
+          }
+        | undefined;
+
+      const text = msg?.text?.trim();
+      const tgUser = msg?.from;
+      const chatId = msg?.chat?.id;
+      if (!text || !tgUser || !chatId) {
+        res.sendStatus(200);
+        return;
+      }
+
+      const match = text.match(/^\/start\s+auth_([A-Za-z0-9_-]{8,})/);
+      if (!match) {
+        res.sendStatus(200);
+        return;
+      }
+
+      const token = match[1];
+      const tokens = await botAuthService.complete(token, {
+        id: tgUser.id,
+        first_name: tgUser.first_name,
+        last_name: tgUser.last_name,
+        username: tgUser.username,
+      });
+
+      if (tokens) {
+        await sendTelegramMessage({
+          chatId,
+          text: '✅ <b>Вы вошли в MasterUz!</b>\n\nВозвращайтесь в приложение — авторизация уже подтверждена.',
+        });
+      } else {
+        await sendTelegramMessage({
+          chatId,
+          text: '⏱ Сессия авторизации истекла. Откройте приложение и нажмите «Войти через Telegram» ещё раз.',
+        });
+      }
+
+      res.sendStatus(200);
+    } catch (error) {
+      logger.error({ err: error }, 'bot webhook: ошибка обработки');
+      res.sendStatus(200);
+    }
+  }
+}
+
+/**
+ * Стабильный секрет webhook — выводим из BOT_TOKEN.
+ * Так не нужен лишний ENV: токен бота уже секретный, а sha256 от него
+ * даёт уникальное непредсказуемое значение для заголовка Telegram.
+ */
+export function botWebhookSecret(): string {
+  const t = config.telegram?.botToken ?? '';
+  if (!t) return '';
+  return crypto.createHash('sha256').update(t).digest('hex').slice(0, 32);
 }
 
 export const authController = new AuthController();
