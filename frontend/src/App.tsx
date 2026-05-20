@@ -12,6 +12,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 
 import { Layout } from './components/Layout';
 import { ConsentGate } from './components/ConsentGate';
+import { UpdateChecker } from './components/UpdateChecker';
 import { useAppInit } from './hooks';
 import { trackPageView } from './lib/analytics';
 import { useAuthStore } from './store';
@@ -427,6 +428,7 @@ export default function App() {
         <I18nProvider>
           <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
             <AppContent />
+            <UpdateChecker />
             <Toaster
               position="top-center"
               toastOptions={{

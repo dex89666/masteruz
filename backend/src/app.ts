@@ -60,6 +60,7 @@ import localRegistryRoutes from './modules/local-registry/local-registry.routes.
 import announcementsRoutes from './modules/announcements/announcements.routes.js';
 import complaintsRoutes from './modules/complaints/complaints.routes.js';
 import subscriptionsRoutes from './modules/subscriptions/subscriptions.routes.js';
+import appVersionRoutes from './modules/app-version/app-version.routes.js';
 
 const app = express();
 
@@ -302,6 +303,7 @@ app.use('/api/announcements', announcementsRoutes);
 app.use('/api/complaints', complaintsRoutes);
 app.use('/api/subscriptions', subscriptionsRoutes);
 app.use('/api/local-registry', localRegistryRoutes);
+app.use('/api/app', appVersionRoutes);
 
 // ─── Healthcheck ───────────────────────────────
 // /api/health/live   — лёгкий liveness probe (просто 200, без БД)
