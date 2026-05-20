@@ -129,6 +129,9 @@ export function ConsentGate({ children }: { children: React.ReactNode }) {
   async function handleAccept() {
     setError(null);
     setSubmitting(true);
+    // Сохраняем локально СРАЗУ — пользователь не должен зависнуть из-за сети/CORS/прокси.
+    // Серверная запись — best-effort: пробуем, но не блокируем UX.
+    saveLocalConsent();
     try {
       await api.post('/local-registry/consent', {
         acceptedOffer: offerOk,
@@ -136,12 +139,14 @@ export function ConsentGate({ children }: { children: React.ReactNode }) {
         acceptedDataProcessing: dataOk,
         telegramId: getTelegramUserId(),
       });
-      saveLocalConsent();
-      setAccepted(true);
-    } catch (e: any) {
-      setError(e?.response?.data?.error?.message || 'Не удалось сохранить согласие. Проверьте подключение.');
+    } catch (e) {
+      // Логируем, но не показываем пользователю — согласие уже сохранено локально.
+      // Backend подтвердит при следующем заходе через /consent/status.
+      // eslint-disable-next-line no-console
+      console.warn('[ConsentGate] не удалось записать согласие на сервер, оставлено только локально', e);
     } finally {
       setSubmitting(false);
+      setAccepted(true);
     }
   }
 
