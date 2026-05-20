@@ -57,28 +57,21 @@ export function useGeolocation() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const requestLocation = useCallback(() => {
-    if (!navigator.geolocation) {
-      setError('Геолокация не поддерживается');
-      return;
-    }
-
+  const requestLocation = useCallback(async () => {
     setLoading(true);
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const location = {
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-        };
-        setUserLocation(location);
-        setLoading(false);
-      },
-      (err) => {
-        setError(err.message);
-        setLoading(false);
-      },
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
+    setError(null);
+    try {
+      const { getCurrentPosition } = await import('../lib/geolocation');
+      const { latitude, longitude } = await getCurrentPosition({
+        enableHighAccuracy: true,
+        timeout: 10_000,
+      });
+      setUserLocation({ latitude, longitude });
+    } catch (err: any) {
+      setError(err?.message ?? 'Не удалось получить геолокацию');
+    } finally {
+      setLoading(false);
+    }
   }, [setUserLocation]);
 
   return { location: userLocation, error, loading, requestLocation };
@@ -277,14 +270,15 @@ export function useOnlineStatus() {
   const isMaster = user?.role === 'MASTER';
 
   // Heartbeat с геолокацией
-  const sendHeartbeat = useCallback(() => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => onlineStatusApi.heartbeat(pos.coords.latitude, pos.coords.longitude).catch(() => {}),
-        () => onlineStatusApi.heartbeat().catch(() => {}),
-        { enableHighAccuracy: true, timeout: 5000 },
-      );
-    } else {
+  const sendHeartbeat = useCallback(async () => {
+    try {
+      const { getCurrentPosition } = await import('../lib/geolocation');
+      const { latitude, longitude } = await getCurrentPosition({
+        enableHighAccuracy: true,
+        timeout: 5_000,
+      });
+      onlineStatusApi.heartbeat(latitude, longitude).catch(() => {});
+    } catch {
       onlineStatusApi.heartbeat().catch(() => {});
     }
   }, []);

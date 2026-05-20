@@ -12,6 +12,7 @@
 
 import { useEffect, useRef } from 'react';
 import { ordersApi } from '../api/client';
+import { getCurrentPosition, watchPosition, type GeoCoords } from '../lib/geolocation';
 
 const BROADCAST_INTERVAL_MS = 10_000;     // не чаще раза в 10 сек
 const FOREGROUND_PULSE_MS = 30_000;       // принудительный пинг раз в 30 сек, даже без движения
@@ -22,19 +23,16 @@ interface Options {
 }
 
 export function useMasterLocationBroadcast({ orderId, enabled }: Options) {
-  const watchIdRef = useRef<number | null>(null);
+  const stopWatchRef = useRef<(() => void) | null>(null);
   const pulseTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const wakeLockRef = useRef<any>(null);
   const lastSentAtRef = useRef<number>(0);
-  const lastCoordsRef = useRef<{ lat: number; lng: number; heading?: number; speed?: number } | null>(null);
+  const lastCoordsRef = useRef<{ lat: number; lng: number } | null>(null);
 
   useEffect(() => {
-    if (!enabled || !orderId || !navigator.geolocation) return;
+    if (!enabled || !orderId) return;
 
-    const send = (
-      coords: Pick<GeolocationCoordinates, 'latitude' | 'longitude' | 'heading' | 'speed'>,
-      force = false
-    ) => {
+    const send = (coords: GeoCoords, force = false) => {
       const now = Date.now();
       const last = lastCoordsRef.current;
       const movedFar =
@@ -44,38 +42,41 @@ export function useMasterLocationBroadcast({ orderId, enabled }: Options) {
       if (!force && !movedFar && now - lastSentAtRef.current < BROADCAST_INTERVAL_MS) return;
 
       lastSentAtRef.current = now;
-      lastCoordsRef.current = {
-        lat: coords.latitude,
-        lng: coords.longitude,
-        heading: coords.heading ?? undefined,
-        speed: coords.speed ?? undefined,
-      };
+      lastCoordsRef.current = { lat: coords.latitude, lng: coords.longitude };
       ordersApi
         .masterLocation(orderId, {
           latitude: coords.latitude,
           longitude: coords.longitude,
-          heading: coords.heading ?? undefined,
-          speed: coords.speed ?? undefined,
         })
         .catch(() => { /* в фоне, ошибки игнорируем */ });
     };
 
+    let cancelled = false;
+
     // 1. Непрерывный watch (работает пока вкладка видима)
-    watchIdRef.current = navigator.geolocation.watchPosition(
-      (pos) => send(pos.coords),
+    watchPosition(
+      (coords) => send(coords),
       () => { /* пользователь отменил геолокацию — тихо */ },
-      { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 }
-    );
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 },
+    ).then((stop) => {
+      if (cancelled) {
+        stop();
+      } else {
+        stopWatchRef.current = stop;
+      }
+    });
 
     // 2. Forced pulse — гарантирует свежую позицию минимум раз в 30 сек,
     //    даже если watchPosition «спит» (например, на iOS в фоне)
-    const pulse = () => {
-      if (!navigator.geolocation) return;
-      navigator.geolocation.getCurrentPosition(
-        (pos) => send(pos.coords, true),
-        () => { /* fail silently */ },
-        { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 }
-      );
+    const pulse = async () => {
+      try {
+        const coords = await getCurrentPosition({
+          enableHighAccuracy: true,
+          maximumAge: 0,
+          timeout: 20_000,
+        });
+        send(coords, true);
+      } catch { /* fail silently */ }
     };
     pulseTimerRef.current = setInterval(pulse, FOREGROUND_PULSE_MS);
 
@@ -83,7 +84,6 @@ export function useMasterLocationBroadcast({ orderId, enabled }: Options) {
     const onVisibility = () => {
       if (document.visibilityState === 'visible') {
         pulse();
-        // Также попробуем заново взять Wake Lock — он сбрасывается при сворачивании
         acquireWakeLock();
       }
     };
@@ -102,8 +102,6 @@ export function useMasterLocationBroadcast({ orderId, enabled }: Options) {
           body: JSON.stringify({
             latitude: c.lat,
             longitude: c.lng,
-            heading: c.heading,
-            speed: c.speed,
           }),
           keepalive: true,
         }).catch(() => { /* noop */ });
@@ -111,7 +109,7 @@ export function useMasterLocationBroadcast({ orderId, enabled }: Options) {
     };
     window.addEventListener('pagehide', onPageHide);
 
-    // 5. Wake Lock — пробуем удержать экран (мастер за рулём, экран не должен гаснуть)
+    // 5. Wake Lock — пробуем удержать экран
     async function acquireWakeLock() {
       try {
         // @ts-ignore — wakeLock не во всех TS-libs
@@ -124,10 +122,9 @@ export function useMasterLocationBroadcast({ orderId, enabled }: Options) {
     acquireWakeLock();
 
     return () => {
-      if (watchIdRef.current != null) {
-        navigator.geolocation.clearWatch(watchIdRef.current);
-        watchIdRef.current = null;
-      }
+      cancelled = true;
+      stopWatchRef.current?.();
+      stopWatchRef.current = null;
       if (pulseTimerRef.current) {
         clearInterval(pulseTimerRef.current);
         pulseTimerRef.current = null;

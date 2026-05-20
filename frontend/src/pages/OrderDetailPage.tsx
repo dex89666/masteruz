@@ -219,16 +219,16 @@ export function OrderDetailPage() {
     const needsGeofence = newStatus === 'IN_PROGRESS';
 
     let coords: { latitude: number; longitude: number } | undefined;
-    if (needsGeofence && navigator.geolocation) {
+    if (needsGeofence) {
       setArriving(true);
       try {
-        coords = await new Promise<{ latitude: number; longitude: number }>((resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(
-            (pos) => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
-            (err) => reject(err),
-            { enableHighAccuracy: true, timeout: 8000, maximumAge: 30_000 }
-          );
+        const { getCurrentPosition } = await import('../lib/geolocation');
+        const c = await getCurrentPosition({
+          enableHighAccuracy: true,
+          timeout: 8_000,
+          maximumAge: 30_000,
         });
+        coords = { latitude: c.latitude, longitude: c.longitude };
       } catch {
         // Не блокируем — отдадим на бэк, он попробует fallback на сохранённую позицию
         coords = undefined;
@@ -1267,19 +1267,16 @@ export function OrderDetailPage() {
                   const dst = `${order.latitude},${order.longitude}`;
                   // Пытаемся получить точку А мастера, чтобы маршрут построился точно
                   let from = '';
-                  if (navigator.geolocation) {
-                    try {
-                      const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
-                        navigator.geolocation.getCurrentPosition(resolve, reject, {
-                          enableHighAccuracy: true,
-                          timeout: 6000,
-                          maximumAge: 30_000,
-                        });
-                      });
-                      from = `${pos.coords.latitude},${pos.coords.longitude}`;
-                    } catch {
-                      // Без точки А — Я.Карты подставят «моё местоположение» сами
-                    }
+                  try {
+                    const { getCurrentPosition } = await import('../lib/geolocation');
+                    const c = await getCurrentPosition({
+                      enableHighAccuracy: true,
+                      timeout: 6_000,
+                      maximumAge: 30_000,
+                    });
+                    from = `${c.latitude},${c.longitude}`;
+                  } catch {
+                    // Без точки А — Я.Карты подставят «моё местоположение» сами
                   }
                   const rtext = from ? `${from}~${dst}` : `~${dst}`;
                   // Сначала пытаемся открыть мобильное приложение Я.Навигатор
