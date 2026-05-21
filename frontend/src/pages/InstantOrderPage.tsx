@@ -1131,7 +1131,7 @@ export function InstantOrderPage() {
               className="w-full min-h-[60px] md:min-h-[64px] bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-2xl font-bold text-lg md:text-xl flex items-center justify-center gap-3 hover:from-orange-600 hover:to-amber-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-xl shadow-orange-500/25"
             >
               <Sparkles size={24} />
-              Далее — ИИ подберёт работы
+              Далее
               <ChevronRight size={22} />
             </button>
 
