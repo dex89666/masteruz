@@ -980,7 +980,9 @@ export function InstantOrderPage() {
               )}
             </div>
 
-            {/* ─── Category (selectable grid) — сразу под описанием, чтобы видно при ошибке ─── */}
+            {/* ─── Category (selectable grid) — показываем только если ИИ попросил уточнить
+                 или пользователь уже выбрал направление. По умолчанию ИИ определяет сам. ─── */}
+            {(categoryRequired || selectedCategoryIds.length > 0) && (
             <div
               ref={categorySectionRef}
               className={`bg-white dark:bg-gray-800 rounded-2xl p-5 md:p-6 shadow-sm border-2 transition-all ${
@@ -1068,6 +1070,7 @@ export function InstantOrderPage() {
                 </div>
               )}
             </div>
+            )}
 
             {/* ─── Timing ─── */}
             <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 md:p-6 shadow-sm border border-gray-200 dark:border-gray-700">
@@ -1128,7 +1131,7 @@ export function InstantOrderPage() {
               className="w-full min-h-[60px] md:min-h-[64px] bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-2xl font-bold text-lg md:text-xl flex items-center justify-center gap-3 hover:from-orange-600 hover:to-amber-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-xl shadow-orange-500/25"
             >
               <Sparkles size={24} />
-              Проанализировать с ИИ
+              Далее — ИИ подберёт работы
               <ChevronRight size={22} />
             </button>
 
