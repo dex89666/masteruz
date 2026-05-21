@@ -2,13 +2,12 @@
 # MasterUz — CI/CD Pipeline (GitHub Actions)
 # ============================================
 
-name: MasterUz CI/CD
+name: MasterUz CI/CD (legacy SSH — отключён)
 
+# Старый SSH-деплой на VPS. Сейчас используем Railway (railway-deploy.yml).
+# Запускается ТОЛЬКО вручную через "Run workflow" в Actions UI.
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+  workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io
