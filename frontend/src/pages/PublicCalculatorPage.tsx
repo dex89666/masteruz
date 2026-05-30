@@ -4,11 +4,11 @@
 // Доступен БЕЗ авторизации и без consent-модала (viral landing)
 // ============================================
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Sparkles, Camera, X, Loader2, ArrowRight, ShieldCheck,
-  Clock, Wand2, ImagePlus, MapPin,
+  Clock, Wand2, ImagePlus, MapPin, Mic, Square,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { instantOrderApi } from '../api/client';
@@ -70,6 +70,52 @@ export function PublicCalculatorPage() {
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<EstimateResult | null>(null);
+  const [recording, setRecording] = useState(false);
+  const recognitionRef = useRef<any>(null);
+
+  // Заголовок вкладки для расшаренной ссылки (UX, не для ботов соцсетей)
+  useEffect(() => {
+    const prev = document.title;
+    document.title = 'Сколько стоит починить это? — AI-калькулятор MasterUz';
+    return () => { document.title = prev; };
+  }, []);
+
+  // ─── Голосовой ввод (Web Speech API, без сервера) ──────────────
+  const toggleVoice = useCallback(() => {
+    if (recording) {
+      recognitionRef.current?.stop();
+      return;
+    }
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      toast.error('Голосовой ввод не поддерживается в этом браузере. Напишите текстом.');
+      return;
+    }
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'ru-RU';
+    recognition.interimResults = true;
+    recognition.continuous = true;
+    let finalText = description ? description + ' ' : '';
+    recognition.onresult = (event: any) => {
+      let interim = '';
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const transcript = event.results[i][0].transcript;
+        if (event.results[i].isFinal) finalText += transcript + ' ';
+        else interim = transcript;
+      }
+      setDescription((finalText + interim).trim().slice(0, 2000));
+    };
+    recognition.onerror = (e: any) => {
+      if (e.error === 'no-speech') toast.error('Речь не обнаружена');
+      else if (e.error === 'not-allowed') toast.error('Доступ к микрофону запрещён');
+      setRecording(false);
+    };
+    recognition.onend = () => { setRecording(false); recognitionRef.current = null; };
+    recognitionRef.current = recognition;
+    recognition.start();
+    setRecording(true);
+    toast('Говорите — текст появится сам', { icon: '🎙️', duration: 1800 });
+  }, [recording, description]);
 
   const addFiles = useCallback(async (files: File[]) => {
     const room = MAX_PHOTOS - previews.length;
@@ -209,6 +255,19 @@ export function PublicCalculatorPage() {
             maxLength={2000}
             className="mt-4 w-full resize-none rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-3 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
           />
+
+          {/* Voice input */}
+          <button
+            onClick={toggleVoice}
+            type="button"
+            className={`mt-2 inline-flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-xl transition-colors ${
+              recording
+                ? 'bg-red-500 text-white animate-pulse'
+                : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+            }`}
+          >
+            {recording ? <><Square size={16} /> Остановить запись</> : <><Mic size={16} /> Сказать голосом</>}
+          </button>
 
           {/* CTA */}
           <button
