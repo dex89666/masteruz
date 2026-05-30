@@ -17,7 +17,6 @@ import { analyzeOrder, type AiAnalysisResult } from '../../services/aiAnalysisSe
 type AiTierType = 'GOOD' | 'BETTER' | 'BEST';
 
 // ─── Конфигурация ─────────────────────────────
-const DEFAULT_COMMISSION_RATE = 15;
 const DEFAULT_VISIT_FEE = 100000;
 const VISIT_FEE_COMMISSION_RATE = 10;
 
@@ -1115,13 +1114,11 @@ export class InstantOrderService {
     }
 
     // Получаем конфигурацию платформы
-    const [commissionConfig, visitFeeConfig, visitFeeCommConfig, urgencyConfig] = await Promise.all([
-      prisma.platformConfig.findUnique({ where: { key: 'commission_rate' } }),
+    const [visitFeeConfig, visitFeeCommConfig, urgencyConfig] = await Promise.all([
       prisma.platformConfig.findUnique({ where: { key: 'visit_fee' } }),
       prisma.platformConfig.findUnique({ where: { key: 'visit_fee_commission_rate' } }),
       prisma.platformConfig.findUnique({ where: { key: 'urgency_multiplier' } }),
     ]);
-    const commissionRate = commissionConfig ? parseFloat(commissionConfig.value) : DEFAULT_COMMISSION_RATE;
     const visitFee = visitFeeConfig ? parseFloat(visitFeeConfig.value) : DEFAULT_VISIT_FEE;
     const visitFeeCommissionRate = visitFeeCommConfig ? parseFloat(visitFeeCommConfig.value) : VISIT_FEE_COMMISSION_RATE;
 
@@ -1131,6 +1128,12 @@ export class InstantOrderService {
     const isUrgent = data.isUrgent === true;
     const urgentMultiplier = isUrgent ? URGENT_MULTIPLIER : 1.0;
     const effectivePrice = moneyMul(toNum(template.estimatedPrice), urgentMultiplier);
+
+    // Ступенчатая комиссия от стоимости работ (растущая модель).
+    // Мастер ещё не назначен → берём базовую ступень; надбавка за первый/повторный
+    // заказ пары применится при назначении мастера в assignMaster.
+    const { getTieredCommissionRate } = await import('../../services/platformConfigService.js');
+    const commissionRate = await getTieredCommissionRate(effectivePrice);
 
     // Комиссии
     const workCommission = calculateCommission(effectivePrice, commissionRate);

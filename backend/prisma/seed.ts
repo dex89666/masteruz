@@ -237,6 +237,44 @@ async function seed() {
         description: 'Срок гарантии на выполненные работы (дней)',
       },
     }),
+    // ─── Ступенчатая комиссия (РАСТУЩАЯ анти-обход модель) ───
+    // Дешёвые заказы → НИЗКИЙ % (невыгодно уводить в наличку),
+    // крупные → выше (ценность эскроу-защиты растёт с суммой).
+    prisma.platformConfig.upsert({
+      where: { key: 'commission_tier_small' },
+      update: { value: '10' },
+      create: { key: 'commission_tier_small', value: '10', description: 'Комиссия для заказов < 100k сум (%)' },
+    }),
+    prisma.platformConfig.upsert({
+      where: { key: 'commission_tier_mid' },
+      update: { value: '12' },
+      create: { key: 'commission_tier_mid', value: '12', description: 'Комиссия для заказов 100k–300k сум (%)' },
+    }),
+    prisma.platformConfig.upsert({
+      where: { key: 'commission_tier_large' },
+      update: { value: '14' },
+      create: { key: 'commission_tier_large', value: '14', description: 'Комиссия для заказов 300k–800k сум (%)' },
+    }),
+    prisma.platformConfig.upsert({
+      where: { key: 'commission_tier_xl' },
+      update: { value: '15' },
+      create: { key: 'commission_tier_xl', value: '15', description: 'Комиссия для заказов ≥ 800k сум (%)' },
+    }),
+    prisma.platformConfig.upsert({
+      where: { key: 'commission_tier_small_max' },
+      update: {},
+      create: { key: 'commission_tier_small_max', value: '100000', description: 'Верхняя граница ступени «малый заказ» (сум)' },
+    }),
+    prisma.platformConfig.upsert({
+      where: { key: 'commission_tier_mid_max' },
+      update: {},
+      create: { key: 'commission_tier_mid_max', value: '300000', description: 'Верхняя граница ступени «средний заказ» (сум)' },
+    }),
+    prisma.platformConfig.upsert({
+      where: { key: 'commission_tier_large_max' },
+      update: {},
+      create: { key: 'commission_tier_large_max', value: '800000', description: 'Верхняя граница ступени «крупный заказ» (сум)' },
+    }),
   ]);
 
   console.log(`✅ Создано ${configs.length} параметров конфигурации`);

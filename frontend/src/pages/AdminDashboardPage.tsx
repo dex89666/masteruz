@@ -3085,7 +3085,7 @@ export function AdminDashboardPage() {
               {/* Основные настройки — красивые карточки */}
               <div className="grid gap-4 md:grid-cols-2">
                 {[
-                  { key: 'commission_rate', label: 'Комиссия платформы (%)', icon: CreditCard, color: 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400', desc: 'Базовая ставка комиссии за обычные заказы', suffix: '%' },
+                  { key: 'commission_rate', label: 'Комиссия платформы (%)', icon: CreditCard, color: 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400', desc: 'Legacy-ставка (fallback). Реальная комиссия — ступенчатая: 10% до 100k, 12% до 300k, 14% до 800k, 15% выше', suffix: '%' },
                   { key: 'first_order_commission_rate', label: 'Комиссия первого заказа пары (%)', icon: Shield, color: 'bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400', desc: 'Повышенная ставка для первого заказа клиент↔мастер (защита от увода)', suffix: '%' },
                   { key: 'repeat_order_commission_rate', label: 'Комиссия повторного заказа пары (%)', icon: Shield, color: 'bg-teal-50 dark:bg-teal-900/20 text-teal-600 dark:text-teal-400', desc: 'Льготная ставка для повторных заказов через платформу', suffix: '%' },
                   { key: 'bypass_penalty_multiplier', label: 'Множитель штрафа за обход (×)', icon: AlertTriangle, color: 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400', desc: 'Штраф = стоимость заказа × коэффициент. По оферте — до 5×', suffix: '×' },

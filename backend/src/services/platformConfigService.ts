@@ -16,12 +16,12 @@ export const PLATFORM_CONFIG_KEYS = {
   newbieMaxPriceRatio: 'newbie_max_price_ratio',
 
   // ─── Ступенчатая комиссия (от стоимости работ) ───
-  // Мелкие заказы — выше %, крупные — ниже. Так платформа покрывает
-  // фикс. расходы на маленьких заявках, но не «жадничает» на крупных.
-  commissionTierSmall: 'commission_tier_small',   // % для price < tierSmallMax
+  // РАСТУЩАЯ модель: мелкие заказы — НИЗКИЙ % (защита от увода в наличку),
+  // крупные — выше (ценность эскроу-защиты растёт с суммой).
+  commissionTierSmall: 'commission_tier_small',   // % для price < tierSmallMax (минимум платформы)
   commissionTierMid: 'commission_tier_mid',       // % для tierSmallMax ≤ price < tierMidMax
   commissionTierLarge: 'commission_tier_large',   // % для tierMidMax ≤ price < tierLargeMax
-  commissionTierXL: 'commission_tier_xl',         // % для price ≥ tierLargeMax (минимум, обычно 15)
+  commissionTierXL: 'commission_tier_xl',         // % для price ≥ tierLargeMax (максимум)
   commissionTierSmallMax: 'commission_tier_small_max', // сум
   commissionTierMidMax: 'commission_tier_mid_max',     // сум
   commissionTierLargeMax: 'commission_tier_large_max', // сум
@@ -55,11 +55,14 @@ const DEFAULTS: Record<string, string> = {
   [PLATFORM_CONFIG_KEYS.firstOrderCommissionRate]: '5', // надбавка к ступени для первого заказа клиент↔мастер
   [PLATFORM_CONFIG_KEYS.repeatOrderCommissionRate]: '0', // надбавки нет
   [PLATFORM_CONFIG_KEYS.newbieMaxPriceRatio]: '1.5',
-  // Ступени (сум и проценты)
-  [PLATFORM_CONFIG_KEYS.commissionTierSmall]: '25',
-  [PLATFORM_CONFIG_KEYS.commissionTierMid]: '22',
-  [PLATFORM_CONFIG_KEYS.commissionTierLarge]: '18',
-  [PLATFORM_CONFIG_KEYS.commissionTierXL]: '15',
+  // ─── Ступени комиссии (РАСТУЩАЯ анти-обход модель) ───
+  // Дешёвые заказы легко увести в наличку → держим комиссию НИЗКОЙ,
+  // чтобы обходить было невыгодно. На крупных заказах ценность эскроу-защиты
+  // высока (обе стороны боятся кидка) → комиссия выше.
+  [PLATFORM_CONFIG_KEYS.commissionTierSmall]: '10',  // price < 100k  → 10%
+  [PLATFORM_CONFIG_KEYS.commissionTierMid]: '12',    // 100k–300k     → 12%
+  [PLATFORM_CONFIG_KEYS.commissionTierLarge]: '14',  // 300k–800k     → 14%
+  [PLATFORM_CONFIG_KEYS.commissionTierXL]: '15',     // ≥ 800k        → 15%
   [PLATFORM_CONFIG_KEYS.commissionTierSmallMax]: '100000',
   [PLATFORM_CONFIG_KEYS.commissionTierMidMax]: '300000',
   [PLATFORM_CONFIG_KEYS.commissionTierLargeMax]: '800000',
@@ -166,9 +169,11 @@ export async function getTieredEffectiveCommissionRate(
     : PLATFORM_CONFIG_KEYS.repeatOrderCommissionRate;
 
   const surcharge = await getConfigNumber(surchargeKey, 0);
-  const minRate = await getConfigNumber(PLATFORM_CONFIG_KEYS.commissionTierXL, 15);
 
-  return Math.max(minRate, base + surcharge);
+  // Надбавка за первый заказ пары (защита от увода) добавляется к ступени.
+  // Клампим в разумные пределы [0..100], НЕ зажимаем снизу на tier XL —
+  // иначе растущая модель сломается (мелкие заказы вернулись бы к 15%).
+  return Math.min(100, Math.max(0, base + surcharge));
 }
 
 /** Получить дефолтные значения для админки (если ключа ещё нет в БД). */
