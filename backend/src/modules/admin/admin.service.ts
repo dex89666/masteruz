@@ -159,12 +159,14 @@ export class AdminService {
     role?: string;
     search?: string;
     isActive?: boolean;
+    isVerified?: boolean;
   }) {
     const { skip, take, page, limit } = getPagination(filters.page, filters.limit);
 
     const where: any = {};
     if (filters.role) where.role = filters.role;
     if (filters.isActive !== undefined) where.isActive = filters.isActive;
+    if (filters.isVerified !== undefined) where.isVerified = filters.isVerified;
     if (filters.search) {
       where.OR = [
         { username: { contains: filters.search, mode: 'insensitive' } },
@@ -238,18 +240,32 @@ export class AdminService {
   }
 
   /**
-   * Верификация мастера
+   * Верификация мастера (переключатель: выдать или снять отметку)
    */
-  async verifyUser(userId: string) {
+  async verifyUser(adminId: string, userId: string) {
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw ApiError.notFound('Пользователь не найден');
 
+    const newStatus = !user.isVerified;
+
     await prisma.user.update({
       where: { id: userId },
-      data: { isVerified: true },
+      data: { isVerified: newStatus },
     });
 
-    return { userId, isVerified: true };
+    logger.info(
+      { adminId, userId, isVerified: newStatus },
+      `Мастер ${newStatus ? 'верифицирован' : 'снят с верификации'}`
+    );
+
+    await auditService.log({
+      actorId: adminId,
+      action: newStatus ? 'verify_user' : 'unverify_user',
+      entityType: 'User',
+      entityId: userId,
+    });
+
+    return { userId, isVerified: newStatus };
   }
 
   /**

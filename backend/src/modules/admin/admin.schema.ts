@@ -6,6 +6,7 @@ export const adminUsersQuerySchema = z.object({
   role: z.enum(['CLIENT', 'MASTER', 'ADMIN', 'MANAGER']).optional(),
   search: z.string().max(100).optional(),
   isActive: z.coerce.boolean().optional(),
+  isVerified: z.coerce.boolean().optional(),
 });
 
 export const blockUserSchema = z.object({

@@ -40,6 +40,7 @@ router.get('/users', validateQuery(adminUsersQuerySchema), async (req: Request, 
       role: req.query.role as string,
       search: req.query.search as string,
       isActive: req.query.isActive as unknown as boolean | undefined,
+      isVerified: req.query.isVerified as unknown as boolean | undefined,
     });
     res.json({ success: true, ...result });
   } catch (error) {
@@ -61,10 +62,10 @@ router.put('/users/:id/block', validateBody(blockUserSchema), async (req: Reques
   }
 });
 
-// Верификация
+// Верификация (переключатель)
 router.put('/users/:id/verify', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const result = await adminService.verifyUser(req.params.id);
+    const result = await adminService.verifyUser(req.user!.userId, req.params.id);
     res.json({ success: true, data: result });
   } catch (error) {
     next(error);

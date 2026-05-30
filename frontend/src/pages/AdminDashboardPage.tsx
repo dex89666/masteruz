@@ -112,6 +112,7 @@ export function AdminDashboardPage() {
   const [usersTotalPages, setUsersTotalPages] = useState(1);
   const [usersSearch, setUsersSearch] = useState('');
   const [usersRole, setUsersRole] = useState('');
+  const [usersVerified, setUsersVerified] = useState('');
   const [usersLoading, setUsersLoading] = useState(false);
 
   // Orders tab state
@@ -246,7 +247,7 @@ export function AdminDashboardPage() {
   useEffect(() => { if (tab === 'stores') loadPartnerRequests(); }, [requestsStatus]);
   useEffect(() => { if (tab === 'turnkey') loadTurnkeyProjects(); }, [turnkeyStatus]);
 
-  useEffect(() => { if (tab === 'users') loadUsers(); }, [usersPage, usersRole]);
+  useEffect(() => { if (tab === 'users') loadUsers(); }, [usersPage, usersRole, usersVerified]);
   useEffect(() => { if (tab === 'orders') loadOrders(); }, [ordersPage, ordersStatus]);
   useEffect(() => { if (tab === 'payments') loadPayments(); }, [paymentsPage, paymentsStatus, paymentsProvider]);
 
@@ -479,6 +480,7 @@ export function AdminDashboardPage() {
         limit: 15,
         role: usersRole || undefined,
         search: usersSearch || undefined,
+        isVerified: usersVerified || undefined,
       });
       setUsers(res.data.data || []);
       if (res.data.pagination) setUsersTotalPages(res.data.pagination.totalPages);
@@ -771,8 +773,8 @@ export function AdminDashboardPage() {
 
   async function handleVerify(userId: string) {
     try {
-      await adminApi.verifyUser(userId);
-      toast.success(t('admin.userVerified'));
+      const res = await adminApi.verifyUser(userId);
+      toast.success(res.data.data?.isVerified ? t('admin.userVerified') : t('admin.userUnverified'));
       loadUsers();
     } catch (e) {
       toast.error(t('common.error'));
@@ -1349,6 +1351,27 @@ export function AdminDashboardPage() {
             </select>
           </div>
 
+          {/* Quick verification filter chips */}
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {[
+              { value: '', label: t('admin.allUsers') },
+              { value: 'false', label: t('admin.pendingVerification') },
+              { value: 'true', label: t('admin.filterVerified') },
+            ].map((chip) => (
+              <button
+                key={chip.value}
+                onClick={() => { setUsersVerified(chip.value); setUsersPage(1); }}
+                className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                  usersVerified === chip.value
+                    ? 'bg-primary text-white'
+                    : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
+              >
+                {chip.label}
+              </button>
+            ))}
+          </div>
+
           {/* Users List */}
           {usersLoading ? (
             <LoadingSpinner />
@@ -1448,11 +1471,15 @@ export function AdminDashboardPage() {
                           )}
                         </div>
                       )}
-                      {!u.isVerified && u.role === 'MASTER' && (
+                      {u.role === 'MASTER' && (
                         <button
                           onClick={() => handleVerify(u.id)}
-                          className="p-1.5 rounded-lg bg-green-50 text-green-600 dark:bg-green-900/30 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/50 transition-colors"
-                          title={t('admin.verify')}
+                          className={`p-1.5 rounded-lg transition-colors ${
+                            u.isVerified
+                              ? 'bg-green-50 text-green-600 dark:bg-green-900/30 dark:text-green-400 hover:bg-amber-100 hover:text-amber-600'
+                              : 'bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400 hover:bg-green-100 hover:text-green-600'
+                          }`}
+                          title={u.isVerified ? t('admin.unverify') : t('admin.verify')}
                         >
                           <UserCheck size={14} />
                         </button>
