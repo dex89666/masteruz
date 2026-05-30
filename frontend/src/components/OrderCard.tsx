@@ -77,7 +77,7 @@ export function OrderCard({ order, formatPrice, showNetEarnings }: OrderCardProp
           );
           if (photos.length === 0) return null;
           return (
-            <div className="flex gap-1.5 mb-3 overflow-hidden">
+            <div data-testid="order-card-photos" className="flex gap-1.5 mb-3 overflow-hidden">
               {photos.slice(0, 3).map((url, i) => (
                 <div
                   key={`${url}-${i}`}
