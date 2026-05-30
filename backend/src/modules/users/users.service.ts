@@ -347,6 +347,7 @@ export class UsersService {
     search?: string;
     sortBy?: 'rating' | 'completedOrders' | 'experience';
     sortOrder?: 'asc' | 'desc';
+    verifiedOnly?: boolean;
   }) {
     const page = params.page || 1;
     const limit = Math.min(params.limit || 20, 50);
@@ -357,6 +358,10 @@ export class UsersService {
       isActive: true,
       masterProfile: { isNot: null },
     };
+
+    if (params.verifiedOnly) {
+      where.isVerified = true;
+    }
 
     if (params.city) {
       where.profile = { city: params.city };

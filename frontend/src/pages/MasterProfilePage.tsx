@@ -196,15 +196,18 @@ export function MasterProfilePage() {
       )}
 
       {/* Specializations (legacy) */}
-      {mp && mp.specializations && mp.specializations.length > 0 && !(mp as any).masterCategories?.length && (
+      {mp && mp.specializations && mp.specializations.filter((s: string) => s && s !== 'general').length > 0 && !(mp as any).masterCategories?.length && (
         <div className="card mb-4">
           <h2 className="font-semibold mb-2 dark:text-white">{t('masterCard.specializations')}</h2>
           <div className="flex flex-wrap gap-2">
-            {mp.specializations.map((spec: string) => (
-              <span key={spec} className="badge bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400 text-sm">
-                {t(`categories.${spec}` as any) || spec}
-              </span>
-            ))}
+            {mp.specializations.filter((s: string) => s && s !== 'general').map((spec: string) => {
+              const label = t(`categories.${spec}` as any);
+              return (
+                <span key={spec} className="badge bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400 text-sm">
+                  {label === `categories.${spec}` ? spec : label}
+                </span>
+              );
+            })}
           </div>
         </div>
       )}

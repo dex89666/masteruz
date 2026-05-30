@@ -158,18 +158,27 @@ export function MasterCard({ master, isFavorite = false, showFavorite = false, o
           )}
 
           {/* Specializations */}
-          {mp && mp.specializations.length > 0 && !compact && (
-            <div className="flex flex-wrap gap-1 mt-2">
-              {mp.specializations.slice(0, 4).map((spec) => (
-                <span key={spec} className="text-[10px] bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400 px-2 py-0.5 rounded-full">
-                  {t(`categories.${spec}`) || spec}
-                </span>
-              ))}
-              {mp.specializations.length > 4 && (
-                <span className="text-[10px] text-gray-400 dark:text-gray-500">+{mp.specializations.length - 4}</span>
-              )}
-            </div>
-          )}
+          {mp && !compact && (() => {
+            const specs = mp.specializations
+              .filter((s) => s && s !== 'general')
+              .map((s) => {
+                const label = t(`categories.${s}`);
+                return label === `categories.${s}` ? s : label;
+              });
+            if (specs.length === 0) return null;
+            return (
+              <div className="flex flex-wrap gap-1 mt-2">
+                {specs.slice(0, 4).map((label, i) => (
+                  <span key={i} className="text-[10px] bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400 px-2 py-0.5 rounded-full">
+                    {label}
+                  </span>
+                ))}
+                {specs.length > 4 && (
+                  <span className="text-[10px] text-gray-400 dark:text-gray-500">+{specs.length - 4}</span>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Availability + Online badge */}
           {mp && (

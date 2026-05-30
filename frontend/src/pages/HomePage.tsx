@@ -92,7 +92,7 @@ export function HomePage() {
   }, [catalogParents]);
 
   useEffect(() => {
-    usersApi.searchMasters({ limit: 6, sortBy: 'rating', sortOrder: 'desc' })
+    usersApi.searchMasters({ limit: 6, sortBy: 'rating', sortOrder: 'desc', verifiedOnly: true })
       .then((res) => setTopMasters(res.data.data || []))
       .catch(() => {});
 

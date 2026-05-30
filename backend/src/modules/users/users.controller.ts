@@ -120,6 +120,7 @@ export class UsersController {
         search: req.query.search as string | undefined,
         sortBy: req.query.sortBy as any,
         sortOrder: req.query.sortOrder as any,
+        verifiedOnly: req.query.verifiedOnly === 'true',
       });
       res.json({ success: true, ...result });
     } catch (error) {
