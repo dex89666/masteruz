@@ -110,23 +110,45 @@ export function useAppInit() {
 
     async function init() {
       setLoading(true);
-      const token = localStorage.getItem('accessToken');
+
+      // Источники токена: отдельный ключ + persist-стор (zustand).
+      // На iOS Telegram WebView и при обновлении PWA отдельный ключ может
+      // быть очищен, а persist-стор — сохранён. Тогда `isAuthenticated=true`,
+      // но запросы уходят без `Authorization` → «Токен не предоставлен».
+      // Поднимаем токен из любого живого источника и синхронизируем оба.
+      let token = localStorage.getItem('accessToken');
+      let refresh = localStorage.getItem('refreshToken');
+      if (!token) {
+        try {
+          const raw = localStorage.getItem('masteruz-auth');
+          const persisted = raw ? JSON.parse(raw)?.state : null;
+          if (persisted?.accessToken) {
+            token = persisted.accessToken;
+            refresh = refresh || persisted.refreshToken || '';
+            if (token) localStorage.setItem('accessToken', token);
+            if (refresh) localStorage.setItem('refreshToken', refresh);
+          }
+        } catch {
+          /* битый persist — просто игнорируем */
+        }
+      }
 
       if (token) {
         try {
           const response = await authApi.me();
           if (response.data.success) {
-            setAuth(
-              response.data.data,
-              token,
-              localStorage.getItem('refreshToken') || ''
-            );
+            setAuth(response.data.data, token, refresh || '');
+          } else {
+            logout();
           }
         } catch {
           logout();
         }
       } else {
-        setLoading(false);
+        // Нет токена нигде, но persist-стор мог остаться с isAuthenticated=true.
+        // Сбрасываем состояние, чтобы AuthGate увёл на /login, а не пускал
+        // в защищённые экраны с заведомо неработающим API.
+        logout();
       }
 
       // Load catalog categories (cache in store)

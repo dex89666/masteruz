@@ -289,6 +289,7 @@ model Category {
   subcategories Subcategory[]
   portfolioItems PortfolioItem[] @relation("PortfolioCategory")
   masterCategories MasterCategory[]
+  knowledgeEntries KnowledgeEntry[]
 
   @@map("categories")
 }
@@ -458,6 +459,14 @@ model Order {
   updatedAt        DateTime    @updatedAt @map("updated_at")
   completedAt      DateTime?   @map("completed_at")
   cancelledAt      DateTime?   @map("cancelled_at")
+
+  // ─── RAG: самообучаемый поиск решений ──────────────────────────
+  // Прямого поля Prisma не делаем — pgvector тип нативно не
+  // поддерживается. Поиск выполняется через `prisma.$queryRaw`,
+  // запись — через тот же raw-канал. Здесь объявляем поле
+  // как Unsupported, чтобы Prisma не дропнула колонку при `db push`.
+  embedding          Unsupported("vector(1536)")? 
+  embeddingUpdatedAt DateTime? @map("embedding_updated_at")
 
   client     User            @relation("ClientOrders", fields: [clientId], references: [id])
   master     User?           @relation("MasterOrders", fields: [masterId], references: [id])
@@ -1166,6 +1175,48 @@ model AiOrderTemplate {
 
   @@index([categoryId, tier])
   @@map("ai_order_templates")
+}
+
+// ════════════════════════════════════════════════
+// KNOWLEDGE BASE (самообучаемые «рецепты» решений)
+// ────────────────────────────────────────────────
+// AI извлекает обобщённое знание из закрытых заказов и переиспользует
+// его для будущих запросов. Один рецепт → много кейсов. Эмбеддинг даёт
+// семантический поиск, visual_tags — точные совпадения по фото-объектам.
+// ════════════════════════════════════════════════
+
+model KnowledgeEntry {
+  id                  String   @id @default(uuid())
+  categoryId          String   @map("category_id")
+
+  problemSignature    String   @map("problem_signature")     // Короткая подпись («Замена личинки замка двери авто»)
+  problemDescription  String   @map("problem_description")    // Развёрнутое описание проблемы
+
+  diagnosis           String?                                 // Что обычно ломается / в чём причина
+  rootCauses          String[] @default([]) @map("root_causes")     // Возможные причины в порядке вероятности
+  solutionSteps       Json     @default("[]") @map("solution_steps") // [{step, action, tool?}]
+  materials           Json     @default("[]")                        // [{name, quantity, unit, approxPrice}]
+
+  priceMin            Decimal? @map("price_min") @db.Decimal(12, 2)
+  priceMax            Decimal? @map("price_max") @db.Decimal(12, 2)
+  priceAvg            Decimal? @map("price_avg") @db.Decimal(12, 2)
+
+  visualTags          String[] @default([]) @map("visual_tags")
+  sourceOrderIds      String[] @default([]) @map("source_order_ids")
+  hits                Int      @default(0)
+  confidence          Float    @default(0.5)
+
+  // pgvector тип не поддерживается Prisma — поле объявлено как Unsupported,
+  // запись и поиск делаются через $queryRaw в knowledgeService.
+  embedding           Unsupported("vector(1536)")?
+
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt      @map("updated_at")
+
+  category            Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@index([categoryId])
+  @@map("knowledge_entries")
 }
 
 // ════════════════════════════════════════════════

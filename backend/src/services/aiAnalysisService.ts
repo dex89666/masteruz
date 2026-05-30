@@ -17,6 +17,8 @@ import { config } from '../config/index.js';
 import { logger } from '../utils/logger.js';
 import { ApiError } from '../utils/ApiError.js';
 import { notificationService } from './notificationService.js';
+import { findSimilarOrders, buildRagContext, type SimilarOrder } from './ragService.js';
+import { findRelevantKnowledge, buildKnowledgeContext, type RelevantKnowledge } from './knowledgeService.js';
 
 // Анти-спам: не дёргаем админов чаще раза в 30 минут на одну причину
 const ADMIN_ALERT_COOLDOWN_MS = 30 * 60 * 1000;
@@ -69,12 +71,22 @@ export interface AiAnalysisResult {
   priceHint: { min: number; max: number } | null;
   /** True если работа требует обмера/выезда (без замеров точный расчёт невозможен) */
   needsOnSite: boolean;
+  /** Визуальные теги объектов ремонта на фото — пойдут в knowledge base при закрытии заказа */
+  visualTags: string[];
   /** Дополнительные данные для логирования/отладки */
   raw: {
     model: string;
     promptTokens?: number;
     completionTokens?: number;
     latencyMs: number;
+    /** Сколько похожих заказов из истории RAG нашёл и подмешал в prompt */
+    ragHits: number;
+    /** Косинусная похожесть лучшего совпадения (0..1) или null */
+    ragTopSimilarity: number | null;
+    /** Сколько релевантных «рецептов» из knowledge base подмешано в prompt */
+    knowledgeHits: number;
+    /** Релевантность лучшего рецепта (0..1) или null */
+    knowledgeTopSimilarity: number | null;
   };
 }
 
@@ -98,10 +110,21 @@ function getClient(): OpenAI {
 
 // ─── Системный промпт ────────────────────────────────────────────────────
 
-function buildSystemPrompt(categories: AiCategoryHint[]): string {
+function buildSystemPrompt(
+  categories: AiCategoryHint[],
+  ragContext: string,
+  knowledgeContext: string,
+): string {
   const list = categories
     .map((c) => `  • ${c.slug} — ${c.name}`)
     .join('\n');
+
+  // Динамические блоки — В САМОМ КОНЦЕ. Префикс системного промпта (правила и
+  // список категорий) остаётся стабильным между запросами и попадает в
+  // OpenAI prefix-cache (~50% скидка на input-tokens). Меняется только хвост:
+  // RAG (история) + Knowledge Base (рецепты).
+  const dynamicTail = [knowledgeContext, ragContext].filter(Boolean).join('\n\n');
+  const tail = dynamicTail ? `\n\n${dynamicTail}` : '';
 
   return `Ты — AI-эксперт сервиса MasterUz (Ташкент, Узбекистан). Ты помогаешь определить, какие ремонтные/бытовые работы нужны клиенту, на основании фотографий и текста.
 
@@ -202,8 +225,14 @@ ${list}
   "summary": "<1-2 предложения о том, что нужно сделать>",
   "materials": ["<материал1>", "<материал2>"],
   "priceHint": { "min": число_UZS, "max": число_UZS } | null,
-  "needsOnSite": true | false
-}`;
+  "needsOnSite": true | false,
+  "visualTags": ["<конкретный объект ремонта 1>", "<объект 2>"]
+}
+
+ОБЯЗАТЕЛЬНО заполняй visualTags 3-8 КОНКРЕТНЫМИ объектами ремонта, которые видишь на фото
+(«дверной замок автомобиля», «личинка цилиндра», «врезной замок», «выключатель Schneider»,
+«латунный смеситель Grohe»). Не используй общие слова («дверь», «деталь»).
+Эти теги попадут в базу знаний и помогут будущим запросам.${tail}`;
 }
 
 // ─── Основная функция ────────────────────────────────────────────────────
@@ -243,6 +272,20 @@ export async function analyzeOrder(input: AiAnalysisInput): Promise<AiAnalysisRe
     throw ApiError.badRequest('Нужны фото или описание для AI-анализа');
   }
 
+  // ─── RAG: ищем похожие закрытые заказы в истории ─────────────────────
+  // Best-effort: при любой ошибке возвращается [] и анализ идёт без подсказок.
+  // Поиск только по тексту клиента — на этом этапе категория ещё не определена.
+  let similar: SimilarOrder[] = [];
+  let knowledge: RelevantKnowledge[] = [];
+  if (text.trim()) {
+    [similar, knowledge] = await Promise.all([
+      findSimilarOrders({ description: text.trim() }),
+      findRelevantKnowledge({ description: text.trim(), limit: config.rag.knowledgeTopK }),
+    ]);
+  }
+  const ragContext = buildRagContext(similar);
+  const knowledgeContext = buildKnowledgeContext(knowledge);
+
   // Список моделей в порядке приоритета: основная → дешёвый fallback.
   // Если у аккаунта нет квоты на gpt-4o, gpt-4o-mini обычно остаётся доступен.
   const primary = config.openai.model;
@@ -263,7 +306,7 @@ export async function analyzeOrder(input: AiAnalysisInput): Promise<AiAnalysisRe
           temperature: 0.2,
           max_tokens: 800,
           messages: [
-            { role: 'system', content: buildSystemPrompt(availableCategories) },
+            { role: 'system', content: buildSystemPrompt(availableCategories, ragContext, knowledgeContext) },
             { role: 'user', content: userContent },
           ],
         });
@@ -343,6 +386,10 @@ export async function analyzeOrder(input: AiAnalysisInput): Promise<AiAnalysisRe
     promptTokens: response.usage?.prompt_tokens,
     completionTokens: response.usage?.completion_tokens,
     latencyMs,
+    ragHits: similar.length,
+    ragTopSimilarity: similar[0]?.similarity ?? null,
+    knowledgeHits: knowledge.length,
+    knowledgeTopSimilarity: knowledge[0]?.similarity ?? null,
   });
 
   logger.info(
@@ -353,6 +400,11 @@ export async function analyzeOrder(input: AiAnalysisInput): Promise<AiAnalysisRe
       topConfidence: result.categories[0]?.confidence,
       urgency: result.urgency,
       needsOnSite: result.needsOnSite,
+      ragHits: similar.length,
+      ragTopSimilarity: similar[0]?.similarity ?? null,
+      knowledgeHits: knowledge.length,
+      knowledgeTopSimilarity: knowledge[0]?.similarity ?? null,
+      visualTags: result.visualTags.length,
     },
     'AI Vision: анализ завершён'
   );
@@ -397,6 +449,14 @@ function normalize(
     }
   }
 
+  const visualTags: string[] = Array.isArray(raw?.visualTags)
+    ? raw.visualTags
+        .filter((t: any) => typeof t === 'string')
+        .map((t: string) => t.trim().toLowerCase())
+        .filter((t: string) => t.length >= 3 && t.length <= 80)
+        .slice(0, 12)
+    : [];
+
   return {
     categories,
     urgency,
@@ -404,6 +464,7 @@ function normalize(
     materials,
     priceHint,
     needsOnSite: Boolean(raw?.needsOnSite),
+    visualTags,
     raw: meta,
   };
 }

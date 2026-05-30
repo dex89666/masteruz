@@ -16,6 +16,8 @@ import { auditService } from '../../services/auditService.js';
 import { eventBus } from '../../services/eventBus.js';
 import { safeRecalculate as recalcCustomerRisk } from '../../services/customerRiskService.js';
 import { safeScanUser as safeScanFraud } from '../../services/fraudDetectionService.js';
+import { upsertOrderEmbedding } from '../../services/ragService.js';
+import { enqueueExtractKnowledge } from '../../services/knowledgeService.js';
 
 // Авто-отмена опубликованных заказов отключена: заказ живёт, пока клиент не закроет сам.
 // Поле оставлено для обратной совместимости с фронтом — всегда null.
@@ -28,6 +30,32 @@ const PENALTY_AFTER_ACCEPT = 20000;   // Штраф за отмену после
 const PENALTY_AFTER_TRANSIT = 30000;  // Штраф за отмену после «мастер в пути» (30 000 сум)
 const PENALTY_MASTER_CANCEL = 30000;  // Штраф мастеру за отмену (30 000 сум)
 const AUTO_CONFIRM_TIMEOUT_MS = 60 * 60 * 1000; // 1 час — авто-подтверждение клиентом
+
+/**
+ * Запуск перерасчёта embedding для закрытого заказа в фоне.
+ * Подгружает заказ + категорию и обновляет вектор. Best-effort —
+ * молча проглатывает ошибки, RAG не должен ломать основной флоу.
+ */
+async function enqueueOrderEmbedding(orderId: string): Promise<void> {
+  try {
+    const o = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: {
+        title: true,
+        description: true,
+        category: { select: { name: true } },
+      },
+    });
+    if (!o) return;
+    await upsertOrderEmbedding(orderId, {
+      category: o.category?.name,
+      title: o.title,
+      description: o.description,
+    });
+  } catch (err) {
+    logger.warn({ err: (err as Error).message, orderId }, 'enqueueOrderEmbedding failed');
+  }
+}
 
 export class OrdersService {
   /**
@@ -1094,6 +1122,10 @@ export class OrdersService {
     });
 
     void recalcCustomerRisk(order.clientId);
+    // RAG: пополняем «обучающую базу» закрытых заказов. Best-effort,
+    // не должен влиять на ответ API.
+    void enqueueOrderEmbedding(orderId);
+    void enqueueExtractKnowledge(orderId);
 
     return { orderId };
   }
@@ -1278,6 +1310,9 @@ export class OrdersService {
     });
 
     void recalcCustomerRisk(order.clientId);
+    // RAG: пополняем «обучающую базу» закрытых заказов. Best-effort.
+    void enqueueOrderEmbedding(orderId);
+    void enqueueExtractKnowledge(orderId);
 
     return { orderId, status: 'COMPLETED', method, remaining };
   }

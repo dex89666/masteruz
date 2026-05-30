@@ -77,6 +77,24 @@ export const config = {
     timeoutMs: parseInt(env('OPENAI_TIMEOUT_MS', '45000'), 10),
   },
 
+  // RAG — самообучаемый поиск решений по истории закрытых заказов.
+  // Вектор embedding строится из «Категория + Описание» при создании/завершении
+  // заказа, поиск по cosine distance через pgvector. См. ragService.ts.
+  rag: {
+    enabled:           env('RAG_ENABLED', 'true') !== 'false',
+    embeddingModel:    env('RAG_EMBEDDING_MODEL', 'text-embedding-3-small'),
+    embeddingDim:      parseInt(env('RAG_EMBEDDING_DIM', '1536'), 10),
+    similarityThreshold: parseFloat(env('RAG_SIMILARITY_THRESHOLD', '0.78')),
+    topK:              parseInt(env('RAG_TOP_K', '3'), 10),
+    // История старше N месяцев игнорируется — цены устаревают быстрее.
+    maxAgeMonths:      parseInt(env('RAG_MAX_AGE_MONTHS', '18'), 10),
+    // L2: knowledge base — обобщённые «рецепты» решений, извлекаемые AI.
+    // См. knowledgeService.ts. Можно отключить отдельно от L1.
+    knowledgeEnabled:    env('RAG_KNOWLEDGE_ENABLED', 'true') !== 'false',
+    knowledgeThreshold:  parseFloat(env('RAG_KNOWLEDGE_THRESHOLD', '0.70')),
+    knowledgeTopK:       parseInt(env('RAG_KNOWLEDGE_TOP_K', '3'), 10),
+  },
+
   // Click (платежи)
   click: {
     merchantId: env('CLICK_MERCHANT_ID'),

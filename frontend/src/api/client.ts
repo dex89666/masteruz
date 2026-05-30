@@ -34,9 +34,66 @@ export const api = axios.create({
   },
 });
 
+// ─── Token storage helpers ────────────────────────────────────
+// Токены хранятся в двух местах:
+//   1) отдельные ключи localStorage `accessToken` / `refreshToken` (читает axios),
+//   2) zustand-persist `masteruz-auth` (читает UI: AuthGate, ProtectedRoute).
+// На iOS Telegram WebView и при ITP/обновлении PWA эти источники могут
+// рассинхронизироваться — и тогда UI считает юзера авторизованным, а axios
+// шлёт запросы без `Authorization`, получая «Токен не предоставлен».
+// Эти хелперы держат оба источника в синхроне и восстанавливают потерянный ключ.
+
+function readPersistedTokens(): { accessToken?: string; refreshToken?: string } {
+  try {
+    const raw = localStorage.getItem('masteruz-auth');
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    const s = parsed?.state ?? {};
+    return { accessToken: s.accessToken, refreshToken: s.refreshToken };
+  } catch {
+    return {};
+  }
+}
+
+function writePersistedTokens(accessToken: string, refreshToken: string): void {
+  try {
+    const raw = localStorage.getItem('masteruz-auth');
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (!parsed?.state) return;
+    parsed.state.accessToken = accessToken;
+    parsed.state.refreshToken = refreshToken;
+    localStorage.setItem('masteruz-auth', JSON.stringify(parsed));
+  } catch {
+    /* noop — persist может ещё не быть инициализирован */
+  }
+}
+
+function getAccessToken(): string | null {
+  const direct = localStorage.getItem('accessToken');
+  if (direct) return direct;
+  const persisted = readPersistedTokens().accessToken;
+  if (persisted) {
+    // Восстанавливаем потерянный ключ, чтобы дальше всё работало без обходных путей.
+    localStorage.setItem('accessToken', persisted);
+    return persisted;
+  }
+  return null;
+}
+
+function getRefreshToken(): string | null {
+  return localStorage.getItem('refreshToken') || readPersistedTokens().refreshToken || null;
+}
+
+function saveTokens(accessToken: string, refreshToken: string): void {
+  localStorage.setItem('accessToken', accessToken);
+  localStorage.setItem('refreshToken', refreshToken);
+  writePersistedTokens(accessToken, refreshToken);
+}
+
 // Интерсептор для добавления JWT токена
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('accessToken');
+  const token = getAccessToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -69,7 +126,7 @@ api.interceptors.response.use(
       originalRequest._retry = true;
 
       try {
-        const refreshToken = localStorage.getItem('refreshToken');
+        const refreshToken = getRefreshToken();
         if (!refreshToken) {
           throw new Error('No refresh token');
         }
@@ -79,8 +136,8 @@ api.interceptors.response.use(
         });
 
         const { accessToken, refreshToken: newRefreshToken } = response.data.data;
-        localStorage.setItem('accessToken', accessToken);
-        localStorage.setItem('refreshToken', newRefreshToken);
+        // Сохраняем в оба источника, чтобы UI и axios не рассинхронизировались.
+        saveTokens(accessToken, newRefreshToken);
 
         originalRequest.headers.Authorization = `Bearer ${accessToken}`;
         return api(originalRequest);

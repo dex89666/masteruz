@@ -189,19 +189,28 @@ const ACCEPT_PING_EVERY_MIN    = Number(process.env.MASTER_ACCEPT_PING_EVERY_MIN
 const TRANSIT_OVERDUE_BUFFER_MIN = Number(process.env.MASTER_TRANSIT_OVERDUE_BUFFER_MIN ?? 10);
 const TRANSIT_PING_EVERY_MIN   = Number(process.env.MASTER_TRANSIT_PING_EVERY_MIN ?? 15);
 
+// Жёсткий потолок возраста: после этого порога заказ считается «зависшим»,
+// дальнейшие пинги мастеру/клиенту/диспетчеру прекращаются, чтобы не спамить
+// тревогами по фактически мёртвым заказам. Диспетчер уже получил первые алерты
+// — дальше нужен ручной разбор, а не повторные напоминания.
+const ACCEPT_HARD_STOP_MIN  = Number(process.env.MASTER_ACCEPT_HARD_STOP_MIN  ?? 360); // 6 ч
+const TRANSIT_HARD_STOP_MIN = Number(process.env.MASTER_TRANSIT_HARD_STOP_MIN ?? 360); // 6 ч
+
 export async function runMasterReminderTick(): Promise<{ pinged: number }> {
   const now = new Date();
   let pinged = 0;
 
   // ── 1. ACCEPTED без выезда дольше нормы ─────────────────────────
-  const acceptThreshold = new Date(now.getTime() - ACCEPT_CONFIRM_DELAY_MIN * 60_000);
-  const stalePingThreshold = new Date(now.getTime() - ACCEPT_PING_EVERY_MIN * 60_000);
+  const acceptThreshold    = new Date(now.getTime() - ACCEPT_CONFIRM_DELAY_MIN * 60_000);
+  const stalePingThreshold = new Date(now.getTime() - ACCEPT_PING_EVERY_MIN    * 60_000);
+  const acceptHardCutoff   = new Date(now.getTime() - ACCEPT_HARD_STOP_MIN     * 60_000);
 
   const acceptedStale = await prisma.order.findMany({
     where: {
       status: OrderStatus.ACCEPTED,
       masterId: { not: null },
-      acceptedAt: { lt: acceptThreshold },
+      // Только окно «давно, но не слишком давно»: после hard-cutoff пингов нет.
+      acceptedAt: { lt: acceptThreshold, gt: acceptHardCutoff },
       OR: [
         { lastMasterPingAt: null },
         { lastMasterPingAt: { lt: stalePingThreshold } },
@@ -232,13 +241,16 @@ export async function runMasterReminderTick(): Promise<{ pinged: number }> {
   }
 
   // ── 2. IN_TRANSIT, ETA истёк ────────────────────────────────────
-  const overdueThreshold = new Date(now.getTime() - TRANSIT_OVERDUE_BUFFER_MIN * 60_000);
-  const transitPingThreshold = new Date(now.getTime() - TRANSIT_PING_EVERY_MIN * 60_000);
+  const overdueThreshold      = new Date(now.getTime() - TRANSIT_OVERDUE_BUFFER_MIN * 60_000);
+  const transitPingThreshold  = new Date(now.getTime() - TRANSIT_PING_EVERY_MIN     * 60_000);
+  const transitHardCutoff     = new Date(now.getTime() - TRANSIT_HARD_STOP_MIN      * 60_000);
 
   const transitOverdue = await prisma.order.findMany({
     where: {
       status: OrderStatus.IN_TRANSIT,
-      transitEtaAt: { lt: overdueThreshold },
+      // Только свежие просрочки: после hard-cutoff заказ считается «зависшим»,
+      // диспетчер уже знает — повторные тревоги отключаем.
+      transitEtaAt: { lt: overdueThreshold, gt: transitHardCutoff },
       OR: [
         { lastMasterPingAt: null },
         { lastMasterPingAt: { lt: transitPingThreshold } },
