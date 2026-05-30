@@ -238,7 +238,7 @@ async function mergeKnowledge(
     `
     UPDATE "knowledge_entries"
     SET
-      "source_order_ids" = ARRAY(SELECT DISTINCT unnest("source_order_ids" || $2::uuid)),
+      "source_order_ids" = ARRAY(SELECT DISTINCT unnest("source_order_ids" || $2::text)),
       "visual_tags"      = ARRAY(SELECT DISTINCT unnest("visual_tags" || $3::text[])),
       "price_min"        = LEAST(COALESCE("price_min", $4), $4),
       "price_max"        = GREATEST(COALESCE("price_max", $4), $4),
@@ -276,7 +276,7 @@ async function createKnowledge(
       $1, $2, $3,
       $4, $5, $6::jsonb, $7::jsonb,
       $8, $8, $8,
-      $9, ARRAY[$10::uuid], $11, $12::vector
+      $9, ARRAY[$10::text], $11, $12::vector
     )
     RETURNING "id"
     `,
@@ -441,7 +441,7 @@ export async function findRelevantKnowledge(input: {
       const ids = rows.map((r) => r.id);
       void prisma
         .$executeRawUnsafe(
-          `UPDATE "knowledge_entries" SET "hits" = "hits" + 1 WHERE "id" = ANY($1::uuid[])`,
+          `UPDATE "knowledge_entries" SET "hits" = "hits" + 1 WHERE "id" = ANY($1::text[])`,
           ids,
         )
         .catch(() => {});

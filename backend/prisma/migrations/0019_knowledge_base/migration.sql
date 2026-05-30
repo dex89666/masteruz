@@ -12,8 +12,8 @@
 -- ════════════════════════════════════════════════════════════════
 
 CREATE TABLE IF NOT EXISTS "knowledge_entries" (
-  "id"                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  "category_id"         uuid NOT NULL REFERENCES "categories"("id") ON DELETE CASCADE,
+  "id"                  text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  "category_id"         text NOT NULL REFERENCES "categories"("id") ON DELETE CASCADE,
 
   -- Короткая «подпись» проблемы — что мы видим. Используется для
   -- быстрой человекочитаемой идентификации рецепта.
@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS "knowledge_entries" (
 
   -- Источники: какие заказы сгенерировали этот рецепт. Накапливается
   -- по мере слияний.
-  "source_order_ids"    uuid[] NOT NULL DEFAULT '{}',
+  "source_order_ids"    text[] NOT NULL DEFAULT '{}',
 
   -- Сколько раз рецепт был «процитирован» в новых запросах.
   -- Фронт может показывать «Решено N раз».
