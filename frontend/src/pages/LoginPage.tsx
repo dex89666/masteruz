@@ -3,7 +3,7 @@
 // ============================================
 
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
 import { App as CapacitorApp } from '@capacitor/app';
 import { useAuthStore } from '../store';
@@ -16,6 +16,9 @@ import toast from 'react-hot-toast';
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  // Куда вернуть после входа: если пришли из воронки (напр. /calculator → /instant-order) — туда.
+  const redirectTo = ((location.state as any)?.from as string) || '/';
   const { setAuth, isAuthenticated } = useAuthStore();
   const { isMiniApp, initData } = useTelegram();
   const { t } = useTranslation();
@@ -25,9 +28,9 @@ export function LoginPage() {
   // Если уже авторизован — редирект
   useEffect(() => {
     if (isAuthenticated) {
-      navigate('/');
+      navigate(redirectTo);
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, navigate, redirectTo]);
 
   // Авторизация через Telegram Mini App (автоматическая)
   useEffect(() => {
@@ -44,7 +47,7 @@ export function LoginPage() {
         const { user, accessToken, refreshToken } = response.data.data;
         setAuth(user, accessToken, refreshToken);
         toast.success(t('auth.welcome'));
-        navigate('/');
+        navigate(redirectTo);
       }
     } catch (error: any) {
       toast.error(error.response?.data?.error?.message || t('auth.authError'));
@@ -66,7 +69,7 @@ export function LoginPage() {
           const { user: userData, accessToken, refreshToken } = response.data.data;
           setAuth(userData, accessToken, refreshToken);
           toast.success(t('auth.welcome'));
-          navigate('/');
+          navigate(redirectTo);
         }
       } catch (error: any) {
         toast.error(error.response?.data?.error?.message || t('auth.authError'));
@@ -92,7 +95,7 @@ export function LoginPage() {
     return () => {
       delete (window as any).onTelegramAuth;
     };
-  }, [setAuth, navigate, isNative, t]);
+  }, [setAuth, navigate, isNative, t, redirectTo]);
 
   // ─── One-tap логин через бота (native) ──────────────
   // Идея: создаём токен на бэке → открываем чат с ботом по deep-link →
@@ -125,7 +128,7 @@ export function LoginPage() {
         if (accessToken && refreshToken) {
           setAuth(user, accessToken, refreshToken);
           toast.success(t('auth.welcome'));
-          navigate('/');
+          navigate(redirectTo);
           return true;
         }
       }
@@ -291,6 +294,15 @@ export function LoginPage() {
             </a>
           </p>
         </div>
+
+        {/* Не хотите регистрироваться? → публичный AI-калькулятор (lead-magnet) */}
+        <button
+          type="button"
+          onClick={() => navigate('/calculator')}
+          className="mt-4 w-full text-sm font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700 hover:underline"
+        >
+          Узнать цену ремонта за 30 секунд — без регистрации →
+        </button>
       </div>
     </div>
   );

@@ -66,7 +66,8 @@ function saveLocalConsent() {
 
 // Маршруты, доступные БЕЗ согласия — иначе пользователь физически не может прочесть,
 // с чем его просят согласиться. Сравниваем по pathname без trailing slash.
-const PUBLIC_LEGAL_ROUTES = ['/privacy', '/terms', '/public-offer'];
+// /calculator — публичный AI-калькулятор (viral landing), своя короткая оговорка на странице.
+const PUBLIC_LEGAL_ROUTES = ['/privacy', '/terms', '/public-offer', '/calculator'];
 
 export function ConsentGate({ children }: { children: React.ReactNode }) {
   const location = useLocation();

@@ -245,6 +245,19 @@ if (process.env.NODE_ENV !== 'test') {
     },
   });
   app.use('/api/stores/partner-request', partnerRequestLimiter);
+
+  // Rate Limiting — публичный AI-калькулятор (аноним, дёргает OpenAI = стоит денег).
+  // Строгий IP-лимит: защита от абьюза и слива бюджета на токены.
+  const publicEstimateLimiter = makeLimiter('public-estimate', {
+    windowMs: 60 * 60 * 1000, // 1 час
+    max: 15, // Максимум 15 бесплатных оценок в час с одного IP
+    message: {
+      success: false,
+      error: { message: 'Слишком много оценок. Зарегистрируйтесь, чтобы продолжить без ограничений', statusCode: 429 },
+    },
+    skip: (req) => !(req.method === 'POST' && req.path === '/public-estimate'),
+  });
+  app.use('/api/instant-order', publicEstimateLimiter);
 }
 
 // Статические файлы (загрузки)

@@ -968,6 +968,112 @@ export class InstantOrderService {
   }
 
   /**
+   * Публичная экспресс-оценка стоимости — БЕЗ авторизации и БЕЗ записи в БД.
+   * Lead-magnet: аноним загружает фото / описывает задачу → получает примерный
+   * диапазон цены. Чтобы оформить заказ и найти мастера — нужна регистрация.
+   *
+   * Отличия от analyzePhotos:
+   *  • не требует userId;
+   *  • не создаёт AiOrderTemplate (нечего хранить — это просто прикидка);
+   *  • возвращает упрощённый ответ: категория + диапазон цены + варианты.
+   */
+  async publicEstimate(data: {
+    images?: string[];
+    description?: string;
+    voiceText?: string;
+  }) {
+    const images = (data.images || []).filter(Boolean).slice(0, 5);
+    const combinedDescription = [data.voiceText, data.description]
+      .filter(Boolean)
+      .join('. ')
+      .trim();
+
+    if (images.length === 0 && combinedDescription.length < 5) {
+      throw ApiError.badRequest('Добавьте фото или опишите задачу (минимум несколько слов)');
+    }
+
+    const categoryInclude = {
+      subcategories: {
+        where: { isActive: true },
+        include: {
+          tasks: { where: { isActive: true }, orderBy: { sortOrder: 'asc' as const } },
+        },
+      },
+    };
+
+    const allCategoriesActive = await prisma.category.findMany({
+      where: { isActive: true },
+      include: categoryInclude,
+    });
+    const leafCategories = allCategoriesActive.filter(categoryHasTasks);
+
+    const aiAnalysis = await analyzeOrder({
+      photoUrls: images,
+      text: combinedDescription,
+      availableCategories: leafCategories.map((c: any) => ({ slug: c.slug, name: c.name })),
+    });
+
+    const top = aiAnalysis.categories[0];
+    const category = top
+      ? allCategoriesActive.find((c: any) => c.slug === top.slug) ?? null
+      : null;
+
+    let variants: Array<{
+      tier: string;
+      tierLabel: string;
+      title: string;
+      estimatedPrice: number;
+      estimatedDays: number;
+    }> = [];
+    let priceMin = 0;
+    let priceMax = 0;
+
+    if (category) {
+      const smart = buildSmartVariants(
+        category.slug,
+        category.name,
+        combinedDescription,
+        aiAnalysis.priceHint ?? null
+      );
+      if (smart) {
+        variants = smart.variants.map((v) => ({
+          tier: v.tier,
+          tierLabel: v.tierLabel,
+          title: v.title,
+          estimatedPrice: Math.round(v.estimatedPrice),
+          estimatedDays: v.estimatedDays,
+        }));
+        const prices = variants.map((v) => v.estimatedPrice).filter((p) => p > 0);
+        if (prices.length > 0) {
+          priceMin = Math.min(...prices);
+          priceMax = Math.max(...prices);
+        }
+      }
+    }
+
+    // Fallback: если каталог расценок не нашёл точную проблему — берём прикидку AI
+    if (priceMin === 0 && aiAnalysis.priceHint && aiAnalysis.priceHint.min > 0) {
+      priceMin = Math.round(aiAnalysis.priceHint.min);
+      priceMax = Math.round(aiAnalysis.priceHint.max);
+    }
+
+    const hasPrice = priceMin > 0 && priceMax >= priceMin;
+
+    return {
+      category: category
+        ? { name: category.name, slug: category.slug, icon: category.icon }
+        : null,
+      confidence: top?.confidence ?? null,
+      summary: aiAnalysis.summary,
+      urgency: aiAnalysis.urgency,
+      priceRange: hasPrice ? { min: priceMin, max: priceMax } : null,
+      needsOnSite: !hasPrice,
+      variants,
+      materials: (aiAnalysis.materials || []).slice(0, 8),
+    };
+  }
+
+  /**
    * Создание заказа из выбранного AI-варианта
    */
   async createFromTemplate(clientId: string, data: {

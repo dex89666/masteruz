@@ -47,6 +47,38 @@ const moderateSchema = z.object({
   note: z.string().max(500).optional(),
 });
 
+const publicEstimateSchema = z.object({
+  images: z.array(z.string().min(1)).max(5, 'Максимум 5 фото').optional().default([]),
+  description: z.string().max(2000).optional(),
+  voiceText: z.string().max(5000).optional(),
+});
+
+// ═══════════════════════════════════════════
+// ПУБЛИЧНЫЙ КАЛЬКУЛЯТОР (БЕЗ АВТОРИЗАЦИИ)
+// ═══════════════════════════════════════════
+
+/**
+ * POST /instant-order/public-estimate — экспресс-оценка цены без регистрации
+ * Lead-magnet: аноним загружает фото / описывает задачу → примерный диапазон.
+ * Ничего не сохраняет в БД. Защищён отдельным rate-limit (см. app.ts).
+ */
+router.post('/public-estimate', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const data = publicEstimateSchema.parse(req.body);
+    const result = await instantOrderService.publicEstimate(data);
+    res.json({ success: true, data: result });
+  } catch (error: any) {
+    if (error?.name === 'ZodError') {
+      return res.status(400).json({
+        success: false,
+        error: { message: 'Ошибка валидации: ' + error.errors?.map((e: any) => e.message).join(', ') },
+      });
+    }
+    console.error('Public estimate error:', error?.message || error);
+    next(error);
+  }
+});
+
 // ═══════════════════════════════════════════
 // КЛИЕНТСКИЕ МАРШРУТЫ
 // ═══════════════════════════════════════════

@@ -76,6 +76,7 @@ const ForumPage = lazy(() => import('./pages/ForumPage').then(m => ({ default: m
 const ForumTopicPage = lazy(() => import('./pages/ForumPage').then(m => ({ default: m.ForumTopicPage })));
 const LinkedCardsPage = lazy(() => import('./pages/LinkedCardsPage').then(m => ({ default: m.LinkedCardsPage })));
 const DownloadAppPage = lazy(() => import('./pages/DownloadAppPage').then(m => ({ default: m.DownloadAppPage })));
+const PublicCalculatorPage = lazy(() => import('./pages/PublicCalculatorPage').then(m => ({ default: m.PublicCalculatorPage })));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -99,7 +100,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 // Глобальный guard: вся аппа требует логин.
 // Разрешены без авторизации: страница логина и юридические документы (privacy/terms/offer),
 // чтобы пользователь мог прочесть, с чем соглашается, ДО входа.
-const PUBLIC_ROUTES = ['/login', '/privacy', '/terms', '/public-offer', '/download'];
+const PUBLIC_ROUTES = ['/login', '/privacy', '/terms', '/public-offer', '/download', '/calculator'];
 
 function AuthGate({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuthStore();
@@ -149,6 +150,9 @@ function AppContent() {
     <AuthGate>
     <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><LoadingSpinner /></div>}>
       <Routes>
+      {/* Публичный AI-калькулятор — полноэкранный, вне Layout, без авторизации (viral landing) */}
+      <Route path="/calculator" element={<PublicCalculatorPage />} />
+
       {/* Public routes */}
       <Route path="/" element={<Layout />}>
         <Route index element={<HomePage />} />
