@@ -7,6 +7,7 @@ import { MapPin, Clock, MessageSquare, Wallet, Zap } from 'lucide-react';
 import CategoryIcon from './CategoryIcon';
 import AutoCancelCountdown from './AutoCancelCountdown';
 import { useTranslation } from '../i18n';
+import { resolveImageUrl } from '../lib/imageUrl';
 import type { Order } from '../types';
 
 interface OrderCardProps {
@@ -72,9 +73,9 @@ export function OrderCard({ order, formatPrice, showNetEarnings }: OrderCardProp
 
         {/* Превью фото — мастер должен видеть, что за работа, ещё в списке */}
         {(() => {
-          const photos = (order.images || []).filter(
-            (u: string) => typeof u === 'string' && (u.startsWith('http') || u.startsWith('data:')),
-          );
+          const photos = (order.images || [])
+            .map(resolveImageUrl)
+            .filter((u): u is string => Boolean(u));
           if (photos.length === 0) return null;
           return (
             <div data-testid="order-card-photos" className="flex gap-1.5 mb-3 overflow-hidden">

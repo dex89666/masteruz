@@ -8,6 +8,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { adminApi, storesApi, turnkeyApi, estimationApi, chatApi, supportChatApi, instantOrderApi, schoolApi } from '../api/client';
 import { useAuthStore } from '../store';
 import { useTranslation } from '../i18n';
+import { resolveImageUrl } from '../lib/imageUrl';
 import { useFormatPrice } from '../hooks';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { EmptyState } from '../components/EmptyState';
@@ -2117,15 +2118,21 @@ export function AdminDashboardPage() {
                   </div>
 
                   {/* Photos */}
-                  {order.images && order.images.length > 0 && (
-                    <div className="flex gap-2 overflow-x-auto pb-1">
-                      {(order.images as string[]).slice(0, 5).map((img: string, i: number) => (
-                        <div key={i} className="w-20 h-20 rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-700 flex-shrink-0">
-                          <img src={img} alt={`Фото ${i + 1}`} className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).src = 'https://placeholder.co/80x80?text=img'; }} />
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  {(() => {
+                    const photos = ((order.images as string[]) || [])
+                      .map(resolveImageUrl)
+                      .filter((u): u is string => Boolean(u));
+                    if (photos.length === 0) return null;
+                    return (
+                      <div className="flex gap-2 overflow-x-auto pb-1">
+                        {photos.slice(0, 5).map((img, i) => (
+                          <div key={i} className="w-20 h-20 rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-700 flex-shrink-0">
+                            <img src={img} alt={`Фото ${i + 1}`} loading="lazy" className="w-full h-full object-cover" />
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
 
                   {/* Description */}
                   <div className="bg-gray-50 dark:bg-gray-900 rounded-xl p-3">

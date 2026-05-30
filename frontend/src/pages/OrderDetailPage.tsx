@@ -24,6 +24,7 @@ import { useFormatPrice } from '../hooks';
 import { useOrderEvents } from '../hooks/useOrderEvents';
 import { useMasterLocationBroadcast } from '../hooks/useMasterLocationBroadcast';
 import { useTranslation } from '../i18n';
+import { resolveImageUrl } from '../lib/imageUrl';
 import {
   MapPin, Clock, DollarSign, User, Phone,
   CheckCircle, XCircle, MessageSquare, Star, Send, AlertTriangle,
@@ -612,7 +613,7 @@ export function OrderDetailPage() {
 
       {/* Фотографии заказа — видны всем */}
       {(() => {
-        const photos = (order.images || []).filter((img: string) => img.startsWith('http') || img.startsWith('data:'));
+        const photos = (order.images || []).map(resolveImageUrl).filter((u): u is string => Boolean(u));
         if (photos.length === 0) return null;
         return (
           <div className="card mb-4">
@@ -1379,7 +1380,7 @@ export function OrderDetailPage() {
 
           {/* Фотографии заказа для мастера */}
           {(() => {
-            const photos = (order.images || []).filter((img: string) => img.startsWith('http') || img.startsWith('data:'));
+            const photos = (order.images || []).map(resolveImageUrl).filter((u): u is string => Boolean(u));
             if (photos.length === 0) return null;
             return (
               <div className="mt-3 p-3 rounded-xl bg-white dark:bg-gray-800">
@@ -1750,7 +1751,7 @@ export function OrderDetailPage() {
 
       {/* Полноэкранный просмотрщик фото с зумом и навигацией */}
       {lightboxIndex !== null && (() => {
-        const photos = (order.images || []).filter((img: string) => img.startsWith('http') || img.startsWith('data:'));
+        const photos = (order.images || []).map(resolveImageUrl).filter((u): u is string => Boolean(u));
         if (photos.length === 0) return null;
         return (
           <ImageLightbox
