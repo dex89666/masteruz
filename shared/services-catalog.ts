@@ -1,6 +1,6 @@
 // ============================================
-// MasterUz — Полный каталог услуг (v4 — Расширенный handyman 2026)
-// 14 категорий, 60+ подкатегорий, 300+ задач
+// MasterUz — Полный каталог услуг (v5 — «Решаем всё» 2026)
+// 30 категорий, 80+ подкатегорий, 350+ задач
 // Цены: минимальные для рынка Ташкента 2026 (UZS)
 // Золотое правило: "Мы не говорим НЕТ. Мы можем ВСЁ."
 // ============================================
@@ -492,8 +492,8 @@ export const SERVICE_CATALOG: CategoryDef[] = [
           { slug: 'install-bathroom-mirror-cabinet', name: 'Установка зеркала-шкафа', nameUz: 'Koʻzgu-shkaf oʻrnatish', nameEn: 'Install mirror cabinet', description: 'Зеркальный шкафчик с подсветкой', descriptionUz: 'Yoritishli koʻzgu shkafcha', descriptionEn: 'Mirror cabinet with lighting', estimatedTime: '30-60 мин', estimatedTimeUz: '30-60 daq', estimatedTimeEn: '30-60 min', minPrice: 60000 },
           { slug: 'install-boiler', name: 'Установка бойлера/водонагревателя', nameUz: 'Boyler/suv isitgich oʻrnatish', nameEn: 'Install water heater/boiler', description: 'Накопительный или проточный водонагреватель', descriptionUz: 'Toʻplovchi yoki oqar suv isitgich', descriptionEn: 'Storage or tankless water heater', estimatedTime: '1-3 часа', estimatedTimeUz: '1-3 soat', estimatedTimeEn: '1-3 hours', minPrice: 150000 },
           { slug: 'install-shower-cabin', name: 'Установка душевой кабины', nameUz: 'Dush kabinasi oʻrnatish', nameEn: 'Install shower cabin', description: 'Сборка и подключение душевой кабины', descriptionUz: 'Dush kabinasini yigʻish va ulash', descriptionEn: 'Assemble and connect shower cabin', estimatedTime: '2-4 часа', estimatedTimeUz: '2-4 soat', estimatedTimeEn: '2-4 hours', minPrice: 200000 },
-          { slug: 'install-jacuzzi', name: 'Установка джакузи/гидромассажной ванны', nameUz: 'Jakuzi/gidromassaj vannasi oʻrnatish', nameEn: 'Install jacuzzi/hot tub', description: 'Монтаж, подключение воды и электрики', descriptionUz: 'Oʻrnatish, suv va elektr ulash', descriptionEn: 'Mount, connect water and electricity', estimatedTime: '3-6 часов', estimatedTimeUz: '3-6 soat', estimatedTimeEn: '3-6 hours', minPrice: 400000 },
-          { slug: 'install-bidet', name: 'Установка биде', nameUz: 'Bide oʻrnatish', nameEn: 'Install bidet', description: 'Отдельное биде или крышка-биде на унитаз', descriptionUz: 'Alohida bide yoki unitazga bide qopqogʻi', descriptionEn: 'Standalone bidet or bidet seat', estimatedTime: '1-2 часа', estimatedTimeUz: '1-2 soat', estimatedTimeEn: '1-2 hours', minPrice: 100000 },
+          { slug: 'install-jacuzzi-bathroom', name: 'Установка джакузи/гидромассажной ванны', nameUz: 'Jakuzi/gidromassaj vannasi oʻrnatish', nameEn: 'Install jacuzzi/hot tub', description: 'Монтаж, подключение воды и электрики', descriptionUz: 'Oʻrnatish, suv va elektr ulash', descriptionEn: 'Mount, connect water and electricity', estimatedTime: '3-6 часов', estimatedTimeUz: '3-6 soat', estimatedTimeEn: '3-6 hours', minPrice: 400000 },
+          { slug: 'install-bidet-bathroom', name: 'Установка биде', nameUz: 'Bide oʻrnatish', nameEn: 'Install bidet', description: 'Отдельное биде или крышка-биде на унитаз', descriptionUz: 'Alohida bide yoki unitazga bide qopqogʻi', descriptionEn: 'Standalone bidet or bidet seat', estimatedTime: '1-2 часа', estimatedTimeUz: '1-2 soat', estimatedTimeEn: '1-2 hours', minPrice: 100000 },
           { slug: 'install-hygienic-shower', name: 'Установка гигиенического душа', nameUz: 'Gigiyenik dush oʻrnatish', nameEn: 'Install hygienic shower', description: 'Монтаж гигиенического душа с смесителем', descriptionUz: 'Aralashtirgichli gigiyenik dush oʻrnatish', descriptionEn: 'Mount hygienic shower with mixer', estimatedTime: '1-2 часа', estimatedTimeUz: '1-2 soat', estimatedTimeEn: '1-2 hours', minPrice: 80000 },
           { slug: 'install-bathroom-shelf', name: 'Монтаж полок и аксессуаров', nameUz: 'Tokcha va aksessuarlar oʻrnatish', nameEn: 'Install shelves and accessories', description: 'Полки, держатели, крючки в санузле', descriptionUz: 'Tokchalar, tutqichlar, ilgaklar', descriptionEn: 'Shelves, holders, hooks in bathroom', estimatedTime: '30-60 мин', estimatedTimeUz: '30-60 daq', estimatedTimeEn: '30-60 min', minPrice: 40000 },
           { slug: 'install-bathroom-hand-dryer', name: 'Установка сушилки для рук', nameUz: 'Qoʻl quritgich oʻrnatish', nameEn: 'Install hand dryer', description: 'Электрическая сушилка для рук', descriptionUz: 'Elektr qoʻl quritgich', descriptionEn: 'Electric hand dryer', estimatedTime: '30-60 мин', estimatedTimeUz: '30-60 daq', estimatedTimeEn: '30-60 min', minPrice: 50000 },
@@ -904,6 +904,303 @@ export const SERVICE_CATALOG: CategoryDef[] = [
           { slug: 'courier-documents', name: 'Доставка документов', nameUz: 'Hujjatlarni yetkazish', nameEn: 'Document delivery', description: 'Срочная доставка документов по городу', descriptionUz: 'Shahar boʻylab tezkor hujjat yetkazish', descriptionEn: 'Urgent document delivery within city', estimatedTime: '30-90 мин', estimatedTimeUz: '30-90 daq', estimatedTimeEn: '30-90 min', minPrice: 50000 },
           { slug: 'courier-parcels', name: 'Доставка посылок', nameUz: 'Posilkalarni yetkazish', nameEn: 'Parcel delivery', description: 'Забрать и доставить посылку/покупку', descriptionUz: 'Posilka/xaridni olib yetkazish', descriptionEn: 'Pick up and deliver parcel/purchase', estimatedTime: '1-3 часа', estimatedTimeUz: '1-3 soat', estimatedTimeEn: '1-3 hours', minPrice: 40000 },
           { slug: 'courier-shopping', name: 'Покупка и доставка товаров', nameUz: 'Tovarlarni sotib olish va yetkazish', nameEn: 'Shopping & delivery', description: 'Купить по списку и доставить', descriptionUz: 'Roʻyxat boʻyicha sotib olish va yetkazish', descriptionEn: 'Buy from list and deliver', estimatedTime: '1-3 часа', estimatedTimeUz: '1-3 soat', estimatedTimeEn: '1-3 hours', minPrice: 60000 },
+        ],
+      },
+    ],
+  },
+
+  // ═══════════════════════════════════════════
+  // 16. МУЖ НА ЧАС (МЕЛКИЙ РЕМОНТ)
+  // ═══════════════════════════════════════════
+  {
+    slug: 'handyman', name: 'Муж на час (мелкий ремонт)', nameUz: 'Soatlik usta (mayda taʼmir)', nameEn: 'Handyman (small repairs)', icon: 'Wrench', parentSlug: 'home-help',
+    subcategories: [
+      {
+        slug: 'handyman-mounting', name: 'Повесить и закрепить', nameUz: 'Osish va mahkamlash', nameEn: 'Hang & mount', icon: 'Hammer',
+        tasks: [
+          { slug: 'hang-shelf', name: 'Повесить полку', nameUz: 'Javon osish', nameEn: 'Hang a shelf', description: 'Разметка, сверление, крепёж в любую стену', descriptionUz: 'Belgilash, teshish, har qanday devorga mahkamlash', descriptionEn: 'Marking, drilling, fixing to any wall', estimatedTime: '20-40 мин', estimatedTimeUz: '20-40 daq', estimatedTimeEn: '20-40 min', minPrice: 80000 },
+          { slug: 'hang-picture-mirror', name: 'Повесить картину/зеркало/телевизор', nameUz: 'Rasm/oyna/televizor osish', nameEn: 'Hang picture/mirror/TV', description: 'Надёжное крепление, ровно по уровню', descriptionUz: 'Ishonchli mahkamlash, daraja boʻyicha tekis', descriptionEn: 'Secure level mounting', estimatedTime: '20-50 мин', estimatedTimeUz: '20-50 daq', estimatedTimeEn: '20-50 min', minPrice: 100000 },
+          { slug: 'install-curtain-rod', name: 'Повесить карниз/жалюзи', nameUz: 'Karniz/jalyuzi osish', nameEn: 'Install curtain rod/blinds', description: 'Монтаж карниза, штор, рулонных жалюзи', descriptionUz: 'Karniz, parda, rulonli jalyuzi oʻrnatish', descriptionEn: 'Mount curtain rod, blinds', estimatedTime: '30-60 мин', estimatedTimeUz: '30-60 daq', estimatedTimeEn: '30-60 min', minPrice: 90000 },
+          { slug: 'install-hooks-holders', name: 'Установить крючки/держатели/полотенцесушитель', nameUz: 'Ilgak/ushlagich oʻrnatish', nameEn: 'Install hooks/holders', description: 'Крючки, вешалки, держатели в ванной и кухне', descriptionUz: 'Hammom va oshxonada ilgak, ushlagichlar', descriptionEn: 'Hooks, holders in bathroom and kitchen', estimatedTime: '15-30 мин', estimatedTimeUz: '15-30 daq', estimatedTimeEn: '15-30 min', minPrice: 60000 },
+        ],
+      },
+      {
+        slug: 'handyman-fixes', name: 'Мелкий бытовой ремонт', nameUz: 'Mayda maishiy taʼmir', nameEn: 'Minor household fixes', icon: 'Settings',
+        tasks: [
+          { slug: 'replace-bulb-fixture', name: 'Замена лампочки/люстры', nameUz: 'Lampochka/qandil almashtirish', nameEn: 'Replace bulb/chandelier', description: 'Замена ламп, светильников, люстр', descriptionUz: 'Lampa, chiroq, qandillarni almashtirish', descriptionEn: 'Replace bulbs, lamps, chandeliers', estimatedTime: '15-40 мин', estimatedTimeUz: '15-40 daq', estimatedTimeEn: '15-40 min', minPrice: 70000 },
+          { slug: 'adjust-door-hinges', name: 'Регулировка дверей/петель', nameUz: 'Eshik/ilmoqlarni rostlash', nameEn: 'Adjust doors/hinges', description: 'Устранить скрип, перекос, провисание двери', descriptionUz: 'Eshik gʻichirlashi, qiyshayishini bartaraf etish', descriptionEn: 'Fix squeak, sag, misalignment', estimatedTime: '20-50 мин', estimatedTimeUz: '20-50 daq', estimatedTimeEn: '20-50 min', minPrice: 80000 },
+          { slug: 'seal-silicone', name: 'Заделка щелей/силиконовый шов', nameUz: 'Yoriqlarni berkitish/silikon choki', nameEn: 'Seal gaps/silicone joint', description: 'Герметизация ванны, раковины, стыков', descriptionUz: 'Vanna, lavabo, birikmalarni germetizatsiya', descriptionEn: 'Seal bath, sink, joints', estimatedTime: '30-60 мин', estimatedTimeUz: '30-60 daq', estimatedTimeEn: '30-60 min', minPrice: 90000 },
+          { slug: 'fix-furniture-handle', name: 'Замена ручек/петель мебели', nameUz: 'Mebel dasta/ilmoqlarini almashtirish', nameEn: 'Replace furniture handles/hinges', description: 'Ремонт фурнитуры шкафов, ящиков, дверок', descriptionUz: 'Shkaf, quti, eshikcha furniturasi taʼmiri', descriptionEn: 'Repair cabinet, drawer, door hardware', estimatedTime: '20-45 мин', estimatedTimeUz: '20-45 daq', estimatedTimeEn: '20-45 min', minPrice: 70000 },
+        ],
+      },
+    ],
+  },
+
+  // ═══════════════════════════════════════════
+  // 17. РЕМОНТ БЫТОВОЙ ТЕХНИКИ
+  // ═══════════════════════════════════════════
+  {
+    slug: 'appliance-repair', name: 'Ремонт бытовой техники', nameUz: 'Maishiy texnika taʼmiri', nameEn: 'Appliance repair', icon: 'WashingMachine', parentSlug: 'tech-equipment',
+    subcategories: [
+      {
+        slug: 'repair-laundry', name: 'Стиральные и посудомоечные машины', nameUz: 'Kir va idish yuvish mashinalari', nameEn: 'Washing & dishwashers', icon: 'WashingMachine',
+        tasks: [
+          { slug: 'repair-washing-machine', name: 'Ремонт стиральной машины', nameUz: 'Kir mashinasini taʼmirlash', nameEn: 'Repair washing machine', description: 'Диагностика, замена ТЭН/насоса/подшипника', descriptionUz: 'Diagnostika, TEN/nasos/podshipnik almashtirish', descriptionEn: 'Diagnostics, replace heater/pump/bearing', estimatedTime: '1-3 часа', estimatedTimeUz: '1-3 soat', estimatedTimeEn: '1-3 hours', minPrice: 150000 },
+          { slug: 'repair-dishwasher', name: 'Ремонт посудомоечной машины', nameUz: 'Idish yuvish mashinasini taʼmirlash', nameEn: 'Repair dishwasher', description: 'Устранение протечек, замена узлов', descriptionUz: 'Oqishni bartaraf etish, qism almashtirish', descriptionEn: 'Fix leaks, replace parts', estimatedTime: '1-2 часа', estimatedTimeUz: '1-2 soat', estimatedTimeEn: '1-2 hours', minPrice: 150000 },
+        ],
+      },
+      {
+        slug: 'repair-fridge-kitchen', name: 'Холодильники и кухонная техника', nameUz: 'Muzlatgich va oshxona texnikasi', nameEn: 'Fridges & kitchen appliances', icon: 'Refrigerator',
+        tasks: [
+          { slug: 'repair-fridge', name: 'Ремонт холодильника', nameUz: 'Muzlatgichni taʼmirlash', nameEn: 'Repair refrigerator', description: 'Заправка фреоном, замена компрессора/термостата', descriptionUz: 'Freon quyish, kompressor/termostat almashtirish', descriptionEn: 'Refrigerant recharge, compressor/thermostat', estimatedTime: '1-3 часа', estimatedTimeUz: '1-3 soat', estimatedTimeEn: '1-3 hours', minPrice: 200000 },
+          { slug: 'repair-oven-stove', name: 'Ремонт духовки/плиты', nameUz: 'Pech/plitani taʼmirlash', nameEn: 'Repair oven/stove', description: 'Электрические и газовые плиты, духовые шкафы', descriptionUz: 'Elektr va gaz plitalar, pechlar', descriptionEn: 'Electric and gas stoves, ovens', estimatedTime: '1-2 часа', estimatedTimeUz: '1-2 soat', estimatedTimeEn: '1-2 hours', minPrice: 150000 },
+          { slug: 'repair-microwave-small', name: 'Ремонт микроволновки/мелкой техники', nameUz: 'Mikroto‘lqinli pech/mayda texnika', nameEn: 'Repair microwave/small appliances', description: 'СВЧ, мультиварки, мясорубки, чайники', descriptionUz: 'Mikroto‘lqin, multipishirgich, choynak', descriptionEn: 'Microwaves, multicookers, kettles', estimatedTime: '30-90 мин', estimatedTimeUz: '30-90 daq', estimatedTimeEn: '30-90 min', minPrice: 100000 },
+        ],
+      },
+    ],
+  },
+
+  // ═══════════════════════════════════════════
+  // 18. КОНДИЦИОНЕРЫ И КЛИМАТ
+  // ═══════════════════════════════════════════
+  {
+    slug: 'climate-hvac', name: 'Кондиционеры и климат', nameUz: 'Konditsioner va iqlim', nameEn: 'Air conditioning & climate', icon: 'AirVent', parentSlug: 'tech-equipment',
+    subcategories: [
+      {
+        slug: 'ac-install', name: 'Установка кондиционеров', nameUz: 'Konditsioner oʻrnatish', nameEn: 'AC installation', icon: 'AirVent',
+        tasks: [
+          { slug: 'install-split-ac', name: 'Установка сплит-системы', nameUz: 'Split-tizim oʻrnatish', nameEn: 'Install split AC', description: 'Монтаж блоков, трасса, вакуумирование, запуск', descriptionUz: 'Bloklar montaji, trassa, vakuumlash, ishga tushirish', descriptionEn: 'Mount units, line, vacuum, startup', estimatedTime: '2-4 часа', estimatedTimeUz: '2-4 soat', estimatedTimeEn: '2-4 hours', minPrice: 400000 },
+          { slug: 'dismantle-ac', name: 'Демонтаж кондиционера', nameUz: 'Konditsionerni demontaj qilish', nameEn: 'Dismantle AC', description: 'Снятие со сбором фреона для переноса', descriptionUz: 'Freonni yigʻib olib koʻchirish uchun yechish', descriptionEn: 'Remove with refrigerant recovery', estimatedTime: '1-2 часа', estimatedTimeUz: '1-2 soat', estimatedTimeEn: '1-2 hours', minPrice: 250000 },
+        ],
+      },
+      {
+        slug: 'ac-service', name: 'Обслуживание и ремонт', nameUz: 'Xizmat koʻrsatish va taʼmir', nameEn: 'Service & repair', icon: 'Wind',
+        tasks: [
+          { slug: 'clean-ac', name: 'Чистка кондиционера', nameUz: 'Konditsionerni tozalash', nameEn: 'Clean AC', description: 'Чистка фильтров, теплообменника, антибактериальная обработка', descriptionUz: 'Filtr, issiqlik almashtirgichni tozalash', descriptionEn: 'Clean filters, heat exchanger', estimatedTime: '1-2 часа', estimatedTimeUz: '1-2 soat', estimatedTimeEn: '1-2 hours', minPrice: 150000 },
+          { slug: 'recharge-ac', name: 'Заправка фреоном', nameUz: 'Freon quyish', nameEn: 'Refrigerant recharge', description: 'Проверка давления, дозаправка/полная заправка', descriptionUz: 'Bosim tekshirish, freon quyish', descriptionEn: 'Pressure check, recharge', estimatedTime: '1 час', estimatedTimeUz: '1 soat', estimatedTimeEn: '1 hour', minPrice: 200000 },
+          { slug: 'repair-ac-unit', name: 'Ремонт кондиционера', nameUz: 'Konditsionerni taʼmirlash', nameEn: 'Repair AC', description: 'Диагностика и замена платы/компрессора/датчиков', descriptionUz: 'Diagnostika, plata/kompressor/datchik almashtirish', descriptionEn: 'Diagnostics, replace board/compressor', estimatedTime: '1-3 часа', estimatedTimeUz: '1-3 soat', estimatedTimeEn: '1-3 hours', minPrice: 250000 },
+        ],
+      },
+    ],
+  },
+
+  // ═══════════════════════════════════════════
+  // 19. ДЕЗИНСЕКЦИЯ И ДЕРАТИЗАЦИЯ
+  // ═══════════════════════════════════════════
+  {
+    slug: 'pest-control', name: 'Дезинсекция и дератизация', nameUz: 'Dezinseksiya va deratizatsiya', nameEn: 'Pest control', icon: 'Bug', parentSlug: 'home-help',
+    subcategories: [
+      {
+        slug: 'pest-insects', name: 'Уничтожение насекомых', nameUz: 'Hasharotlarni yoʻq qilish', nameEn: 'Insect extermination', icon: 'Bug',
+        tasks: [
+          { slug: 'pest-cockroaches', name: 'Травля тараканов', nameUz: 'Tarakanlarni yoʻq qilish', nameEn: 'Cockroach treatment', description: 'Обработка квартиры безопасными препаратами', descriptionUz: 'Kvartirani xavfsiz preparatlar bilan ishlov', descriptionEn: 'Safe apartment treatment', estimatedTime: '1-2 часа', estimatedTimeUz: '1-2 soat', estimatedTimeEn: '1-2 hours', minPrice: 200000 },
+          { slug: 'pest-bedbugs', name: 'Уничтожение клопов', nameUz: 'Kanalarni yoʻq qilish', nameEn: 'Bedbug extermination', description: 'Полная обработка с гарантией', descriptionUz: 'Kafolat bilan toʻliq ishlov', descriptionEn: 'Full treatment with warranty', estimatedTime: '2-3 часа', estimatedTimeUz: '2-3 soat', estimatedTimeEn: '2-3 hours', minPrice: 300000 },
+        ],
+      },
+      {
+        slug: 'pest-rodents', name: 'Борьба с грызунами', nameUz: 'Kemiruvchilarga qarshi', nameEn: 'Rodent control', icon: 'Rat',
+        tasks: [
+          { slug: 'pest-mice-rats', name: 'Дератизация (мыши/крысы)', nameUz: 'Deratizatsiya (sichqon/kalamush)', nameEn: 'Rodent control (mice/rats)', description: 'Установка ловушек и приманок, изоляция путей', descriptionUz: 'Tuzoq va yemlar oʻrnatish', descriptionEn: 'Set traps and baits, seal entry points', estimatedTime: '1-2 часа', estimatedTimeUz: '1-2 soat', estimatedTimeEn: '1-2 hours', minPrice: 200000 },
+        ],
+      },
+    ],
+  },
+
+  // ═══════════════════════════════════════════
+  // 20. ХИМЧИСТКА МЕБЕЛИ И КОВРОВ
+  // ═══════════════════════════════════════════
+  {
+    slug: 'textile-cleaning', name: 'Химчистка мебели и ковров', nameUz: 'Mebel va gilam kimyoviy tozalash', nameEn: 'Upholstery & carpet cleaning', icon: 'Sofa', parentSlug: 'home-help',
+    subcategories: [
+      {
+        slug: 'cleaning-upholstery', name: 'Чистка мягкой мебели', nameUz: 'Yumshoq mebelni tozalash', nameEn: 'Upholstery cleaning', icon: 'Sofa',
+        tasks: [
+          { slug: 'clean-sofa', name: 'Химчистка дивана', nameUz: 'Divanni kimyoviy tozalash', nameEn: 'Sofa dry cleaning', description: 'Глубокая чистка, удаление пятен и запахов', descriptionUz: 'Chuqur tozalash, dogʻ va hidlarni yoʻqotish', descriptionEn: 'Deep clean, remove stains and odors', estimatedTime: '1-2 часа', estimatedTimeUz: '1-2 soat', estimatedTimeEn: '1-2 hours', minPrice: 150000 },
+          { slug: 'clean-mattress', name: 'Химчистка матраса', nameUz: 'Matrasni kimyoviy tozalash', nameEn: 'Mattress cleaning', description: 'Удаление пылевых клещей, пятен', descriptionUz: 'Chang kanalari, dogʻlarni yoʻqotish', descriptionEn: 'Remove dust mites, stains', estimatedTime: '1 час', estimatedTimeUz: '1 soat', estimatedTimeEn: '1 hour', minPrice: 120000 },
+        ],
+      },
+      {
+        slug: 'cleaning-carpets', name: 'Чистка ковров', nameUz: 'Gilam tozalash', nameEn: 'Carpet cleaning', icon: 'Rows3',
+        tasks: [
+          { slug: 'clean-carpet', name: 'Химчистка ковра', nameUz: 'Gilamni kimyoviy tozalash', nameEn: 'Carpet dry cleaning', description: 'Чистка на дому или с вывозом', descriptionUz: 'Uyda yoki olib ketish bilan tozalash', descriptionEn: 'On-site or pickup cleaning', estimatedTime: '1-3 часа', estimatedTimeUz: '1-3 soat', estimatedTimeEn: '1-3 hours', minPrice: 100000 },
+        ],
+      },
+    ],
+  },
+
+  // ═══════════════════════════════════════════
+  // 21. КОМПЬЮТЕРНАЯ ПОМОЩЬ
+  // ═══════════════════════════════════════════
+  {
+    slug: 'it-help', name: 'Компьютерная помощь', nameUz: 'Kompyuter yordami', nameEn: 'Computer help', icon: 'Laptop', parentSlug: 'tech-equipment',
+    subcategories: [
+      {
+        slug: 'it-computers', name: 'Ремонт и настройка ПК', nameUz: 'Kompyuter taʼmiri va sozlash', nameEn: 'PC repair & setup', icon: 'Cpu',
+        tasks: [
+          { slug: 'pc-repair', name: 'Ремонт компьютера/ноутбука', nameUz: 'Kompyuter/noutbukni taʼmirlash', nameEn: 'PC/laptop repair', description: 'Диагностика, замена комплектующих, чистка', descriptionUz: 'Diagnostika, qism almashtirish, tozalash', descriptionEn: 'Diagnostics, parts replacement, cleaning', estimatedTime: '1-3 часа', estimatedTimeUz: '1-3 soat', estimatedTimeEn: '1-3 hours', minPrice: 100000 },
+          { slug: 'pc-software', name: 'Установка ОС и программ', nameUz: 'OT va dasturlar oʻrnatish', nameEn: 'OS & software install', description: 'Windows, драйверы, антивирус, офис', descriptionUz: 'Windows, drayver, antivirus, ofis', descriptionEn: 'Windows, drivers, antivirus, office', estimatedTime: '1-2 часа', estimatedTimeUz: '1-2 soat', estimatedTimeEn: '1-2 hours', minPrice: 80000 },
+        ],
+      },
+      {
+        slug: 'it-network-phone', name: 'Сети и телефоны', nameUz: 'Tarmoq va telefonlar', nameEn: 'Networks & phones', icon: 'Wifi',
+        tasks: [
+          { slug: 'setup-wifi', name: 'Настройка Wi-Fi/роутера', nameUz: 'Wi-Fi/router sozlash', nameEn: 'Wi-Fi/router setup', description: 'Установка и настройка интернета, усиление сигнала', descriptionUz: 'Internet oʻrnatish va sozlash, signal kuchaytirish', descriptionEn: 'Internet setup, signal boost', estimatedTime: '30-90 мин', estimatedTimeUz: '30-90 daq', estimatedTimeEn: '30-90 min', minPrice: 80000 },
+          { slug: 'repair-phone', name: 'Ремонт телефона/планшета', nameUz: 'Telefon/planshet taʼmiri', nameEn: 'Phone/tablet repair', description: 'Замена экрана, батареи, разъёмов', descriptionUz: 'Ekran, batareya, razyom almashtirish', descriptionEn: 'Replace screen, battery, connectors', estimatedTime: '1-2 часа', estimatedTimeUz: '1-2 soat', estimatedTimeEn: '1-2 hours', minPrice: 100000 },
+        ],
+      },
+    ],
+  },
+
+  // ═══════════════════════════════════════════
+  // 22. ВИДЕОНАБЛЮДЕНИЕ И УМНЫЙ ДОМ
+  // ═══════════════════════════════════════════
+  {
+    slug: 'security-systems', name: 'Видеонаблюдение и умный дом', nameUz: 'Videokuzatuv va aqlli uy', nameEn: 'Security & smart home', icon: 'Cctv', parentSlug: 'tech-equipment',
+    subcategories: [
+      {
+        slug: 'security-cctv', name: 'Камеры и сигнализация', nameUz: 'Kamera va signalizatsiya', nameEn: 'Cameras & alarms', icon: 'Cctv',
+        tasks: [
+          { slug: 'install-cctv-system', name: 'Установка видеонаблюдения', nameUz: 'Videokuzatuv oʻrnatish', nameEn: 'Install CCTV', description: 'Монтаж камер, регистратора, настройка удалённого доступа', descriptionUz: 'Kamera, registrator montaji, masofaviy kirish sozlash', descriptionEn: 'Mount cameras, DVR, remote access setup', estimatedTime: '2-5 часов', estimatedTimeUz: '2-5 soat', estimatedTimeEn: '2-5 hours', minPrice: 300000 },
+          { slug: 'install-intercom', name: 'Установка домофона', nameUz: 'Domofon oʻrnatish', nameEn: 'Install intercom', description: 'Видеодомофон, вызывная панель, замок', descriptionUz: 'Videodomofon, chaqiruv paneli, qulf', descriptionEn: 'Video intercom, call panel, lock', estimatedTime: '2-3 часа', estimatedTimeUz: '2-3 soat', estimatedTimeEn: '2-3 hours', minPrice: 250000 },
+        ],
+      },
+      {
+        slug: 'security-smart-home', name: 'Умный дом', nameUz: 'Aqlli uy', nameEn: 'Smart home', icon: 'House',
+        tasks: [
+          { slug: 'setup-smart-home-full', name: 'Настройка умного дома', nameUz: 'Aqlli uyni sozlash', nameEn: 'Smart home setup', description: 'Умные розетки, лампы, датчики, сценарии', descriptionUz: 'Aqlli rozetka, lampa, datchik, ssenariy', descriptionEn: 'Smart plugs, lamps, sensors, scenes', estimatedTime: '2-4 часа', estimatedTimeUz: '2-4 soat', estimatedTimeEn: '2-4 hours', minPrice: 200000 },
+        ],
+      },
+    ],
+  },
+
+  // ═══════════════════════════════════════════
+  // 23. ПЛИТОЧНЫЕ РАБОТЫ
+  // ═══════════════════════════════════════════
+  {
+    slug: 'tiling', name: 'Плиточные работы', nameUz: 'Kafel ishlari', nameEn: 'Tiling', icon: 'Grid3x3', parentSlug: 'repair-finishing',
+    subcategories: [
+      {
+        slug: 'tiling-laying', name: 'Укладка плитки', nameUz: 'Kafel yotqizish', nameEn: 'Tile laying', icon: 'Grid3x3',
+        tasks: [
+          { slug: 'lay-wall-tile', name: 'Укладка плитки на стены', nameUz: 'Devorga kafel yotqizish', nameEn: 'Wall tiling', description: 'Ванная, кухня, фартук — ровная укладка', descriptionUz: 'Hammom, oshxona, fartuk — tekis yotqizish', descriptionEn: 'Bathroom, kitchen, backsplash', estimatedTime: 'от 1 дня', estimatedTimeUz: '1 kundan', estimatedTimeEn: 'from 1 day', minPrice: 80000 },
+          { slug: 'lay-floor-tile', name: 'Укладка плитки/керамогранита на пол', nameUz: 'Polga kafel/keramogranit yotqizish', nameEn: 'Floor tiling', description: 'Стяжка, укладка, затирка швов', descriptionUz: 'Stayajka, yotqizish, choklarni fugalash', descriptionEn: 'Screed, laying, grouting', estimatedTime: 'от 1 дня', estimatedTimeUz: '1 kundan', estimatedTimeEn: 'from 1 day', minPrice: 90000 },
+          { slug: 'lay-mosaic', name: 'Укладка мозаики', nameUz: 'Mozaika yotqizish', nameEn: 'Mosaic laying', description: 'Декоративная мозаика, сложные узоры', descriptionUz: 'Dekorativ mozaika, murakkab naqshlar', descriptionEn: 'Decorative mosaic, complex patterns', estimatedTime: 'от 1 дня', estimatedTimeUz: '1 kundan', estimatedTimeEn: 'from 1 day', minPrice: 150000 },
+          { slug: 'tile-grout-repair', name: 'Затирка/обновление швов', nameUz: 'Fugalash/choklarni yangilash', nameEn: 'Grout repair', description: 'Замена затирки, герметизация швов', descriptionUz: 'Fugani almashtirish, choklarni germetizatsiya', descriptionEn: 'Replace grout, seal joints', estimatedTime: '2-5 часов', estimatedTimeUz: '2-5 soat', estimatedTimeEn: '2-5 hours', minPrice: 100000 },
+        ],
+      },
+    ],
+  },
+
+  // ═══════════════════════════════════════════
+  // 24. НАПОЛЬНЫЕ ПОКРЫТИЯ
+  // ═══════════════════════════════════════════
+  {
+    slug: 'flooring', name: 'Напольные покрытия', nameUz: 'Pol qoplamalari', nameEn: 'Flooring', icon: 'LayoutGrid', parentSlug: 'repair-finishing',
+    subcategories: [
+      {
+        slug: 'flooring-laying', name: 'Укладка покрытий', nameUz: 'Qoplama yotqizish', nameEn: 'Floor covering', icon: 'LayoutGrid',
+        tasks: [
+          { slug: 'lay-laminate-flooring', name: 'Укладка ламината', nameUz: 'Laminat yotqizish', nameEn: 'Lay laminate', description: 'Подложка, укладка, плинтус', descriptionUz: 'Tagligi, yotqizish, plintus', descriptionEn: 'Underlay, laying, skirting', estimatedTime: 'от 4 часов', estimatedTimeUz: '4 soatdan', estimatedTimeEn: 'from 4 hours', minPrice: 50000 },
+          { slug: 'lay-parquet', name: 'Укладка паркета/паркетной доски', nameUz: 'Parket yotqizish', nameEn: 'Lay parquet', description: 'Укладка, шлифовка, лакировка', descriptionUz: 'Yotqizish, jilolash, laklash', descriptionEn: 'Laying, sanding, lacquering', estimatedTime: 'от 1 дня', estimatedTimeUz: '1 kundan', estimatedTimeEn: 'from 1 day', minPrice: 80000 },
+          { slug: 'lay-linoleum-carpet', name: 'Укладка линолеума/ковролина', nameUz: 'Linoleum/kovrolin yotqizish', nameEn: 'Lay linoleum/carpet', description: 'Раскрой, укладка, фиксация, плинтус', descriptionUz: 'Kesish, yotqizish, mahkamlash', descriptionEn: 'Cutting, laying, fixing', estimatedTime: 'от 3 часов', estimatedTimeUz: '3 soatdan', estimatedTimeEn: 'from 3 hours', minPrice: 50000 },
+        ],
+      },
+    ],
+  },
+
+  // ═══════════════════════════════════════════
+  // 25. ПОТОЛКИ
+  // ═══════════════════════════════════════════
+  {
+    slug: 'ceilings', name: 'Потолки', nameUz: 'Shiplar', nameEn: 'Ceilings', icon: 'PanelTop', parentSlug: 'repair-finishing',
+    subcategories: [
+      {
+        slug: 'ceiling-types', name: 'Монтаж потолков', nameUz: 'Ship montaji', nameEn: 'Ceiling installation', icon: 'PanelTop',
+        tasks: [
+          { slug: 'install-stretch-ceiling', name: 'Натяжной потолок', nameUz: 'Tortma ship', nameEn: 'Stretch ceiling', description: 'Монтаж матового/глянцевого полотна, освещение', descriptionUz: 'Mat/yaltiroq mato montaji, yoritish', descriptionEn: 'Matte/gloss film, lighting', estimatedTime: 'от 3 часов', estimatedTimeUz: '3 soatdan', estimatedTimeEn: 'from 3 hours', minPrice: 60000 },
+          { slug: 'install-drywall-ceiling', name: 'Потолок из гипсокартона', nameUz: 'Gipsokarton ship', nameEn: 'Drywall ceiling', description: 'Каркас, многоуровневые потолки, подсветка', descriptionUz: 'Karkas, koʻp darajali shiplar, yoritish', descriptionEn: 'Frame, multi-level ceilings, lighting', estimatedTime: 'от 1 дня', estimatedTimeUz: '1 kundan', estimatedTimeEn: 'from 1 day', minPrice: 80000 },
+        ],
+      },
+    ],
+  },
+
+  // ═══════════════════════════════════════════
+  // 26. ГИПСОКАРТОН И ПЕРЕГОРОДКИ
+  // ═══════════════════════════════════════════
+  {
+    slug: 'drywall', name: 'Гипсокартон и перегородки', nameUz: 'Gipsokarton va devorchalar', nameEn: 'Drywall & partitions', icon: 'Frame', parentSlug: 'repair-finishing',
+    subcategories: [
+      {
+        slug: 'drywall-work', name: 'Гипсокартонные конструкции', nameUz: 'Gipsokarton konstruksiyalar', nameEn: 'Drywall structures', icon: 'Frame',
+        tasks: [
+          { slug: 'build-partition', name: 'Перегородка из гипсокартона', nameUz: 'Gipsokartondan devorcha', nameEn: 'Drywall partition', description: 'Каркас, обшивка, звукоизоляция', descriptionUz: 'Karkas, qoplash, tovush izolyatsiyasi', descriptionEn: 'Frame, sheathing, soundproofing', estimatedTime: 'от 1 дня', estimatedTimeUz: '1 kundan', estimatedTimeEn: 'from 1 day', minPrice: 70000 },
+          { slug: 'build-niche-shelf', name: 'Ниши, полки, короба из ГКЛ', nameUz: 'GKL dan tokcha, javon, qutilar', nameEn: 'Niches, shelves, boxes', description: 'Декоративные ниши, короба для труб', descriptionUz: 'Dekorativ tokchalar, truba qutilari', descriptionEn: 'Decorative niches, pipe boxes', estimatedTime: 'от 4 часов', estimatedTimeUz: '4 soatdan', estimatedTimeEn: 'from 4 hours', minPrice: 100000 },
+        ],
+      },
+    ],
+  },
+
+  // ═══════════════════════════════════════════
+  // 27. СВАРКА И МЕТАЛЛОКОНСТРУКЦИИ
+  // ═══════════════════════════════════════════
+  {
+    slug: 'welding-metalwork', name: 'Сварка и металлоконструкции', nameUz: 'Payvandlash va metall konstruksiyalar', nameEn: 'Welding & metalwork', icon: 'Flame', parentSlug: 'construction-building',
+    subcategories: [
+      {
+        slug: 'welding-services', name: 'Сварочные работы', nameUz: 'Payvandlash ishlari', nameEn: 'Welding services', icon: 'Flame',
+        tasks: [
+          { slug: 'weld-gates-grilles', name: 'Ворота, решётки, навесы', nameUz: 'Darvoza, panjara, soyabon', nameEn: 'Gates, grilles, canopies', description: 'Изготовление и монтаж металлоконструкций', descriptionUz: 'Metall konstruksiya tayyorlash va montaj', descriptionEn: 'Fabricate and install metal structures', estimatedTime: 'от 1 дня', estimatedTimeUz: '1 kundan', estimatedTimeEn: 'from 1 day', minPrice: 300000 },
+          { slug: 'weld-repair', name: 'Сварочный ремонт на выезде', nameUz: 'Chiqib payvandlash taʼmiri', nameEn: 'On-site welding repair', description: 'Ремонт ворот, петель, металлических изделий', descriptionUz: 'Darvoza, ilmoq, metall buyumlar taʼmiri', descriptionEn: 'Repair gates, hinges, metal items', estimatedTime: '1-3 часа', estimatedTimeUz: '1-3 soat', estimatedTimeEn: '1-3 hours', minPrice: 200000 },
+        ],
+      },
+    ],
+  },
+
+  // ═══════════════════════════════════════════
+  // 28. КРОВЕЛЬНЫЕ РАБОТЫ
+  // ═══════════════════════════════════════════
+  {
+    slug: 'roofing', name: 'Кровельные работы', nameUz: 'Tom yopish ishlari', nameEn: 'Roofing', icon: 'Home', parentSlug: 'construction-building',
+    subcategories: [
+      {
+        slug: 'roofing-work', name: 'Монтаж и ремонт кровли', nameUz: 'Tom montaji va taʼmiri', nameEn: 'Roof installation & repair', icon: 'Home',
+        tasks: [
+          { slug: 'install-roof', name: 'Монтаж кровли', nameUz: 'Tom yopish', nameEn: 'Roof installation', description: 'Профнастил, металлочерепица, шифер', descriptionUz: 'Profnastil, metallcherepitsa, shifer', descriptionEn: 'Corrugated, metal tile, slate', estimatedTime: 'от 1 дня', estimatedTimeUz: '1 kundan', estimatedTimeEn: 'from 1 day', minPrice: 250000 },
+          { slug: 'repair-roof-leak', name: 'Ремонт протечки крыши', nameUz: 'Tom oqishini taʼmirlash', nameEn: 'Roof leak repair', description: 'Устранение течи, замена участков', descriptionUz: 'Oqishni bartaraf etish, qism almashtirish', descriptionEn: 'Fix leaks, replace sections', estimatedTime: '2-6 часов', estimatedTimeUz: '2-6 soat', estimatedTimeEn: '2-6 hours', minPrice: 200000 },
+          { slug: 'install-gutters', name: 'Монтаж водостоков', nameUz: 'Suv oqizgich montaji', nameEn: 'Install gutters', description: 'Водосточная система, отливы', descriptionUz: 'Suv oqizish tizimi', descriptionEn: 'Gutter system, drip edges', estimatedTime: 'от 4 часов', estimatedTimeUz: '4 soatdan', estimatedTimeEn: 'from 4 hours', minPrice: 150000 },
+        ],
+      },
+    ],
+  },
+
+  // ═══════════════════════════════════════════
+  // 29. ЗАБОРЫ И ОГРАЖДЕНИЯ
+  // ═══════════════════════════════════════════
+  {
+    slug: 'fencing', name: 'Заборы и ограждения', nameUz: 'Devor va toʻsiqlar', nameEn: 'Fences & barriers', icon: 'Fence', parentSlug: 'construction-building',
+    subcategories: [
+      {
+        slug: 'fencing-work', name: 'Установка заборов', nameUz: 'Devor oʻrnatish', nameEn: 'Fence installation', icon: 'Fence',
+        tasks: [
+          { slug: 'install-fence-mount', name: 'Монтаж забора', nameUz: 'Devor montaji', nameEn: 'Fence installation', description: 'Профнастил, сетка-рабица, евроштакетник', descriptionUz: 'Profnastil, rabitsa toʻr, evroshtaketnik', descriptionEn: 'Corrugated, chain-link, euro picket', estimatedTime: 'от 1 дня', estimatedTimeUz: '1 kundan', estimatedTimeEn: 'from 1 day', minPrice: 200000 },
+          { slug: 'install-gate', name: 'Установка ворот/калитки', nameUz: 'Darvoza/eshik oʻrnatish', nameEn: 'Install gate', description: 'Распашные, откатные ворота, автоматика', descriptionUz: 'Ochiladigan, suriladigan darvoza, avtomatika', descriptionEn: 'Swing, sliding gates, automation', estimatedTime: 'от 4 часов', estimatedTimeUz: '4 soatdan', estimatedTimeEn: 'from 4 hours', minPrice: 250000 },
+        ],
+      },
+    ],
+  },
+
+  // ═══════════════════════════════════════════
+  // 30. ГАЗОВОЕ ОБОРУДОВАНИЕ
+  // ═══════════════════════════════════════════
+  {
+    slug: 'gas-equipment', name: 'Газовое оборудование', nameUz: 'Gaz uskunalari', nameEn: 'Gas equipment', icon: 'Flame', parentSlug: 'tech-equipment',
+    subcategories: [
+      {
+        slug: 'gas-work', name: 'Монтаж и обслуживание', nameUz: 'Montaj va xizmat', nameEn: 'Installation & service', icon: 'Flame',
+        tasks: [
+          { slug: 'install-gas-boiler', name: 'Установка газового котла/колонки', nameUz: 'Gaz qozon/kolonka oʻrnatish', nameEn: 'Install gas boiler/heater', description: 'Подключение, настройка, проверка тяги', descriptionUz: 'Ulash, sozlash, tortishni tekshirish', descriptionEn: 'Connect, configure, check draft', estimatedTime: '2-4 часа', estimatedTimeUz: '2-4 soat', estimatedTimeEn: '2-4 hours', minPrice: 300000 },
+          { slug: 'connect-gas-stove', name: 'Подключение газовой плиты', nameUz: 'Gaz plitasini ulash', nameEn: 'Connect gas stove', description: 'Подключение с проверкой на утечку', descriptionUz: 'Oqish tekshiruvi bilan ulash', descriptionEn: 'Connect with leak check', estimatedTime: '1 час', estimatedTimeUz: '1 soat', estimatedTimeEn: '1 hour', minPrice: 150000 },
+          { slug: 'service-gas-boiler', name: 'Обслуживание/ремонт котла', nameUz: 'Qozon xizmati/taʼmiri', nameEn: 'Boiler service/repair', description: 'Чистка, диагностика, ремонт газового оборудования', descriptionUz: 'Tozalash, diagnostika, taʼmir', descriptionEn: 'Cleaning, diagnostics, repair', estimatedTime: '1-3 часа', estimatedTimeUz: '1-3 soat', estimatedTimeEn: '1-3 hours', minPrice: 200000 },
         ],
       },
     ],

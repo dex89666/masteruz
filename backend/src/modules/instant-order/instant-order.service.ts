@@ -506,7 +506,37 @@ function classifyComplexity(text: string, hasDetectedCategory: boolean): OrderCo
   return 'CLARIFY';
 }
 
+/** Есть ли у категории хотя бы одна активная задача (через подкатегории) */
+function categoryHasTasks(c: any): boolean {
+  return (c?.subcategories || []).some((s: any) => (s?.tasks || []).length > 0);
+}
+
 export class InstantOrderService {
+  /**
+   * Разворачивает родительские категории (без собственных задач) в их
+   * дочерние «листья» с задачами. Категории-листья возвращаются как есть.
+   * Дубликаты по id убираются, исходный порядок сохраняется.
+   */
+  private async expandLeafCategories(cats: any[], categoryInclude: any): Promise<any[]> {
+    const result: any[] = [];
+    const seen = new Set<string>();
+    const push = (c: any) => {
+      if (c && !seen.has(c.id)) { seen.add(c.id); result.push(c); }
+    };
+
+    for (const c of cats) {
+      if (categoryHasTasks(c)) { push(c); continue; }
+      // Родитель без задач → подтягиваем активных детей с задачами
+      const children = await prisma.category.findMany({
+        where: { parentId: c.id, isActive: true },
+        include: categoryInclude,
+        orderBy: { sortOrder: 'asc' },
+      });
+      children.filter(categoryHasTasks).forEach(push);
+    }
+    return result;
+  }
+
   /**
    * AI-анализ фотографий и описания → 3 варианта (Good / Better / Best)
    */
@@ -573,20 +603,25 @@ export class InstantOrderService {
         include: categoryInclude,
       });
       // Сохраняем порядок, в котором клиент перечислил категории
-      detectedCategories = explicitIds
+      const ordered = explicitIds
         .map((id) => explicit.find((c) => c.id === id))
         .filter(Boolean) as any[];
+      // Родительские категории (без своих задач) разворачиваем в дочерние-листья
+      detectedCategories = await this.expandLeafCategories(ordered, categoryInclude);
     } else {
       // ─── AI Vision: анализ фото + текста через OpenAI GPT-4o ──────
       allCategoriesActive = await prisma.category.findMany({
         where: { isActive: true },
         include: categoryInclude,
       });
+      // AI должен видеть только «листовые» категории с задачами — иначе он
+      // может выбрать родителя («Помощь по дому»), у которого нет услуг.
+      const leafCategories = allCategoriesActive.filter(categoryHasTasks);
 
       aiAnalysis = await analyzeOrder({
         photoUrls: images,
         text: combinedDescription,
-        availableCategories: allCategoriesActive.map((c: any) => ({
+        availableCategories: leafCategories.map((c: any) => ({
           slug: c.slug,
           name: c.name,
         })),

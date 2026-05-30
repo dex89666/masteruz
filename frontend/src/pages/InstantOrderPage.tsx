@@ -129,6 +129,7 @@ export function InstantOrderPage() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const recognitionRef = useRef<any>(null);
+  const interimRef = useRef<string>(''); // последний промежуточный текст для финализации
 
   // ─── Load categories ────────────────
   useEffect(() => {
@@ -356,9 +357,10 @@ export function InstantOrderPage() {
 
   const startRecording = useCallback(async () => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    // На Android и в Telegram WebView SpeechRecognition обычно недоступен либо ломается с error="network".
-    // Если его нет — сразу идём через MediaRecorder + Whisper.
-    if (!SpeechRecognition || isMobileDevice) {
+    // Live-распознавание доступно везде, где есть Web Speech API (iOS Safari,
+    // Android Chrome). Текст появляется в реальном времени. В webview без API
+    // (Telegram на iOS, часть Android) — сразу пишем аудио и шлём на Whisper.
+    if (!SpeechRecognition) {
       await startRecordingViaMediaRecorder();
       return;
     }
@@ -380,6 +382,7 @@ export function InstantOrderPage() {
       let finalTranscript = '';
       let interimTranscript = '';
       let fallbackTriggered = false;
+      interimRef.current = '';
 
       recognition.onresult = (event: any) => {
         interimTranscript = '';
@@ -391,6 +394,7 @@ export function InstantOrderPage() {
             interimTranscript = transcript;
           }
         }
+        interimRef.current = interimTranscript;
         const currentText = (finalTranscript + interimTranscript).trim();
         if (currentText) {
           setVoiceText(currentText);
@@ -424,7 +428,9 @@ export function InstantOrderPage() {
 
       recognition.onend = () => {
         if (fallbackTriggered) return;
-        const result = finalTranscript.trim();
+        // Финализируем: финальный текст + последний промежуточный (если речь
+        // оборвалась до isFinal — иначе последние слова терялись).
+        const result = (finalTranscript + ' ' + interimRef.current).trim();
         if (result) {
           setVoiceText(result);
           setDescription(result);
@@ -432,6 +438,7 @@ export function InstantOrderPage() {
         } else {
           toast.error('Не удалось распознать речь.');
         }
+        interimRef.current = '';
         stream.getTracks().forEach((t) => t.stop());
         if (recorder.state === 'recording') recorder.stop();
         setIsRecording(false);
@@ -440,12 +447,12 @@ export function InstantOrderPage() {
       recognitionRef.current = recognition;
       recognition.start();
       setIsRecording(true);
-      toast('Говорите... Текст появится в реальном времени', { duration: 2000 });
+      toast('Говорите — текст появляется в реальном времени', { duration: 2000 });
     } catch {
       // Если getUserMedia упал — пробуем альтернативный путь
       await startRecordingViaMediaRecorder();
     }
-  }, [isMobileDevice, startRecordingViaMediaRecorder, transcribeWithWhisper]);
+  }, [startRecordingViaMediaRecorder, transcribeWithWhisper]);
 
   const stopRecording = useCallback(() => {
     if (recognitionRef.current) { recognitionRef.current.stop(); recognitionRef.current = null; }
