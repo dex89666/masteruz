@@ -70,6 +70,36 @@ export function OrderCard({ order, formatPrice, showNetEarnings }: OrderCardProp
           </div>
         )}
 
+        {/* Превью фото — мастер должен видеть, что за работа, ещё в списке */}
+        {(() => {
+          const photos = (order.images || []).filter(
+            (u: string) => typeof u === 'string' && (u.startsWith('http') || u.startsWith('data:')),
+          );
+          if (photos.length === 0) return null;
+          return (
+            <div className="flex gap-1.5 mb-3 overflow-hidden">
+              {photos.slice(0, 3).map((url, i) => (
+                <div
+                  key={`${url}-${i}`}
+                  className="relative h-20 flex-1 min-w-0 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800"
+                >
+                  <img
+                    src={url}
+                    alt=""
+                    loading="lazy"
+                    className="w-full h-full object-cover"
+                  />
+                  {i === 2 && photos.length > 3 && (
+                    <div className="absolute inset-0 bg-black/55 text-white text-xs font-semibold flex items-center justify-center">
+                      +{photos.length - 3}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          );
+        })()}
+
         <h3 className="font-semibold text-gray-900 dark:text-white mb-1 line-clamp-1">
           {order.title}
         </h3>

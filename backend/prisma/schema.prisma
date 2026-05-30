@@ -140,6 +140,11 @@ model User {
   riskScore     Int      @default(50) @map("risk_score")
   riskUpdatedAt DateTime? @map("risk_updated_at")
   riskFactors   Json?   @map("risk_factors") // снапшот факторов последнего пересчёта
+  // Дисциплина мастера: накопление предупреждений за отмены ПОСЛЕ выезда
+  // (статус IN_TRANSIT и далее). 4 warning → блок на 5 дней, счётчик в 0.
+  warningCount   Int       @default(0)     @map("warning_count")
+  blockedUntil   DateTime?                  @map("blocked_until")
+  lastWarningAt  DateTime?                  @map("last_warning_at")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
@@ -183,8 +188,32 @@ model User {
   clientReviewsReceived MasterReviewClient[] @relation("MRC_Client")
   masterSubscriptions   MasterSubscription[] @relation("MasterSubscriptions")
   referredSubscriptions MasterSubscription[] @relation("ReferrerSubscriptions")
+  warnings              MasterWarning[]      @relation("UserWarnings")
 
   @@map("users")
+}
+
+// ════════════════════════════════════════════════
+// ДИСЦИПЛИНА МАСТЕРА — история предупреждений
+// ════════════════════════════════════════════════
+//
+// Каждый раз, когда мастер отменяет заказ ПОСЛЕ нажатия «Выехал»
+// (статус IN_TRANSIT и далее), создаётся запись. Счётчик User.warningCount
+// растёт; на 4-м warning — блокировка 5 дней и сброс счётчика.
+model MasterWarning {
+  id            String    @id @default(uuid())
+  userId        String    @map("user_id")
+  orderId       String?   @map("order_id")
+  reason        String                                              // 'CANCEL_AFTER_TRANSIT'
+  penaltyAmount Decimal   @default(0) @map("penalty_amount") @db.Decimal(12, 2)
+  warningNo     Int       @map("warning_no")                        // 1..4 в текущем цикле
+  blockedUntil  DateTime? @map("blocked_until")                      // если этот warning вызвал блок
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  user User @relation("UserWarnings", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("master_warnings")
 }
 
 // ════════════════════════════════════════════════

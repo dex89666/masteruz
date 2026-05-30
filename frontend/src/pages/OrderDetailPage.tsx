@@ -299,8 +299,31 @@ export function OrderDetailPage() {
     try {
       const result = await ordersApi.cancel(id!, cancelReason || undefined);
       const data = result.data.data;
-      if (data.penaltyAmount > 0) {
-        toast.error(`${t('antiFraud.penaltyCharged')}: ${formatPrice(data.penaltyAmount, t('common.currency'))}`);
+      const warning = data?.warning as
+        | { warningNo: number; threshold: number; blockedUntil: string | null }
+        | null
+        | undefined;
+
+      if (warning?.blockedUntil) {
+        const days = Math.ceil(
+          (new Date(warning.blockedUntil).getTime() - Date.now()) / (24 * 3600 * 1000),
+        );
+        toast.error(
+          `Аккаунт заблокирован за систематические отмены на ${days} дн. ` +
+          `Штраф ${formatPrice(data.penaltyAmount, t('common.currency'))} списан.`,
+          { duration: 8000 },
+        );
+      } else if (warning) {
+        toast.error(
+          `Предупреждение ${warning.warningNo}/${warning.threshold}. ` +
+          `Штраф ${formatPrice(data.penaltyAmount, t('common.currency'))} списан. ` +
+          `На ${warning.threshold}-м предупреждении — блок 5 дней.`,
+          { duration: 7000 },
+        );
+      } else if (data.penaltyAmount > 0) {
+        toast.error(
+          `${t('antiFraud.penaltyCharged')}: ${formatPrice(data.penaltyAmount, t('common.currency'))}`,
+        );
       } else {
         toast.success(t('orderDetail.orderCancelled'));
       }
@@ -350,7 +373,7 @@ export function OrderDetailPage() {
   }
 
   // ─── Расчёт штрафа для предупреждения ─────
-  function getPenaltyWarning(): { amount: number; level: string } {
+  function getPenaltyWarning(): { amount: number; level: string; warning?: boolean } {
     if (!order) return { amount: 0, level: 'free' };
     const isOwnerCancel = isOwner;
     if (isOwnerCancel) {
@@ -362,8 +385,13 @@ export function OrderDetailPage() {
         default: return { amount: 0, level: 'free' };
       }
     }
-    if (isAssignedMaster && order.status !== 'PUBLISHED') {
-      return { amount: 30000, level: 'danger' };
+    if (isAssignedMaster) {
+      // Мастер: ACCEPTED — без штрафа (контактов он ещё не видел).
+      // IN_TRANSIT и далее — 15% от стоимости работ + предупреждение.
+      const transitOrLater = ['IN_TRANSIT', 'IN_PROGRESS', 'AWAITING_REMAINDER'].includes(order.status);
+      if (!transitOrLater) return { amount: 0, level: 'free' };
+      const amount = Math.round((order.price * 0.15) / 1000) * 1000;
+      return { amount, level: 'danger', warning: true };
     }
     return { amount: 0, level: 'free' };
   }
@@ -1627,6 +1655,21 @@ export function OrderDetailPage() {
                 )}
               </div>
             </div>
+
+            {/* Особое предупреждение для мастера на IN_TRANSIT+ — 15% + warning */}
+            {penaltyInfo.warning && (
+              <div className="mb-4 rounded-xl border border-red-300 dark:border-red-700/60 bg-red-50 dark:bg-red-900/20 p-3 text-sm text-red-800 dark:text-red-300">
+                <div className="font-semibold mb-1">⚠️ Дисциплинарное предупреждение</div>
+                <p className="leading-relaxed">
+                  Вы уже выехали на заказ и видели контакты клиента. Отмена сейчас:
+                </p>
+                <ul className="list-disc pl-5 mt-1 space-y-0.5">
+                  <li>штраф <b>{formatPrice(penaltyInfo.amount, t('common.currency'))}</b> (15% от стоимости);</li>
+                  <li>+1 предупреждение к вашему счётчику;</li>
+                  <li>на 4-м предупреждении — блокировка аккаунта на 5 дней.</li>
+                </ul>
+              </div>
+            )}
 
             <textarea
               className="textarea mb-4"

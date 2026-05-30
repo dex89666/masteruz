@@ -5,6 +5,7 @@
 import { Router } from 'express';
 import { ordersController } from './orders.controller.js';
 import { authenticate, optionalAuth } from '../../middleware/auth.js';
+import { requireNotBlocked } from '../../middleware/blockGate.js';
 import { validateBody, validateQuery } from '../../middleware/validate.js';
 import { createOrderSchema, orderResponseSchema, listOrdersSchema, assignMasterSchema, updateStatusSchema, masterLocationSchema, cancelOrderSchema, disputeOrderSchema, resolveDisputeSchema, submitRemainderSchema } from './orders.schema.js';
 import { eventBus } from '../../services/eventBus.js';
@@ -29,7 +30,7 @@ router.post('/', authenticate, validateBody(createOrderSchema), (req, res, next)
   ordersController.create(req, res, next)
 );
 
-router.post('/:id/respond', authenticate, validateBody(orderResponseSchema), (req, res, next) =>
+router.post('/:id/respond', authenticate, requireNotBlocked, validateBody(orderResponseSchema), (req, res, next) =>
   ordersController.respond(req, res, next)
 );
 
@@ -38,7 +39,7 @@ router.put('/:id/assign', authenticate, validateBody(assignMasterSchema), (req, 
 );
 
 // Мастер обновляет статус: ACCEPTED → IN_TRANSIT → IN_PROGRESS
-router.put('/:id/status', authenticate, validateBody(updateStatusSchema), (req, res, next) =>
+router.put('/:id/status', authenticate, requireNotBlocked, validateBody(updateStatusSchema), (req, res, next) =>
   ordersController.updateStatus(req, res, next)
 );
 

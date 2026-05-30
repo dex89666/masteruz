@@ -54,4 +54,16 @@ router.post('/certificates', upload.single('file'), verifyFileMagic, (req, res, 
   usersController.uploadCertificate(req, res, next)
 );
 
+// Дисциплина мастера: счётчик предупреждений, статус блокировки, история
+router.get('/me/discipline', async (req, res, next) => {
+  try {
+    const userId = req.user!.userId;
+    const { getMasterDisciplineSummary } = await import('../../services/masterDisciplineService.js');
+    const summary = await getMasterDisciplineSummary(userId);
+    res.json({ success: true, data: summary });
+  } catch (e) {
+    next(e);
+  }
+});
+
 export default router;

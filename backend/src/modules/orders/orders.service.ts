@@ -18,6 +18,10 @@ import { safeRecalculate as recalcCustomerRisk } from '../../services/customerRi
 import { safeScanUser as safeScanFraud } from '../../services/fraudDetectionService.js';
 import { upsertOrderEmbedding } from '../../services/ragService.js';
 import { enqueueExtractKnowledge } from '../../services/knowledgeService.js';
+import {
+  issueMasterWarning,
+  PENALTY_RATE_AFTER_TRANSIT,
+} from '../../services/masterDisciplineService.js';
 
 // Авто-отмена опубликованных заказов отключена: заказ живёт, пока клиент не закроет сам.
 // Поле оставлено для обратной совместимости с фронтом — всегда null.
@@ -28,7 +32,6 @@ function withAutoCancelAt<T extends { status: OrderStatus; masterId: string | nu
 // ─── Конфиг штрафов ─────────────────────────
 const PENALTY_AFTER_ACCEPT = 20000;   // Штраф за отмену после принятия (20 000 сум)
 const PENALTY_AFTER_TRANSIT = 30000;  // Штраф за отмену после «мастер в пути» (30 000 сум)
-const PENALTY_MASTER_CANCEL = 30000;  // Штраф мастеру за отмену (30 000 сум)
 const AUTO_CONFIRM_TIMEOUT_MS = 60 * 60 * 1000; // 1 час — авто-подтверждение клиентом
 
 /**
@@ -399,13 +402,21 @@ export class OrdersService {
 
     // Скрываем контакты клиента (phone, email) — видны только:
     // 1. Самому клиенту (владельцу заказа)
-    // 2. Назначенному мастеру после принятия заказа (ACCEPTED+)
+    // 2. Назначенному мастеру ПОСЛЕ нажатия «Выехал» (IN_TRANSIT и далее).
+    //    На стадии ACCEPTED мастер ещё не «закоммитился» — у него есть
+    //    окно отмены без штрафа. Контакты открываются вместе с реальным
+    //    выездом, и с этого момента отмена = 15% + warning.
     // 3. Админу/менеджеру
     const isOwner = userId === order.clientId;
     const isAssignedMaster = userId === order.masterId;
-    const acceptedStatuses = ['ACCEPTED', 'IN_TRANSIT', 'IN_PROGRESS', 'COMPLETED', 'DISPUTED',
-      'ESTIMATION_IN_PROGRESS', 'ESTIMATION_DONE', 'ESTIMATE_SENT', 'ESTIMATE_APPROVED', 'MODERATION'];
-    const orderAccepted = acceptedStatuses.includes(order.status);
+    const contactsOpenStatuses = ['IN_TRANSIT', 'IN_PROGRESS', 'AWAITING_REMAINDER', 'COMPLETED', 'DISPUTED'];
+    const contactsAreOpen = contactsOpenStatuses.includes(order.status);
+
+    // Для смет / эстимейшна оставляем прежнее поведение: после ACCEPTED-смежных
+    // статусов мастер и клиент общаются о смете, контакты нужны.
+    const estimationStatuses = ['ESTIMATION_IN_PROGRESS', 'ESTIMATION_DONE', 'ESTIMATE_SENT',
+      'ESTIMATE_APPROVED', 'MODERATION'];
+    const isEstimationFlow = estimationStatuses.includes(order.status);
 
     let isAdminRequester = false;
     if (userId) {
@@ -413,7 +424,9 @@ export class OrdersService {
       isAdminRequester = reqUser?.role === 'ADMIN' || reqUser?.role === 'MANAGER' || isSuperAdmin(reqUser?.username);
     }
 
-    const canSeeContacts = isOwner || (isAssignedMaster && orderAccepted) || isAdminRequester;
+    const canSeeContacts = isOwner
+      || (isAssignedMaster && (contactsAreOpen || isEstimationFlow))
+      || isAdminRequester;
 
     if (!canSeeContacts && order.client) {
       // Убираем контактные данные клиента
@@ -421,10 +434,10 @@ export class OrdersService {
       (order.client as any).email = null;
     }
 
-    // Скрываем контакты мастера от клиента до принятия заказа
-    // Контакты мастера видны только: назначенному мастеру (себе), клиенту после ACCEPTED, админу
+    // Симметрично: клиент видит контакты назначенного мастера тоже только
+    // с IN_TRANSIT — пока мастер не выехал, переписка только через чат.
     if (!isAdminRequester && order.master) {
-      const clientCanSeeMasterContacts = isOwner && orderAccepted;
+      const clientCanSeeMasterContacts = isOwner && (contactsAreOpen || isEstimationFlow);
       const isMasterSelf = userId === order.masterId;
       if (!clientCanSeeMasterContacts && !isMasterSelf) {
         (order.master as any).phone = null;
@@ -1356,6 +1369,8 @@ export class OrdersService {
 
     let penaltyAmount = 0;
     const cancelledBy = isClient ? 'CLIENT' : 'MASTER';
+    // Будет заполнено если мастер получает дисциплинарное предупреждение.
+    let masterWarning: { warningNo: number; threshold: number; blockedUntil: Date | null } | null = null;
 
     if (isClient) {
       switch (order.status) {
@@ -1365,8 +1380,23 @@ export class OrdersService {
         case OrderStatus.IN_PROGRESS: penaltyAmount = PENALTY_AFTER_TRANSIT; break;
         default: penaltyAmount = 0;
       }
-    } else if (isMaster && order.status !== OrderStatus.PUBLISHED) {
-      penaltyAmount = PENALTY_MASTER_CANCEL;
+    } else if (isMaster) {
+      // Мастер:
+      //  • PUBLISHED — отменить нельзя (он не назначен);
+      //  • ACCEPTED — без штрафа: «случайное принятие», контактов он ещё не видел;
+      //  • IN_TRANSIT и далее — 15% от стоимости работ + warning, потому что
+      //    он уже видит телефон/адрес клиента. На 4-м warning — блок 5 дней.
+      const transitOrLater: OrderStatus[] = [
+        OrderStatus.IN_TRANSIT,
+        OrderStatus.IN_PROGRESS,
+        OrderStatus.AWAITING_REMAINDER,
+      ];
+      if (transitOrLater.includes(order.status)) {
+        const workPrice = toNum(order.price);
+        // Округляем до тысяч, чтобы в балансе не плодились копейки.
+        penaltyAmount = Math.round(workPrice * PENALTY_RATE_AFTER_TRANSIT / 1000) * 1000;
+      }
+      // На ACCEPTED штрафа нет — намеренно.
     }
 
     // ─── Атомарная транзакция: отмена + возврат эскроу + штраф ────
@@ -1445,6 +1475,26 @@ export class OrdersService {
           ]);
         }
       }
+
+      // 4. Дисциплина мастера: предупреждение за отмену после выезда.
+      //    Делаем внутри той же транзакции, чтобы счётчик и блок были
+      //    консистентны со списанием штрафа и возвратом эскроу.
+      if (isMaster && penaltyAmount > 0) {
+        const res = await issueMasterWarning(
+          {
+            userId,
+            orderId,
+            reason: 'CANCEL_AFTER_TRANSIT',
+            penaltyAmount,
+          },
+          tx as any,
+        );
+        masterWarning = {
+          warningNo: res.warningNo,
+          threshold: res.threshold,
+          blockedUntil: res.blockedUntil,
+        };
+      }
     });
 
     logger.info({ orderId, userId, cancelledBy, penaltyAmount }, 'Заказ отменён');
@@ -1463,7 +1513,7 @@ export class OrdersService {
     // Fraud-скан того, кто отменил (мастер с серией отмен = красный флаг)
     void safeScanFraud(userId);
 
-    return { orderId, cancelledBy, penaltyAmount, reason };
+    return { orderId, cancelledBy, penaltyAmount, reason, warning: masterWarning };
   }
 
   /**
