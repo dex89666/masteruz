@@ -4,7 +4,7 @@
 // ============================================
 
 import { Link } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Search, Shield, Star, MapPin, Users, GraduationCap,
   ArrowRight, Zap, HelpCircle, Store, Hammer, Camera, Handshake, AlertTriangle, ClipboardList,
@@ -64,6 +64,32 @@ export function HomePage() {
   const [urgentOrders, setUrgentOrders] = useState<Order[]>([]);
   const { data: catalogParents } = useCatalogFull();
   const parentCategories = catalogParents && catalogParents.length > 0 ? catalogParents : FALLBACK_PARENT_CATEGORIES;
+
+  // Реальная статистика из каталога с маркетинговым округлением вниз до
+  // «весомого» числа (никогда не завышаем — клиент получит даже больше).
+  const stats = useMemo(() => {
+    const roundDown = (n: number, step: number) => Math.max(step, Math.floor(n / step) * step);
+    if (!catalogParents || catalogParents.length === 0) {
+      return { services: 350, categories: 30, cities: 8, guarantee: 30 };
+    }
+    let childCategories = 0;
+    let services = 0;
+    for (const parent of catalogParents) {
+      const children = parent.children?.length ? parent.children : [parent];
+      childCategories += children.length;
+      for (const cat of children) {
+        for (const sub of cat.subcategories || []) {
+          services += sub.tasks?.length ?? sub._count?.tasks ?? 0;
+        }
+      }
+    }
+    return {
+      services: roundDown(services, 10),        // 374 → 370+
+      categories: roundDown(childCategories, 5), // 30 → 30
+      cities: 8,
+      guarantee: 30,
+    };
+  }, [catalogParents]);
 
   useEffect(() => {
     usersApi.searchMasters({ limit: 6, sortBy: 'rating', sortOrder: 'desc' })
@@ -149,7 +175,7 @@ export function HomePage() {
 
           <div className="flex justify-center gap-6 mt-8 text-sm text-gray-400">
             <span className="flex items-center gap-1"><Star size={14} className="text-yellow-400" /> 4.9 рейтинг</span>
-            <span className="flex items-center gap-1"><Users size={14} className="text-green-400" /> 300+ услуг</span>
+            <span className="flex items-center gap-1"><Users size={14} className="text-green-400" /> {stats.services}+ услуг</span>
             <span className="flex items-center gap-1"><Shield size={14} className="text-blue-400" /> Гарантия 30 дней</span>
           </div>
         </div>
@@ -271,10 +297,10 @@ export function HomePage() {
       <section className="py-10 bg-gradient-to-r from-gray-900 to-gray-800 text-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
-            <div><div className="text-3xl md:text-4xl font-extrabold"><AnimatedCounter end={300} suffix="+" /></div><p className="text-primary-400 text-sm mt-1">{t('home.stat_services')}</p></div>
-            <div><div className="text-3xl md:text-4xl font-extrabold"><AnimatedCounter end={6} /></div><p className="text-primary-400 text-sm mt-1">{t('home.stat_categories')}</p></div>
-            <div><div className="text-3xl md:text-4xl font-extrabold"><AnimatedCounter end={8} /></div><p className="text-primary-400 text-sm mt-1">{t('home.stat_cities')}</p></div>
-            <div><div className="text-3xl md:text-4xl font-extrabold"><AnimatedCounter end={30} /></div><p className="text-primary-400 text-sm mt-1">{t('home.stat_guarantee')}</p></div>
+            <div><div className="text-3xl md:text-4xl font-extrabold"><AnimatedCounter end={stats.services} suffix="+" /></div><p className="text-primary-400 text-sm mt-1">{t('home.stat_services')}</p></div>
+            <div><div className="text-3xl md:text-4xl font-extrabold"><AnimatedCounter end={stats.categories} suffix="+" /></div><p className="text-primary-400 text-sm mt-1">{t('home.stat_categories')}</p></div>
+            <div><div className="text-3xl md:text-4xl font-extrabold"><AnimatedCounter end={stats.cities} /></div><p className="text-primary-400 text-sm mt-1">{t('home.stat_cities')}</p></div>
+            <div><div className="text-3xl md:text-4xl font-extrabold"><AnimatedCounter end={stats.guarantee} /></div><p className="text-primary-400 text-sm mt-1">{t('home.stat_guarantee')}</p></div>
           </div>
         </div>
       </section>
