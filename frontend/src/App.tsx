@@ -4,15 +4,17 @@
 // ============================================
 
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
-import { Toaster } from 'react-hot-toast';
+import toast, { Toaster } from 'react-hot-toast';
+import { getErrorMessage, getStatus } from './lib/getErrorMessage';
 import { I18nProvider } from './i18n';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 import { Layout } from './components/Layout';
 import { ConsentGate } from './components/ConsentGate';
 import { UpdateChecker } from './components/UpdateChecker';
+import { PwaUpdatePrompt } from './components/PwaUpdatePrompt';
 import { GlobalConfirmDialog } from './components/GlobalConfirmDialog';
 import { GlobalPromptDialog } from './components/GlobalPromptDialog';
 import { useAppInit } from './hooks';
@@ -81,6 +83,24 @@ const DownloadAppPage = lazy(() => import('./pages/DownloadAppPage').then(m => (
 const PublicCalculatorPage = lazy(() => import('./pages/PublicCalculatorPage').then(m => ({ default: m.PublicCalculatorPage })));
 
 const queryClient = new QueryClient({
+  // Глобальная обработка ошибок: ни один сетевой сбой не остаётся «немым».
+  // Запросы: тост только при первой неудачной загрузке (данных ещё нет) —
+  // иначе у пользователя на экране уже есть данные, и фоновый сбой не трогаем.
+  // Мутации: тост, если у мутации нет собственного onError.
+  // 401 пропускаем — его обрабатывает интерсептор axios и ProtectedRoute.
+  queryCache: new QueryCache({
+    onError: (error, query) => {
+      if (query.meta?.silent || getStatus(error) === 401) return;
+      if (query.state.data !== undefined) return;
+      toast.error(getErrorMessage(error), { id: String(query.queryHash) });
+    },
+  }),
+  mutationCache: new MutationCache({
+    onError: (error, _vars, _ctx, mutation) => {
+      if (mutation.meta?.silent || mutation.options.onError || getStatus(error) === 401) return;
+      toast.error(getErrorMessage(error));
+    },
+  }),
   defaultOptions: {
     queries: {
       staleTime: 5 * 60 * 1000,
@@ -438,6 +458,7 @@ export default function App() {
           <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
             <AppContent />
             <UpdateChecker />
+            <PwaUpdatePrompt />
             <GlobalConfirmDialog />
             <GlobalPromptDialog />
             <Toaster

@@ -5,7 +5,7 @@
 
 // Версия кеша — обновляется при деплое (дата + инкрементное число)
 // При обновлении достаточно изменить CACHE_VERSION на новую дату
-const CACHE_VERSION = '2026-05-15-stars-geo';
+const CACHE_VERSION = '2026-05-31-update-prompt';
 const STATIC_CACHE = `masteruz-static-${CACHE_VERSION}`;
 const API_CACHE = `masteruz-api-${CACHE_VERSION}`;
 const IMAGE_CACHE = `masteruz-images-${CACHE_VERSION}`;
@@ -27,7 +27,16 @@ self.addEventListener('install', (event) => {
       return cache.addAll(STATIC_ASSETS);
     })
   );
-  self.skipWaiting();
+  // НЕ вызываем skipWaiting автоматически: новый воркер уходит в waiting,
+  // а UI показывает баннер «Доступно обновление». Активация — по команде
+  // пользователя (postMessage SKIP_WAITING из PwaUpdatePrompt).
+});
+
+// Команда от страницы: применить обновление немедленно.
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
 
 // Activate event — clean old caches
