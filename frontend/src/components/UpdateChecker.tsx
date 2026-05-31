@@ -5,7 +5,7 @@
 // На web и в Telegram WebView ничего не показывает (обновления — автоматически).
 // ============================================
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Download, X } from 'lucide-react';
 import { api } from '../api/client';
 import { useInstalledAppInfo } from '../hooks/useInstalledAppInfo';
@@ -24,40 +24,52 @@ interface VersionResponse {
   data: { android: RemoteVersion | null; ios: RemoteVersion | null };
 }
 
-const DISMISS_KEY = 'mu:update-dismissed-code';
+// Эскалация «Позже»: с каждым отказом напоминание приходит чаще.
+const SNOOZE_STEPS_MS = [30, 15, 10, 5, 3].map((m) => m * 60 * 1000);
+const RECHECK_INTERVAL_MS = 15 * 60 * 1000; // фоновая перепроверка версии
 
 export function UpdateChecker() {
   const installed = useInstalledAppInfo();
   const [latest, setLatest] = useState<RemoteVersion | null>(null);
-  const [dismissed, setDismissed] = useState(false);
+  const [visible, setVisible] = useState(false);
+  const snoozeIndexRef = useRef(0);
+  const snoozeTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!installed) return;
     let cancelled = false;
 
-    api
-      .get<VersionResponse>('/app/version')
-      .then(({ data }) => {
-        if (cancelled) return;
-        const remote = installed.platform === 'android' ? data.data.android : data.data.ios;
-        if (!remote) return;
-        setLatest(remote);
+    const checkVersion = () => {
+      api
+        .get<VersionResponse>('/app/version')
+        .then(({ data }) => {
+          if (cancelled) return;
+          const remote = installed.platform === 'android' ? data.data.android : data.data.ios;
+          if (!remote) return;
+          setLatest(remote);
+          // Показываем баннер, если на сервере версия новее установленной.
+          if (remote.versionCode > installed.versionCode) setVisible(true);
+        })
+        .catch(() => {
+          /* сеть могла отвалиться — это не повод тревожить пользователя */
+        });
+    };
 
-        const dismissedCode = Number(localStorage.getItem(DISMISS_KEY) ?? '0');
-        if (dismissedCode >= remote.versionCode) setDismissed(true);
-      })
-      .catch(() => {
-        /* сеть могла отвалиться — это не повод тревожить пользователя */
-      });
+    checkVersion();
+    const interval = window.setInterval(checkVersion, RECHECK_INTERVAL_MS);
 
     return () => {
       cancelled = true;
+      window.clearInterval(interval);
     };
   }, [installed]);
 
-  if (!installed || !latest) return null;
+  useEffect(() => () => {
+    if (snoozeTimerRef.current) window.clearTimeout(snoozeTimerRef.current);
+  }, []);
+
+  if (!installed || !latest || !visible) return null;
   if (latest.versionCode <= installed.versionCode) return null;
-  if (dismissed && !latest.mandatory) return null;
 
   const handleUpdate = () => {
     // На native платформах _system заставляет Capacitor открыть ссылку
@@ -67,8 +79,13 @@ export function UpdateChecker() {
 
   const handleDismiss = () => {
     if (latest.mandatory) return;
-    localStorage.setItem(DISMISS_KEY, String(latest.versionCode));
-    setDismissed(true);
+    setVisible(false);
+    // Каждый отказ сокращает паузу до следующего напоминания.
+    const idx = Math.min(snoozeIndexRef.current, SNOOZE_STEPS_MS.length - 1);
+    const delay = SNOOZE_STEPS_MS[idx];
+    snoozeIndexRef.current = idx + 1;
+    if (snoozeTimerRef.current) window.clearTimeout(snoozeTimerRef.current);
+    snoozeTimerRef.current = window.setTimeout(() => setVisible(true), delay);
   };
 
   return (
