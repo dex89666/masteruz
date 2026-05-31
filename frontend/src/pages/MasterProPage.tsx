@@ -19,6 +19,7 @@ import {
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { Breadcrumbs } from '../components/Breadcrumbs';
 import { useFormatPrice } from '../hooks';
+import { confirm } from '../store/confirmStore';
 
 const PLAN_PERKS = [
   { icon: TrendingUp, key: 'Топ-выдача в рассылке заказов (+15 к рангу)' },
@@ -83,7 +84,12 @@ export function MasterProPage() {
       toast.error('Недостаточно средств на балансе. Сначала пополните кошелёк.');
       return;
     }
-    if (!confirm(`Купить «${plan.label}» за ${formatPrice(plan.priceSum)} с баланса?`)) return;
+    if (!(await confirm({
+      title: 'Покупка PRO',
+      message: `Купить «${plan.label}» за ${formatPrice(plan.priceSum)} с баланса?`,
+      confirmText: 'Купить',
+      variant: 'info',
+    }))) return;
     setBuying(plan.plan);
     try {
       await subscriptionsApi.purchaseFromBalance(plan.plan);

@@ -10,7 +10,7 @@ import { useAuthStore } from '../store';
 import { useTranslation } from '../i18n';
 import { resolveImageUrl } from '../lib/imageUrl';
 import { useFormatPrice } from '../hooks';
-import { useConfirm } from '../hooks/useConfirm';
+import { confirm, prompt } from '../store/confirmStore';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { EmptyState } from '../components/EmptyState';
 import { StatusBadge } from '../components/StatusBadge';
@@ -103,7 +103,6 @@ export function AdminDashboardPage() {
   const { user } = useAuthStore();
   const { t } = useTranslation();
   const formatPrice = useFormatPrice();
-  const { confirm, confirmDialog } = useConfirm();
 
   const [tab, setTab] = useState<AdminTab>('overview');
   const [loading, setLoading] = useState(true);
@@ -2377,8 +2376,12 @@ export function AdminDashboardPage() {
                         <CheckCircle size={16} /> Одобрить
                       </button>
                       <button
-                        onClick={() => {
-                          const note = prompt('Что нужно исправить?', 'Уточните описание или добавьте фото');
+                        onClick={async () => {
+                          const note = await prompt({
+                            title: 'На доработку',
+                            message: 'Что нужно исправить?',
+                            defaultValue: 'Уточните описание или добавьте фото',
+                          });
                           if (note !== null) handleModerateAiOrder(order.id, false, 'На доработку: ' + (note || 'Требуется уточнение'));
                         }}
                         className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-1.5 transition"
@@ -2386,8 +2389,12 @@ export function AdminDashboardPage() {
                         <RefreshCw size={16} /> На доработку
                       </button>
                       <button
-                        onClick={() => {
-                          const note = prompt('Причина отклонения:', 'Не соответствует требованиям');
+                        onClick={async () => {
+                          const note = await prompt({
+                            title: 'Отклонить заказ',
+                            message: 'Причина отклонения:',
+                            defaultValue: 'Не соответствует требованиям',
+                          });
                           if (note !== null) handleModerateAiOrder(order.id, false, note || 'Отклонено модератором');
                         }}
                         className="py-2.5 px-4 bg-red-500 hover:bg-red-600 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-1.5 transition"
@@ -3658,7 +3665,6 @@ export function AdminDashboardPage() {
           onRefresh={() => openNotifyDiag(notifyOrder)}
         />
       )}
-      {confirmDialog}
     </div>
   );
 }

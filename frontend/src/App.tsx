@@ -13,6 +13,8 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { Layout } from './components/Layout';
 import { ConsentGate } from './components/ConsentGate';
 import { UpdateChecker } from './components/UpdateChecker';
+import { GlobalConfirmDialog } from './components/GlobalConfirmDialog';
+import { GlobalPromptDialog } from './components/GlobalPromptDialog';
 import { useAppInit } from './hooks';
 import { useTelegramDeepLinkAuth } from './hooks/useTelegramDeepLinkAuth';
 import { trackPageView } from './lib/analytics';
@@ -436,6 +438,8 @@ export default function App() {
           <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
             <AppContent />
             <UpdateChecker />
+            <GlobalConfirmDialog />
+            <GlobalPromptDialog />
             <Toaster
               position="top-center"
               toastOptions={{

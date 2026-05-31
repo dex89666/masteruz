@@ -8,6 +8,7 @@ import { useTranslation } from '../i18n';
 import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../store';
 import { useFormatPrice } from '../hooks';
+import { confirm } from '../store/confirmStore';
 import { ArrowLeft, ShoppingCart, Plus, Minus, Trash2, ChevronRight, MapPin, FileText, AlertCircle, Zap } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { CartItem } from '../store/cartStore';
@@ -129,8 +130,13 @@ export function CartPage() {
           </div>
         </div>
         <button
-          onClick={() => {
-            if (confirm(t('cart.clearConfirm'))) clearCart();
+          onClick={async () => {
+            if (await confirm({
+              title: t('cart.clear'),
+              message: t('cart.clearConfirm'),
+              confirmText: t('common.confirm'),
+              variant: 'danger',
+            })) clearCart();
           }}
           className="text-red-500 hover:text-red-600 text-sm font-medium flex items-center gap-1"
         >

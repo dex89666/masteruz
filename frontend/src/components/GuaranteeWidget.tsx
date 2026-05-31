@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react';
 import { ShieldCheck, Clock, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { guaranteesApi } from '../api/client';
 import { useTranslation } from '../i18n';
+import { confirm } from '../store/confirmStore';
 import toast from 'react-hot-toast';
 import type { Guarantee } from '../types';
 
@@ -46,7 +47,12 @@ export function GuaranteeWidget({ orderId, orderStatus, isClient, isMaster }: Gu
   }
 
   async function handleClaim() {
-    if (!confirm(t('guarantee.confirmClaim'))) return;
+    if (!(await confirm({
+      title: t('guarantee.claim'),
+      message: t('guarantee.confirmClaim'),
+      confirmText: t('common.confirm'),
+      variant: 'danger',
+    }))) return;
     try {
       const res = await guaranteesApi.claim(orderId);
       setGuarantee(res.data.data);

@@ -7,6 +7,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Crown, Plus, Clock, X, Search, Loader2, Check } from 'lucide-react';
 import { adminApi } from '../api/client';
+import { confirm, prompt } from '../store/confirmStore';
+import toast from 'react-hot-toast';
 
 interface SubRow {
   id: string;
@@ -102,27 +104,37 @@ export function AdminSubscriptionsPage() {
   }, [page, plan, status, search]);
 
   async function handleExtend(row: SubRow) {
-    const raw = window.prompt(`Продлить «${fullName(row)}» на сколько дней?`, '30');
+    const raw = await prompt({
+      title: 'Продлить подписку',
+      message: `На сколько дней продлить «${fullName(row)}»?`,
+      defaultValue: '30',
+      placeholder: '30',
+    });
     if (!raw) return;
     const days = Number(raw);
     if (!Number.isFinite(days) || days <= 0) return;
-    const reason = window.prompt('Причина (необязательно):') || undefined;
+    const reason = (await prompt({ title: 'Причина', message: 'Необязательно', placeholder: 'Причина продления' })) || undefined;
     try {
       await adminApi.extendSubscription(row.id, days, reason);
       await load();
     } catch (err: any) {
-      alert(err?.response?.data?.error?.message || 'Не удалось продлить');
+      toast.error(err?.response?.data?.error?.message || 'Не удалось продлить');
     }
   }
 
   async function handleCancel(row: SubRow) {
-    if (!window.confirm(`Отменить подписку «${fullName(row)}»? Возврат средств не выполняется.`)) return;
-    const reason = window.prompt('Причина отмены:') || undefined;
+    if (!(await confirm({
+      title: 'Отменить подписку',
+      message: `Отменить подписку «${fullName(row)}»? Возврат средств не выполняется.`,
+      confirmText: 'Отменить',
+      variant: 'danger',
+    }))) return;
+    const reason = (await prompt({ title: 'Причина отмены', placeholder: 'Причина' })) || undefined;
     try {
       await adminApi.cancelSubscription(row.id, reason);
       await load();
     } catch (err: any) {
-      alert(err?.response?.data?.error?.message || 'Не удалось отменить');
+      toast.error(err?.response?.data?.error?.message || 'Не удалось отменить');
     }
   }
 

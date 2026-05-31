@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { cardsApi } from '../api/client';
 import { useTranslation } from '../i18n';
+import { confirm } from '../store/confirmStore';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import {
   ArrowLeft, CreditCard, Plus, Trash2, Star, CheckCircle, AlertCircle,
@@ -111,7 +112,12 @@ export function LinkedCardsPage() {
   }
 
   async function handleRemove(id: string) {
-    if (!confirm(t('cards.confirmRemove'))) return;
+    if (!(await confirm({
+      title: t('cards.remove'),
+      message: t('cards.confirmRemove'),
+      confirmText: t('common.confirm'),
+      variant: 'danger',
+    }))) return;
     try {
       await cardsApi.remove(id);
       toast.success(t('cards.removed'));
