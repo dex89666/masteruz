@@ -14,6 +14,7 @@ vi.mock('../../src/config/database.js', () => {
     findFirst: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
+    updateMany: vi.fn(),
   };
   const mockOrder = { findUnique: vi.fn(), update: vi.fn() };
   const mockMasterProfile = { findUnique: vi.fn(), update: vi.fn() };
@@ -86,9 +87,10 @@ describe('Telegram Stars — P0 верификация', () => {
   };
 
   it('успешный платёж → COMPLETED + аудит', async () => {
-    db.payment.findUnique.mockResolvedValueOnce(validPayment);
+    db.payment.findUnique.mockResolvedValueOnce(validPayment); // existing
     db.payment.findFirst.mockResolvedValueOnce(null); // нет дубликата
-    db.payment.update.mockResolvedValueOnce({ ...validPayment, status: 'COMPLETED', providerTxId: 'tg-tx-1' });
+    db.payment.updateMany.mockResolvedValueOnce({ count: 1 }); // атомарный захват
+    db.payment.findUnique.mockResolvedValueOnce({ ...validPayment, status: 'COMPLETED', providerTxId: 'tg-tx-1' }); // payment после claim
     // onPaymentCompleted → findUnique для type
     db.payment.findUnique.mockResolvedValueOnce({ type: 'BALANCE_TOPUP' });
     // onBalanceTopUpPaid → findUnique для суммы
@@ -297,8 +299,8 @@ describe('Payme webhook — методы', () => {
   });
 
   it('PerformTransaction → COMPLETED + аудит', async () => {
-    db.payment.findUnique.mockResolvedValueOnce({ id: 'pay-1', status: 'PROCESSING', userId: 'u1' }); // проверка идемпотентности
-    db.payment.update.mockResolvedValueOnce({ id: 'pay-1', status: 'COMPLETED', userId: 'u1', amount: 50000, type: 'BALANCE_TOPUP' });
+    db.payment.findUnique.mockResolvedValueOnce({ id: 'pay-1', status: 'PROCESSING', userId: 'u1', amount: 50000, type: 'BALANCE_TOPUP' }); // existing
+    db.payment.updateMany.mockResolvedValueOnce({ count: 1 }); // атомарный захват
     // onPaymentCompleted chain
     db.payment.findUnique
       .mockResolvedValueOnce({ type: 'BALANCE_TOPUP' })

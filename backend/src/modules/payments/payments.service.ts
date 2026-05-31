@@ -336,13 +336,19 @@ export class PaymentsService {
     }
 
     if (clickError === '0') {
-      await prisma.payment.update({
-        where: { id: payment.id },
+      // Атомарный захват: переводим в COMPLETED только если ещё не завершён.
+      // Защищает от двойного зачисления при параллельных ретраях webhook.
+      const claimed = await prisma.payment.updateMany({
+        where: { id: payment.id, status: { not: PaymentStatus.COMPLETED } },
         data: {
           status: PaymentStatus.COMPLETED,
           providerTxId: String(click_trans_id),
         },
       });
+      if (claimed.count === 0) {
+        logger.info({ paymentId: payment.id }, 'Click webhook: платёж уже обработан (гонка), пропуск зачисления');
+        return { success: true };
+      }
 
       logger.info({ paymentId: payment.id }, 'Click платёж подтверждён');
 
@@ -440,11 +446,23 @@ export class PaymentsService {
             result: { perform_time: Date.now(), transaction: existing.id, state: 2 },
           };
         }
+        if (!existing) {
+          return { error: { code: -31003, message: 'Транзакция не найдена' } };
+        }
 
-        const payment = await prisma.payment.update({
-          where: { providerTxId: params.id },
+        // Атомарный захват: переводим в COMPLETED только если ещё не завершён.
+        // Защищает от двойного зачисления при параллельных ретраях Payme.
+        const claimed = await prisma.payment.updateMany({
+          where: { providerTxId: params.id, status: { not: PaymentStatus.COMPLETED } },
           data: { status: PaymentStatus.COMPLETED },
         });
+        if (claimed.count === 0) {
+          logger.info({ paymentId: existing.id }, 'Payme PerformTransaction: гонка, платёж уже завершён');
+          return {
+            result: { perform_time: Date.now(), transaction: existing.id, state: 2 },
+          };
+        }
+        const payment = existing;
 
         logger.info({ paymentId: payment.id }, 'Payme платёж подтверждён');
 
@@ -557,13 +575,21 @@ export class PaymentsService {
       throw ApiError.conflict('Этот платёж Telegram Stars уже использован');
     }
 
-    const payment = await prisma.payment.update({
-      where: { id: paymentId },
+    // Атомарный захват: переводим PENDING → COMPLETED одним условным апдейтом.
+    // Если параллельный вызов уже завершил платёж — count=0, зачисления не будет.
+    const claimed = await prisma.payment.updateMany({
+      where: { id: paymentId, status: PaymentStatus.PENDING },
       data: {
         status: PaymentStatus.COMPLETED,
         providerTxId: telegramPaymentId,
       },
     });
+    if (claimed.count === 0) {
+      logger.info({ paymentId }, 'Telegram Stars: платёж уже обработан (гонка), пропуск');
+      return prisma.payment.findUnique({ where: { id: paymentId } }) as any;
+    }
+
+    const payment = await prisma.payment.findUnique({ where: { id: paymentId } }) as NonNullable<Awaited<ReturnType<typeof prisma.payment.findUnique>>>;
 
     logger.info({ paymentId: payment.id, userId }, 'Telegram Stars платёж подтверждён');
 
