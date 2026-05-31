@@ -265,10 +265,17 @@ class SubscriptionService {
         );
       }
 
-      await tx.user.update({
-        where: { id: args.masterId },
+      // Атомарное списание: при гонке двух покупок баланс не уйдёт в минус —
+      // updateMany спишет только если средств всё ещё достаточно.
+      const charged = await tx.user.updateMany({
+        where: { id: args.masterId, balance: { gte: def.priceSum } },
         data: { balance: { decrement: def.priceSum } },
       });
+      if (charged.count === 0) {
+        throw new Error(
+          `Недостаточно средств. Нужно: ${def.priceSum.toLocaleString('ru-RU')} сум`,
+        );
+      }
 
       return tx.payment.create({
         data: {

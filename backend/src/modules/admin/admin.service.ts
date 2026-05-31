@@ -331,25 +331,33 @@ export class AdminService {
 
     await prisma.$transaction(async (tx) => {
       if (shouldRefund) {
-        const client = await tx.user.findUnique({
-          where: { id: order.clientId },
-          select: { balance: true },
+        // Атомарный захват эскроу: возвращаем только если ещё не обработан,
+        // чтобы гонка с авто-отменой/финализацией не дала двойной возврат.
+        const claimed = await tx.order.updateMany({
+          where: { id: orderId, escrowAmount: { gt: 0 } },
+          data: { escrowAmount: 0 },
         });
-        if (client) {
-          const before = toNum(client.balance);
-          const after = moneyAdd(before, escrow);
-          await tx.user.update({ where: { id: order.clientId }, data: { balance: after } });
-          await tx.balanceTransaction.create({
-            data: {
-              userId: order.clientId,
-              type: 'REFUND',
-              amount: escrow,
-              balanceBefore: before,
-              balanceAfter: after,
-              orderId,
-              description: 'Возврат депозита: заказ удалён администратором',
-            },
+        if (claimed.count > 0) {
+          const client = await tx.user.findUnique({
+            where: { id: order.clientId },
+            select: { balance: true },
           });
+          if (client) {
+            const before = toNum(client.balance);
+            const after = moneyAdd(before, escrow);
+            await tx.user.update({ where: { id: order.clientId }, data: { balance: after } });
+            await tx.balanceTransaction.create({
+              data: {
+                userId: order.clientId,
+                type: 'REFUND',
+                amount: escrow,
+                balanceBefore: before,
+                balanceAfter: after,
+                orderId,
+                description: 'Возврат депозита: заказ удалён администратором',
+              },
+            });
+          }
         }
       }
 

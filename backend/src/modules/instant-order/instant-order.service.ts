@@ -1306,19 +1306,21 @@ export class InstantOrderService {
 
       logger.info({ orderId, moderatorId }, 'AI-заказ одобрен модератором');
     } else {
-      // Отклонён — возвращаем средства
-      await prisma.order.update({
-        where: { id: orderId },
+      // Отклонён — атомарно переводим в CANCELLED только из статуса MODERATION,
+      // чтобы повторная модерация не вернула эскроу дважды.
+      const claimed = await prisma.order.updateMany({
+        where: { id: orderId, status: OrderStatus.MODERATION },
         data: {
           status: OrderStatus.CANCELLED,
           cancelReason: note || 'Отклонено модератором',
           cancelledBy: moderatorId,
           cancelledAt: new Date(),
+          escrowAmount: 0,
         },
       });
 
-      // Возвращаем эскроу (возврат клиенту напрямую)
-      if (toNum(order.escrowAmount) > 0) {
+      // Возвращаем эскроу клиенту только если именно мы захватили заказ
+      if (claimed.count > 0 && toNum(order.escrowAmount) > 0) {
         await prisma.user.update({
           where: { id: order.clientId },
           data: { balance: { increment: toNum(order.escrowAmount) } },

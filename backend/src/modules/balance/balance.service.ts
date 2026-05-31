@@ -183,25 +183,31 @@ export class BalanceService {
       const balanceBefore = bal;
       const balanceAfter = moneySub(balanceBefore, amount);
 
-      const [updatedUser, transaction] = await Promise.all([
-        tx.user.update({
-          where: { id: userId },
-          data: { balance: balanceAfter },
-        }),
-        tx.balanceTransaction.create({
-          data: {
-            userId,
-            type: TxType.ESCROW_HOLD,
-            amount: -amount,
-            balanceBefore,
-            balanceAfter,
-            orderId,
-            description: `Блокировка средств по заказу`,
-          },
-        }),
-      ]);
+      // Атомарное списание: при гонке двух заказов баланс не уйдёт в минус —
+      // updateMany заблокирует средства только если их всё ещё достаточно.
+      const charged = await tx.user.updateMany({
+        where: { id: userId, balance: { gte: amount } },
+        data: { balance: { decrement: amount } },
+      });
+      if (charged.count === 0) {
+        throw ApiError.badRequest(
+          `Недостаточно средств. Нужно: ${amount.toLocaleString('ru')} сум`
+        );
+      }
 
-      return { balance: toNum(updatedUser.balance), transaction };
+      const transaction = await tx.balanceTransaction.create({
+        data: {
+          userId,
+          type: TxType.ESCROW_HOLD,
+          amount: -amount,
+          balanceBefore,
+          balanceAfter,
+          orderId,
+          description: `Блокировка средств по заказу`,
+        },
+      });
+
+      return { balance: balanceAfter, transaction };
     });
 
     logger.info({ userId, amount, orderId }, 'Средства заблокированы (эскроу)');
@@ -230,6 +236,17 @@ export class BalanceService {
     const masterPayout = moneySub(escrow, commission);
 
     const result = await prisma.$transaction(async (tx: PrismaTx) => {
+      // Атомарный захват эскроу: обнуляем и помечаем commissionPaid только если
+      // ещё не выплачено. При гонке повторная выплата мастеру предотвращена.
+      const claimed = await tx.order.updateMany({
+        where: { id: orderId, escrowAmount: { gt: 0 } },
+        data: { escrowAmount: 0, commissionPaid: true },
+      });
+      if (claimed.count === 0) {
+        logger.warn({ orderId }, 'releaseFunds: эскроу уже обработан — повторная выплата предотвращена');
+        return { skipped: true as const };
+      }
+
       // Начисляем мастеру
       const master = await tx.user.findUnique({
         where: { id: order.masterId! },
@@ -269,15 +286,12 @@ export class BalanceService {
             description: `Комиссия платформы (${commission} сум)`,
           },
         }),
-        // Обнуляем эскроу на заказе
-        tx.order.update({
-          where: { id: orderId },
-          data: { escrowAmount: 0, commissionPaid: true },
-        }),
       ]);
 
-      return { masterPayout, commission };
+      return { masterPayout, commission, skipped: false as const };
     });
+
+    if (result.skipped) return { masterPayout: 0, commission: 0 };
 
     logger.info({ orderId, masterPayout, commission }, 'Средства переведены мастеру');
     return result;
@@ -297,6 +311,17 @@ export class BalanceService {
     if (escrowAmt <= 0) return;
 
     await prisma.$transaction(async (tx: PrismaTx) => {
+      // Атомарный захват эскроу: обнуляем только если ещё > 0.
+      // При гонке (авто-отмена + ручная отмена) повторный возврат предотвращён.
+      const claimed = await tx.order.updateMany({
+        where: { id: orderId, escrowAmount: { gt: 0 } },
+        data: { escrowAmount: 0 },
+      });
+      if (claimed.count === 0) {
+        logger.warn({ orderId }, 'refundFunds: эскроу уже обработан — повторный возврат предотвращён');
+        return;
+      }
+
       const client = await tx.user.findUnique({
         where: { id: order.clientId },
         select: { balance: true },
@@ -321,10 +346,6 @@ export class BalanceService {
             orderId,
             description: 'Возврат средств при отмене заказа',
           },
-        }),
-        tx.order.update({
-          where: { id: orderId },
-          data: { escrowAmount: 0 },
         }),
       ]);
     });

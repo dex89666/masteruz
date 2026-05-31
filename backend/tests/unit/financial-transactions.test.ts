@@ -110,7 +110,10 @@ describe('Финансовые операции — Атомарность ($tra
 
       mockPrisma.$transaction.mockImplementation(async (fn: any) => {
         const tx = {
-          order: { update: vi.fn().mockResolvedValue({ id: 'order1', status: 'COMPLETED' }) },
+          order: {
+            update: vi.fn().mockResolvedValue({ id: 'order1', status: 'COMPLETED' }),
+            updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+          },
           user: { update: vi.fn(), findUnique: vi.fn().mockResolvedValue({ balance: 0 }) },
           balanceTransaction: { create: vi.fn() },
           masterProfile: { update: vi.fn() },

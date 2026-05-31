@@ -1059,9 +1059,13 @@ export class OrdersService {
     const commission = toNum(order.commissionAmount);
     const masterPayout = moneySub(escrow, commission);
 
-    await prisma.$transaction(async (tx) => {
-      await tx.order.update({
-        where: { id: orderId },
+    const payout = await prisma.$transaction(async (tx) => {
+      // Атомарный захват: переводим в COMPLETED только если заказ ещё не завершён.
+      // updateMany по условию берёт блокировку строки — при гонке (таймер
+      // авто-подтверждения + ручное подтверждение) ровно один вызов «выиграет»,
+      // остальные получат count=0 и НЕ выплатят мастеру повторно.
+      const claimed = await tx.order.updateMany({
+        where: { id: orderId, status: { not: OrderStatus.COMPLETED } },
         data: {
           status: OrderStatus.COMPLETED,
           completedAt: new Date(),
@@ -1069,6 +1073,10 @@ export class OrdersService {
           commissionPaid: true,
         },
       });
+      if (claimed.count === 0) {
+        logger.warn({ orderId }, 'payoutAndComplete: заказ уже завершён — повторная выплата предотвращена');
+        return { skipped: true };
+      }
 
       if (escrow > 0) {
         const master = await tx.user.findUnique({
@@ -1114,7 +1122,13 @@ export class OrdersService {
         where: { userId: order.masterId! },
         data: { completedOrders: { increment: 1 } },
       });
+
+      return { skipped: false };
     });
+
+    if (payout.skipped) {
+      return { orderId, status: 'COMPLETED', alreadyFinalized: true };
+    }
 
     logger.info({ orderId, masterPayout, commission }, 'Заказ финализирован, средства переведены');
 
