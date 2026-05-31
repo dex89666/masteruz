@@ -56,6 +56,8 @@
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Установка обновления APK прямо из приложения (one-tap апгрейд) -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <!-- Геолокация (Capacitor Geolocation) -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />

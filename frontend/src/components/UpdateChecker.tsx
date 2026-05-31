@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Download, X } from 'lucide-react';
 import { api } from '../api/client';
 import { useInstalledAppInfo } from '../hooks/useInstalledAppInfo';
+import { downloadAndInstallApk } from '../lib/apkUpdater';
 
 interface RemoteVersion {
   versionCode: number;
@@ -32,6 +33,7 @@ export function UpdateChecker() {
   const installed = useInstalledAppInfo();
   const [latest, setLatest] = useState<RemoteVersion | null>(null);
   const [visible, setVisible] = useState(false);
+  const [progress, setProgress] = useState<number | null>(null);
   const snoozeIndexRef = useRef(0);
   const snoozeTimerRef = useRef<number | null>(null);
 
@@ -71,10 +73,28 @@ export function UpdateChecker() {
   if (!installed || !latest || !visible) return null;
   if (latest.versionCode <= installed.versionCode) return null;
 
-  const handleUpdate = () => {
-    // На native платформах _system заставляет Capacitor открыть ссылку
-    // во внешнем браузере, чтобы пользователь смог скачать APK.
+  const openInBrowser = () => {
+    // Fallback: внешний браузер скачает APK, пользователь установит вручную.
     window.open(latest.downloadUrl, '_system', 'noopener,noreferrer');
+  };
+
+  const handleUpdate = async () => {
+    if (progress !== null) return; // уже качаем
+    // Android: скачиваем APK прямо в приложении и открываем установщик.
+    // iOS и любой сбой — откатываемся на браузер.
+    if (installed.platform !== 'android') {
+      openInBrowser();
+      return;
+    }
+    setProgress(0);
+    try {
+      await downloadAndInstallApk(latest.downloadUrl, setProgress);
+      // Установщик открыт — оставляем баннер на случай отмены установки.
+      setProgress(null);
+    } catch {
+      setProgress(null);
+      openInBrowser();
+    }
   };
 
   const handleDismiss = () => {
@@ -129,15 +149,34 @@ export function UpdateChecker() {
           </p>
         )}
 
+        <p className="mt-3 text-xs text-slate-400 dark:text-slate-500">
+          Удалять старое приложение не нужно — вход и данные сохранятся.
+        </p>
+
+        {progress !== null && (
+          <div className="mt-4">
+            <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
+              <div
+                className="h-full rounded-full bg-emerald-500 transition-[width] duration-200"
+                style={{ width: `${Math.round(progress * 100)}%` }}
+              />
+            </div>
+            <p className="mt-2 text-center text-sm text-slate-500 dark:text-slate-400">
+              Загрузка… {Math.round(progress * 100)}%
+            </p>
+          </div>
+        )}
+
         <div className="mt-6 flex flex-col gap-2 sm:flex-row-reverse">
           <button
             type="button"
             onClick={handleUpdate}
-            className="flex-1 rounded-2xl bg-emerald-500 px-5 py-3 text-base font-semibold text-white shadow-lg shadow-emerald-500/30 transition active:scale-[0.98] hover:bg-emerald-600"
+            disabled={progress !== null}
+            className="flex-1 rounded-2xl bg-emerald-500 px-5 py-3 text-base font-semibold text-white shadow-lg shadow-emerald-500/30 transition active:scale-[0.98] hover:bg-emerald-600 disabled:opacity-60"
           >
-            Обновить сейчас
+            {progress !== null ? 'Загрузка…' : 'Обновить сейчас'}
           </button>
-          {!latest.mandatory && (
+          {!latest.mandatory && progress === null && (
             <button
               type="button"
               onClick={handleDismiss}
