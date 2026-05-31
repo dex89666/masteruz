@@ -30,8 +30,7 @@ function withAutoCancelAt<T extends { status: OrderStatus; masterId: string | nu
 }
 
 // ─── Конфиг штрафов ─────────────────────────
-const PENALTY_AFTER_ACCEPT = 20000;   // Штраф за отмену после принятия (20 000 сум)
-const PENALTY_AFTER_TRANSIT = 30000;  // Штраф за отмену после «мастер в пути» (30 000 сум)
+const PENALTY_AFTER_TRANSIT = 30000;  // Штраф клиенту за отмену после «мастер в пути» (30 000 сум)
 const AUTO_CONFIRM_TIMEOUT_MS = 60 * 60 * 1000; // 1 час — авто-подтверждение клиентом
 
 /**
@@ -1389,8 +1388,12 @@ export class OrdersService {
 
     if (isClient) {
       switch (order.status) {
+        // PUBLISHED и ACCEPTED — отмена без штрафа: мастер ещё не выехал,
+        // контакты клиента ему не открыты, никто не «закоммитился».
+        // Штраф появляется только когда мастер реально выехал (IN_TRANSIT),
+        // т.к. с этого момента у него открыты телефон/адрес клиента.
         case OrderStatus.PUBLISHED: penaltyAmount = 0; break;
-        case OrderStatus.ACCEPTED: penaltyAmount = PENALTY_AFTER_ACCEPT; break;
+        case OrderStatus.ACCEPTED: penaltyAmount = 0; break;
         case OrderStatus.IN_TRANSIT:
         case OrderStatus.IN_PROGRESS: penaltyAmount = PENALTY_AFTER_TRANSIT; break;
         default: penaltyAmount = 0;

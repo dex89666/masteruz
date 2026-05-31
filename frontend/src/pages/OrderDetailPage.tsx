@@ -380,7 +380,9 @@ export function OrderDetailPage() {
     if (isOwnerCancel) {
       switch (order.status) {
         case 'PUBLISHED': return { amount: 0, level: 'free' };
-        case 'ACCEPTED': return { amount: 20000, level: 'warning' };
+        // ACCEPTED — мастер только принял, но ещё не выехал: контакты ему
+        // не открыты. Отмена клиентом бесплатна, как и у мастера на этой стадии.
+        case 'ACCEPTED': return { amount: 0, level: 'free' };
         case 'IN_TRANSIT':
         case 'IN_PROGRESS': return { amount: 30000, level: 'danger' };
         default: return { amount: 0, level: 'free' };
