@@ -34,6 +34,13 @@ const TIER_MULTIPLIERS: Record<string, { price: number; days: number; label: str
   BEST: { price: 1.3, days: 0.8, label: 'Премиум — максимум качества' },
 };
 
+// Минимальный выезд мастера в Ташкенте (2026): даже простая услуга «под ключ»
+// включает дорогу, инструмент, расходники и гарантию. Без этого голая ставка
+// работы (minPrice задачи) даёт нереально низкую цену вроде 42 000 сум.
+const MASTER_VISIT_FEE = 50_000;
+// Минимальный чек заказа — ниже этой суммы мастер на выезд не поедет.
+const MIN_VARIANT_PRICE = 90_000;
+
 // ─── Минимальная длина внятного описания ──────
 const MIN_CLEAR_DESCRIPTION_LEN = 25;
 
@@ -1839,7 +1846,12 @@ export class InstantOrderService {
       const workPrice = calculateWorkPrice(tasks);
       const materials = generateMaterials(tasks, tier);
       const materialsPrice = materials.reduce((sum: number, m: any) => sum + m.total, 0);
-      const estimatedPrice = Math.round(workPrice * TIER_MULTIPLIERS[tier].price + materialsPrice);
+      // Цена клиенту = выезд мастера + работа × коэффициент уровня + материалы,
+      // но не ниже минимального чека по рынку Ташкента.
+      const estimatedPrice = Math.max(
+        Math.round(MASTER_VISIT_FEE + workPrice * TIER_MULTIPLIERS[tier].price + materialsPrice),
+        MIN_VARIANT_PRICE,
+      );
 
       return {
         tier,

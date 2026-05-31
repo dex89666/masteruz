@@ -28,6 +28,19 @@ if (tgWebApp) {
   // Mark body as Telegram Mini App for CSS adjustments
   document.body.classList.add('tg-mini-app');
 
+  // Реальный отступ под нативную шапку Telegram. В обычном режиме Telegram
+  // сам рисует свой заголовок над WebView и возвращает 0 — поэтому жёсткий
+  // спейсер в 80px создавал лишнюю пустую полосу сверху. Берём фактический
+  // contentSafeAreaInset (в полноэкранном режиме — высота кнопок Telegram).
+  const applyTgSafeArea = () => {
+    const contentTop = tgWebApp.contentSafeAreaInset?.top ?? 0;
+    document.documentElement.style.setProperty('--tg-safe-top', `${contentTop}px`);
+  };
+  applyTgSafeArea();
+  tgWebApp.onEvent?.('contentSafeAreaChanged', applyTgSafeArea);
+  tgWebApp.onEvent?.('safeAreaChanged', applyTgSafeArea);
+  tgWebApp.onEvent?.('viewportChanged', applyTgSafeArea);
+
   // Apply Telegram theme colors to CSS variables
   if (tgWebApp.themeParams) {
     const root = document.documentElement;

@@ -17,7 +17,10 @@
 
   body.tg-mini-app .tg-header-spacer {
     display: block;
-    height: 80px; /* height of Telegram's native header bar + extra safety margin */
+    /* Высота = фактический отступ под шапку Telegram (--tg-safe-top из main.tsx).
+       В обычном режиме = 0 (Telegram сам отрисовал заголовок над WebView),
+       в полноэкранном — высота нативных кнопок. */
+    height: var(--tg-safe-top, 0px);
   }
 
   /* Dark mode */
