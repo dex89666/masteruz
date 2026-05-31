@@ -14,7 +14,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { Layout } from './components/Layout';
 import { ConsentGate } from './components/ConsentGate';
 import { UpdateChecker } from './components/UpdateChecker';
-import { PwaUpdatePrompt } from './components/PwaUpdatePrompt';
+import { AppUpdatePrompt } from './components/AppUpdatePrompt';
 import { GlobalConfirmDialog } from './components/GlobalConfirmDialog';
 import { GlobalPromptDialog } from './components/GlobalPromptDialog';
 import { useAppInit } from './hooks';
@@ -458,7 +458,7 @@ export default function App() {
           <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
             <AppContent />
             <UpdateChecker />
-            <PwaUpdatePrompt />
+            <AppUpdatePrompt />
             <GlobalConfirmDialog />
             <GlobalPromptDialog />
             <Toaster

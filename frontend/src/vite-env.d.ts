@@ -9,3 +9,7 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
+
+// Идентификатор сборки, инжектируется Vite (define). Сравнивается с
+// /version.json, чтобы понять, что на сервере вышла новая версия.
+declare const __BUILD_ID__: string;

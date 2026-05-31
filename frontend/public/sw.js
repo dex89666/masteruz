@@ -78,6 +78,18 @@ self.addEventListener('fetch', (event) => {
   // Skip non-GET requests
   if (request.method !== 'GET') return;
 
+  // version.json — «маяк» свежести сборки. Всегда из сети, без кэша,
+  // иначе клиент не узнает о вышедшей новой версии.
+  if (url.pathname === '/version.json') {
+    event.respondWith(fetch(request, { cache: 'no-store' }).catch(() =>
+      new Response(JSON.stringify({ buildId: null }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    ));
+    return;
+  }
+
   // Skip API requests in development — let Vite proxy handle them
   if (url.hostname === 'localhost' && url.pathname.startsWith('/api/')) return;
 

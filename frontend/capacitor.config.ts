@@ -1,11 +1,20 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
+// Если задан CAP_SERVER_URL — нативная оболочка грузит фронт с сервера
+// (Railway), а не из bundled-ассетов. Это включает обновления «по воздуху»:
+// после деплоя фронта установленный APK получает свежий интерфейс без
+// переустановки. Для локальной разработки можно указать http://192.168.x.x:5173.
+const serverUrl = process.env.CAP_SERVER_URL;
+
 const config: CapacitorConfig = {
   appId: 'uz.masteruz.app',
   appName: 'MasterUz',
   webDir: 'dist',
   // В production-сборке APK будет использовать bundled assets + этот API URL
   // Для локальной разработки укажи server.url = 'http://192.168.X.X:5173'
+  ...(serverUrl
+    ? { server: { url: serverUrl, cleartext: serverUrl.startsWith('http://') } }
+    : {}),
   plugins: {
     SplashScreen: {
       launchShowDuration: 2000,
