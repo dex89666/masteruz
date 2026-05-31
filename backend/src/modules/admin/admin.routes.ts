@@ -7,7 +7,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { adminService } from './admin.service.js';
 import { authenticate, authorize } from '../../middleware/auth.js';
 import { validateBody, validateQuery } from '../../middleware/validate.js';
-import { adminUsersQuerySchema, blockUserSchema, changeRoleSchema, adminBalanceSchema, adminOrderCommentSchema, adminConfigSchema } from './admin.schema.js';
+import { adminUsersQuerySchema, blockUserSchema, changeRoleSchema, adminBalanceSchema, adminOrderCommentSchema, adminConfigSchema, adminBulkDeleteOrdersSchema } from './admin.schema.js';
 import { prisma } from '../../config/database.js';
 import { balanceService } from '../balance/balance.service.js';
 import { subscriptionService } from '../../services/subscriptionService.js';
@@ -302,6 +302,26 @@ router.put('/orders/:id/comment', validateBody(adminOrderCommentSchema), async (
       select: { id: true, adminComment: true },
     });
     res.json({ success: true, data: order });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Массовое удаление заказов (чистка тестовых) — только ADMIN
+router.post('/orders/bulk-delete', authorize('ADMIN'), validateBody(adminBulkDeleteOrdersSchema), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const result = await adminService.bulkDeleteOrders(req.user!.userId, req.body.ids);
+    res.json({ success: true, data: result });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Удаление одного заказа — только ADMIN
+router.delete('/orders/:id', authorize('ADMIN'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const result = await adminService.deleteOrder(req.user!.userId, req.params.id);
+    res.json({ success: true, data: result });
   } catch (error) {
     next(error);
   }

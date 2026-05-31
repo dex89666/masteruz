@@ -26,6 +26,10 @@ export const adminOrderCommentSchema = z.object({
   comment: z.string().max(1000),
 });
 
+export const adminBulkDeleteOrdersSchema = z.object({
+  ids: z.array(z.string()).min(1, 'Выберите хотя бы один заказ').max(200),
+});
+
 export const adminConfigSchema = z.object({
   key: z.string().min(1).max(100),
   value: z.string().max(5000),

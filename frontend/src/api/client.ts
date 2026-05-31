@@ -874,6 +874,12 @@ export const adminApi = {
   updateOrderComment: (orderId: string, comment: string) =>
     api.put<ApiResponse<any>>(`/admin/orders/${orderId}/comment`, { comment }),
 
+  deleteOrder: (orderId: string) =>
+    api.delete<ApiResponse<{ id: string; refunded: number }>>(`/admin/orders/${orderId}`),
+
+  bulkDeleteOrders: (ids: string[]) =>
+    api.post<ApiResponse<{ deleted: number; failed: string[]; refundedTotal: number }>>('/admin/orders/bulk-delete', { ids }),
+
   getOrderNotificationDebug: (orderId: string) =>
     api.get<ApiResponse<any>>(`/admin/orders/${orderId}/notification-debug`),
 

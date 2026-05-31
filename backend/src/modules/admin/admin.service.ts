@@ -5,7 +5,7 @@
 
 import { prisma } from '../../config/database.js';
 import { ApiError } from '../../utils/ApiError.js';
-import { getPagination, paginatedResponse } from '../../utils/helpers.js';
+import { getPagination, paginatedResponse, toNum, moneyAdd } from '../../utils/helpers.js';
 import { OrderStatus, PaymentStatus } from '@prisma/client';
 import { logger } from '../../utils/logger.js';
 import { auditService } from '../../services/auditService.js';
@@ -305,6 +305,95 @@ export class AdminService {
     ]);
 
     return paginatedResponse(orders, total, page, limit);
+  }
+
+  /**
+   * Удаление заказа админом (для чистки тестовых/неактуальных).
+   *
+   * Безопасность средств: если на заказе ещё заблокирован эскроу/депозит
+   * (активные статусы), возвращаем его клиенту на баланс — деньги не «сгорают».
+   * Завершённые/отменённые заказы уже рассчитаны — возврата нет.
+   *
+   * FK без каскада: Payment.orderId и Order.parentOrderId — отвязываем.
+   * Остальное (отклики, отзывы, задачи, фото, чат, гарантия, сметы) удалит
+   * каскад БД.
+   */
+  async deleteOrder(adminId: string, orderId: string) {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: { id: true, status: true, escrowAmount: true, clientId: true, title: true },
+    });
+    if (!order) throw ApiError.notFound('Заказ не найден');
+
+    const escrow = toNum(order.escrowAmount);
+    const settledStatuses: OrderStatus[] = [OrderStatus.COMPLETED, OrderStatus.CANCELLED];
+    const shouldRefund = escrow > 0 && !settledStatuses.includes(order.status);
+
+    await prisma.$transaction(async (tx) => {
+      if (shouldRefund) {
+        const client = await tx.user.findUnique({
+          where: { id: order.clientId },
+          select: { balance: true },
+        });
+        if (client) {
+          const before = toNum(client.balance);
+          const after = moneyAdd(before, escrow);
+          await tx.user.update({ where: { id: order.clientId }, data: { balance: after } });
+          await tx.balanceTransaction.create({
+            data: {
+              userId: order.clientId,
+              type: 'REFUND',
+              amount: escrow,
+              balanceBefore: before,
+              balanceAfter: after,
+              orderId,
+              description: 'Возврат депозита: заказ удалён администратором',
+            },
+          });
+        }
+      }
+
+      // Отвязываем связи без каскада, чтобы FK не блокировал удаление
+      await tx.payment.updateMany({ where: { orderId }, data: { orderId: null } });
+      await tx.order.updateMany({ where: { parentOrderId: orderId }, data: { parentOrderId: null } });
+
+      await tx.order.delete({ where: { id: orderId } });
+    });
+
+    logger.info({ adminId, orderId, refunded: shouldRefund ? escrow : 0 }, 'Заказ удалён админом');
+
+    await auditService.log({
+      actorId: adminId,
+      action: 'delete_order',
+      entityType: 'Order',
+      entityId: orderId,
+      details: { title: order.title, status: order.status, refunded: shouldRefund ? escrow : 0 },
+    });
+
+    return { id: orderId, refunded: shouldRefund ? escrow : 0 };
+  }
+
+  /**
+   * Массовое удаление заказов (чистка тестовых пачкой).
+   * Каждый заказ удаляется своей транзакцией — частичный успех не откатывает остальные.
+   */
+  async bulkDeleteOrders(adminId: string, ids: string[]) {
+    let deleted = 0;
+    let refundedTotal = 0;
+    const failed: string[] = [];
+
+    for (const id of ids) {
+      try {
+        const res = await this.deleteOrder(adminId, id);
+        deleted += 1;
+        refundedTotal = moneyAdd(refundedTotal, res.refunded);
+      } catch (err) {
+        failed.push(id);
+        logger.warn({ adminId, orderId: id, err: (err as Error).message }, 'Не удалось удалить заказ (bulk)');
+      }
+    }
+
+    return { deleted, failed, refundedTotal };
   }
 
   /**

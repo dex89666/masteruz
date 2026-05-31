@@ -21,6 +21,7 @@ import {
   ArrowUpRight, ArrowDownRight,
   XCircle, RefreshCw, Database, Store, Hammer,
   FolderTree, Plus, Trash2, Edit3, ChevronDown, ChevronUp,
+  CheckSquare, Square,
   Headphones, Send, MessageCircle, FileText, Sparkles,
   GraduationCap, HelpCircle, BookOpen, Phone,
   Bell, Crown,
@@ -121,6 +122,8 @@ export function AdminDashboardPage() {
   const [ordersTotalPages, setOrdersTotalPages] = useState(1);
   const [ordersStatus, setOrdersStatus] = useState('');
   const [ordersLoading, setOrdersLoading] = useState(false);
+  const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   // Notification diagnostics modal
   const [notifyOrder, setNotifyOrder] = useState<{ id: string; title: string } | null>(null);
@@ -249,6 +252,7 @@ export function AdminDashboardPage() {
 
   useEffect(() => { if (tab === 'users') loadUsers(); }, [usersPage, usersRole, usersVerified]);
   useEffect(() => { if (tab === 'orders') loadOrders(); }, [ordersPage, ordersStatus]);
+  useEffect(() => { setSelectedOrderIds(new Set()); }, [ordersPage, ordersStatus, tab]);
   useEffect(() => { if (tab === 'payments') loadPayments(); }, [paymentsPage, paymentsStatus, paymentsProvider]);
 
   // Debounced user search
@@ -505,6 +509,56 @@ export function AdminDashboardPage() {
       console.error(e);
     } finally {
       setOrdersLoading(false);
+    }
+  }
+
+  function toggleOrderSelect(id: string) {
+    setSelectedOrderIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAllOrders() {
+    setSelectedOrderIds((prev) =>
+      prev.size === orders.length ? new Set() : new Set(orders.map((o) => o.id))
+    );
+  }
+
+  async function handleDeleteOrder(id: string, title?: string) {
+    if (!confirm(`Удалить заказ «${title || id.slice(0, 8)}»? Действие необратимо.`)) return;
+    try {
+      const res = await adminApi.deleteOrder(id);
+      const refunded = res.data.data?.refunded || 0;
+      toast.success(refunded > 0
+        ? `Заказ удалён. Клиенту возвращено ${refunded.toLocaleString('ru')} сум`
+        : 'Заказ удалён');
+      setSelectedOrderIds((prev) => { const n = new Set(prev); n.delete(id); return n; });
+      loadOrders();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error?.message || t('common.error'));
+    }
+  }
+
+  async function handleBulkDeleteOrders() {
+    const ids = Array.from(selectedOrderIds);
+    if (ids.length === 0) return;
+    if (!confirm(`Удалить выбранные заказы (${ids.length})? Действие необратимо.`)) return;
+    setBulkDeleting(true);
+    try {
+      const res = await adminApi.bulkDeleteOrders(ids);
+      const { deleted, failed, refundedTotal } = res.data.data;
+      toast.success(
+        `Удалено: ${deleted}${failed.length ? `, не удалось: ${failed.length}` : ''}` +
+        (refundedTotal > 0 ? `. Возвращено клиентам: ${refundedTotal.toLocaleString('ru')} сум` : '')
+      );
+      setSelectedOrderIds(new Set());
+      loadOrders();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error?.message || t('common.error'));
+    } finally {
+      setBulkDeleting(false);
     }
   }
 
@@ -1536,6 +1590,30 @@ export function AdminDashboardPage() {
             </button>
           </div>
 
+          {/* Bulk actions (только ADMIN) */}
+          {user?.role === 'ADMIN' && orders.length > 0 && (
+            <div className="flex items-center justify-between gap-2 px-1">
+              <button
+                onClick={toggleSelectAllOrders}
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors"
+              >
+                {selectedOrderIds.size === orders.length
+                  ? <CheckSquare size={16} className="text-primary" />
+                  : <Square size={16} />}
+                {selectedOrderIds.size > 0 ? `Выбрано: ${selectedOrderIds.size}` : 'Выбрать все'}
+              </button>
+              {selectedOrderIds.size > 0 && (
+                <button
+                  onClick={handleBulkDeleteOrders}
+                  disabled={bulkDeleting}
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors disabled:opacity-50"
+                >
+                  <Trash2 size={14} /> Удалить выбранные ({selectedOrderIds.size})
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Orders List */}
           {ordersLoading ? (
             <LoadingSpinner />
@@ -1547,9 +1625,22 @@ export function AdminDashboardPage() {
                 <div
                   key={o.id}
                   onClick={() => navigate(`/orders/${o.id}`)}
-                  className="card cursor-pointer hover:shadow-md dark:hover:shadow-black/20 transition-shadow"
+                  className={`card cursor-pointer hover:shadow-md dark:hover:shadow-black/20 transition-shadow ${
+                    selectedOrderIds.has(o.id) ? 'ring-2 ring-red-400 dark:ring-red-500' : ''
+                  }`}
                 >
                   <div className="flex items-start justify-between gap-3">
+                    {user?.role === 'ADMIN' && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); toggleOrderSelect(o.id); }}
+                        className="flex-shrink-0 mt-0.5 text-gray-400 hover:text-primary transition-colors"
+                        title="Выбрать для удаления"
+                      >
+                        {selectedOrderIds.has(o.id)
+                          ? <CheckSquare size={18} className="text-red-500" />
+                          : <Square size={18} />}
+                      </button>
+                    )}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         {o.isUrgent && (
@@ -1579,14 +1670,25 @@ export function AdminDashboardPage() {
                       {o.commissionPaid && (
                         <span className="text-[10px] text-green-600 dark:text-green-400">комиссия</span>
                       )}
-                      <button
-                        onClick={(e) => { e.stopPropagation(); openNotifyDiag({ id: o.id, title: o.title }); }}
-                        className="mt-2 inline-flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400 dark:hover:bg-amber-900/40 transition-colors"
-                        title="Диагностика уведомлений по этому заказу"
-                      >
-                        <Bell size={12} />
-                        Уведомления
-                      </button>
+                      <div className="flex items-center justify-end gap-1.5 mt-2">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); openNotifyDiag({ id: o.id, title: o.title }); }}
+                          className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400 dark:hover:bg-amber-900/40 transition-colors"
+                          title="Диагностика уведомлений по этому заказу"
+                        >
+                          <Bell size={12} />
+                          Уведомления
+                        </button>
+                        {user?.role === 'ADMIN' && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleDeleteOrder(o.id, o.title); }}
+                            className="inline-flex items-center justify-center p-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40 transition-colors"
+                            title="Удалить заказ"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
