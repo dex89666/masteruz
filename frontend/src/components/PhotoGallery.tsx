@@ -5,6 +5,7 @@
 import { useState } from 'react';
 import { Camera, ChevronLeft, ChevronRight, X, ZoomIn } from 'lucide-react';
 import { useTranslation } from '../i18n';
+import { useTelegramBackButton } from '../hooks/useTelegramBackButton';
 import type { OrderPhoto } from '../types';
 
 interface PhotoGalleryProps {
@@ -24,6 +25,9 @@ export function PhotoGallery({ photos, canAdd, onAdd }: PhotoGalleryProps) {
   const beforePhotos = photos.filter((p) => p.type === 'before');
   const afterPhotos = photos.filter((p) => p.type === 'after');
   const allPhotos = [...beforePhotos, ...afterPhotos];
+
+  // Telegram: нативная BackButton закрывает просмотрщик, пока он открыт.
+  useTelegramBackButton(() => setViewPhoto(null), viewPhoto !== null);
 
   function openLightbox(url: string) {
     const idx = allPhotos.findIndex((p) => p.url === url);

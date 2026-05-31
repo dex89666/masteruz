@@ -8,6 +8,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { ChevronLeft, ChevronRight, X, ZoomIn, ZoomOut } from 'lucide-react';
+import { useTelegramBackButton } from '../hooks/useTelegramBackButton';
 
 interface Props {
   images: string[];
@@ -25,6 +26,10 @@ export function ImageLightbox({ images, initialIndex, onClose }: Props) {
 
   const total = images.length;
   const current = images[index];
+
+  // Telegram Mini App: нативная BackButton — гарантированный выход из
+  // просмотрщика (на iOS наш ✕ перекрыт верхним хедером Telegram).
+  useTelegramBackButton(onClose);
 
   const goPrev = useCallback(() => {
     setIndex((i) => (i - 1 + total) % total);
