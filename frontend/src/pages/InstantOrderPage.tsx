@@ -14,6 +14,7 @@ import {
   Plus, Trash2, Check, ListChecks, Navigation,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { Capacitor } from '@capacitor/core';
 import { reverseGeocode as reverseGeocodeClient } from '../lib/reverseGeocode';
 import { getCurrentPosition, GeoError } from '../lib/geolocation';
 import { useTranslation } from '../i18n';
@@ -356,6 +357,14 @@ export function InstantOrderPage() {
   }, [transcribeWithWhisper]);
 
   const startRecording = useCallback(async () => {
+    // В нативном приложении (Android/iOS APK) Web Speech API присутствует в
+    // WebView, но не работает — нет привязки к облачному speech-сервису.
+    // Поэтому на native ВСЕГДА пишем аудио и распознаём через Whisper.
+    if (Capacitor.isNativePlatform()) {
+      await startRecordingViaMediaRecorder();
+      return;
+    }
+
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     // Live-распознавание доступно везде, где есть Web Speech API (iOS Safari,
     // Android Chrome). Текст появляется в реальном времени. В webview без API
