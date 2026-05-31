@@ -10,6 +10,7 @@ import { useAuthStore } from '../store';
 import { useTranslation } from '../i18n';
 import { resolveImageUrl } from '../lib/imageUrl';
 import { useFormatPrice } from '../hooks';
+import { useConfirm } from '../hooks/useConfirm';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { EmptyState } from '../components/EmptyState';
 import { StatusBadge } from '../components/StatusBadge';
@@ -102,6 +103,7 @@ export function AdminDashboardPage() {
   const { user } = useAuthStore();
   const { t } = useTranslation();
   const formatPrice = useFormatPrice();
+  const { confirm, confirmDialog } = useConfirm();
 
   const [tab, setTab] = useState<AdminTab>('overview');
   const [loading, setLoading] = useState(true);
@@ -527,7 +529,12 @@ export function AdminDashboardPage() {
   }
 
   async function handleDeleteOrder(id: string, title?: string) {
-    if (!confirm(`Удалить заказ «${title || id.slice(0, 8)}»? Действие необратимо.`)) return;
+    if (!(await confirm({
+      title: 'Удалить заказ',
+      message: `Удалить заказ «${title || id.slice(0, 8)}»? Действие необратимо.`,
+      confirmText: 'Удалить',
+      variant: 'danger',
+    }))) return;
     try {
       const res = await adminApi.deleteOrder(id);
       const refunded = res.data.data?.refunded || 0;
@@ -544,7 +551,12 @@ export function AdminDashboardPage() {
   async function handleBulkDeleteOrders() {
     const ids = Array.from(selectedOrderIds);
     if (ids.length === 0) return;
-    if (!confirm(`Удалить выбранные заказы (${ids.length})? Действие необратимо.`)) return;
+    if (!(await confirm({
+      title: 'Удалить заказы',
+      message: `Удалить выбранные заказы (${ids.length})? Действие необратимо.`,
+      confirmText: 'Удалить',
+      variant: 'danger',
+    }))) return;
     setBulkDeleting(true);
     try {
       const res = await adminApi.bulkDeleteOrders(ids);
@@ -689,7 +701,12 @@ export function AdminDashboardPage() {
   }
 
   async function handleDeleteCategory(id: string) {
-    if (!confirm('Удалить категорию? Все подкатегории и задачи станут неактивными.')) return;
+    if (!(await confirm({
+      title: 'Удалить категорию',
+      message: 'Все подкатегории и задачи станут неактивными. Продолжить?',
+      confirmText: 'Удалить',
+      variant: 'danger',
+    }))) return;
     try {
       await adminApi.deleteCategory(id);
       toast.success('Категория удалена');
@@ -736,7 +753,12 @@ export function AdminDashboardPage() {
   }
 
   async function handleDeleteSubcategory(id: string) {
-    if (!confirm('Удалить подкатегорию? Все задачи станут неактивными.')) return;
+    if (!(await confirm({
+      title: 'Удалить подкатегорию',
+      message: 'Все задачи станут неактивными. Продолжить?',
+      confirmText: 'Удалить',
+      variant: 'danger',
+    }))) return;
     try {
       await adminApi.deleteSubcategory(id);
       toast.success('Подкатегория удалена');
@@ -787,7 +809,12 @@ export function AdminDashboardPage() {
   }
 
   async function handleDeleteTask(id: string) {
-    if (!confirm('Удалить услугу?')) return;
+    if (!(await confirm({
+      title: 'Удалить услугу',
+      message: 'Удалить эту услугу?',
+      confirmText: 'Удалить',
+      variant: 'danger',
+    }))) return;
     try {
       await adminApi.deleteTask(id);
       toast.success('Услуга удалена');
@@ -1014,7 +1041,12 @@ export function AdminDashboardPage() {
   }
 
   async function handleSchoolDeleteCourse(id: string) {
-    if (!confirm('Удалить курс и все его вопросы?')) return;
+    if (!(await confirm({
+      title: 'Удалить курс',
+      message: 'Удалить курс и все его вопросы?',
+      confirmText: 'Удалить',
+      variant: 'danger',
+    }))) return;
     try {
       await schoolApi.adminDeleteCourse(id);
       toast.success('Курс удалён');
@@ -1060,7 +1092,12 @@ export function AdminDashboardPage() {
   }
 
   async function handleSchoolDeleteQuestion(qId: string) {
-    if (!confirm('Удалить вопрос?')) return;
+    if (!(await confirm({
+      title: 'Удалить вопрос',
+      message: 'Удалить этот вопрос?',
+      confirmText: 'Удалить',
+      variant: 'danger',
+    }))) return;
     try {
       await schoolApi.adminDeleteQuestion(qId);
       toast.success('Вопрос удалён');
@@ -3621,6 +3658,7 @@ export function AdminDashboardPage() {
           onRefresh={() => openNotifyDiag(notifyOrder)}
         />
       )}
+      {confirmDialog}
     </div>
   );
 }
