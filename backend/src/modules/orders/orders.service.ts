@@ -178,6 +178,7 @@ export class OrdersService {
           status: OrderStatus.PUBLISHED,
           isUrgent,
           urgentMultiplier,
+          images: data.images ?? [],
           latitude: data.latitude,
           longitude: data.longitude,
           address: data.address,

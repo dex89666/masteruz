@@ -13,6 +13,7 @@ export const createOrderSchema = z.object({
   priceMax: z.number().positive().optional(),
   taskIds: z.array(z.string().uuid()).optional(), // Выбранные задачи
   isUrgent: z.boolean().optional().default(false), // Срочный заказ (+40%)
+  images: z.array(z.string().max(2_000_000)).max(10).optional(), // URL или base64 data URL фото
   offerAccepted: z.boolean().refine(val => val === true, { message: 'Необходимо принять условия оферты' }),
   latitude: z.number().min(-90).max(90).optional(),
   longitude: z.number().min(-180).max(180).optional(),

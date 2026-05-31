@@ -5,7 +5,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { ordersApi, catalogApi } from '../api/client';
+import { ordersApi, catalogApi, photosApi } from '../api/client';
 import { useAuthStore } from '../store';
 import { useGeolocation, useTelegram } from '../hooks';
 import { useTranslation } from '../i18n';
@@ -318,6 +318,30 @@ export function CreateOrderPage() {
 
     setSubmitting(true);
     try {
+      // Загружаем фото на сервер; при сбое — фоллбэк в base64, чтобы фото не потерялись.
+      const uploadedImages: string[] = [];
+      for (const file of images) {
+        try {
+          const formData = new FormData();
+          formData.append('photo', file);
+          const res = await photosApi.upload(formData);
+          const url = res.data.data?.url;
+          if (url) uploadedImages.push(url);
+        } catch {
+          try {
+            const dataUrl = await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(reader.result as string);
+              reader.onerror = reject;
+              reader.readAsDataURL(file);
+            });
+            uploadedImages.push(dataUrl);
+          } catch {
+            // пропускаем нечитаемый файл
+          }
+        }
+      }
+
       const payload: any = {
         title: form.title || selectedTasksList.map((t: Task) => getLocalName(t)).join(', '),
         description: form.description,
@@ -326,6 +350,7 @@ export function CreateOrderPage() {
         taskIds: Array.from(selectedTaskIds),
         isUrgent,
         offerAccepted,
+        images: uploadedImages,
         city: form.city || undefined,
         district: form.district || undefined,
         street: form.street || undefined,
