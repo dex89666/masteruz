@@ -17,6 +17,7 @@
 
 import fs from 'fs';
 import path from 'path';
+import type { Readable } from 'stream';
 import { logger } from '../utils/logger.js';
 
 const DRIVER = (process.env.STORAGE_DRIVER ?? 'local').toLowerCase();
@@ -27,8 +28,15 @@ interface PutArgs {
   contentType: string;
 }
 
+interface GetResult {
+  body: Readable;
+  contentType?: string;
+  contentLength?: number;
+}
+
 interface StorageAdapter {
   put(args: PutArgs): Promise<string>; // возвращает публичный URL
+  get(key: string): Promise<GetResult | null>; // стрим объекта (null — не найден)
   remove(key: string): Promise<void>;
 }
 
@@ -41,6 +49,12 @@ class LocalAdapter implements StorageAdapter {
     await fs.promises.mkdir(path.dirname(full), { recursive: true });
     await fs.promises.writeFile(full, body);
     return `/uploads/${key}`;
+  }
+
+  async get(key: string): Promise<GetResult | null> {
+    const full = path.join(this.uploadDir, key);
+    if (!fs.existsSync(full)) return null;
+    return { body: fs.createReadStream(full) };
   }
 
   async remove(key: string): Promise<void> {
@@ -65,6 +79,7 @@ class S3Adapter implements StorageAdapter {
     const instance = new S3Adapter();
     instance.S3 = {
       PutObjectCommand: mod.PutObjectCommand,
+      GetObjectCommand: mod.GetObjectCommand,
       DeleteObjectCommand: mod.DeleteObjectCommand,
     };
     instance.client = new mod.S3Client({
@@ -92,6 +107,23 @@ class S3Adapter implements StorageAdapter {
       }),
     );
     return this.publicUrl ? `${this.publicUrl}/${key}` : `/uploads/${key}`;
+  }
+
+  async get(key: string): Promise<GetResult | null> {
+    try {
+      const res = await this.client.send(
+        new this.S3.GetObjectCommand({ Bucket: this.bucket, Key: key }),
+      );
+      return {
+        body: res.Body as Readable,
+        contentType: res.ContentType,
+        contentLength: res.ContentLength,
+      };
+    } catch (err: any) {
+      if (err?.name === 'NoSuchKey' || err?.$metadata?.httpStatusCode === 404) return null;
+      logger.warn({ err, key }, '[storage] ошибка чтения из S3');
+      return null;
+    }
   }
 
   async remove(key: string): Promise<void> {

@@ -16,6 +16,7 @@
     "test:coverage": "vitest --coverage"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1057.0",
     "@prisma/client": "^5.10.0",
     "@rollup/rollup-linux-x64-gnu": "^4.59.0",
     "@sentry/node": "^10.51.0",

@@ -261,7 +261,39 @@ if (process.env.NODE_ENV !== 'test') {
 }
 
 // Статические файлы (загрузки)
-app.use('/uploads', express.static(path.resolve(config.upload.dir)));
+// • local-режим: отдаём файлы с диска контейнера.
+// • s3-режим: диск эфемерный — проксируем стрим из R2 (бакет приватный,
+//   публичный домен пока не подключён; отдаём через origin бэкенда).
+const STORAGE_DRIVER = (process.env.STORAGE_DRIVER ?? 'local').toLowerCase();
+if (STORAGE_DRIVER === 's3') {
+  app.get('/uploads/:key', async (req, res) => {
+    const key = req.params.key;
+    // Ключи — uuid.ext. Защита от path traversal и инъекций.
+    if (!/^[A-Za-z0-9._-]+$/.test(key)) {
+      res.status(400).end();
+      return;
+    }
+    try {
+      const { getStorage } = await import('./services/storage.js');
+      const storage = await getStorage();
+      const obj = await storage.get(key);
+      if (!obj) {
+        res.status(404).end();
+        return;
+      }
+      if (obj.contentType) res.setHeader('Content-Type', obj.contentType);
+      if (obj.contentLength) res.setHeader('Content-Length', String(obj.contentLength));
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      obj.body.on('error', () => res.destroyed || res.status(500).end());
+      obj.body.pipe(res);
+    } catch (err) {
+      logger.error({ err, key }, 'Ошибка отдачи файла из R2');
+      if (!res.headersSent) res.status(500).end();
+    }
+  });
+} else {
+  app.use('/uploads', express.static(path.resolve(config.upload.dir)));
+}
 
 // Request logging (dev only)
 if (config.env === 'development') {
