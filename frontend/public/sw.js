@@ -5,7 +5,7 @@
 
 // Версия кеша — обновляется при деплое (дата + инкрементное число)
 // При обновлении достаточно изменить CACHE_VERSION на новую дату
-const CACHE_VERSION = '2026-05-31-update-prompt';
+const CACHE_VERSION = '2026-06-15-edge-to-edge';
 const STATIC_CACHE = `masteruz-static-${CACHE_VERSION}`;
 const API_CACHE = `masteruz-api-${CACHE_VERSION}`;
 const IMAGE_CACHE = `masteruz-images-${CACHE_VERSION}`;

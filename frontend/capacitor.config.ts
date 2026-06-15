@@ -24,9 +24,12 @@ const config: CapacitorConfig = {
       showSpinner: false,
     },
     StatusBar: {
+      // Edge-to-edge: WebView идёт от самого верха экрана до самого низа.
+      // CSS env(safe-area-inset-*) сдвигает контент header/footer под
+      // системный status bar и home-indicator, но фон тянется до краёв.
       style: 'DARK',
-      backgroundColor: '#0f172a',
-      overlaysWebView: false,
+      backgroundColor: '#00000000',
+      overlaysWebView: true,
     },
     App: {
       // Не ставим launchUrl, работаем с bundled index.html

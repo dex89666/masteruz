@@ -23,6 +23,15 @@
     height: var(--tg-safe-top, 0px);
   }
 
+  /* Нативное приложение (Capacitor, Android/iOS) — edge-to-edge.
+     WebView тянется от верхнего края экрана до нижнего; контент header
+     смещается под системный status bar через env(safe-area-inset-top),
+     но цветной фон уходит до самого края. Для нижнего home-indicator
+     уже есть утилита .safe-area-pb. */
+  body.cap-native .app-header {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
   /* Dark mode */
   .dark body,
   .dark {

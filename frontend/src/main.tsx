@@ -4,12 +4,19 @@
 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import { Capacitor } from '@capacitor/core';
 import './lib/sentry'; // должен быть до импорта App
 import { initAnalytics } from './lib/analytics';
 import App from './App';
 import './index.css';
 
 initAnalytics();
+
+// Нативная оболочка (Capacitor): отмечаем body, чтобы CSS включил
+// edge-to-edge режим с safe-area отступами для header/bottom-nav.
+if (Capacitor.isNativePlatform()) {
+  document.body.classList.add('cap-native');
+}
 
 // Telegram Mini App initialization
 const tgWebApp = (window as any).Telegram?.WebApp;
@@ -28,13 +35,13 @@ if (tgWebApp) {
   // Mark body as Telegram Mini App for CSS adjustments
   document.body.classList.add('tg-mini-app');
 
-  // Реальный отступ под нативную шапку Telegram. В обычном режиме Telegram
-  // сам рисует свой заголовок над WebView и возвращает 0 — поэтому жёсткий
-  // спейсер в 80px создавал лишнюю пустую полосу сверху. Берём фактический
-  // contentSafeAreaInset (в полноэкранном режиме — высота кнопок Telegram).
+  // Полный безопасный отступ сверху = системный safe-area (notch/статус-бар)
+  // + contentSafeAreaInset (нативные кнопки Telegram). Без суммирования на
+  // iOS остаётся ~47px перекрытия, и логотип уезжает под системные иконки.
   const applyTgSafeArea = () => {
+    const systemTop = tgWebApp.safeAreaInset?.top ?? 0;
     const contentTop = tgWebApp.contentSafeAreaInset?.top ?? 0;
-    document.documentElement.style.setProperty('--tg-safe-top', `${contentTop}px`);
+    document.documentElement.style.setProperty('--tg-safe-top', `${systemTop + contentTop}px`);
   };
   applyTgSafeArea();
   tgWebApp.onEvent?.('contentSafeAreaChanged', applyTgSafeArea);

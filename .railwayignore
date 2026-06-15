@@ -1,0 +1,17 @@
+node_modules
+**/node_modules
+dist
+**/dist
+build
+**/build
+.git
+.vscode
+.idea
+coverage
+**/coverage
+*.log
+backend/uploads
+backend/data
+frontend/android
+frontend/ios
+Photo
