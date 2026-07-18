@@ -1,0 +1,47 @@
+{
+  "_comment": [
+    "Eval-набор для проверки точности AI-анализа заказов.",
+    "Пока в проде нет завершённых заказов, набор собирается вручную (bootstrap):",
+    "снимите 20-40 типичных проблем, проставьте категорию и справедливую цену.",
+    "Когда пойдут реальные заказы — используйте scripts/eval/export-dataset.ts,",
+    "он выгрузит фактические данные в этом же формате.",
+    "",
+    "Поля case:",
+    "  id            — произвольный идентификатор",
+    "  photos        — пути к локальным файлам ИЛИ https-ссылки",
+    "  text          — что написал/сказал клиент (может быть пустым)",
+    "  expectCategory— ожидаемый slug категории (эталон)",
+    "  expectPrice   — справедливая итоговая цена работ в сумах (эталон)",
+    "  expectNeedsOnSite — нужен ли выезд для обмера (опционально)",
+    "  note          — комментарий для человека, на метрики не влияет"
+  ],
+  "cases": [
+    {
+      "id": "leaky-faucet-01",
+      "photos": ["./samples/faucet-1.jpg", "./samples/faucet-2.jpg"],
+      "text": "Течёт кран на кухне, капает постоянно",
+      "expectCategory": "plumbing",
+      "expectPrice": 150000,
+      "expectNeedsOnSite": false,
+      "note": "Классическая замена смесителя"
+    },
+    {
+      "id": "wardrobe-assembly-01",
+      "photos": ["./samples/wardrobe-1.jpg"],
+      "text": "Нужно собрать шкаф-купе",
+      "expectCategory": "furniture",
+      "expectPrice": 450000,
+      "expectNeedsOnSite": false,
+      "note": "Крупный шкаф — проверяем, что модель не занижает цену"
+    },
+    {
+      "id": "room-painting-01",
+      "photos": ["./samples/room-1.jpg", "./samples/room-2.jpg"],
+      "text": "Покрасить комнату",
+      "expectCategory": "finishing",
+      "expectPrice": 900000,
+      "expectNeedsOnSite": true,
+      "note": "Требует обмера — проверяем needsOnSite"
+    }
+  ]
+}

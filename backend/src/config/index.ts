@@ -75,6 +75,11 @@ export const config = {
     apiKey: env('OPENAI_API_KEY'),
     model: env('OPENAI_VISION_MODEL', 'gpt-4o'),
     timeoutMs: parseInt(env('OPENAI_TIMEOUT_MS', '45000'), 10),
+    // Сколько фото уходит в Vision. Изображения дают ~80% входных токенов,
+    // при этом 3–4 осмысленных кадра точнее 10 случайных: лишние разбавляют
+    // внимание модели. Клиент по-прежнему может приложить больше фото —
+    // они сохранятся в заказе для мастера, но в AI уйдут только первые N.
+    visionMaxImages: parseInt(env('OPENAI_VISION_MAX_IMAGES', '4'), 10),
   },
 
   // RAG — самообучаемый поиск решений по истории закрытых заказов.

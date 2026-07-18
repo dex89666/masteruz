@@ -235,6 +235,53 @@ ${list}
 Эти теги попадут в базу знаний и помогут будущим запросам.${tail}`;
 }
 
+// ─── Строгая схема ответа (Structured Outputs) ───────────────────────────
+// json_schema + strict гарантирует форму ответа на уровне API: модель не может
+// вернуть лишние поля, пропустить обязательные или сломать JSON. Это надёжнее
+// прежнего json_object, где схема была лишь пожеланием в тексте промпта.
+const AI_RESPONSE_FORMAT = {
+  type: 'json_schema' as const,
+  json_schema: {
+    name: 'order_analysis',
+    strict: true,
+    schema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['categories', 'urgency', 'summary', 'materials', 'priceHint', 'needsOnSite', 'visualTags'],
+      properties: {
+        categories: {
+          type: 'array',
+          items: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['slug', 'confidence', 'reasoning'],
+            properties: {
+              slug: { type: 'string' },
+              confidence: { type: 'number' },
+              reasoning: { type: 'string' },
+            },
+          },
+        },
+        urgency: { type: 'string', enum: ['emergency', 'urgent', 'normal', 'flexible'] },
+        summary: { type: 'string' },
+        materials: { type: 'array', items: { type: 'string' } },
+        // strict-режим требует явно разрешить null через union типов.
+        priceHint: {
+          type: ['object', 'null'],
+          additionalProperties: false,
+          required: ['min', 'max'],
+          properties: {
+            min: { type: 'number' },
+            max: { type: 'number' },
+          },
+        },
+        needsOnSite: { type: 'boolean' },
+        visualTags: { type: 'array', items: { type: 'string' } },
+      },
+    },
+  },
+};
+
 // ─── Основная функция ────────────────────────────────────────────────────
 
 export async function analyzeOrder(input: AiAnalysisInput): Promise<AiAnalysisResult> {
@@ -257,7 +304,10 @@ export async function analyzeOrder(input: AiAnalysisInput): Promise<AiAnalysisRe
     },
   ];
 
-  for (const url of photoUrls.slice(0, 10)) {
+  // Изображения — основной драйвер стоимости запроса, поэтому в Vision уходит
+  // ограниченное число кадров (config.openai.visionMaxImages). Остальные фото
+  // остаются в заказе для мастера.
+  for (const url of photoUrls.slice(0, config.openai.visionMaxImages)) {
     // Принимаем только data:image/... или https:// — иначе пропускаем
     if (!/^(data:image\/|https?:\/\/)/i.test(url)) continue;
     userContent.push({
@@ -296,13 +346,17 @@ export async function analyzeOrder(input: AiAnalysisInput): Promise<AiAnalysisRe
 
   let response: any = null;
   let lastErr: any = null;
+  // Strict-схема поддерживается не всеми снапшотами моделей. Если API её
+  // отвергнет — откатываемся на json_object, чтобы анализ не падал целиком
+  // (схема продублирована текстом в промпте, так что ответ останется валидным).
+  let useStrictSchema = true;
 
   outer: for (const model of modelChain) {
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
         response = await client.chat.completions.create({
           model,
-          response_format: { type: 'json_object' },
+          response_format: useStrictSchema ? AI_RESPONSE_FORMAT : { type: 'json_object' },
           temperature: 0.2,
           max_tokens: 800,
           messages: [
@@ -324,6 +378,16 @@ export async function analyzeOrder(input: AiAnalysisInput): Promise<AiAnalysisRe
         const isModelMissing = status === 404 || code === 'model_not_found';
         const isAuth = status === 401;
         const isBadRequest = status === 400;
+
+        // 400 из-за неподдерживаемой strict-схемы — не фатально: снимаем
+        // строгий режим и повторяем на этой же модели.
+        const message: string = err?.error?.message ?? err?.message ?? '';
+        if (isBadRequest && useStrictSchema && /response_format|json_schema|schema/i.test(message)) {
+          useStrictSchema = false;
+          logger.warn({ model, message }, 'AI Vision: strict-схема не поддержана — откат на json_object');
+          continue;
+        }
+
         if (isQuota || isModelMissing || isAuth || isBadRequest) break;
 
         // Временные ошибки (429 rate_limit, 5xx) — экспоненциальный backoff

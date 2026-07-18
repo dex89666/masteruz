@@ -13,7 +13,9 @@
     "prisma:seed": "tsx prisma/seed.ts",
     "lint": "eslint src/",
     "test": "vitest",
-    "test:coverage": "vitest --coverage"
+    "test:coverage": "vitest --coverage",
+    "eval": "tsx scripts/eval/run-eval.ts",
+    "eval:export": "tsx scripts/eval/export-dataset.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1057.0",
