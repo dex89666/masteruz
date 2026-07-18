@@ -518,11 +518,21 @@ PUBLISHED → ACCEPTED → IN_TRANSIT → IN_PROGRESS → (двойное под
 | Эндпоинт | Описание |
 |----------|----------|
 | `POST /api/payments/commission` | Оплата комиссии |
-| `POST /api/payments/registration-fee` | Регистрационный взнос (400 000 сум) |
+| `POST /api/payments/registration-fee` | Регистрационный взнос (400 000 сum) |
 | `POST /api/payments/click-webhook` | Webhook Click (MD5) |
 | `POST /api/payments/payme-webhook` | Webhook Payme (JSON-RPC) |
+| `POST /api/payments/subscribe/rpc` | Payme Subscribe API (привязка карт, one-click платежи) |
 | `POST /api/payments/telegram-stars` | Оплата через Telegram Stars |
 | `GET /api/payments/history` | История платежей |
+
+**Поддерживаемые платёжные системы**:
+- 💚 **Payme** — основная система (webhook + Subscribe API для привязки карт)
+- 🔵 **Click** — альтернативный способ
+- ⭐ **Telegram Stars** — для Mini App пользователей
+- 💰 **Internal** — внутренние потом платежа
+
+**Для полной документации по Payme интеграции** (Merchant API, Subscribe API, sandbox тестирование, production deployment):
+→ [📖 PAYME_INTEGRATION.md](./docs/PAYME_INTEGRATION.md)
 
 ### 💰 Balance — Кошелёк и эскроу
 

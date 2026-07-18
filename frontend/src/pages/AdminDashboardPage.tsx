@@ -6,6 +6,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { adminApi, storesApi, turnkeyApi, estimationApi, chatApi, supportChatApi, instantOrderApi, schoolApi } from '../api/client';
+import { AdminPriceChangeModeration } from '../components/AdminPriceChangeModeration';
 import { useAuthStore } from '../store';
 import { useTranslation } from '../i18n';
 import { resolveImageUrl } from '../lib/imageUrl';
@@ -172,7 +173,7 @@ export function AdminDashboardPage() {
   const [flaggedMessages, setFlaggedMessages] = useState<any[]>([]);
   const [blacklist, setBlacklist] = useState<any[]>([]);
   const [moderationLoading, setModerationLoading] = useState(false);
-  const [moderationSubTab, setModerationSubTab] = useState<'estimates' | 'messages' | 'blacklist' | 'aiOrders' | 'chatArchive'>('aiOrders');
+  const [moderationSubTab, setModerationSubTab] = useState<'estimates' | 'messages' | 'blacklist' | 'aiOrders' | 'chatArchive' | 'priceChanges'>('aiOrders');
 
   // Chat archive state
   const [chatArchive, setChatArchive] = useState<any[]>([]);
@@ -2237,6 +2238,7 @@ export function AdminDashboardPage() {
               { key: 'messages' as const, label: `Сообщения (${flaggedMessages.length})`, icon: '' },
               { key: 'blacklist' as const, label: `Чёрный список (${blacklist.length})`, icon: '' },
               { key: 'chatArchive' as const, label: 'Архив чатов', icon: '' },
+              { key: 'priceChanges' as const, label: t('priceChange.moderationQueue'), icon: '' },
             ].map(st => (
               <button
                 key={st.key}
@@ -2253,6 +2255,11 @@ export function AdminDashboardPage() {
           </div>
 
           {moderationLoading && <LoadingSpinner />}
+
+          {/* Изменения цены — защита от обхода платформы */}
+          {moderationSubTab === 'priceChanges' && (
+            <AdminPriceChangeModeration />
+          )}
 
           {/* AI Orders moderation */}
           {moderationSubTab === 'aiOrders' && !moderationLoading && (
@@ -3258,7 +3265,18 @@ export function AdminDashboardPage() {
               {/* Основные настройки — красивые карточки */}
               <div className="grid gap-4 md:grid-cols-2">
                 {[
-                  { key: 'commission_rate', label: 'Комиссия платформы (%)', icon: CreditCard, color: 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400', desc: 'Legacy-ставка (fallback). Реальная комиссия — ступенчатая: 10% до 100k, 12% до 300k, 14% до 800k, 15% выше', suffix: '%' },
+                  { key: 'commission_rate', label: 'Комиссия платформы (%)', icon: CreditCard, color: 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400', desc: 'Legacy-ставка (fallback). Реальная комиссия — ступенчатая, см. ступени ниже', suffix: '%' },
+                  { key: 'commission_tier_small', label: 'Ступень 1: мелкие заказы (%)', icon: CreditCard, color: 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400', desc: 'Комиссия для заказов дешевле порога «Ступень 1: до»', suffix: '%' },
+                  { key: 'commission_tier_small_max', label: 'Ступень 1: до (сум)', icon: DollarSign, color: 'bg-slate-50 dark:bg-slate-900/20 text-slate-600 dark:text-slate-400', desc: 'Верхняя граница первой ступени', suffix: ' сум' },
+                  { key: 'commission_tier_mid', label: 'Ступень 2: средние заказы (%)', icon: CreditCard, color: 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400', desc: 'Комиссия между порогами «Ступень 1: до» и «Ступень 2: до»', suffix: '%' },
+                  { key: 'commission_tier_mid_max', label: 'Ступень 2: до (сум)', icon: DollarSign, color: 'bg-slate-50 dark:bg-slate-900/20 text-slate-600 dark:text-slate-400', desc: 'Верхняя граница второй ступени', suffix: ' сум' },
+                  { key: 'commission_tier_large', label: 'Ступень 3: крупные заказы (%)', icon: CreditCard, color: 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400', desc: 'Комиссия между порогами «Ступень 2: до» и «Ступень 3: до»', suffix: '%' },
+                  { key: 'commission_tier_large_max', label: 'Ступень 3: до (сум)', icon: DollarSign, color: 'bg-slate-50 dark:bg-slate-900/20 text-slate-600 dark:text-slate-400', desc: 'Верхняя граница третьей ступени', suffix: ' сум' },
+                  { key: 'commission_tier_xl', label: 'Ступень 4: очень крупные (%)', icon: CreditCard, color: 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400', desc: 'Комиссия для заказов дороже порога «Ступень 3: до»', suffix: '%' },
+                  { key: 'estimation_fee', label: 'Стоимость выездного расчёта', icon: Activity, color: 'bg-cyan-50 dark:bg-cyan-900/20 text-cyan-600 dark:text-cyan-400', desc: 'Фиксированная плата за выезд мастера на оценку', suffix: ' сум' },
+                  { key: 'estimation_commission_rate', label: 'Комиссия с выездного расчёта (%)', icon: CreditCard, color: 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400', desc: 'Процент комиссии с оплаты выездного расчёта', suffix: '%' },
+                  { key: 'price_change_limit_pct', label: 'Лимит роста цены без модерации (%)', icon: AlertTriangle, color: 'bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400', desc: 'Рост выше этого порога уходит на проверку модератору. Согласие клиента требуется всегда', suffix: '%' },
+                  { key: 'price_change_max_total_pct', label: 'Макс. суммарный рост цены (%)', icon: AlertTriangle, color: 'bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400', desc: 'Предел роста от изначальной стоимости заказа. Выше — изменение запрещено', suffix: '%' },
                   { key: 'first_order_commission_rate', label: 'Комиссия первого заказа пары (%)', icon: Shield, color: 'bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400', desc: 'Повышенная ставка для первого заказа клиент↔мастер (защита от увода)', suffix: '%' },
                   { key: 'repeat_order_commission_rate', label: 'Комиссия повторного заказа пары (%)', icon: Shield, color: 'bg-teal-50 dark:bg-teal-900/20 text-teal-600 dark:text-teal-400', desc: 'Льготная ставка для повторных заказов через платформу', suffix: '%' },
                   { key: 'bypass_penalty_multiplier', label: 'Множитель штрафа за обход (×)', icon: AlertTriangle, color: 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400', desc: 'Штраф = стоимость заказа × коэффициент. По оферте — до 5×', suffix: '×' },
@@ -3342,6 +3360,11 @@ export function AdminDashboardPage() {
                   'urgency_multiplier', 'min_order_amount', 'visit_fee', 'visit_fee_commission_rate',
                   'default_guarantee_days', 'material_cancel_compensation', 'max_response_time',
                   'deposit_rate', 'false_dispute_penalty',
+                  'commission_tier_small', 'commission_tier_small_max',
+                  'commission_tier_mid', 'commission_tier_mid_max',
+                  'commission_tier_large', 'commission_tier_large_max', 'commission_tier_xl',
+                  'estimation_fee', 'estimation_commission_rate',
+                  'price_change_limit_pct', 'price_change_max_total_pct',
                 ]);
                 const other = config.filter((c: any) => !curatedKeys.has(c.key));
                 return other.length > 0 && (

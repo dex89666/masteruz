@@ -106,6 +106,26 @@ export const config = {
   payme: {
     merchantId: env('PAYME_MERCHANT_ID'),
     merchantKey: env('PAYME_MERCHANT_KEY'),
+    // Sandbox credentials (test.paycom.uz)
+    sandboxMerchantId: env('PAYME_SANDBOX_MERCHANT_ID'),
+    sandboxMerchantKey: env('PAYME_SANDBOX_MERCHANT_KEY'),
+    // Использовать sandbox вместо боевой среды
+    useSandbox: env('PAYME_USE_SANDBOX', 'false') === 'true',
+    // Таймаут транзакции Payme (мс). По протоколу — 12 часов.
+    transactionTimeoutMs: parseInt(env('PAYME_TX_TIMEOUT_MS', String(12 * 60 * 60 * 1000)), 10),
+    // ─── Фискализация (receipts.create) ───
+    // ИКПУ/MXIK по умолчанию (статичный код). Уточняется у Payme.
+    // Если ИКПУ динамические — код можно переопределить per-item.
+    fiscal: {
+      // Единый код ИКПУ/MXIK для всех позиций по умолчанию.
+      ikpuCode: env('PAYME_FISCAL_IKPU', ''),
+      // package_code (код упаковки) по умолчанию.
+      packageCode: env('PAYME_FISCAL_PACKAGE_CODE', ''),
+      // Ставка НДС в процентах (0 или 12).
+      vatPercent: parseInt(env('PAYME_FISCAL_VAT_PERCENT', '0'), 10),
+      // Тип чека: 0 — продажа, 1 — возврат.
+      receiptType: parseInt(env('PAYME_FISCAL_RECEIPT_TYPE', '0'), 10),
+    },
   },
 
   // Загрузка файлов

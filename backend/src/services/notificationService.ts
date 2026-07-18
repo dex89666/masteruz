@@ -9,6 +9,7 @@ import { sendTelegramMessage, notifyMasterOrderApproved, notifyMasterNewOrder, n
 import { logger } from '../utils/logger.js';
 import { toNum, calculateDistance } from '../utils/helpers.js';
 import { alertRouter } from './alertRouter.js';
+import { translatorFor, translator, normalizeLang, type Translator } from '../i18n/index.js';
 import {
   rankMasters,
   splitIntoWaves,
@@ -69,12 +70,19 @@ export class NotificationService {
 
       if (!masterUser) return;
 
+      const masterLangRow = await prisma.user.findUnique({
+        where: { id: order.masterId! },
+        select: { language: true },
+      });
+      const masterLang = normalizeLang(masterLangRow?.language);
+      const trMaster = translator(masterLang);
+
       // In-app уведомление
       await this.createNotification({
         userId: order.masterId!,
         type: 'order_approved',
-        title: '✅ Заказ одобрен — можете приступать!',
-        message: `Заказ "${order.title}" одобрен. Комиссия оплачена. Контакты клиента доступны в заказе.`,
+        title: trMaster('notify.orderApproved.title'),
+        message: trMaster('notify.orderApproved.message', { title: order.title }),
         data: {
           orderId: order.id,
           clientPhone: order.client.phone,
@@ -106,6 +114,7 @@ export class NotificationService {
         price: toNum(order.price),
         isUrgent: order.isUrgent,
         tasks: order.orderTasks.map((ot: any) => ot.task.name),
+        lang: masterLang,
       });
 
       logger.info({ orderId, masterId: order.masterId }, 'Мастер уведомлён о назначении');
@@ -455,6 +464,13 @@ export class NotificationService {
     }
 
     // ─── 2. Telegram push (per-user, под rate-limit) ─────────────
+    // Языки получателей — одним запросом, чтобы не делать N обращений к БД.
+    const langRows = await prisma.user.findMany({
+      where: { id: { in: wave.masters.map((m: RankedMaster) => m.masterId) } },
+      select: { id: true, language: true },
+    });
+    const langByMaster = new Map(langRows.map((r) => [r.id, normalizeLang(r.language)]));
+
     const results = await Promise.allSettled(
       wave.masters.map(async (master: RankedMaster) => {
         if (!master.telegramId) {
@@ -480,6 +496,7 @@ export class NotificationService {
           district: order.district,
           region: order.region,
           price: toNum(order.price),
+          lang: langByMaster.get(master.masterId),
           isUrgent: order.isUrgent,
           categoryName: order.category?.name || '',
           distance: master.distanceKm,
@@ -555,12 +572,19 @@ export class NotificationService {
 
       if (!order || !masterUser) return;
 
+      const langRow = await prisma.user.findUnique({
+        where: { id: masterId },
+        select: { language: true },
+      });
+      const lang = normalizeLang(langRow?.language);
+      const tr = translator(lang);
+
       // In-app
       await this.createNotification({
         userId: masterId,
         type: 'response_accepted',
-        title: '🎉 Ваш отклик выбран!',
-        message: `Клиент выбрал вас для заказа "${order.title}". Оплатите комиссию, чтобы получить контакты клиента.`,
+        title: tr('notify.responseAccepted.title'),
+        message: tr('notify.responseAccepted.message', { title: order.title }),
         data: { orderId },
       });
 
@@ -570,6 +594,7 @@ export class NotificationService {
         orderTitle: order.title,
         orderId: order.id,
         price: toNum(order.price),
+        lang,
       });
     } catch (error) {
       logger.error({ error, orderId, masterId }, 'Ошибка уведомления о принятии отклика');
@@ -597,24 +622,22 @@ export class NotificationService {
       });
       const refundAmount = lastRefund ? toNum(lastRefund.amount) : refund;
 
+      const tr = await translatorFor(order.clientId);
+      const amount = refundAmount.toLocaleString('ru');
+      const currency = tr('common.currency');
+
       await this.createNotification({
         userId: order.clientId,
         type: 'order_auto_cancelled',
-        title: '⏱ Заказ отменён — средства возвращены',
-        message:
-          `К сожалению, ни один мастер не принял ваш заказ "${order.title}" за 72 часа. ` +
-          `Заказ автоматически отменён, ${refundAmount.toLocaleString('ru')} сум возвращены на баланс.`,
+        title: tr('notify.orderAutoCancelled.title'),
+        message: tr('notify.orderAutoCancelled.message', { title: order.title, amount, currency }),
         data: { orderId, refundAmount },
       });
 
       if (order.client?.telegramId) {
         await sendTelegramMessage({
           chatId: order.client.telegramId,
-          text:
-            `⏱ <b>Заказ отменён</b>\n\n` +
-            `Ваш заказ <b>"${order.title}"</b> не был принят ни одним мастером в течение 72 часов.\n` +
-            `Заказ автоматически отменён, <b>${refundAmount.toLocaleString('ru')} сум</b> возвращены на ваш баланс.\n\n` +
-            `Попробуйте создать заказ повторно — возможно, стоит уточнить описание или изменить сумму.`,
+          text: tr('notify.orderAutoCancelled.tg', { title: order.title, amount, currency }),
         });
       }
     } catch (error) {
@@ -793,16 +816,22 @@ export class NotificationService {
       const eta = order.transitEtaAt
         ? new Date(order.transitEtaAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
         : null;
-      const masterName = order.master.profile?.firstName || 'Мастер';
+      const tr = await translatorFor(order.clientId);
+      const masterName = order.master.profile?.firstName || tr('common.master');
+      const toClient = reason === 'TO_CLIENT';
 
-      const title =
-        reason === 'TO_CLIENT'
-          ? `🚗 ${masterName} выехал к вам`
-          : `🛒 ${masterName} поехал за материалом`;
-      const message =
-        reason === 'TO_CLIENT'
-          ? `Прибудет примерно к ${eta ?? 'в течение часа'}.`
-          : `Сначала закупит материал, затем приедет к вам. Ориентир: к ${eta ?? '90 мин'}.`;
+      const title = tr(
+        toClient ? 'notify.masterDeparted.titleToClient' : 'notify.masterDeparted.titleForMaterial',
+        { master: masterName },
+      );
+      const message = tr(
+        toClient ? 'notify.masterDeparted.messageToClient' : 'notify.masterDeparted.messageForMaterial',
+        {
+          eta:
+            eta ??
+            tr(toClient ? 'notify.masterDeparted.etaWithinHour' : 'notify.masterDeparted.eta90min'),
+        },
+      );
 
       await this.createNotification({
         userId: order.clientId,
@@ -815,7 +844,7 @@ export class NotificationService {
       if (order.client.telegramId) {
         await sendTelegramMessage({
           chatId: order.client.telegramId,
-          text: `<b>${title}</b>\n${message}\n\nЗаказ: ${order.title}`,
+          text: tr('notify.masterDeparted.tg', { title, message, order: order.title }),
         }).catch(() => {});
       }
     } catch (err) {
@@ -839,11 +868,9 @@ export class NotificationService {
         return;
       }
 
-      const title = '⏰ Подтвердите выезд по заказу';
-      const message =
-        `Заказ «${order.title}» принят, но статус не обновлён. ` +
-        `Нажмите «Выехал за материалом» или «Выехал к клиенту», ` +
-        `чтобы клиент видел, что работа началась.`;
+      const tr = await translatorFor(order.masterId!);
+      const title = tr('notify.confirmDeparture.title');
+      const message = tr('notify.confirmDeparture.message', { title: order.title });
 
       await this.createNotification({
         userId: order.masterId!,
@@ -885,11 +912,17 @@ export class NotificationService {
         : 0;
 
       // Мастеру
-      const masterTitle = '⚠️ Вы опаздываете по заказу';
-      const masterMsg =
-        `По заказу «${order.title}» вы обещали прибыть, но статус не обновлён ` +
-        `(прошло уже ${overdueMin} мин после ETA). ` +
-        `Свяжитесь с клиентом или нажмите «Я приехал».`;
+      const masterLangRow = await prisma.user.findUnique({
+        where: { id: order.masterId! },
+        select: { language: true },
+      });
+      const masterLang = normalizeLang(masterLangRow?.language);
+      const trMaster = translator(masterLang);
+      const masterTitle = trMaster('notify.transitOverdue.masterTitle');
+      const masterMsg = trMaster('notify.transitOverdue.masterMessage', {
+        title: order.title,
+        minutes: overdueMin,
+      });
       await this.createNotification({
         userId: order.masterId!,
         type: 'master_transit_overdue',
@@ -905,10 +938,12 @@ export class NotificationService {
       }
 
       // Клиенту
-      const clientTitle = '⏳ Мастер задерживается';
-      const clientMsg =
-        `По вашему заказу «${order.title}» мастер опаздывает на ${overdueMin} мин. ` +
-        `Мы напомнили ему — следите за статусом в приложении.`;
+      const trClient = await translatorFor(order.clientId);
+      const clientTitle = trClient('notify.transitOverdue.clientTitle');
+      const clientMsg = trClient('notify.transitOverdue.clientMessage', {
+        title: order.title,
+        minutes: overdueMin,
+      });
       await this.createNotification({
         userId: order.clientId,
         type: 'client_master_overdue',
@@ -953,26 +988,246 @@ export class NotificationService {
       if (!order) return;
 
       const remaining = toNum(order.remainingAmount ?? 0);
+      const tr = await translatorFor(order.clientId);
+      const amount = remaining.toLocaleString('ru');
+      const currency = tr('common.currency');
 
       await this.createNotification({
         userId: order.clientId,
         type: 'order_awaiting_remainder',
-        title: '✅ Мастер завершил работу',
-        message: `Подтвердите завершение и выберите способ доплаты: наличными мастеру или картой (${remaining.toLocaleString('ru')} сум).`,
+        title: tr('notify.awaitingRemainder.title'),
+        message: tr('notify.awaitingRemainder.message', { amount, currency }),
         data: { orderId, remaining },
       });
 
       if (order.client.telegramId) {
         await sendTelegramMessage({
           chatId: order.client.telegramId,
-          text:
-            `<b>✅ Мастер завершил работу по заказу «${order.title}»</b>\n\n` +
-            `Остаток к доплате: <b>${remaining.toLocaleString('ru')} сум</b>\n` +
-            `Откройте приложение и выберите способ оплаты — наличными или картой.`,
+          text: tr('notify.awaitingRemainder.tg', { title: order.title, amount, currency }),
         }).catch(() => {});
       }
     } catch (err) {
       logger.error({ err, orderId }, 'notifyOrderAwaitingRemainder failed');
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // ИЗМЕНЕНИЕ ЦЕНЫ ПО ХОДУ РАБОТ
+  // ═══════════════════════════════════════════════════════════════
+
+  /** Загружает заявку вместе с заказом и участниками. */
+  private async loadPriceChange(requestId: string) {
+    return prisma.priceChangeRequest.findUnique({
+      where: { id: requestId },
+      include: {
+        order: { include: { client: true } },
+        master: { include: { profile: true } },
+      },
+    });
+  }
+
+  /** Человекочитаемое имя мастера. */
+  private masterLabel(master: any): string {
+    return (
+      `${master?.profile?.firstName || ''} ${master?.profile?.lastName || ''}`.trim() ||
+      master?.phone ||
+      'Мастер'
+    );
+  }
+
+  /**
+   * Заявка создана мастером.
+   * PENDING     → клиенту на подтверждение.
+   * MODERATION  → модераторам (снижение цены / расчёт по факту / рост выше лимита).
+   */
+  async notifyPriceChangeCreated(requestId: string) {
+    try {
+      const req = await this.loadPriceChange(requestId);
+      if (!req) return;
+
+      const isSettlement = req.kind === 'SETTLEMENT';
+      const oldPrice = toNum(req.oldPrice);
+      const newPrice = toNum(req.newPrice);
+      const visitFee = toNum(req.order.visitFee ?? 0);
+      const total = newPrice + visitFee;
+      const isDown = newPrice < oldPrice;
+      const deltaPct = oldPrice > 0 ? ((newPrice - oldPrice) / oldPrice) * 100 : 0;
+
+      // ── На модерацию: клиента пока не беспокоим ──
+      if (req.status === 'MODERATION') {
+        await alertRouter.dispatch({
+          type: 'price_change_moderation',
+          title: isSettlement
+            ? '🧾 Расчёт по факту — нужна проверка'
+            : isDown
+              ? '⚠️ Снижение цены — возможен обход платформы'
+              : '📈 Рост цены выше лимита',
+          message:
+            `Заказ: ${req.order.title}\n` +
+            `Мастер: ${this.masterLabel(req.master)}\n` +
+            `Работы: ${oldPrice.toLocaleString('ru')} → ${newPrice.toLocaleString('ru')} сум (${deltaPct > 0 ? '+' : ''}${deltaPct.toFixed(1)}%)\n` +
+            `Итого клиенту: ${total.toLocaleString('ru')} сум (вкл. выезд ${visitFee.toLocaleString('ru')})\n` +
+            `Обоснование: ${req.reason}\n` +
+            `Фото: ${req.photos?.length ?? 0} шт.\n\n` +
+            `Проверьте в админке → Модерация → Изменения цены.`,
+          data: { requestId, orderId: req.orderId, kind: req.kind, oldPrice, newPrice, deltaPct },
+        }).catch(() => {});
+        return;
+      }
+
+      // ── Ждёт клиента ──
+      const tr = await translatorFor(req.order.clientId);
+      const currency = tr('common.currency');
+      const heading = isDown
+        ? tr('notify.priceChange.pendingTitleDown')
+        : tr('notify.priceChange.pendingTitleUp');
+      const params = {
+        title: req.order.title,
+        order: req.order.title,
+        oldPrice: oldPrice.toLocaleString('ru'),
+        newPrice: newPrice.toLocaleString('ru'),
+        visitFee: visitFee.toLocaleString('ru'),
+        total: total.toLocaleString('ru'),
+        reason: req.reason,
+        currency,
+      };
+
+      await this.createNotification({
+        userId: req.order.clientId,
+        type: 'price_change_pending',
+        title: heading,
+        message: tr('notify.priceChange.pendingMessage', params),
+        data: { requestId, orderId: req.orderId, oldPrice, newPrice, total },
+      });
+
+      if (req.order.client.telegramId) {
+        await sendTelegramMessage({
+          chatId: req.order.client.telegramId,
+          text: tr('notify.priceChange.pendingTg', { ...params, title: heading }),
+        }).catch(() => {});
+      }
+    } catch (err) {
+      logger.error({ err, requestId }, 'notifyPriceChangeCreated failed');
+    }
+  }
+
+  /**
+   * Модератор принял решение.
+   * approved → заявка уходит клиенту (уведомляем клиента).
+   * иначе    → заявка отклонена (уведомляем мастера).
+   */
+  async notifyPriceChangeModerated(requestId: string, approved: boolean) {
+    try {
+      const req = await this.loadPriceChange(requestId);
+      if (!req) return;
+
+      if (approved) {
+        // Заявка теперь PENDING — просим клиента решить.
+        await this.notifyPriceChangeCreated(requestId);
+        return;
+      }
+
+      const newPrice = toNum(req.newPrice);
+      const tr = await translatorFor(req.masterId);
+      const currency = tr('common.currency');
+      const amount = newPrice.toLocaleString('ru');
+      const note = req.moderatorNote ?? '';
+
+      await this.createNotification({
+        userId: req.masterId,
+        type: 'price_change_moderation_rejected',
+        title: tr('notify.priceChange.moderationRejectedTitle'),
+        message:
+          tr('notify.priceChange.moderationRejectedMessage', { title: req.order.title, amount, currency }) +
+          (note ? tr('notify.priceChange.moderationRejectedReason', { note }) : ''),
+        data: { requestId, orderId: req.orderId, note: req.moderatorNote },
+      });
+
+      if (req.master.telegramId) {
+        await sendTelegramMessage({
+          chatId: req.master.telegramId,
+          text: tr('notify.priceChange.moderationRejectedTg', {
+            order: req.order.title,
+            amount,
+            currency,
+            noteLine: note ? tr('notify.priceChange.moderationRejectedTgNote', { note }) : '',
+          }),
+        }).catch(() => {});
+      }
+    } catch (err) {
+      logger.error({ err, requestId }, 'notifyPriceChangeModerated failed');
+    }
+  }
+
+  /**
+   * Клиент принял решение по заявке — уведомляем мастера.
+   * Отказ от расчёта по факту дополнительно эскалируем в поддержку (спор).
+   */
+  async notifyPriceChangeResponded(requestId: string, approved: boolean) {
+    try {
+      const req = await this.loadPriceChange(requestId);
+      if (!req) return;
+
+      const isSettlement = req.kind === 'SETTLEMENT';
+      const newPrice = toNum(req.newPrice);
+      const visitFee = toNum(req.order.visitFee ?? 0);
+      const total = newPrice + visitFee;
+
+      const tr = await translatorFor(req.masterId);
+      const currency = tr('common.currency');
+      const totalStr = total.toLocaleString('ru');
+      const visitFeeStr = visitFee.toLocaleString('ru');
+
+      const title = approved
+        ? tr(isSettlement ? 'notify.priceChange.approvedSettlementTitle' : 'notify.priceChange.approvedTitle')
+        : tr(isSettlement ? 'notify.priceChange.rejectedSettlementTitle' : 'notify.priceChange.rejectedTitle');
+
+      const message = approved
+        ? tr('notify.priceChange.approvedMessage', { title: req.order.title, total: totalStr, currency })
+        : tr(
+            isSettlement
+              ? 'notify.priceChange.rejectedSettlementMessage'
+              : 'notify.priceChange.rejectedMessage',
+            { title: req.order.title },
+          );
+
+      await this.createNotification({
+        userId: req.masterId,
+        type: approved ? 'price_change_approved' : 'price_change_rejected',
+        title,
+        message,
+        data: { requestId, orderId: req.orderId, kind: req.kind, newPrice, total },
+      });
+
+      if (req.master.telegramId) {
+        const body = approved
+          ? tr('notify.priceChange.respondedTgApproved', { total: totalStr, visitFee: visitFeeStr, currency })
+          : isSettlement
+            ? tr('notify.priceChange.respondedTgSettlementRejected')
+            : tr('notify.priceChange.respondedTgRejected', { visitFee: visitFeeStr, currency });
+
+        await sendTelegramMessage({
+          chatId: req.master.telegramId,
+          text: tr('notify.priceChange.respondedTg', { title, order: req.order.title, body }),
+        }).catch(() => {});
+      }
+
+      // Спор по объёму работ → в поддержку.
+      if (!approved && isSettlement) {
+        await alertRouter.dispatch({
+          type: 'dispute_escalated',
+          title: '⚖️ Спор по объёму выполненных работ',
+          message:
+            `Заказ: ${req.order.title}\n` +
+            `Мастер: ${this.masterLabel(req.master)}\n` +
+            `Заявлено мастером: ${newPrice.toLocaleString('ru')} сум\n` +
+            `Согласованная цена: ${toNum(req.oldPrice).toLocaleString('ru')} сум\n` +
+            `Клиент не согласен — требуется решение администратора.`,
+          data: { requestId, orderId: req.orderId },
+        }).catch(() => {});
+      }
+    } catch (err) {
+      logger.error({ err, requestId }, 'notifyPriceChangeResponded failed');
     }
   }
 }

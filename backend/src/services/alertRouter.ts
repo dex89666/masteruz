@@ -43,6 +43,9 @@ const ALERT_ROUTING: Record<string, TeamRole[]> = {
   chat_message_flagged:      ['MODERATOR'],
   photo_violation:           ['MODERATOR'],
   forum_report:              ['MODERATOR'],
+  // Изменение цены по ходу работ. Снижения и расчёты по факту — потенциальный
+  // обход платформы, поэтому дублируем финансистам.
+  price_change_moderation:   ['MODERATOR', 'FINANCE'],
 
   // Системные / владельцы
   ai_provider_issue:         ['OWNER'],

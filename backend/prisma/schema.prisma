@@ -133,6 +133,9 @@ model User {
   isActive    Boolean  @default(true) @map("is_active")
   isVerified  Boolean  @default(false) @map("is_verified")
   balance     Decimal  @default(0) @db.Decimal(12, 2)
+  // Язык интерфейса и уведомлений: 'ru' | 'uz' | 'en'.
+  // Синхронизируется с выбором языка во фронтенде.
+  language    String   @default("ru")
   referralCode String  @unique @map("referral_code")
   referredById String? @map("referred_by_id")
   // Customer Risk Score (0..100): чем выше — тем рискованнее клиент
@@ -176,6 +179,7 @@ model User {
   storeReviews   StoreReview[]
   turnkeyProjects TurnkeyProject[]
   estimates      Estimate[]     @relation("EstimateMaster")
+  priceChangeRequests PriceChangeRequest[] @relation("PriceChangeMaster")
   aiOrderTemplates AiOrderTemplate[]
   supportChatsAsUser  SupportChat[]    @relation("SupportChatUser")
   supportChatsAsAdmin SupportChat[]    @relation("SupportChatAdmin")
@@ -184,11 +188,14 @@ model User {
   forumTopics         ForumTopic[]     @relation("ForumTopicAuthor")
   forumPosts          ForumPost[]      @relation("ForumPostAuthor")
   linkedCards         LinkedCard[]
+  savedCards          SavedCard[]
   clientReviewsGiven    MasterReviewClient[] @relation("MRC_Master")
   clientReviewsReceived MasterReviewClient[] @relation("MRC_Client")
   masterSubscriptions   MasterSubscription[] @relation("MasterSubscriptions")
   referredSubscriptions MasterSubscription[] @relation("ReferrerSubscriptions")
   warnings              MasterWarning[]      @relation("UserWarnings")
+  privilegedProfile     PrivilegedOfficialProfile?
+  approverForOfficials  PrivilegedOfficialProfile[] @relation("OfficialApprover")
 
   @@map("users")
 }
@@ -236,6 +243,25 @@ model LinkedCard {
 
   @@index([userId])
   @@map("linked_cards")
+}
+
+// Привязанные карты для Payme Subscribe API (token-based)
+model SavedCard {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  token       String   @unique
+  lastFour    String   @map("last_four")
+  brand       String?  @map("brand")
+  expiryMonth Int?     @map("expiry_month")
+  expiryYear  Int?     @map("expiry_year")
+  isDefault   Boolean  @default(false) @map("is_default")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("saved_cards")
 }
 
 model UserProfile {
@@ -512,6 +538,7 @@ model Order {
   childOrders Order[]        @relation("EstimationChain")
   aiTemplate  AiOrderTemplate? @relation(fields: [aiTemplateId], references: [id])
   masterClientReviews MasterReviewClient[]
+  priceChangeRequests PriceChangeRequest[]
 
   @@index([status, createdAt])
   @@index([latitude, longitude])
@@ -666,11 +693,87 @@ model Payment {
   order Order? @relation(fields: [orderId], references: [id])
   user  User   @relation(fields: [userId], references: [id])
   masterSubscription MasterSubscription?
+  paymeTransactions  PaymentTransaction[]
 
   @@index([status])
   @@index([userId, createdAt])
   @@index([provider, providerTxId])
   @@map("payments")
+}
+
+// ════════════════════════════════════════════════
+// ИЗМЕНЕНИЕ ЦЕНЫ ПО ХОДУ РАБОТ
+// ════════════════════════════════════════════════
+
+// Что именно предлагает мастер.
+enum PriceChangeKind {
+  PRICE_CHANGE // новая цена работ (доп. работы / уточнение объёма)
+  SETTLEMENT   // расчёт при отказе клиента: фактически выполненная работа
+}
+
+enum PriceChangeStatus {
+  PENDING    // ждёт решения клиента
+  MODERATION // рост выше лимита → сначала решает админ
+  APPROVED   // клиент (и админ, если требовалось) согласился
+  REJECTED   // клиент отказался
+  CANCELLED  // мастер отозвал предложение
+}
+
+// Предложение мастера изменить цену заказа по ходу работ.
+// Любое изменение требует ЯВНОГО подтверждения клиента (см. priceChangeLimitPct).
+// При отказе клиента создаётся запись с kind=SETTLEMENT: мастер заявляет
+// фактически выполненный объём, клиент подтверждает либо открывает спор.
+model PriceChangeRequest {
+  id            String            @id @default(uuid())
+  orderId       String            @map("order_id")
+  masterId      String            @map("master_id")
+  kind          PriceChangeKind   @default(PRICE_CHANGE)
+  status        PriceChangeStatus @default(PENDING)
+  oldPrice      Decimal           @map("old_price") @db.Decimal(12, 2) // цена работ до изменения
+  newPrice      Decimal           @map("new_price") @db.Decimal(12, 2) // предлагаемая цена работ
+  reason        String                                                  // обоснование (обязательно)
+  photos        String[]          @default([])                          // фото-доказательства
+  // Модерация (если рост выше priceChangeLimitPct)
+  moderatedById String?           @map("moderated_by_id")
+  moderatedAt   DateTime?         @map("moderated_at")
+  moderatorNote String?           @map("moderator_note")
+  respondedAt   DateTime?         @map("responded_at")
+  createdAt     DateTime          @default(now()) @map("created_at")
+  updatedAt     DateTime          @updatedAt @map("updated_at")
+
+  order  Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  master User  @relation("PriceChangeMaster", fields: [masterId], references: [id])
+
+  @@index([orderId])
+  @@index([status])
+  @@index([orderId, status])
+  @@map("price_change_requests")
+}
+
+// ─── Транзакции протокола Payme Merchant API ──────────────────────
+// Хранит состояние транзакции Payme отдельно от нашего Payment, т.к.
+// протокол требует стабильных create_time/perform_time/cancel_time и
+// собственную машину состояний (1, 2, -1, -2) для методов
+// CheckTransaction / GetStatement / идемпотентности.
+model PaymentTransaction {
+  id          String    @id @default(uuid())
+  paymeId     String    @unique @map("payme_id")   // params.id, присланный Payme
+  paymentId   String    @map("payment_id")          // наш Payment.id (account.payment_id)
+  amount      Decimal   @db.Decimal(16, 2)          // сумма в тийинах
+  state       Int       @default(1)                  // 1 создана, 2 проведена, -1 отменена до, -2 отменена после
+  reason      Int?                                    // код причины отмены (Payme)
+  createTime  DateTime  @map("create_time")          // из params.time (мс с эпохи)
+  performTime DateTime? @map("perform_time")
+  cancelTime  DateTime? @map("cancel_time")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  payment Payment @relation(fields: [paymentId], references: [id])
+
+  @@index([paymentId])
+  @@index([createTime])
+  @@index([state])
+  @@map("payment_transactions")
 }
 
 // ════════════════════════════════════════════════
@@ -1426,3 +1529,172 @@ model ForumPost {
   @@index([authorId])
   @@map("forum_posts")
 }
+
+// ════════════════════════════════════════════════
+// СИСТЕМА ПРИВИЛЕГИРОВАННЫХ ДОЛЖНОСТНЫХ ЛИЦ
+// И ИНЦЕНТИВИЗАЦИЯ (для чиновников, начальников ЖЭКа и т.д.)
+// ════════════════════════════════════════════════
+
+// Статусы привилегированного профиля
+enum PrivilegeStatus {
+  PENDING        // Ожидание проверки
+  ACTIVE         // Активен
+  SUSPENDED      // Приостановлен
+  REVOKED        // Отозван
+}
+
+// Типы привилегированных лиц
+enum PrivilegeType {
+  OFFICIAL        // Государственный чиновник
+  BUILDING_HEAD   // Начальник жилого дома, ЖЭК, УК
+  BUSINESS_OWNER  // Владелец/директор предприятия
+  DISTRICT_HEAD   // Начальник объединённого квартала/округа
+}
+
+// Модель: Профиль привилегированного должностного лица
+model PrivilegedOfficialProfile {
+  id                String            @id @default(uuid())
+  userId            String            @unique @map("user_id")
+  // Документ/реквизиты верификации
+  organizationName  String            @map("organization_name")    // ТОО "ЖЭК №3", Алмалинский жилой комплекс
+  position          String                                          // "Начальник", "Директор", "Уполномоченный"
+  documentNumber    String?           @map("document_number")       // Номер приказа, справки
+  documentUrl       String?           @map("document_url")          // URL скана документа
+  privilegeType     PrivilegeType                                    // Категория привилегий
+  // Статус и жизненный цикл
+  status            PrivilegeStatus   @default(PENDING)
+  statusReason      String?           @map("status_reason")         // Причина отказа / приостановки
+  // Привилегии
+  canFastTrack      Boolean           @default(true) @map("can_fast_track")      // Ускорить своё заявления в очереди
+  canAssignMaster   Boolean           @default(true) @map("can_assign_master")   // Назначить мастера
+  canOverrideSla    Boolean           @default(false) @map("can_override_sla")  // Переопределить SLA
+  canAccessAnalytics Boolean          @default(true) @map("can_access_analytics") // Видеть метрики
+  // Сроки действия и отсчёт
+  expiresAt         DateTime?         @map("expires_at")
+  renewalNotifSentAt DateTime?        @map("renewal_notif_sent_at")
+  // KPI и мотивация
+  targetSlaScore    Float             @default(85.0) @map("target_sla_score")   // % заказов в срок
+  targetSatisfaction Float            @default(4.0) @map("target_satisfaction") // средняя оценка 1-5
+  // Бонусные программы
+  monthlyBonusPool  Decimal           @default(0) @map("monthly_bonus_pool") @db.Decimal(12, 2) // Пул на месяц (сум)
+  bonusPercentage   Float             @default(5.0) @map("bonus_percentage")    // % от сэкономленной суммы
+  // Лимиты действий за день/месяц
+  dailyFastTrackLimit Int             @default(5) @map("daily_fast_track_limit")
+  dailyFastTrackUsed Int              @default(0) @map("daily_fast_track_used")
+  dailyFastTrackResetAt DateTime?     @map("daily_fast_track_reset_at")
+  // Аудит
+  approvedBy        String?           @map("approved_by")           // ID админа, одобрившего статус
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  approver          User?             @relation("OfficialApprover", fields: [approvedBy], references: [id])
+  actions           PrivilegedAction[]
+  kpiRecords        KPIRecord[]
+  orderPriorities   OfficialOrderPriority[]
+
+  @@index([status, expiresAt])
+  @@index([privilegeType])
+  @@index([userId])
+  @@map("privileged_official_profiles")
+}
+
+// Модель: История и аудит действий привилегированного лица
+model PrivilegedAction {
+  id                String   @id @default(uuid())
+  officialId        String   @map("official_id")
+  action            String                         // 'FAST_TRACKED', 'ASSIGNED_MASTER', 'COMMENT_ADDED', 'PRIORITY_SET'
+  targetEntityType  String   @map("target_entity_type")  // 'ORDER', 'USER', 'MASTER'
+  targetEntityId    String   @map("target_entity_id")    // ID заказа, пользователя, мастера
+  description       String?                        // Описание действия
+  metadata          Json?                          // Доп. данные: {orderId, masterId, reason, etc}
+  ipAddress         String?  @map("ip_address")
+  userAgent         String?  @map("user_agent")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  official PrivilegedOfficialProfile @relation(fields: [officialId], references: [id], onDelete: Cascade)
+
+  @@index([officialId, createdAt])
+  @@index([action, createdAt])
+  @@index([targetEntityType, targetEntityId])
+  @@map("privileged_actions")
+}
+
+// Модель: KPI и метрики по привилегированным лицам
+model KPIRecord {
+  id                String   @id @default(uuid())
+  officialId        String   @map("official_id")
+  period            String                         // '2024-06', '2024-Q2' (год-месяц или квартал)
+  // Метрики SLA: % заказов завершено в срок
+  totalOrders       Int      @default(0) @map("total_orders")
+  onTimeOrders      Int      @default(0) @map("on_time_orders")
+  slaScore          Float    @default(0.0) @map("sla_score")        // % (0–100)
+  // Метрики качества: средняя оценка клиентов (1–5звезд)
+  avgRating         Float    @default(0.0) @map("avg_rating")
+  ratingCount       Int      @default(0) @map("rating_count")
+  // Метрики скорости решения жалоб
+  totalComplaints   Int      @default(0) @map("total_complaints")
+  resolvedComplaints Int     @default(0) @map("resolved_complaints")
+  avgResolutionDays Float    @default(0.0) @map("avg_resolution_days")
+  // Финансовые метрики
+  totalOrderAmount  Decimal  @default(0) @map("total_order_amount") @db.Decimal(12, 2)
+  savings           Decimal  @default(0) @map("savings") @db.Decimal(12, 2)  // Сумма сэкономленная по SLA
+  bonusEarned       Decimal  @default(0) @map("bonus_earned") @db.Decimal(12, 2)
+  // Status
+  status            String   @default("PRELIMINARY")  // PRELIMINARY, FINAL, VOIDED
+  lockedAt          DateTime? @map("locked_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  official PrivilegedOfficialProfile @relation(fields: [officialId], references: [id], onDelete: Cascade)
+
+  @@unique([officialId, period])
+  @@index([officialId, period])
+  @@index([period])
+  @@map("kpi_records")
+}
+
+// Модель: Приоритет к заказу, назначенный привилегированным лицом
+model OfficialOrderPriority {
+  id                String   @id @default(uuid())
+  orderId           String   @map("order_id")
+  officialId        String   @map("official_id")
+  priorityLevel     Int                            // 1 = критично, 2 = высокий, 3 = нормальный
+  reason            String?                        // Причина приоритизации
+  // SLA для этого заказа (переопределение глобального)
+  customSlaHours    Int?     @map("custom_sla_hours")     // Например: 4 часа вместо 24
+  bonusAmount       Decimal? @map("bonus_amount") @db.Decimal(12, 2) // Доп. награда за ускорение
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  official PrivilegedOfficialProfile @relation(fields: [officialId], references: [id], onDelete: Cascade)
+
+  @@unique([orderId, officialId])
+  @@index([officialId, createdAt])
+  @@index([priorityLevel])
+  @@map("official_order_priorities")
+}
+
+// Модель: Настройки мотивации для привилегированных (кастомизируются админом)
+model MotivationSetting {
+  id                String   @id @default(uuid())
+  // Правые привилегии для разных уровней
+  privilegeType     PrivilegeType    @unique @map("privilege_type")
+  // Пороги для достижений и бонусов
+  slaThresholdPct   Float   @default(85.0) @map("sla_threshold_pct")      // % для "Отличный SLA"
+  satisfactionMin   Float   @default(4.0) @map("satisfaction_min")        // минимум для бонуса
+  // Бонус-структура
+  baseBonusPercentage Float @default(5.0) @map("base_bonus_percentage")  // % от экономии
+  slaBonusBoost     Float  @default(1.5) @map("sla_bonus_boost")         // множитель за хороший SLA
+  // Приоритеты и ускорение
+  fastTrackLimit    Int     @default(5) @map("fast_track_limit")         // Номер ускорений в день
+  maxCustomSlaHours Int     @default(4) @map("max_custom_sla_hours")     // max SLA override
+  // Памятки и напоминания
+  renewalDaysBefore Int     @default(30) @map("renewal_days_before")     // Напомнить за N дней до истечения
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@map("motivation_settings")
+}
+
+// Модель: Связь User → PrivilegedOfficialProfile (добавляем в User)
+// (уже есть в User relationsи: privilegedProfile: PrivilegedOfficialProfile?)

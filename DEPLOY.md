@@ -22,6 +22,7 @@
 12. [Справочник переменных](#12--справочник-всех-переменных)
 13. [Полезные команды](#13--полезные-команды)
 14. [FAQ и решение проблем](#14--faq-и-решение-проблем)
+15. [Payme интеграция (платёжная система)](#15--payme-интеграция)
 
 ---
 
@@ -676,4 +677,287 @@ MasterUz/
 
 ---
 
-**Готово! 🎉** Следуйте шагам 1–10 последовательно, и ваша платформа MasterUz будет работать в продакшне как Telegram Mini App с SSL, автоматическими бэкапами и CI/CD деплоем.
+## 15. 💳 Payme интеграция
+
+### Обзор
+
+MasterUz поддерживает интеграцию с платёжной системой **Payme** через два API:
+
+- **Merchant API** — webhook-модель (webhook от Payme на ваш сервер)
+- **Subscribe API** — RPC-модель для привязки карт и рекуррентных платежей
+
+### Sandbox vs Production
+
+Payme предоставляет две среды для интеграции:
+
+| Среда | Merchant API | Subscribe API | API ключи |
+| --- | --- | --- | --- |
+| **Sandbox** | `https://test.paycom.uz` | `https://test.paycom.uz` | test_merchant (ID), test_key |
+| **Production** | `https://checkout.paycom.uz` | `https://checkout.paycom.uz` | Ваш ID и ключ |
+
+### Настройка переменных окружения
+
+Добавьте в `.env.production`:
+
+```bash
+# === PAYME ===
+# Production (после контакта с Payme)
+PAYME_MERCHANT_ID=your_merchant_id_here
+PAYME_MERCHANT_KEY=your_merchant_key_here
+
+# Sandbox для тестирования
+PAYME_SANDBOX_MERCHANT_ID=test_merchant
+PAYME_SANDBOX_MERCHANT_KEY=test_key
+PAYME_USE_SANDBOX=false  # true для sandbox, false для production
+
+# IP whitelist для webhook'ов (разделены запятой)
+PAYME_WEBHOOK_WHITELIST=185.xxx.xxx.xxx,10.0.0.0/8
+
+# URLs для callback'ов
+PAYME_CALLBACK_URL=https://your-domain.uz/api/payments/webhook/payme
+```
+
+### Sandbox Testing
+
+#### Шаг 1 — Активируйте sandbox режим
+
+```bash
+# На вашем locahost или staging сервере
+export PAYME_USE_SANDBOX=true
+export PAYME_SANDBOX_MERCHANT_ID=test_merchant
+export PAYME_SANDBOX_MERCHANT_KEY=test_key
+npm run dev
+```
+
+#### Шаг 2 — Тестируйте Merchant API webhook'ы с curl
+
+```bash
+# CheckPerformTransaction — проверка платежа
+curl -X POST https://localhost:3000/api/payments/webhook/payme \
+  -H "Authorization: Basic dGVzdF9tZXJjaGFudDp0ZXN0X2tleQ==" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "method": "CheckPerformTransaction",
+    "params": {
+      "account": { "payment_id": "pay-123" },
+      "amount": 5000000
+    },
+    "id": "1",
+    "jsonrpc": "2.0"
+  }'
+
+# CreateTransaction — создание платежа
+curl -X POST https://localhost:3000/api/payments/webhook/payme \
+  -H "Authorization: Basic dGVzdF9tZXJjaGFudDp0ZXN0X2tleQ==" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "method": "CreateTransaction",
+    "params": {
+      "account": { "payment_id": "pay-123" },
+      "amount": 5000000,
+      "time": '`date +%s`'000
+    },
+    "id": "1",
+    "jsonrpc": "2.0"
+  }'
+
+# PerformTransaction — подтверждение платежа
+curl -X POST https://localhost:3000/api/payments/webhook/payme \
+  -H "Authorization: Basic dGVzdF9tZXJjaGFudDp0ZXN0X2tleQ==" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "method": "PerformTransaction",
+    "params": {
+      "id": "payme-tx-1",
+      "time": '`date +%s`'000
+    },
+    "id": "1",
+    "jsonrpc": "2.0"
+  }'
+
+# CancelTransaction — отмена платежа
+curl -X POST https://localhost:3000/api/payments/webhook/payme \
+  -H "Authorization: Basic dGVzdF9tZXJjaGFudDp0ZXN0X2tleQ==" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "method": "CancelTransaction",
+    "params": {
+      "id": "payme-tx-1",
+      "reason": 1,
+      "time": '`date +%s`'000
+    },
+    "id": "1",
+    "jsonrpc": "2.0"
+  }'
+```
+
+#### Шаг 3 — Expose локального сервера в интернет (для webhook-тестирования)
+
+Используйте **ngrok** для создания публичного URL:
+
+```bash
+# Установка ngrok
+brew install ngrok        # macOS
+# или скачайте с https://ngrok.com/download
+
+# Expose порт 3000
+ngrok http 3000
+# Вывод: https://abcd-123-456.ngrok.io
+
+# Теперь ваш локальный сервер доступен на https://abcd-123-456.ngrok.io
+# Сообщите этот URL Payme team для тестирования webhook'ов
+```
+
+### Subscribe API (привязка карт)
+
+#### Frontend использование
+
+```typescript
+// На странице профиля или при оплате
+import SubscribeCardForm from '@/components/SubscribeCardForm';
+
+export function ProfilePage() {
+  return (
+    <SubscribeCardForm
+      onSuccess={(token) => {
+        console.log('Карта привязана, token:', token);
+        // После успеха можно вызвать subscribe.charge() для оплаты
+      }}
+      paymentId="pay-123"  // опционально, связанный платёж
+    />
+  );
+}
+```
+
+#### Backend использование (Subscribe RPC)
+
+```bash
+# Привязать карту (subscribe.bind)
+curl -X POST https://your-domain.uz/api/payments/subscribe/rpc \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "method": "subscribe.bind",
+    "params": {
+      "pan": "8600969801234567",
+      "expiry": "0325",
+      "cvv": "123"
+    }
+  }'
+
+# Ответ:
+# {
+#   "result": {
+#     "token": "card_token_here",
+#     "status": "active"
+#   }
+# }
+
+# Удержать средства (subscribe.hold)
+curl -X POST https://your-domain.uz/api/payments/subscribe/rpc \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -d '{
+    "method": "subscribe.hold",
+    "params": {
+      "token": "card_token_here",
+      "amount": 5000000
+    }
+  }'
+
+# Списать средства (subscribe.charge)
+curl -X POST https://your-domain.uz/api/payments/subscribe/rpc \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -d '{
+    "method": "subscribe.charge",
+    "params": {
+      "token": "card_token_here",
+      "amount": 5000000
+    }
+  }'
+```
+
+### IP Whitelist для webhook'ов
+
+Payme отправляет webhook'ы с фиксированных IP-адресов. Добавьте их в `.env`:
+
+```bash
+# Для sandbox
+PAYME_WEBHOOK_WHITELIST=185.222.126.0/24,185.222.127.0/24
+
+# Для production — уточните у Payme
+# PAYME_WEBHOOK_WHITELIST=ваши_ip_от_payme
+```
+
+Middleware в `backend/src/middleware/ipWhitelist.ts` будет автоматически отклонять запросы с неуполномоченных IP.
+
+### Фискализация чеков (receipts.create)
+
+После завершения платежа (PerformTransaction) автоматически отправляется `receipts.create`:
+
+```typescript
+// В PaymentsService.handlePaymeWebhook():
+case 'PerformTransaction':
+  // ... обновить статус платежа...
+  await this.createReceipt(payment);  // ← автоматическая фискализация
+  break;
+```
+
+Если фискализация не удалась — платёж всё равно будет завершён (логируется предупреждение).
+
+### Мониторинг платежей
+
+Проверяйте логи для отладки:
+
+```bash
+# На production сервере
+docker compose -f docker-compose.prod.yml logs backend | grep -i payme
+
+# Или в цикле:
+docker compose -f docker-compose.prod.yml logs -f backend | grep payme
+```
+
+Все операции Payme логируются в `backend/src/services/logger.service` с меткой `payme`.
+
+### Safety checklist для Production
+
+Перед переключением `PAYME_USE_SANDBOX=false`:
+
+- ✅ Протестирована привязка карт в sandbox (Subscribe API)
+- ✅ Протестированы все методы Merchant API (CheckPerform, Create, Perform, Cancel)
+- ✅ IP whitelist настроен (только Payme IP)
+- ✅ HTTPS сертификат валиден на вашем домене
+- ✅ Обработчик webhook'ов логирует все события
+- ✅ Проверены обработчики ошибок (не падает ли приложение на ошибки Payme)
+- ✅ Уведомления пользователям работают (email/push при платеже)
+- ✅ Бэкапы БД настроены (на случай проблем)
+
+### Production Rollout
+
+```bash
+# 1. Настройте production переменные
+vim .env.production
+# отредактируйте PAYME_MERCHANT_ID, PAYME_MERCHANT_KEY, PAYME_USE_SANDBOX=false
+
+# 2. Обновите deployment
+docker compose -f docker-compose.prod.yml up -d backend
+
+# 3. Проверьте логи
+docker compose -f docker-compose.prod.yml logs -f backend
+
+# 4. Выполните payment test от Payme team
+# Они отправят тестовый платёж, убедитесь что всё работает
+```
+
+### Troubleshooting
+
+| Проблема | Решение |
+| --- | --- |
+| `401 Unauthorized` | Проверьте `PAYME_MERCHANT_ID` и `PAYME_MERCHANT_KEY` в .env |
+| `403 Forbidden (IP)` | Ваш IP не в `PAYME_WEBHOOK_WHITELIST` или неверно прописан |
+| `receipts.create failed` | Ошибка фискализации (логируется как warning, не блокирует платёж) |
+| `subscribe.bind отклоняет карту` | Проверьте корректность PAN, expiry (MMYY), CVV в sandbox среде |
+| Webhook не приходит | Убедитесь что `PAYME_CALLBACK_URL` корректен и доступен из интернета |
+
+---
+
+

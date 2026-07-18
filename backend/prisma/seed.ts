@@ -374,6 +374,71 @@ async function seed() {
   ]);
 
   console.log(`✅ Создано ${courses.length} курсов`);
+
+  // ═══════════════════════════════════════════════════════════
+  // Setup: Motivation Settings для привилегированных лиц
+  // ═══════════════════════════════════════════════════════════
+  const motivationSettings = await Promise.all([
+    prisma.motivationSetting.upsert({
+      where: { privilegeType: 'BUILDING_HEAD' },
+      update: {},
+      create: {
+        privilegeType: 'BUILDING_HEAD',
+        slaThresholdPct: 85.0,
+        satisfactionMin: 4.0,
+        baseBonusPercentage: 5.0,
+        slaBonusBoost: 1.5,
+        fastTrackLimit: 5,
+        maxCustomSlaHours: 4,
+        renewalDaysBefore: 30,
+      },
+    }),
+    prisma.motivationSetting.upsert({
+      where: { privilegeType: 'OFFICIAL' },
+      update: {},
+      create: {
+        privilegeType: 'OFFICIAL',
+        slaThresholdPct: 90.0,
+        satisfactionMin: 4.2,
+        baseBonusPercentage: 7.0,
+        slaBonusBoost: 2.0,
+        fastTrackLimit: 10,
+        maxCustomSlaHours: 2,
+        renewalDaysBefore: 30,
+      },
+    }),
+    prisma.motivationSetting.upsert({
+      where: { privilegeType: 'BUSINESS_OWNER' },
+      update: {},
+      create: {
+        privilegeType: 'BUSINESS_OWNER',
+        slaThresholdPct: 80.0,
+        satisfactionMin: 3.8,
+        baseBonusPercentage: 8.0,
+        slaBonusBoost: 1.8,
+        fastTrackLimit: 8,
+        maxCustomSlaHours: 6,
+        renewalDaysBefore: 30,
+      },
+    }),
+    prisma.motivationSetting.upsert({
+      where: { privilegeType: 'DISTRICT_HEAD' },
+      update: {},
+      create: {
+        privilegeType: 'DISTRICT_HEAD',
+        slaThresholdPct: 88.0,
+        satisfactionMin: 4.1,
+        baseBonusPercentage: 6.0,
+        slaBonusBoost: 1.7,
+        fastTrackLimit: 7,
+        maxCustomSlaHours: 3,
+        renewalDaysBefore: 30,
+      },
+    }),
+  ]);
+
+  console.log(`✅ Создано ${motivationSettings.length} типов настроек мотивации`);
+
   console.log('\n🎉 Заполнение базы данных завершено!');
 }
 

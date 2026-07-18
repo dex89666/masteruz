@@ -15,6 +15,7 @@ import { auditService } from '../../services/auditService.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { clampPagination } from '../../utils/helpers.js';
 import { MasterPlan, SubscriptionStatus } from '@prisma/client';
+import privilegedOfficialsRoutes from './privileged-officials.routes.js';
 
 const router = Router();
 
@@ -996,5 +997,10 @@ router.post('/users/:id/fraud-scan', authorize('ADMIN'), async (req: Request, re
     next(error);
   }
 });
+
+// ═══════════════════════════════════════════════════════════
+// подмаршруты привилегированных официальных лиц
+// ═══════════════════════════════════════════════════════════
+router.use('/privileged-officials', privilegedOfficialsRoutes);
 
 export default router;

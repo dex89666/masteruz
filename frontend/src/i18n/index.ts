@@ -38,11 +38,24 @@ function getNestedValue(obj: unknown, path: string): string {
   }, obj) as string;
 }
 
+/**
+ * Подставляет значения в плейсхолдеры вида {name}.
+ * Плейсхолдер без переданного значения остаётся как есть — так пропущенный
+ * параметр заметен в UI, а не превращается в пустоту.
+ */
+function interpolate(template: string, params?: Record<string, string | number>): string {
+  if (!params) return template;
+  return template.replace(/\{(\w+)\}/g, (match, key) =>
+    key in params ? String(params[key]) : match
+  );
+}
+
 // ─── Контекст ─────────────────────────────
 interface I18nContextValue {
   language: Language;
   setLanguage: (lang: Language) => void;
-  t: (key: string) => string;
+  /** Перевод по ключу. Второй аргумент — значения для плейсхолдеров {name}. */
+  t: (key: string, params?: Record<string, string | number>) => string;
   /** locale для Intl/Date — 'ru-RU' | 'uz-UZ' | 'en-US' */
   locale: string;
 }
@@ -75,7 +88,8 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const t = useCallback(
-    (key: string) => getNestedValue(dictionaries[language], key),
+    (key: string, params?: Record<string, string | number>) =>
+      interpolate(getNestedValue(dictionaries[language], key), params),
     [language],
   );
 

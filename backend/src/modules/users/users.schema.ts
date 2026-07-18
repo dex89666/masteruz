@@ -43,3 +43,8 @@ export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
 export type CreateMasterProfileInput = z.infer<typeof createMasterProfileSchema>;
 export type UpdateMasterProfileInput = z.infer<typeof updateMasterProfileSchema>;
 export type UpdateMasterCategoriesInput = z.infer<typeof updateMasterCategoriesSchema>;
+
+// Язык интерфейса и уведомлений
+export const updateLanguageSchema = z.object({
+  language: z.enum(['ru', 'uz', 'en']),
+});

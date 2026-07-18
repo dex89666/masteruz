@@ -14,6 +14,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { Layout } from './components/Layout';
 import { ConsentGate } from './components/ConsentGate';
 import { UpdateChecker } from './components/UpdateChecker';
+import { TelegramAppPromo } from './components/TelegramAppPromo';
 import { AppUpdatePrompt } from './components/AppUpdatePrompt';
 import { GlobalConfirmDialog } from './components/GlobalConfirmDialog';
 import { GlobalPromptDialog } from './components/GlobalPromptDialog';
@@ -458,6 +459,7 @@ export default function App() {
           <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
             <AppContent />
             <UpdateChecker />
+            <TelegramAppPromo />
             <AppUpdatePrompt />
             <GlobalConfirmDialog />
             <GlobalPromptDialog />

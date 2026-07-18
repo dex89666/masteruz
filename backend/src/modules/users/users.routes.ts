@@ -13,7 +13,9 @@ import {
   createMasterProfileSchema,
   updateMasterProfileSchema,
   updateMasterCategoriesSchema,
+  updateLanguageSchema,
 } from './users.schema.js';
+import { prisma } from '../../config/database.js';
 
 const router = Router();
 
@@ -29,6 +31,21 @@ router.get('/profile', (req, res, next) => usersController.getProfile(req, res, 
 router.put('/profile', validateBody(updateProfileSchema), (req, res, next) =>
   usersController.updateProfile(req, res, next)
 );
+
+// Язык интерфейса и уведомлений (ru | uz | en).
+// Синхронизируется при смене языка во фронтенде, чтобы уведомления
+// (in-app и Telegram) приходили на языке пользователя.
+router.put('/language', validateBody(updateLanguageSchema), async (req, res, next) => {
+  try {
+    await prisma.user.update({
+      where: { id: req.user!.userId },
+      data: { language: req.body.language },
+    });
+    res.json({ success: true, data: { language: req.body.language } });
+  } catch (error) {
+    next(error);
+  }
+});
 
 // Профиль мастера
 router.post('/master-profile', validateBody(createMasterProfileSchema), (req, res, next) =>
