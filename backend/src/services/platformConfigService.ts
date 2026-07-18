@@ -16,8 +16,9 @@ export const PLATFORM_CONFIG_KEYS = {
   newbieMaxPriceRatio: 'newbie_max_price_ratio',
 
   // ─── Ступенчатая комиссия (от стоимости работ) ───
-  // РАСТУЩАЯ модель: мелкие заказы — НИЗКИЙ % (защита от увода в наличку),
-  // крупные — выше (ценность эскроу-защиты растёт с суммой).
+  // РАСТУЩАЯ модель в диапазоне 15–20%: ставка растёт вместе с суммой,
+  // т.к. ценность эскроу-защиты выше на крупных заказах.
+  // Все ступени и пороги настраиваются в админке без релиза.
   commissionTierSmall: 'commission_tier_small',   // % для price < tierSmallMax (минимум платформы)
   commissionTierMid: 'commission_tier_mid',       // % для tierSmallMax ≤ price < tierMidMax
   commissionTierLarge: 'commission_tier_large',   // % для tierMidMax ≤ price < tierLargeMax
@@ -61,14 +62,14 @@ const DEFAULTS: Record<string, string> = {
   [PLATFORM_CONFIG_KEYS.firstOrderCommissionRate]: '5', // надбавка к ступени для первого заказа клиент↔мастер
   [PLATFORM_CONFIG_KEYS.repeatOrderCommissionRate]: '0', // надбавки нет
   [PLATFORM_CONFIG_KEYS.newbieMaxPriceRatio]: '1.5',
-  // ─── Ступени комиссии (РАСТУЩАЯ анти-обход модель) ───
-  // Дешёвые заказы легко увести в наличку → держим комиссию НИЗКОЙ,
-  // чтобы обходить было невыгодно. На крупных заказах ценность эскроу-защиты
-  // высока (обе стороны боятся кидка) → комиссия выше.
-  [PLATFORM_CONFIG_KEYS.commissionTierSmall]: '10',  // price < 100k  → 10%
-  [PLATFORM_CONFIG_KEYS.commissionTierMid]: '12',    // 100k–300k     → 12%
-  [PLATFORM_CONFIG_KEYS.commissionTierLarge]: '14',  // 300k–800k     → 14%
-  [PLATFORM_CONFIG_KEYS.commissionTierXL]: '15',     // ≥ 800k        → 15%
+  // ─── Ступени комиссии (РАСТУЩАЯ модель) ───
+  // Рабочий диапазон платформы — 15–20%. Ставка растёт вместе с суммой:
+  // на крупных заказах ценность эскроу-защиты выше (обе стороны боятся кидка).
+  // Все ступени настраиваются в админке без релиза.
+  [PLATFORM_CONFIG_KEYS.commissionTierSmall]: '15',  // price < 100k  → 15%
+  [PLATFORM_CONFIG_KEYS.commissionTierMid]: '16',    // 100k–300k     → 16%
+  [PLATFORM_CONFIG_KEYS.commissionTierLarge]: '18',  // 300k–800k     → 18%
+  [PLATFORM_CONFIG_KEYS.commissionTierXL]: '20',     // ≥ 800k        → 20%
   [PLATFORM_CONFIG_KEYS.commissionTierSmallMax]: '100000',
   [PLATFORM_CONFIG_KEYS.commissionTierMidMax]: '300000',
   [PLATFORM_CONFIG_KEYS.commissionTierLargeMax]: '800000',
@@ -119,14 +120,14 @@ export async function getConfigString(key: string, fallback = ''): Promise<strin
 
 /**
  * Базовая ступенчатая комиссия по стоимости работ.
- * Мелкие заказы → выше %, крупные → ниже. Возвращает ставку из 4 ступеней.
+ * Ставка растёт вместе с суммой заказа. Возвращает ставку из 4 ступеней.
  */
 export async function getTieredCommissionRate(workPrice: number): Promise<number> {
   const [small, mid, large, xl, smallMax, midMax, largeMax] = await Promise.all([
-    getConfigNumber(PLATFORM_CONFIG_KEYS.commissionTierSmall, 25),
-    getConfigNumber(PLATFORM_CONFIG_KEYS.commissionTierMid, 22),
+    getConfigNumber(PLATFORM_CONFIG_KEYS.commissionTierSmall, 15),
+    getConfigNumber(PLATFORM_CONFIG_KEYS.commissionTierMid, 16),
     getConfigNumber(PLATFORM_CONFIG_KEYS.commissionTierLarge, 18),
-    getConfigNumber(PLATFORM_CONFIG_KEYS.commissionTierXL, 15),
+    getConfigNumber(PLATFORM_CONFIG_KEYS.commissionTierXL, 20),
     getConfigNumber(PLATFORM_CONFIG_KEYS.commissionTierSmallMax, 100_000),
     getConfigNumber(PLATFORM_CONFIG_KEYS.commissionTierMidMax, 300_000),
     getConfigNumber(PLATFORM_CONFIG_KEYS.commissionTierLargeMax, 800_000),
