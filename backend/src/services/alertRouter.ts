@@ -38,6 +38,8 @@ const ALERT_ROUTING: Record<string, TeamRole[]> = {
   refund_large:              ['FINANCE'],
   chargeback_received:       ['FINANCE'],
   subscription_purchased:    ['FINANCE'],
+  // Вывод средств мастером — требует ручного перевода финансистом.
+  withdrawal_requested:      ['FINANCE'],
 
   // Модерация
   chat_message_flagged:      ['MODERATOR'],

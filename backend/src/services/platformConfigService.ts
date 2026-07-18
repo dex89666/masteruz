@@ -49,6 +49,11 @@ export const PLATFORM_CONFIG_KEYS = {
   depositRate: 'deposit_rate',                       // % от полной стоимости (0..100). Default 30.
   falseDisputePenalty: 'false_dispute_penalty',      // штраф клиенту за ложный диспут после CASH (в сум).
 
+  // ─── Вывод средств мастером ───
+  withdrawalMinAmount: 'withdrawal_min_amount',       // сум — минимальная сумма заявки
+  withdrawalCommissionRate: 'withdrawal_commission_rate', // % — удержание за вывод
+  withdrawalEnabled: 'withdrawal_enabled',            // 'true' / 'false'
+
   // ─── Изменение цены по ходу работ ───
   // Мастер может предложить новую цену (доп. работы / уточнение объёма).
   // Любое изменение требует ЯВНОГО подтверждения клиента.
@@ -85,6 +90,11 @@ const DEFAULTS: Record<string, string> = {
   [PLATFORM_CONFIG_KEYS.urgencyMultiplier]: '1.3',
   [PLATFORM_CONFIG_KEYS.depositRate]: '30',
   [PLATFORM_CONFIG_KEYS.falseDisputePenalty]: '50000',
+  // Вывод средств: по умолчанию включён и бесплатный — на старте важнее,
+  // чтобы мастер видел живые деньги, чем заработать на комиссии за вывод.
+  [PLATFORM_CONFIG_KEYS.withdrawalMinAmount]: '50000',
+  [PLATFORM_CONFIG_KEYS.withdrawalCommissionRate]: '0',
+  [PLATFORM_CONFIG_KEYS.withdrawalEnabled]: 'true',
   // Рост цены до +20% за одно изменение — только согласие клиента.
   // Выше — дополнительно модерация админом (защита от накрутки на месте).
   [PLATFORM_CONFIG_KEYS.priceChangeLimitPct]: '20',
