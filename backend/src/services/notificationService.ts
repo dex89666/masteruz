@@ -975,6 +975,207 @@ export class NotificationService {
       logger.error({ err, orderId }, 'notifyOrderAwaitingRemainder failed');
     }
   }
+
+  // ═══════════════════════════════════════════════════════════════
+  // ИЗМЕНЕНИЕ ЦЕНЫ ПО ХОДУ РАБОТ
+  // ═══════════════════════════════════════════════════════════════
+
+  /** Загружает заявку вместе с заказом и участниками. */
+  private async loadPriceChange(requestId: string) {
+    return prisma.priceChangeRequest.findUnique({
+      where: { id: requestId },
+      include: {
+        order: { include: { client: true } },
+        master: { include: { profile: true } },
+      },
+    });
+  }
+
+  /** Человекочитаемое имя мастера. */
+  private masterLabel(master: any): string {
+    return (
+      `${master?.profile?.firstName || ''} ${master?.profile?.lastName || ''}`.trim() ||
+      master?.phone ||
+      'Мастер'
+    );
+  }
+
+  /**
+   * Заявка создана мастером.
+   * PENDING     → клиенту на подтверждение.
+   * MODERATION  → модераторам (снижение цены / расчёт по факту / рост выше лимита).
+   */
+  async notifyPriceChangeCreated(requestId: string) {
+    try {
+      const req = await this.loadPriceChange(requestId);
+      if (!req) return;
+
+      const isSettlement = req.kind === 'SETTLEMENT';
+      const oldPrice = toNum(req.oldPrice);
+      const newPrice = toNum(req.newPrice);
+      const visitFee = toNum(req.order.visitFee ?? 0);
+      const total = newPrice + visitFee;
+      const isDown = newPrice < oldPrice;
+      const deltaPct = oldPrice > 0 ? ((newPrice - oldPrice) / oldPrice) * 100 : 0;
+
+      // ── На модерацию: клиента пока не беспокоим ──
+      if (req.status === 'MODERATION') {
+        await alertRouter.dispatch({
+          type: 'price_change_moderation',
+          title: isSettlement
+            ? '🧾 Расчёт по факту — нужна проверка'
+            : isDown
+              ? '⚠️ Снижение цены — возможен обход платформы'
+              : '📈 Рост цены выше лимита',
+          message:
+            `Заказ: ${req.order.title}\n` +
+            `Мастер: ${this.masterLabel(req.master)}\n` +
+            `Работы: ${oldPrice.toLocaleString('ru')} → ${newPrice.toLocaleString('ru')} сум (${deltaPct > 0 ? '+' : ''}${deltaPct.toFixed(1)}%)\n` +
+            `Итого клиенту: ${total.toLocaleString('ru')} сум (вкл. выезд ${visitFee.toLocaleString('ru')})\n` +
+            `Обоснование: ${req.reason}\n` +
+            `Фото: ${req.photos?.length ?? 0} шт.\n\n` +
+            `Проверьте в админке → Модерация → Изменения цены.`,
+          data: { requestId, orderId: req.orderId, kind: req.kind, oldPrice, newPrice, deltaPct },
+        }).catch(() => {});
+        return;
+      }
+
+      // ── Ждёт клиента ──
+      await this.createNotification({
+        userId: req.order.clientId,
+        type: 'price_change_pending',
+        title: isDown ? '📉 Мастер снизил стоимость' : '📈 Мастер предлагает новую цену',
+        message:
+          `${req.order.title}: работы ${oldPrice.toLocaleString('ru')} → ${newPrice.toLocaleString('ru')} сум. ` +
+          `Итого с выездом: ${total.toLocaleString('ru')} сум. Подтвердите или отклоните.`,
+        data: { requestId, orderId: req.orderId, oldPrice, newPrice, total },
+      });
+
+      if (req.order.client.telegramId) {
+        await sendTelegramMessage({
+          chatId: req.order.client.telegramId,
+          text:
+            `<b>${isDown ? '📉 Мастер снизил стоимость' : '📈 Мастер предлагает новую цену'}</b>\n\n` +
+            `Заказ: «${req.order.title}»\n` +
+            `Работы: <s>${oldPrice.toLocaleString('ru')}</s> → <b>${newPrice.toLocaleString('ru')} сум</b>\n` +
+            `Выезд: ${visitFee.toLocaleString('ru')} сум\n` +
+            `<b>Итого: ${total.toLocaleString('ru')} сум</b>\n\n` +
+            `Причина: ${req.reason}\n\n` +
+            `Откройте заказ, чтобы подтвердить или отклонить.`,
+        }).catch(() => {});
+      }
+    } catch (err) {
+      logger.error({ err, requestId }, 'notifyPriceChangeCreated failed');
+    }
+  }
+
+  /**
+   * Модератор принял решение.
+   * approved → заявка уходит клиенту (уведомляем клиента).
+   * иначе    → заявка отклонена (уведомляем мастера).
+   */
+  async notifyPriceChangeModerated(requestId: string, approved: boolean) {
+    try {
+      const req = await this.loadPriceChange(requestId);
+      if (!req) return;
+
+      if (approved) {
+        // Заявка теперь PENDING — просим клиента решить.
+        await this.notifyPriceChangeCreated(requestId);
+        return;
+      }
+
+      const newPrice = toNum(req.newPrice);
+      await this.createNotification({
+        userId: req.masterId,
+        type: 'price_change_moderation_rejected',
+        title: '🚫 Модератор отклонил изменение цены',
+        message:
+          `${req.order.title}: заявка на ${newPrice.toLocaleString('ru')} сум отклонена.` +
+          (req.moderatorNote ? ` Причина: ${req.moderatorNote}` : ''),
+        data: { requestId, orderId: req.orderId, note: req.moderatorNote },
+      });
+
+      if (req.master.telegramId) {
+        await sendTelegramMessage({
+          chatId: req.master.telegramId,
+          text:
+            `<b>🚫 Модератор отклонил изменение цены</b>\n\n` +
+            `Заказ: «${req.order.title}»\n` +
+            `Заявленная сумма: ${newPrice.toLocaleString('ru')} сум\n` +
+            (req.moderatorNote ? `Причина: ${req.moderatorNote}\n` : '') +
+            `\nРаботайте по действующей цене или свяжитесь с поддержкой.`,
+        }).catch(() => {});
+      }
+    } catch (err) {
+      logger.error({ err, requestId }, 'notifyPriceChangeModerated failed');
+    }
+  }
+
+  /**
+   * Клиент принял решение по заявке — уведомляем мастера.
+   * Отказ от расчёта по факту дополнительно эскалируем в поддержку (спор).
+   */
+  async notifyPriceChangeResponded(requestId: string, approved: boolean) {
+    try {
+      const req = await this.loadPriceChange(requestId);
+      if (!req) return;
+
+      const isSettlement = req.kind === 'SETTLEMENT';
+      const newPrice = toNum(req.newPrice);
+      const visitFee = toNum(req.order.visitFee ?? 0);
+      const total = newPrice + visitFee;
+
+      const title = approved
+        ? isSettlement ? '✅ Клиент подтвердил расчёт' : '✅ Клиент подтвердил новую цену'
+        : isSettlement ? '⚠️ Клиент не согласен с расчётом' : '❌ Клиент отклонил новую цену';
+
+      const message = approved
+        ? `${req.order.title}: сумма ${total.toLocaleString('ru')} сум (вкл. выезд) подтверждена.`
+        : isSettlement
+          ? `${req.order.title}: открыт спор — решение примет администратор.`
+          : `${req.order.title}: работайте по прежней цене либо укажите фактически выполненный объём.`;
+
+      await this.createNotification({
+        userId: req.masterId,
+        type: approved ? 'price_change_approved' : 'price_change_rejected',
+        title,
+        message,
+        data: { requestId, orderId: req.orderId, kind: req.kind, newPrice, total },
+      });
+
+      if (req.master.telegramId) {
+        await sendTelegramMessage({
+          chatId: req.master.telegramId,
+          text:
+            `<b>${title}</b>\n\n` +
+            `Заказ: «${req.order.title}»\n` +
+            (approved
+              ? `Итого: <b>${total.toLocaleString('ru')} сум</b> (вкл. выезд ${visitFee.toLocaleString('ru')})`
+              : isSettlement
+                ? `Администратор рассмотрит спор и определит итоговую сумму.`
+                : `Вы можете продолжить по прежней цене или заявить фактически выполненный объём — выезд ${visitFee.toLocaleString('ru')} сум оплачивается в любом случае.`),
+        }).catch(() => {});
+      }
+
+      // Спор по объёму работ → в поддержку.
+      if (!approved && isSettlement) {
+        await alertRouter.dispatch({
+          type: 'dispute_escalated',
+          title: '⚖️ Спор по объёму выполненных работ',
+          message:
+            `Заказ: ${req.order.title}\n` +
+            `Мастер: ${this.masterLabel(req.master)}\n` +
+            `Заявлено мастером: ${newPrice.toLocaleString('ru')} сум\n` +
+            `Согласованная цена: ${toNum(req.oldPrice).toLocaleString('ru')} сум\n` +
+            `Клиент не согласен — требуется решение администратора.`,
+          data: { requestId, orderId: req.orderId },
+        }).catch(() => {});
+      }
+    } catch (err) {
+      logger.error({ err, requestId }, 'notifyPriceChangeResponded failed');
+    }
+  }
 }
 
 export const notificationService = new NotificationService();

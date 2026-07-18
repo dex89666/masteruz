@@ -305,6 +305,42 @@ export const ordersApi = {
     api.get<ApiResponse<any[]>>('/orders/my/master', { params: { status } }),
 };
 
+// ─── Изменение цены по ходу работ ──────────
+// Любое изменение требует подтверждения клиента.
+// Рост > лимита и ЛЮБОЕ снижение → сначала модерация админом (защита от обхода).
+export const priceChangeApi = {
+  // Мастер предлагает новую цену работ
+  propose: (orderId: string, data: { newPrice: number; reason: string; photos?: string[] }) =>
+    api.post<ApiResponse<any>>(`/orders/${orderId}/price-change`, data),
+
+  // Мастер заявляет фактически выполненный объём (после отказа клиента)
+  proposeSettlement: (orderId: string, data: { completedAmount: number; reason: string; photos?: string[] }) =>
+    api.post<ApiResponse<any>>(`/orders/${orderId}/settlement`, data),
+
+  // История заявок по заказу
+  listByOrder: (orderId: string) =>
+    api.get<ApiResponse<any[]>>(`/orders/${orderId}/price-changes`),
+
+  // Клиент подтверждает / отклоняет
+  approve: (requestId: string) =>
+    api.post<ApiResponse<any>>(`/orders/price-changes/${requestId}/approve`),
+
+  reject: (requestId: string, comment?: string) =>
+    api.post<ApiResponse<any>>(`/orders/price-changes/${requestId}/reject`, { comment }),
+
+  // Мастер отзывает свою заявку
+  cancel: (requestId: string) =>
+    api.post<ApiResponse<any>>(`/orders/price-changes/${requestId}/cancel`),
+
+  // Админ/менеджер: очередь на модерацию (снижения, расчёты, рост > лимита)
+  moderationQueue: (params?: { page?: number; limit?: number }) =>
+    api.get<PaginatedResponse<any>>('/orders/price-changes/moderation-queue', { params }),
+
+  // Админ/менеджер: модерация
+  moderate: (requestId: string, approve: boolean, note?: string) =>
+    api.post<ApiResponse<any>>(`/orders/price-changes/${requestId}/moderate`, { approve, note }),
+};
+
 // ─── Balance API ───────────────────────────
 export const balanceApi = {
   getBalance: () =>

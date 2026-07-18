@@ -4,7 +4,7 @@
 // ============================================
 
 import { useState } from 'react';
-import { paymentsApi } from '../api/client';
+import { paymentsApi, api } from '../api/client';
 import { useTranslation } from '../i18n';
 import { useFormatPrice } from '../hooks';
 import {
@@ -12,6 +12,7 @@ import {
   CheckCircle, Loader2, Shield,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import SubscribeCardForm from './SubscribeCardForm';
 
 interface CommissionPaymentModalProps {
   isOpen: boolean;
@@ -62,6 +63,8 @@ export function CommissionPaymentModal({
   const formatPrice = useFormatPrice();
   const [selectedProvider, setSelectedProvider] = useState<Provider | null>(null);
   const [processing, setProcessing] = useState(false);
+  const [cardToken, setCardToken] = useState<string | null>(null);
+  const [cardProcessing, setCardProcessing] = useState(false);
 
   if (!isOpen) return null;
 
@@ -95,6 +98,31 @@ export function CommissionPaymentModal({
       toast.error(error.response?.data?.message || t('commissionPayment.error'));
     } finally {
       setProcessing(false);
+    }
+  }
+
+  async function handleChargeWithToken(token: string) {
+    setCardProcessing(true);
+    try {
+      // 1. Создаём платеж в backend
+      const resp = await paymentsApi.create(orderId, 'PAYME');
+      const payment = resp.data?.data?.payment;
+      const paymentId = payment?.id;
+      if (!paymentId) throw new Error('Payment creation failed');
+
+      // 2. Вызов charge endpoint
+      const chargeResp = await api.post('/payments/subscribe/charge', { paymentId, cardToken: token });
+      if (chargeResp.data?.success) {
+        toast.success(t('commissionPayment.success'));
+        onSuccess();
+        onClose();
+      } else {
+        toast.error(chargeResp.data?.error || t('commissionPayment.error'));
+      }
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || err.message || t('commissionPayment.error'));
+    } finally {
+      setCardProcessing(false);
     }
   }
 
@@ -240,6 +268,34 @@ export function CommissionPaymentModal({
               </>
             )}
           </button>
+
+          {/* Pay by saved/linked card (Subscribe) — visible only for Payme */}
+          {selectedProvider === 'PAYME' && (
+            <div className="mt-4">
+              <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Оплатить привязанной картой</p>
+              {!cardToken ? (
+                <SubscribeCardForm
+                  onSuccess={(token) => {
+                    if (token) {
+                      setCardToken(token);
+                      // После привязки автоматически пробуем charge
+                      handleChargeWithToken(token);
+                    }
+                  }}
+                />
+              ) : (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => cardToken && handleChargeWithToken(cardToken)}
+                    disabled={cardProcessing}
+                    className="flex-1 py-3 rounded-xl bg-primary-600 text-white font-semibold disabled:opacity-50"
+                  >
+                    {cardProcessing ? t('commissionPayment.processing') : `Оплатить ${formatPrice(commissionAmount)} с сохранённой карты`}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

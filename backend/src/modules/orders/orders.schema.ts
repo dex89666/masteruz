@@ -99,3 +99,25 @@ export type SubmitRemainderInput = z.infer<typeof submitRemainderSchema>;
 export type UpdateOrderInput = z.infer<typeof updateOrderSchema>;
 export type OrderResponseInput = z.infer<typeof orderResponseSchema>;
 export type ListOrdersInput = z.infer<typeof listOrdersSchema>;
+
+// ─── Изменение цены по ходу работ ─────────────
+export const proposePriceChangeSchema = z.object({
+  newPrice: z.number().positive('Цена должна быть больше 0'),
+  reason: z.string().min(5, 'Опишите причину изменения').max(1000),
+  photos: z.array(z.string().max(2_000_000)).max(10).optional(),
+});
+
+export const proposeSettlementSchema = z.object({
+  completedAmount: z.number().min(0, 'Сумма не может быть отрицательной'),
+  reason: z.string().min(5, 'Опишите выполненные работы').max(1000),
+  photos: z.array(z.string().max(2_000_000)).max(10).optional(),
+});
+
+export const rejectPriceChangeSchema = z.object({
+  comment: z.string().max(1000).optional(),
+});
+
+export const moderatePriceChangeSchema = z.object({
+  approve: z.boolean(),
+  note: z.string().max(1000).optional(),
+});

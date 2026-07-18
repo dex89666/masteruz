@@ -10,7 +10,8 @@ import { LoadingSpinner } from '../components/LoadingSpinner';
 import { EmptyState } from '../components/EmptyState';
 import {
   Bell, BellOff, Check, CheckCheck, Trash2, ChevronRight,
-  ShoppingBag, Star, MessageSquare, AlertTriangle, Gift, Shield, Info
+  ShoppingBag, Star, MessageSquare, AlertTriangle, Gift, Shield, Info,
+  TrendingUp, TrendingDown, ShieldAlert
 } from 'lucide-react';
 import type { Notification } from '../types';
 import toast from 'react-hot-toast';
@@ -25,6 +26,12 @@ const NOTIFICATION_ICONS: Record<string, any> = {
   PROMO_CODE: Gift,
   GUARANTEE: Shield,
   SYSTEM: Info,
+  // Изменение цены по ходу работ
+  price_change_pending: TrendingUp,
+  price_change_approved: Check,
+  price_change_rejected: TrendingDown,
+  price_change_moderation_rejected: ShieldAlert,
+  order_awaiting_remainder: ShoppingBag,
 };
 
 const NOTIFICATION_COLORS: Record<string, string> = {
@@ -37,6 +44,12 @@ const NOTIFICATION_COLORS: Record<string, string> = {
   PROMO_CODE: 'bg-pink-100 text-pink-600 dark:bg-pink-900/30 dark:text-pink-400',
   GUARANTEE: 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400',
   SYSTEM: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400',
+  // Изменение цены по ходу работ
+  price_change_pending: 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400',
+  price_change_approved: 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400',
+  price_change_rejected: 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400',
+  price_change_moderation_rejected: 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400',
+  order_awaiting_remainder: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400',
 };
 
 export function NotificationsPage() {

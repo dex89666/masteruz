@@ -545,4 +545,5 @@ if (process.env.NODE_ENV !== 'test') {
   bootstrap();
 }
 
+export { app };
 export default app;

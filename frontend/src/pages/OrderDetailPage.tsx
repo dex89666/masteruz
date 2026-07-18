@@ -16,6 +16,7 @@ import { OrderRouteMap } from '../components/OrderRouteMap';
 import { Breadcrumbs } from '../components/Breadcrumbs';
 import { OrderDetailSkeleton } from '../components/PageSkeletons';
 import { CommissionPaymentModal } from '../components/CommissionPaymentModal';
+import { PriceChangePanel } from '../components/PriceChangePanel';
 import AutoCancelCountdown from '../components/AutoCancelCountdown';
 import { ClientRiskBadge } from '../components/ClientRiskBadge';
 import { ImageLightbox } from '../components/ImageLightbox';
@@ -1580,6 +1581,19 @@ export function OrderDetailPage() {
             </>
           )}
         </div>
+      )}
+
+      {/* Изменение стоимости по ходу работ (мастер предлагает — клиент подтверждает) */}
+      {order.masterId && (isOwner || isAssignedMaster) && (
+        <PriceChangePanel
+          orderId={order.id}
+          orderStatus={order.status}
+          currentPrice={Number(order.price ?? 0)}
+          visitFee={Number((order as any).visitFee ?? 0)}
+          isMaster={isAssignedMaster}
+          isClient={isOwner}
+          onUpdated={loadOrder}
+        />
       )}
 
       {/* Чат заказа */}

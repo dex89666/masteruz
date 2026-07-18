@@ -11,6 +11,7 @@ import { balanceTopupSchema, registrationFeeSchema, telegramStarsSchema, commiss
 import { config } from '../../config/index.js';
 import { logger } from '../../utils/logger.js';
 import { clampPagination } from '../../utils/helpers.js';
+import subscribeRoutes from '../subscribe/subscribe.routes.js';
 
 const router = Router();
 
@@ -68,25 +69,49 @@ router.post('/webhook/click', async (req: Request, res: Response, next: NextFunc
   }
 });
 
-// Payme webhook (с проверкой Basic Auth подписи)
-router.post('/webhook/payme', async (req: Request, res: Response, next: NextFunction) => {
+// Payme webhook (Merchant API) — Basic Auth + IP whitelist
+import { ipWhitelist } from '../../middleware/ipWhitelist.js';
+
+// Ошибка авторизации Payme: JSON-RPC -32504 (HTTP 200 по протоколу).
+function paymeAuthError(reqBody: any) {
+  return {
+    jsonrpc: '2.0',
+    id: reqBody?.id ?? null,
+    error: {
+      code: -32504,
+      message: {
+        ru: 'Недостаточно привилегий для выполнения операции',
+        uz: 'Операцияни бажариш учун ҳуқуқлар етарли эмас',
+        en: 'Insufficient privileges to perform this operation',
+      },
+    },
+  };
+}
+
+router.post('/webhook/payme', ipWhitelist, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    // Payme отправляет запросы с Basic Auth: base64(Paycom:<merchantKey>)
+    // Payme шлёт Basic Auth: base64("Paycom:<merchantKey>").
+    // Секрет — merchantKey (пароль); логин ("Paycom" или merchantId) не проверяем.
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Basic ')) {
-      logger.warn({ ip: req.ip }, '🚨 SECURITY: Payme webhook without auth header');
-      return res.status(400).json({ error: { code: -32504, message: 'Invalid signature' } });
+      logger.warn({ ip: req.ip }, '🚨 SECURITY: Payme webhook без заголовка авторизации');
+      return res.status(200).json(paymeAuthError(req.body));
     }
 
     const decoded = Buffer.from(authHeader.slice(6), 'base64').toString('utf-8');
-    const [login, password] = decoded.split(':');
+    const sep = decoded.indexOf(':');
+    const password = sep >= 0 ? decoded.slice(sep + 1) : '';
 
-    if (login !== 'Paycom' || password !== config.payme.merchantKey) {
+    const expectedKey = config.payme.useSandbox
+      ? (config.payme.sandboxMerchantKey || config.payme.merchantKey)
+      : config.payme.merchantKey;
+
+    if (!expectedKey || password !== expectedKey) {
       logger.warn(
         { ip: req.ip },
-        '🚨 SECURITY: Payme webhook invalid credentials — possible forgery attempt'
+        '🚨 SECURITY: Payme webhook неверные учётные данные — возможна попытка подделки'
       );
-      return res.status(400).json({ error: { code: -32504, message: 'Invalid signature' } });
+      return res.status(200).json(paymeAuthError(req.body));
     }
 
     const result = await paymentsService.handlePaymeWebhook(req.body);
@@ -120,5 +145,8 @@ router.get('/history', authenticate, async (req: Request, res: Response, next: N
     next(error);
   }
 });
+
+// Подмаршруты Subscribe API: /api/payments/subscribe/*
+router.use('/subscribe', subscribeRoutes);
 
 export default router;

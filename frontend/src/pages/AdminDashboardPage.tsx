@@ -6,6 +6,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { adminApi, storesApi, turnkeyApi, estimationApi, chatApi, supportChatApi, instantOrderApi, schoolApi } from '../api/client';
+import { AdminPriceChangeModeration } from '../components/AdminPriceChangeModeration';
 import { useAuthStore } from '../store';
 import { useTranslation } from '../i18n';
 import { resolveImageUrl } from '../lib/imageUrl';
@@ -172,7 +173,7 @@ export function AdminDashboardPage() {
   const [flaggedMessages, setFlaggedMessages] = useState<any[]>([]);
   const [blacklist, setBlacklist] = useState<any[]>([]);
   const [moderationLoading, setModerationLoading] = useState(false);
-  const [moderationSubTab, setModerationSubTab] = useState<'estimates' | 'messages' | 'blacklist' | 'aiOrders' | 'chatArchive'>('aiOrders');
+  const [moderationSubTab, setModerationSubTab] = useState<'estimates' | 'messages' | 'blacklist' | 'aiOrders' | 'chatArchive' | 'priceChanges'>('aiOrders');
 
   // Chat archive state
   const [chatArchive, setChatArchive] = useState<any[]>([]);
@@ -2237,6 +2238,7 @@ export function AdminDashboardPage() {
               { key: 'messages' as const, label: `Сообщения (${flaggedMessages.length})`, icon: '' },
               { key: 'blacklist' as const, label: `Чёрный список (${blacklist.length})`, icon: '' },
               { key: 'chatArchive' as const, label: 'Архив чатов', icon: '' },
+              { key: 'priceChanges' as const, label: t('priceChange.moderationQueue'), icon: '' },
             ].map(st => (
               <button
                 key={st.key}
@@ -2253,6 +2255,11 @@ export function AdminDashboardPage() {
           </div>
 
           {moderationLoading && <LoadingSpinner />}
+
+          {/* Изменения цены — защита от обхода платформы */}
+          {moderationSubTab === 'priceChanges' && (
+            <AdminPriceChangeModeration />
+          )}
 
           {/* AI Orders moderation */}
           {moderationSubTab === 'aiOrders' && !moderationLoading && (

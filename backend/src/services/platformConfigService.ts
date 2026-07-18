@@ -47,6 +47,12 @@ export const PLATFORM_CONFIG_KEYS = {
   // ─── Модель оплаты «30% депозит + 70% при завершении» ───
   depositRate: 'deposit_rate',                       // % от полной стоимости (0..100). Default 30.
   falseDisputePenalty: 'false_dispute_penalty',      // штраф клиенту за ложный диспут после CASH (в сум).
+
+  // ─── Изменение цены по ходу работ ───
+  // Мастер может предложить новую цену (доп. работы / уточнение объёма).
+  // Любое изменение требует ЯВНОГО подтверждения клиента.
+  priceChangeLimitPct: 'price_change_limit_pct',     // % — макс. рост цены за одно изменение без модерации админом.
+  priceChangeMaxTotalPct: 'price_change_max_total_pct', // % — макс. суммарный рост от изначальной цены.
 } as const;
 
 /** Дефолтные значения (используются, если ключа нет в БД). */
@@ -66,8 +72,10 @@ const DEFAULTS: Record<string, string> = {
   [PLATFORM_CONFIG_KEYS.commissionTierSmallMax]: '100000',
   [PLATFORM_CONFIG_KEYS.commissionTierMidMax]: '300000',
   [PLATFORM_CONFIG_KEYS.commissionTierLargeMax]: '800000',
-  [PLATFORM_CONFIG_KEYS.visitFee]: '0', // ← по умолчанию ВЫКЛ. Выезд считается частью работы.
-  [PLATFORM_CONFIG_KEYS.visitFeeCommissionRate]: '0',
+  // Выезд мастера — фиксированная плата. Меняется админом без релиза.
+  [PLATFORM_CONFIG_KEYS.visitFee]: '100000',
+  // Платформа берёт комиссию со ВСЕХ расчётов, включая выезд.
+  [PLATFORM_CONFIG_KEYS.visitFeeCommissionRate]: '15',
   [PLATFORM_CONFIG_KEYS.estimationFee]: '150000',
   [PLATFORM_CONFIG_KEYS.estimationCommissionRate]: '20',
   [PLATFORM_CONFIG_KEYS.bypassPenaltyMultiplier]: '3',
@@ -76,6 +84,11 @@ const DEFAULTS: Record<string, string> = {
   [PLATFORM_CONFIG_KEYS.urgencyMultiplier]: '1.3',
   [PLATFORM_CONFIG_KEYS.depositRate]: '30',
   [PLATFORM_CONFIG_KEYS.falseDisputePenalty]: '50000',
+  // Рост цены до +20% за одно изменение — только согласие клиента.
+  // Выше — дополнительно модерация админом (защита от накрутки на месте).
+  [PLATFORM_CONFIG_KEYS.priceChangeLimitPct]: '20',
+  // Суммарный рост от изначальной цены заказа — не более +50%.
+  [PLATFORM_CONFIG_KEYS.priceChangeMaxTotalPct]: '50',
 };
 
 /** Получить числовое значение настройки. */

@@ -21,9 +21,18 @@ vi.mock('../../src/config/database.js', () => {
   const mockUser = { findUnique: vi.fn(), update: vi.fn() };
   const mockBalanceTx = { create: vi.fn() };
   const mockAuditLog = { create: vi.fn() };
+  const mockPaymentTransaction = {
+    findUnique: vi.fn(),
+    findFirst: vi.fn(),
+    findMany: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+    updateMany: vi.fn(),
+  };
 
   const prisma = {
     payment: mockPayment,
+    paymentTransaction: mockPaymentTransaction,
     order: mockOrder,
     masterProfile: mockMasterProfile,
     user: mockUser,
@@ -44,7 +53,15 @@ vi.mock('../../src/config/index.js', () => ({
       defaultReferralClientDiscountRate: 3,
     },
     click: { serviceId: 'test-service', secretKey: 'test-secret', merchantId: 'test-merchant' },
-    payme: { merchantId: 'test-payme', secretKey: 'test-payme-key' },
+    payme: {
+      merchantId: 'test-payme',
+      merchantKey: 'test-payme-key',
+      sandboxMerchantId: 'test-payme',
+      sandboxMerchantKey: 'test-payme-key',
+      useSandbox: true,
+      transactionTimeoutMs: 43200000,
+      fiscal: { ikpuCode: '', packageCode: '', vatPercent: 0, receiptType: 0 },
+    },
   },
 }));
 vi.mock('../../src/utils/logger.js', () => ({
@@ -268,7 +285,7 @@ describe('Payme webhook — методы', () => {
   });
 
   it('CheckPerformTransaction — неверная сумма', async () => {
-    db.payment.findUnique.mockResolvedValueOnce({ id: 'pay-1', amount: 50000, userId: 'u1' });
+    db.payment.findUnique.mockResolvedValueOnce({ id: 'pay-1', amount: 50000, userId: 'u1', status: 'PENDING' });
 
     const result = await service.handlePaymeWebhook({
       method: 'CheckPerformTransaction',
@@ -279,7 +296,7 @@ describe('Payme webhook — методы', () => {
   });
 
   it('CheckPerformTransaction — корректная сумма → allow', async () => {
-    db.payment.findUnique.mockResolvedValueOnce({ id: 'pay-1', amount: 50000, userId: 'u1' });
+    db.payment.findUnique.mockResolvedValueOnce({ id: 'pay-1', amount: 50000, userId: 'u1', status: 'PENDING' });
 
     const result = await service.handlePaymeWebhook({
       method: 'CheckPerformTransaction',
@@ -299,10 +316,12 @@ describe('Payme webhook — методы', () => {
   });
 
   it('PerformTransaction → COMPLETED + аудит', async () => {
-    db.payment.findUnique.mockResolvedValueOnce({ id: 'pay-1', status: 'PROCESSING', userId: 'u1', amount: 50000, type: 'BALANCE_TOPUP' }); // existing
-    db.payment.updateMany.mockResolvedValueOnce({ count: 1 }); // атомарный захват
+    db.paymentTransaction.findUnique.mockResolvedValueOnce({ id: 'tx-1', paymentId: 'pay-1', state: 1, createTime: new Date() });
+    db.paymentTransaction.updateMany.mockResolvedValueOnce({ count: 1 }); // атомарный захват транзакции
+    db.payment.updateMany.mockResolvedValueOnce({ count: 1 }); // атомарный захват платежа
     // onPaymentCompleted chain
     db.payment.findUnique
+      .mockResolvedValueOnce({ id: 'pay-1', userId: 'u1', amount: 50000, type: 'BALANCE_TOPUP', orderId: null })
       .mockResolvedValueOnce({ type: 'BALANCE_TOPUP' })
       .mockResolvedValueOnce({ userId: 'u1', amount: 50000, provider: 'PAYME' });
 
@@ -320,15 +339,36 @@ describe('Payme webhook — методы', () => {
     );
   });
 
-  it('CancelTransaction → REFUNDED + аудит', async () => {
-    db.payment.update.mockResolvedValueOnce({ id: 'pay-1', status: 'REFUNDED', userId: 'u1', amount: 50000 });
+  it('CancelTransaction непроведённой → state=-1', async () => {
+    db.paymentTransaction.findUnique.mockResolvedValueOnce({ id: 'tx-1', paymentId: 'pay-1', state: 1 });
+    db.paymentTransaction.update.mockResolvedValueOnce({ id: 'tx-1', state: -1 });
+    db.payment.update.mockResolvedValueOnce({ id: 'pay-1', status: 'FAILED', userId: 'u1', amount: 50000, type: 'BALANCE_TOPUP' });
 
     const result = await service.handlePaymeWebhook({
       method: 'CancelTransaction',
-      params: { id: 'payme-tx-1' },
+      params: { id: 'payme-tx-1', reason: 1 },
     });
 
     expect(result.result?.state).toBe(-1);
+    expect(auditService.log).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'payment_cancelled',
+        entityType: 'payment',
+      }),
+    );
+  });
+
+  it('CancelTransaction проведённой → возврат state=-2', async () => {
+    db.paymentTransaction.findUnique.mockResolvedValueOnce({ id: 'tx-1', paymentId: 'pay-1', state: 2 });
+    db.paymentTransaction.update.mockResolvedValueOnce({ id: 'tx-1', state: -2 });
+    db.payment.update.mockResolvedValueOnce({ id: 'pay-1', status: 'REFUNDED', userId: 'u1', amount: 50000, type: 'BALANCE_TOPUP' });
+
+    const result = await service.handlePaymeWebhook({
+      method: 'CancelTransaction',
+      params: { id: 'payme-tx-1', reason: 5 },
+    });
+
+    expect(result.result?.state).toBe(-2);
     expect(auditService.log).toHaveBeenCalledWith(
       expect.objectContaining({
         action: 'payment_refunded',

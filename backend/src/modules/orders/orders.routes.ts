@@ -2,12 +2,14 @@
 // MasterUz — Orders Routes (Антифрод)
 // ============================================
 
-import { Router } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { ordersController } from './orders.controller.js';
-import { authenticate, optionalAuth } from '../../middleware/auth.js';
+import { authenticate, optionalAuth, authorize } from '../../middleware/auth.js';
 import { requireNotBlocked } from '../../middleware/blockGate.js';
 import { validateBody, validateQuery } from '../../middleware/validate.js';
-import { createOrderSchema, orderResponseSchema, listOrdersSchema, assignMasterSchema, updateStatusSchema, masterLocationSchema, cancelOrderSchema, disputeOrderSchema, resolveDisputeSchema, submitRemainderSchema } from './orders.schema.js';
+import { createOrderSchema, orderResponseSchema, listOrdersSchema, assignMasterSchema, updateStatusSchema, masterLocationSchema, cancelOrderSchema, disputeOrderSchema, resolveDisputeSchema, submitRemainderSchema, proposePriceChangeSchema, proposeSettlementSchema, rejectPriceChangeSchema, moderatePriceChangeSchema } from './orders.schema.js';
+import { priceChangeService } from './price-change.service.js';
+import { UserRole } from '@prisma/client';
 import { eventBus } from '../../services/eventBus.js';
 import { prisma } from '../../config/database.js';
 import { ApiError } from '../../utils/ApiError.js';
@@ -196,5 +198,102 @@ router.get('/:id/events', async (req, res, next) => {
     next(error);
   }
 });
+
+// ─── Изменение цены по ходу работ ─────────────────────────────────
+// Мастер предлагает новую цену работ (доп. работы / уточнение объёма).
+// Рост > лимита → сначала модерация админом, затем подтверждение клиента.
+router.post('/:id/price-change', authenticate, requireNotBlocked, validateBody(proposePriceChangeSchema),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const result = await priceChangeService.propose(req.user!.userId, req.params.id, req.body);
+      res.json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// Мастер заявляет фактически выполненный объём после отказа клиента от новой цены.
+router.post('/:id/settlement', authenticate, requireNotBlocked, validateBody(proposeSettlementSchema),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const result = await priceChangeService.proposeSettlement(req.user!.userId, req.params.id, req.body);
+      res.json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// Список заявок по заказу (клиент / мастер).
+router.get('/:id/price-changes', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const result = await priceChangeService.listByOrder(req.user!.userId, req.params.id);
+    res.json({ success: true, data: result });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Клиент подтверждает заявку → цена/комиссия/остаток пересчитываются.
+router.post('/price-changes/:requestId/approve', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const result = await priceChangeService.approve(req.user!.userId, req.params.requestId);
+    res.json({ success: true, data: result });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Клиент отклоняет заявку.
+router.post('/price-changes/:requestId/reject', authenticate, validateBody(rejectPriceChangeSchema),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const result = await priceChangeService.reject(req.user!.userId, req.params.requestId, req.body.comment);
+      res.json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// Мастер отзывает свою заявку, пока клиент не ответил.
+router.post('/price-changes/:requestId/cancel', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const result = await priceChangeService.cancel(req.user!.userId, req.params.requestId);
+    res.json({ success: true, data: result });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Админ/менеджер: очередь заявок на модерацию (снижения, расчёты, рост > лимита).
+router.get('/price-changes/moderation-queue', authenticate, authorize(UserRole.ADMIN, UserRole.MANAGER),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const page = Number(req.query.page) || 1;
+      const limit = Math.min(Number(req.query.limit) || 20, 100);
+      const result = await priceChangeService.listForModeration(page, limit);
+      res.json({ success: true, ...result });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// Админ/менеджер: модерация заявки с ростом выше лимита.
+router.post('/price-changes/:requestId/moderate', authenticate, authorize(UserRole.ADMIN, UserRole.MANAGER),
+  validateBody(moderatePriceChangeSchema),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const result = await priceChangeService.moderate(
+        req.user!.userId, req.params.requestId, req.body.approve, req.body.note
+      );
+      res.json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
 
 export default router;
