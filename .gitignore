@@ -51,3 +51,10 @@ scripts/railway-set-env.sh
 
 # R2 credentials
 .env.r2
+
+# Eval-данные AI: реальные клиентские фото и разметка на их основе.
+# В репозиторий не кладём — это персональные данные пользователей.
+# Шаблон формата (dataset.example.json) versioned намеренно.
+backend/scripts/eval/samples/
+backend/scripts/eval/dataset.json
+backend/scripts/eval/dataset.draft.json

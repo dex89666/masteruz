@@ -16,7 +16,8 @@
     "test:coverage": "vitest --coverage",
     "eval": "tsx scripts/eval/run-eval.ts",
     "eval:export": "tsx scripts/eval/export-dataset.ts",
-    "eval:accuracy": "tsx scripts/eval/accuracy-report.ts"
+    "eval:accuracy": "tsx scripts/eval/accuracy-report.ts",
+    "eval:seed": "tsx scripts/eval/seed-dataset.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1057.0",

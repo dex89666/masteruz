@@ -27,6 +27,9 @@ interface EvalCase {
   expectCategory?: string;
   expectPrice?: number;
   expectNeedsOnSite?: boolean;
+  /** Кейс-мусор: нечитаемое фото, бессмыслица или услуга вне платформы.
+   *  Правильное поведение — НЕ выдавать смету (низкий confidence / нет priceHint). */
+  expectRefusal?: boolean;
   note?: string;
 }
 
@@ -42,6 +45,8 @@ interface CaseOutcome {
   absError?: number;
   pctError?: number;
   needsOnSiteHit?: boolean;
+  /** Для мусорных кейсов: отказался ли модель выдавать смету. */
+  refusalHit?: boolean;
   promptTokens?: number;
   completionTokens?: number;
   latencyMs?: number;
@@ -121,15 +126,25 @@ async function runOnce(cases: EvalCase[], datasetDir: string, model: string) {
         latencyMs,
       };
 
-      if (c.expectPrice && predictedPrice != null) {
+      if (c.expectRefusal) {
+        // Отказ засчитываем, если модель не дала цену ИЛИ явно не уверена.
+        outcome.refusalHit = res.priceHint == null || (top?.confidence ?? 0) < 50;
+      } else if (c.expectPrice && predictedPrice != null) {
         outcome.absError = Math.abs(predictedPrice - c.expectPrice);
         outcome.pctError = (outcome.absError / c.expectPrice) * 100;
       }
 
       outcomes.push(outcome);
-      const mark = outcome.categoryHit === false ? '✗ категория' : '✓';
+      let mark: string;
+      if (c.expectRefusal) {
+        mark = outcome.refusalHit
+          ? '✓ отказ'
+          : `✗ ВЫДУМАЛ смету ${predictedPrice ? Math.round(predictedPrice).toLocaleString('ru') : '—'}`;
+      } else {
+        mark = outcome.categoryHit === false ? '✗ категория' : '✓';
+      }
       const priceInfo =
-        outcome.pctError != null ? ` цена ±${outcome.pctError.toFixed(0)}%` : ' цена —';
+        outcome.pctError != null ? ` цена ±${outcome.pctError.toFixed(0)}%` : '';
       console.log(`${mark}${priceInfo} (${latencyMs}ms)`);
     } catch (err: any) {
       outcomes.push({ id: c.id, ok: false, error: err?.message ?? String(err) });
@@ -153,6 +168,9 @@ function summarize(model: string, outcomes: CaseOutcome[]) {
   const gross = priced.filter((o) => o.pctError! > 50).length;
   const mae = priced.length ? priced.reduce((s, o) => s + o.absError!, 0) / priced.length : 0;
 
+  const refusalJudged = ok.filter((o) => o.refusalHit !== undefined);
+  const refusalHits = refusalJudged.filter((o) => o.refusalHit).length;
+
   const onSiteJudged = ok.filter((o) => o.needsOnSiteHit !== undefined);
   const onSiteHits = onSiteJudged.filter((o) => o.needsOnSiteHit).length;
 
@@ -175,6 +193,8 @@ function summarize(model: string, outcomes: CaseOutcome[]) {
     grossMiss: priced.length ? (gross / priced.length) * 100 : null,
     mae,
     onSiteAcc: onSiteJudged.length ? (onSiteHits / onSiteJudged.length) * 100 : null,
+    refusalAcc: refusalJudged.length ? (refusalHits / refusalJudged.length) * 100 : null,
+    refusalN: refusalJudged.length,
     avgPromptTokens: ok.length ? Math.round(promptTokens / ok.length) : 0,
     avgLatencyMs: ok.length ? Math.round(latencies.reduce((a, b) => a + b, 0) / ok.length) : 0,
     medLatencyMs: Math.round(median(latencies)),
@@ -195,6 +215,9 @@ function printSummary(rows: ReturnType<typeof summarize>[]) {
     console.log(`  грубые промахи (>50%) : ${r.grossMiss?.toFixed(1) ?? '—'}%`);
     console.log(`  MAE по цене           : ${fmt(Math.round(r.mae))} сум`);
     console.log(`  needsOnSite угадан    : ${r.onSiteAcc?.toFixed(1) ?? '—'}%`);
+    if (r.refusalN) {
+      console.log(`  отказ от мусора       : ${r.refusalAcc?.toFixed(1)}%  (кейсов: ${r.refusalN})`);
+    }
     console.log(`  вход. токенов/кейс    : ${fmt(r.avgPromptTokens)}`);
     console.log(`  латентность avg/med   : ${r.avgLatencyMs}ms / ${r.medLatencyMs}ms`);
     if (r.cost > 0) {
