@@ -230,6 +230,60 @@ model MasterWarning {
 // ════════════════════════════════════════════════
 
 // ════════════════════════════════════════════════
+// ЛОКАЛЬНЫЙ РЕЕСТР (клиенты, мастера, согласия)
+// ════════════════════════════════════════════════
+// Раньше хранился в data/*.json на диске контейнера. Volume Railway
+// смонтирован в /app/uploads, а реестр писал в /app/data — то есть в
+// эфемерную ФС: каждый деплой стирал записи. Здесь лежат ПИНФЛ мастеров
+// и юридические согласия с офертой, терять которые нельзя.
+
+model LocalClient {
+  id          String   @id @default(uuid())
+  fullName    String   @map("full_name")
+  phone       String
+  serviceType String   @map("service_type")
+  paidAmount  Decimal  @map("paid_amount") @db.Decimal(12, 2)
+  note        String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@map("local_clients")
+}
+
+model LocalMaster {
+  id            String   @id @default(uuid())
+  pinfl         String   @unique                      // 14 цифр, персональный идентификатор РУз
+  fullName      String   @map("full_name")
+  phone         String
+  address       String
+  workTypes     String[] @default([]) @map("work_types")
+  completedWork String?  @map("completed_work")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@map("local_masters")
+}
+
+// Юридическое подтверждение принятия оферты и политик.
+// identityKey — sha256(telegramId | ip+userAgent): сырой отпечаток не храним.
+model ConsentRecord {
+  id                     String   @id @default(uuid())
+  identityKey            String   @map("identity_key")
+  acceptedOffer          Boolean  @map("accepted_offer")
+  acceptedPrivacy        Boolean  @map("accepted_privacy")
+  acceptedDataProcessing Boolean  @map("accepted_data_processing")
+  documentsVersion       String   @map("documents_version")
+  ip                     String
+  userAgent              String   @map("user_agent")
+  acceptedAt             DateTime @default(now()) @map("accepted_at")
+
+  // Проверка «есть ли согласие» ищет по паре ключ+версия документов.
+  @@index([identityKey, documentsVersion])
+  @@index([acceptedAt])
+  @@map("consent_records")
+}
+
+// ════════════════════════════════════════════════
 // ВЫВОД СРЕДСТВ МАСТЕРОМ
 // ════════════════════════════════════════════════
 

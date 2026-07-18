@@ -1,29 +1,23 @@
 // ============================================
 // MasterUz — Local Registry Service
-// Локальная файловая БД на JSON: clients, masters, consents
-// Используется до подключения PostgreSQL.
+// Реестр клиентов, мастеров и согласий с офертой.
 // ============================================
+//
+// Раньше данные лежали в data/*.json относительно cwd — то есть в /app/data
+// внутри контейнера. Volume Railway смонтирован в /app/uploads, поэтому
+// /app/data был эфемерной ФС: каждый деплой стирал реестр вместе с ПИНФЛ
+// мастеров и юридическими согласиями. Пользователям это выглядело как
+// повторный запрос принять оферту после каждого релиза.
+//
+// Теперь всё в Postgres. Внешний контракт функций сохранён — маршруты и
+// фронтенд не менялись.
 
-import { promises as fs } from 'fs';
-import path from 'path';
 import crypto from 'crypto';
+import { prisma } from '../../config/database.js';
 import { ApiError } from '../../utils/ApiError.js';
-import { logger } from '../../utils/logger.js';
+import { toNum } from '../../utils/helpers.js';
 
-// ─── Папка хранения ───
-// Railway: persistent volume рядом с backend/data.
-// TODO: вынести в Postgres.
-const DATA_DIR = path.resolve(process.cwd(), 'data');
-
-const FILES = {
-  clients: path.join(DATA_DIR, 'clients.json'),
-  masters: path.join(DATA_DIR, 'masters.json'),
-  consents: path.join(DATA_DIR, 'consents.json'),
-} as const;
-
-type RegistryName = keyof typeof FILES;
-
-// ─── Доменные модели (только то, что просили) ──────
+// ─── Доменные модели ──────────────────────────────
 
 export interface ClientRecord {
   id: string;
@@ -38,75 +32,30 @@ export interface ClientRecord {
 export interface MasterRecord {
   id: string;
   pinfl: string;          // 14 цифр — персональный идентификатор РУз
-  fullName: string;       // Фамилия Имя Отчество
+  fullName: string;
   phone: string;
   address: string;
-  workTypes: string[];    // виды работ (категории)
-  completedWork?: string; // что сделал (краткое описание последней работы)
+  workTypes: string[];
+  completedWork?: string;
   createdAt: string;
 }
 
 export interface ConsentRecord {
   id: string;
-  identityKey: string;        // хеш(IP + User-Agent), чтобы не хранить сырой fingerprint
+  identityKey: string;        // хеш(tg id | IP+UA) — сырой отпечаток не храним
   acceptedOffer: boolean;
   acceptedPrivacy: boolean;
   acceptedDataProcessing: boolean;
-  documentsVersion: string;   // версия принятой редакции
+  documentsVersion: string;
   ip: string;
   userAgent: string;
   acceptedAt: string;
 }
 
-// ─── Сериализация: атомарная запись с глобальной мьютекс-цепочкой ──
-
-const writeChain: Record<RegistryName, Promise<void>> = {
-  clients: Promise.resolve(),
-  masters: Promise.resolve(),
-  consents: Promise.resolve(),
-};
-
-async function ensureDir() {
-  await fs.mkdir(DATA_DIR, { recursive: true });
-}
-
-async function readAll<T>(name: RegistryName): Promise<T[]> {
-  await ensureDir();
-  try {
-    const raw = await fs.readFile(FILES[name], 'utf-8');
-    const data = JSON.parse(raw);
-    return Array.isArray(data) ? data : [];
-  } catch (err: any) {
-    if (err.code === 'ENOENT') return [];
-    throw err;
-  }
-}
-
-async function writeAll<T>(name: RegistryName, items: T[]): Promise<void> {
-  // Атомарная запись: tmp → rename, чтобы не повредить файл при сбое
-  await ensureDir();
-  const tmp = `${FILES[name]}.${process.pid}.tmp`;
-  await fs.writeFile(tmp, JSON.stringify(items, null, 2), 'utf-8');
-  await fs.rename(tmp, FILES[name]);
-}
-
-async function append<T extends { id: string }>(name: RegistryName, record: T): Promise<T> {
-  // Сериализуем последовательные записи через цепочку Promise — защита от race condition
-  const next = writeChain[name].then(async () => {
-    const items = await readAll<T>(name);
-    items.push(record);
-    await writeAll(name, items);
-  });
-  writeChain[name] = next.catch(() => {});
-  await next;
-  logger.info({ registry: name, id: record.id }, 'Local registry: запись добавлена');
-  return record;
-}
-
-// ─── Валидаторы (минималистичные, без zod-зависимости здесь) ──────
-
 const PHONE_RE = /^\+998\d{9}$/;          // +998XXXXXXXXX
 const PINFL_RE = /^\d{14}$/;              // 14 цифр
+
+// ─── Валидаторы (перенесены из файловой версии без изменений) ─────
 
 function requireString(value: unknown, field: string, max = 200): string {
   if (typeof value !== 'string') throw ApiError.badRequest(`Поле "${field}" обязательно`);
@@ -143,51 +92,105 @@ function requireWorkTypes(value: unknown): string[] {
   return value.map((v, i) => requireString(v, `workTypes[${i}]`, 80));
 }
 
+/** Ключ личности: в Mini App у всех одинаковые IP и UA, поэтому при наличии
+ *  Telegram id опираемся на него. Хешируем, чтобы не хранить отпечаток. */
+function buildIdentityKey(ip: string, userAgent: string, telegramId?: string): string {
+  const source = telegramId ? `tg:${telegramId}` : `${ip}|${userAgent}`;
+  return crypto.createHash('sha256').update(source).digest('hex');
+}
+
+// ─── Мапперы: Prisma → доменная модель (даты строками, как раньше) ───
+
+function toClient(r: any): ClientRecord {
+  return {
+    id: r.id,
+    fullName: r.fullName,
+    phone: r.phone,
+    serviceType: r.serviceType,
+    paidAmount: toNum(r.paidAmount),
+    note: r.note ?? undefined,
+    createdAt: r.createdAt.toISOString(),
+  };
+}
+
+function toMaster(r: any): MasterRecord {
+  return {
+    id: r.id,
+    pinfl: r.pinfl,
+    fullName: r.fullName,
+    phone: r.phone,
+    address: r.address,
+    workTypes: r.workTypes ?? [],
+    completedWork: r.completedWork ?? undefined,
+    createdAt: r.createdAt.toISOString(),
+  };
+}
+
+function toConsent(r: any): ConsentRecord {
+  return {
+    id: r.id,
+    identityKey: r.identityKey,
+    acceptedOffer: r.acceptedOffer,
+    acceptedPrivacy: r.acceptedPrivacy,
+    acceptedDataProcessing: r.acceptedDataProcessing,
+    documentsVersion: r.documentsVersion,
+    ip: r.ip,
+    userAgent: r.userAgent,
+    acceptedAt: r.acceptedAt.toISOString(),
+  };
+}
+
 // ─── Публичный API сервиса ────────────────────────
 
 export const localRegistry = {
   // ── Clients ──
   async createClient(input: Omit<ClientRecord, 'id' | 'createdAt'>): Promise<ClientRecord> {
-    const record: ClientRecord = {
-      id: crypto.randomUUID(),
-      fullName: requireString(input.fullName, 'fullName'),
-      phone: requirePhone(input.phone),
-      serviceType: requireString(input.serviceType, 'serviceType'),
-      paidAmount: requirePositiveAmount(input.paidAmount),
-      note: input.note ? requireString(input.note, 'note', 1000) : undefined,
-      createdAt: new Date().toISOString(),
-    };
-    return append('clients', record);
+    const created = await prisma.localClient.create({
+      data: {
+        fullName: requireString(input.fullName, 'fullName'),
+        phone: requirePhone(input.phone),
+        serviceType: requireString(input.serviceType, 'serviceType'),
+        paidAmount: requirePositiveAmount(input.paidAmount),
+        note: input.note ? requireString(input.note, 'note', 1000) : null,
+      },
+    });
+    return toClient(created);
   },
 
-  listClients() {
-    return readAll<ClientRecord>('clients');
+  async listClients(): Promise<ClientRecord[]> {
+    const rows = await prisma.localClient.findMany({ orderBy: { createdAt: 'desc' } });
+    return rows.map(toClient);
   },
 
   // ── Masters ──
   async createMaster(input: Omit<MasterRecord, 'id' | 'createdAt'>): Promise<MasterRecord> {
-    const record: MasterRecord = {
-      id: crypto.randomUUID(),
+    const data = {
       pinfl: requirePinfl(input.pinfl),
       fullName: requireString(input.fullName, 'fullName'),
       phone: requirePhone(input.phone),
       address: requireString(input.address, 'address', 500),
       workTypes: requireWorkTypes(input.workTypes),
-      completedWork: input.completedWork ? requireString(input.completedWork, 'completedWork', 1000) : undefined,
-      createdAt: new Date().toISOString(),
+      completedWork: input.completedWork
+        ? requireString(input.completedWork, 'completedWork', 1000)
+        : null,
     };
 
-    // Уникальность ПИНФЛ
-    const existing = await readAll<MasterRecord>('masters');
-    if (existing.some((m) => m.pinfl === record.pinfl)) {
-      throw ApiError.conflict('Мастер с таким ПИНФЛ уже зарегистрирован');
+    try {
+      return toMaster(await prisma.localMaster.create({ data }));
+    } catch (err: any) {
+      // Уникальность ПИНФЛ теперь гарантирует БД. Прежняя проверка
+      // «сначала прочитать всё, потом записать» пропускала дубли при
+      // параллельных запросах.
+      if (err?.code === 'P2002') {
+        throw ApiError.conflict('Мастер с таким ПИНФЛ уже зарегистрирован');
+      }
+      throw err;
     }
-
-    return append('masters', record);
   },
 
-  listMasters() {
-    return readAll<MasterRecord>('masters');
+  async listMasters(): Promise<MasterRecord[]> {
+    const rows = await prisma.localMaster.findMany({ orderBy: { createdAt: 'desc' } });
+    return rows.map(toMaster);
   },
 
   // ── Consents (Consent Gate) ──
@@ -204,44 +207,38 @@ export const localRegistry = {
       throw ApiError.badRequest('Все три согласия обязательны');
     }
 
-    // Если есть Telegram user id — идентифицируем именно по нему (в Mini App IP+UA одинаковые).
-    const identitySource = input.telegramId
-      ? `tg:${input.telegramId}`
-      : `${input.ip}|${input.userAgent}`;
-    const identityKey = crypto
-      .createHash('sha256')
-      .update(identitySource)
-      .digest('hex');
-
-    const record: ConsentRecord = {
-      id: crypto.randomUUID(),
-      identityKey,
-      acceptedOffer: true,
-      acceptedPrivacy: true,
-      acceptedDataProcessing: true,
-      documentsVersion: requireString(input.documentsVersion, 'documentsVersion', 32),
-      ip: input.ip.slice(0, 45),
-      userAgent: input.userAgent.slice(0, 500),
-      acceptedAt: new Date().toISOString(),
-    };
-    return append('consents', record);
+    const created = await prisma.consentRecord.create({
+      data: {
+        identityKey: buildIdentityKey(input.ip, input.userAgent, input.telegramId),
+        acceptedOffer: true,
+        acceptedPrivacy: true,
+        acceptedDataProcessing: true,
+        documentsVersion: requireString(input.documentsVersion, 'documentsVersion', 32),
+        ip: input.ip.slice(0, 45),
+        userAgent: input.userAgent.slice(0, 500),
+      },
+    });
+    return toConsent(created);
   },
 
   async hasConsent(
     ip: string,
     userAgent: string,
     documentsVersion: string,
-    telegramId?: string
+    telegramId?: string,
   ): Promise<boolean> {
-    const identitySource = telegramId ? `tg:${telegramId}` : `${ip}|${userAgent}`;
-    const identityKey = crypto.createHash('sha256').update(identitySource).digest('hex');
-    const items = await readAll<ConsentRecord>('consents');
-    return items.some(
-      (c) => c.identityKey === identityKey && c.documentsVersion === documentsVersion
-    );
+    const identityKey = buildIdentityKey(ip, userAgent, telegramId);
+    // Раньше читался и перебирался весь файл согласий; теперь — точечный
+    // запрос по индексу (identity_key, documents_version).
+    const found = await prisma.consentRecord.findFirst({
+      where: { identityKey, documentsVersion },
+      select: { id: true },
+    });
+    return found !== null;
   },
 
-  listConsents() {
-    return readAll<ConsentRecord>('consents');
+  async listConsents(): Promise<ConsentRecord[]> {
+    const rows = await prisma.consentRecord.findMany({ orderBy: { acceptedAt: 'desc' } });
+    return rows.map(toConsent);
   },
 };
