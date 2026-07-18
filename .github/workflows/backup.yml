@@ -53,6 +53,21 @@ jobs:
           aws s3 cp "$FILE" "s3://${{ secrets.BACKUP_S3_BUCKET }}/$FILE" \
             --endpoint-url "${{ secrets.BACKUP_S3_ENDPOINT }}"
 
+      # Отметка об успехе: бэкенд ежечасно проверяет её свежесть и поднимает
+      # тревогу, если бэкапов давно нет. Ставится ПОСЛЕ выгрузки в S3 —
+      # дамп, не доехавший до хранилища, бэкапом не считается.
+      - name: Mark successful backup
+        if: success()
+        env:
+          PG_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          psql "$PG_URL" -v ON_ERROR_STOP=1 -q <<'SQL'
+          INSERT INTO platform_config (id, key, value, description, updated_at)
+          VALUES (gen_random_uuid(), 'last_backup_at', now()::text,
+                  'Время последнего успешного бэкапа БД', now())
+          ON CONFLICT (key) DO UPDATE SET value = now()::text, updated_at = now();
+          SQL
+
       - name: Cleanup backups older than 30 days
         env:
           AWS_ACCESS_KEY_ID:     ${{ secrets.BACKUP_S3_KEY }}

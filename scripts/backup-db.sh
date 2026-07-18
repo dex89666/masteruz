@@ -56,6 +56,16 @@ TABLES="$(grep -c '^CREATE TABLE' "$OUT" || true)"
 gzip -f "$OUT"
 echo "✅ Бэкап готов: $OUT.gz  ($(du -h "$OUT.gz" | cut -f1), таблиц: $TABLES)"
 
+# Отметка об успехе в БД: бэкенд ежечасно проверяет её свежесть и поднимает
+# тревогу, если бэкапов давно нет. Именно молчание, а не явная ошибка,
+# оставило базу без копии на месяц — поэтому пишем только при УСПЕХЕ.
+docker run --rm -i "$PG_IMAGE" psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -q <<SQL || echo "⚠ не удалось записать отметку (бэкап при этом создан)"
+INSERT INTO platform_config (id, key, value, description, updated_at)
+VALUES (gen_random_uuid(), 'last_backup_at', now()::text,
+        'Время последнего успешного бэкапа БД (пишется скриптом бэкапа)', now())
+ON CONFLICT (key) DO UPDATE SET value = now()::text, updated_at = now();
+SQL
+
 # Ротация: старые копии удаляем, чтобы диск не забился.
 cd "$BACKUP_DIR"
 ls -1t masteruz-*.sql.gz 2>/dev/null | tail -n "+$((KEEP_LAST + 1))" | while read -r old; do

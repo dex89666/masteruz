@@ -12,6 +12,7 @@
 import { prisma } from '../config/database.js';
 import { logger } from '../utils/logger.js';
 import { withLock } from './distributedLock.js';
+import { checkBackupFreshness } from './backupWatchdog.js';
 
 const NOTIFICATIONS_TTL_DAYS = Number(process.env.NOTIFICATIONS_TTL_DAYS ?? 30);
 const DELIVERY_LOG_TTL_DAYS  = Number(process.env.DELIVERY_LOG_TTL_DAYS ?? 14);
@@ -42,6 +43,14 @@ export async function runCleanupTick(): Promise<{ notifications: number; deliver
       'cleanup-tick: устаревшие записи удалены',
     );
   }
+
+  // Заодно проверяем свежесть бэкапа: часовой тик — подходящая частота,
+  // а отдельный воркер ради одного запроса заводить незачем.
+  // Сбой проверки не должен ронять уборку.
+  await checkBackupFreshness().catch((err) =>
+    logger.error({ err }, 'cleanup-tick: проверка бэкапа не удалась'),
+  );
+
   return { notifications: notif.count, deliveryLogs: log.count };
 }
 
