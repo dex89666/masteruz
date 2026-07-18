@@ -38,7 +38,8 @@ async function main() {
       visitFee: true,
       completedAt: true,
       category: { select: { slug: true } },
-      aiTemplate: { select: { estimatedPrice: true, confidence: true } },
+      aiPredictedPrice: true,
+      aiModel: true,
     },
   });
 
@@ -59,7 +60,9 @@ async function main() {
         expectPrice: finalPrice,
         note: [
           o.title,
-          o.aiTemplate ? `AI оценивал: ${toNum(o.aiTemplate.estimatedPrice).toLocaleString('ru')}` : null,
+          o.aiPredictedPrice != null
+            ? `AI оценивал: ${toNum(o.aiPredictedPrice).toLocaleString('ru')}${o.aiModel ? ` (${o.aiModel})` : ''}`
+            : null,
           o.completedAt ? `закрыт ${o.completedAt.toISOString().slice(0, 10)}` : null,
         ]
           .filter(Boolean)

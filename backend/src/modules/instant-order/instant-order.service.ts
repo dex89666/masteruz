@@ -894,6 +894,7 @@ export class InstantOrderService {
                       summary: aiAnalysis.summary,
                       materials: aiAnalysis.materials,
                       priceHint: aiAnalysis.priceHint,
+                      needsOnSite: aiAnalysis.needsOnSite,
                       model: aiAnalysis.raw.model,
                       latencyMs: aiAnalysis.raw.latencyMs,
                     }
@@ -1161,11 +1162,31 @@ export class InstantOrderService {
 
     await balanceService.holdFunds(clientId, escrowAmount, 'pending');
 
+    // ─── Снимок прогноза AI (самообучение) ───────────────────────────
+    // Фиксируем, что модель предсказала ДО начала работ. Факт (итоговая цена
+    // и категория) уже хранится в самом заказе, поэтому дублировать его не
+    // нужно — сравнение прогноза с результатом станет обычным SQL-запросом,
+    // а обучающий набор соберётся сам по мере закрытия заказов.
+    // Цену берём без надбавки за срочность: это прогноз стоимости РАБОТ,
+    // а множитель — наша наценка, к качеству модели отношения не имеет.
+    const aiSnapshot = (() => {
+      const meta = (template.imageAnalysis as any)?.ai ?? null;
+      return {
+        aiPredictedPrice: toNum(template.estimatedPrice),
+        aiPredictedCategoryId: template.categoryId,
+        aiConfidence: template.confidence ?? null,
+        aiNeedsOnSite: typeof meta?.needsOnSite === 'boolean' ? meta.needsOnSite : null,
+        aiModel: meta?.model ?? null,
+        aiPredictedAt: new Date(),
+      };
+    })();
+
     try {
       const order = await prisma.order.create({
         data: {
           clientId,
           categoryId: template.categoryId,
+          ...aiSnapshot,
           title: data.title,
           description: data.description,
           price: effectivePrice,

@@ -491,6 +491,19 @@ model Order {
   isEstimationOrder Boolean    @default(false) @map("is_estimation_order")
   estimationFee    Decimal?    @map("estimation_fee") @db.Decimal(12, 2) // 150 000 сум
   parentOrderId    String?     @map("parent_order_id")        // Связь: заказ оценки → основной заказ
+  // ─── Снимок прогноза AI на момент создания заказа ─────────────────
+  // Самообучение: сравнивая эти поля с фактическим итогом заказа
+  // (price / categoryId после закрытия), система измеряет свою точность
+  // и накапливает обучающий набор без ручной разметки.
+  // Плоские колонки, а не JSON — чтобы точность считалась обычным SQL,
+  // а eval-набор выгружался одним запросом.
+  aiPredictedPrice      Decimal?  @map("ai_predicted_price") @db.Decimal(12, 2)
+  aiPredictedCategoryId String?   @map("ai_predicted_category_id")
+  aiConfidence          Float?    @map("ai_confidence")       // 0..1, как в AiOrderTemplate
+  aiNeedsOnSite         Boolean?  @map("ai_needs_on_site")
+  aiModel               String?   @map("ai_model")            // какая модель дала прогноз
+  aiPredictedAt         DateTime? @map("ai_predicted_at")
+
   // AI Instant Order (ФотоЗаказ за 30 сек)
   isInstantAiOrder Boolean     @default(false) @map("is_instant_ai_order")
   source           OrderSource @default(DETAILED_WIZARD)
