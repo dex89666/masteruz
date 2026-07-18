@@ -1552,6 +1552,11 @@ const en = {
     adminToPay: 'To transfer',
     adminLoadError: 'Failed to load requests',
   },
+  masterSetup: {
+    noCategoriesTitle: 'You are not receiving orders',
+    noCategoriesText: 'You have not selected work categories. New orders are dispatched to masters by category — without them you are not included.',
+    noCategoriesAction: 'Select categories',
+  },
 } as const;
 
 export default en;

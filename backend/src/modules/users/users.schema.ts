@@ -23,7 +23,10 @@ export const createMasterProfileSchema = z.object({
   experienceYears: z.number().min(0).max(50).optional(),
   maxDistanceKm: z.number().min(1).max(500).default(10),
   hourlyRate: z.number().min(0).optional(),
-  categoryIds: z.array(z.string().uuid()).min(1, 'Выберите хотя бы одну категорию услуг').optional(),
+  // Категории ОБЯЗАТЕЛЬНЫ: рассылка новых заказов идёт именно по ним.
+  // Раньше стоял .optional(), который полностью обнулял .min(1) — профиль
+  // создавался без категорий, и такой мастер не получал ни одного заказа.
+  categoryIds: z.array(z.string().uuid()).min(1, 'Выберите хотя бы одну категорию услуг'),
 });
 
 export const updateMasterProfileSchema = z.object({

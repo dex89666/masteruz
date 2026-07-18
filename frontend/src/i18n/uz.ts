@@ -1552,6 +1552,11 @@ const uz = {
     adminToPay: 'O‘tkazmaga',
     adminLoadError: 'Arizalarni yuklab bo‘lmadi',
   },
+  masterSetup: {
+    noCategoriesTitle: 'Sizga buyurtmalar kelmayapti',
+    noCategoriesText: 'Siz ish kategoriyalarini tanlamagansiz. Yangi buyurtmalar ustalarga aynan kategoriyalar bo‘yicha yuboriladi — ularsiz siz ro‘yxatga tushmaysiz.',
+    noCategoriesAction: 'Kategoriyalarni tanlash',
+  },
 } as const;
 
 export default uz;

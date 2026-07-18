@@ -5,7 +5,7 @@
 
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ordersApi, paymentsApi, portfolioApi, authApi } from '../api/client';
+import { ordersApi, paymentsApi, portfolioApi, authApi, usersApi } from '../api/client';
 import { OrderCard } from '../components/OrderCard';
 import { DashboardSkeleton } from '../components/PageSkeletons';
 import { useAuthStore } from '../store';
@@ -31,8 +31,7 @@ import {
   Image,
   ShieldCheck,
   MapPin,
-  Crown,
-} from 'lucide-react';
+  Crown, AlertTriangle } from 'lucide-react';
 import type { Order } from '../types';
 
 export function MasterDashboardPage() {
@@ -45,6 +44,8 @@ export function MasterDashboardPage() {
   const [urgentOrders, setUrgentOrders] = useState<Order[]>([]);
   const [earnings, setEarnings] = useState({ total: 0, thisMonth: 0, lastMonth: 0 });
   const [portfolioCount, setPortfolioCount] = useState(0);
+  // Мастер без категорий не попадает в рассылку новых заказов — предупреждаем явно.
+  const [hasCategories, setHasCategories] = useState(true);
   const [loading, setLoading] = useState(true);
   const [switchingRole, setSwitchingRole] = useState(false);
 
@@ -88,10 +89,13 @@ export function MasterDashboardPage() {
   async function loadData() {
     setLoading(true);
     try {
-      const [activeRes, newRes] = await Promise.all([
+      const [activeRes, newRes, catsRes] = await Promise.all([
         ordersApi.myMasterOrders('IN_PROGRESS'),
         ordersApi.list({ status: 'PUBLISHED', limit: 6 }),
+        // Сбой этого запроса не должен прятать дашборд — считаем, что категории есть.
+        usersApi.getMasterCategories().catch(() => null),
       ]);
+      if (catsRes) setHasCategories((catsRes.data?.data ?? []).length > 0);
       setActiveOrders(activeRes.data.data || []);
       const allNew = (newRes.data.data || []).slice(0, 10);
       setUrgentOrders(allNew.filter((o: Order) => o.isUrgent));
@@ -137,6 +141,27 @@ export function MasterDashboardPage() {
 
   return (
     <div className="page-container pb-20">
+      {/* Мастер без категорий невидим для рассылки заказов — объясняем причину */}
+      {!hasCategories && (
+        <Link
+          to="/settings"
+          className="w-full mb-4 flex items-start gap-3 p-4 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-800"
+        >
+          <AlertTriangle className="w-5 h-5 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+          <div className="text-left">
+            <p className="font-semibold text-amber-900 dark:text-amber-200">
+              {t('masterSetup.noCategoriesTitle')}
+            </p>
+            <p className="text-sm text-amber-800 dark:text-amber-300 mt-0.5">
+              {t('masterSetup.noCategoriesText')}
+            </p>
+            <span className="inline-block mt-2 text-sm font-medium text-amber-900 dark:text-amber-200 underline">
+              {t('masterSetup.noCategoriesAction')} →
+            </span>
+          </div>
+        </Link>
+      )}
+
       {/* Баннер возврата в Админ-панель */}
       {isAdminUser && (
         <button

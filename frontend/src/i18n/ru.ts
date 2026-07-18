@@ -1569,6 +1569,11 @@ const ru = {
     adminToPay: 'К переводу',
     adminLoadError: 'Не удалось загрузить заявки',
   },
+  masterSetup: {
+    noCategoriesTitle: 'Заказы вам не приходят',
+    noCategoriesText: 'Вы не выбрали категории работ. Новые заказы рассылаются мастерам именно по категориям — без них вы не попадаете в рассылку.',
+    noCategoriesAction: 'Выбрать категории',
+  },
 } as const;
 
 export type TranslationKeys = typeof ru;
