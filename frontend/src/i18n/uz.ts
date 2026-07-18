@@ -1500,6 +1500,18 @@ const uz = {
     becomes: 'Bo‘ladi (ishlar)',
     noCvvNote: 'Payme kartani SMS orqali tasdiqlaydi. CVV talab qilinmaydi.',
   },
+  appPromo: {
+    title: 'MasterUz ilovasini o‘rnating',
+    subtitle: 'Android uchun {version} versiyasi',
+    subtitleNoVersion: 'Android uchun ilova',
+    benefitPush: 'Buyurtma va xabarlar haqida push-bildirishnomalar',
+    benefitSpeed: 'Tezroq ishlaydi va Telegram cheklovlarisiz',
+    benefitOffline: 'Kamera, joylashuv va ovozli kiritish — to‘liq ishlaydi',
+    download: 'Ilovani yuklab olish',
+    later: 'Keyinroq',
+    alreadyInstalled: 'Menda allaqachon o‘rnatilgan',
+    hintInstall: 'Fayl brauzerda ochiladi. Ushbu manbadan o‘rnatishga ruxsat bering — ma’lumotlar va kirish saqlanadi.',
+  },
 } as const;
 
 export default uz;

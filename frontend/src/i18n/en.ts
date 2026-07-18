@@ -1500,6 +1500,18 @@ const en = {
     becomes: 'Becomes (works)',
     noCvvNote: 'Payme confirms the card via SMS. CVV is not required.',
   },
+  appPromo: {
+    title: 'Install the MasterUz app',
+    subtitle: 'Version {version} for Android',
+    subtitleNoVersion: 'App for Android',
+    benefitPush: 'Push notifications for orders and messages',
+    benefitSpeed: 'Runs faster, without Telegram limitations',
+    benefitOffline: 'Camera, location and voice input work natively',
+    download: 'Download the app',
+    later: 'Later',
+    alreadyInstalled: 'I already have it',
+    hintInstall: 'The file opens in your browser. Allow installation from this source — your data and login are kept.',
+  },
 } as const;
 
 export default en;

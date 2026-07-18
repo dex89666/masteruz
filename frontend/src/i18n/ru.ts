@@ -1517,6 +1517,18 @@ const ru = {
     becomes: 'Станет (работы)',
     noCvvNote: 'Payme подтвердит карту по SMS. CVV не требуется.',
   },
+  appPromo: {
+    title: 'Установите приложение MasterUz',
+    subtitle: 'Версия {version} для Android',
+    subtitleNoVersion: 'Приложение для Android',
+    benefitPush: 'Push-уведомления о заказах и сообщениях',
+    benefitSpeed: 'Работает быстрее и без ограничений Telegram',
+    benefitOffline: 'Камера, геолокация и голосовой ввод — как в родном приложении',
+    download: 'Скачать приложение',
+    later: 'Позже',
+    alreadyInstalled: 'У меня уже установлено',
+    hintInstall: 'Файл откроется в браузере. Разрешите установку из этого источника — данные и вход сохранятся.',
+  },
 } as const;
 
 export type TranslationKeys = typeof ru;
