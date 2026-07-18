@@ -80,6 +80,7 @@ const ComplaintPage = lazy(() => import('./pages/ComplaintPage').then(m => ({ de
 const ForumPage = lazy(() => import('./pages/ForumPage').then(m => ({ default: m.ForumPage })));
 const ForumTopicPage = lazy(() => import('./pages/ForumPage').then(m => ({ default: m.ForumTopicPage })));
 const LinkedCardsPage = lazy(() => import('./pages/LinkedCardsPage').then(m => ({ default: m.LinkedCardsPage })));
+const WithdrawalPage = lazy(() => import('./pages/WithdrawalPage').then(m => ({ default: m.WithdrawalPage })));
 const DownloadAppPage = lazy(() => import('./pages/DownloadAppPage').then(m => ({ default: m.DownloadAppPage })));
 const PublicCalculatorPage = lazy(() => import('./pages/PublicCalculatorPage').then(m => ({ default: m.PublicCalculatorPage })));
 
@@ -329,6 +330,14 @@ function AppContent() {
           element={
             <ProtectedRoute>
               <LinkedCardsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="withdrawal"
+          element={
+            <ProtectedRoute>
+              <WithdrawalPage />
             </ProtectedRoute>
           }
         />

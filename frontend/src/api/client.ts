@@ -309,6 +309,33 @@ export const ordersApi = {
     api.get<ApiResponse<any[]>>('/orders/my/master', { params: { status } }),
 };
 
+// ─── Вывод средств мастером ────────────────
+// Сумма списывается с баланса в момент создания заявки (не при одобрении),
+// поэтому UI должен показывать это пользователю явно.
+export const withdrawalsApi = {
+  create: (data: { amount: number; cardId: string }) =>
+    api.post<ApiResponse<any>>('/withdrawals', data),
+
+  myRequests: (params?: { page?: number; limit?: number }) =>
+    api.get<PaginatedResponse<any>>('/withdrawals/my', { params }),
+
+  cancel: (id: string) =>
+    api.post<ApiResponse<any>>(`/withdrawals/${id}/cancel`),
+
+  // Админ / менеджер
+  adminList: (params?: { status?: string; page?: number; limit?: number }) =>
+    api.get<PaginatedResponse<any>>('/withdrawals/admin', { params }),
+
+  adminProcessing: (id: string) =>
+    api.post<ApiResponse<any>>(`/withdrawals/admin/${id}/processing`),
+
+  adminComplete: (id: string, adminNote?: string) =>
+    api.post<ApiResponse<any>>(`/withdrawals/admin/${id}/complete`, { adminNote }),
+
+  adminReject: (id: string, reason: string) =>
+    api.post<ApiResponse<any>>(`/withdrawals/admin/${id}/reject`, { reason }),
+};
+
 // ─── Изменение цены по ходу работ ──────────
 // Любое изменение требует подтверждения клиента.
 // Рост > лимита и ЛЮБОЕ снижение → сначала модерация админом (защита от обхода).

@@ -7,6 +7,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { adminApi, storesApi, turnkeyApi, estimationApi, chatApi, supportChatApi, instantOrderApi, schoolApi } from '../api/client';
 import { AdminPriceChangeModeration } from '../components/AdminPriceChangeModeration';
+import { AdminWithdrawals } from '../components/AdminWithdrawals';
 import { useAuthStore } from '../store';
 import { useTranslation } from '../i18n';
 import { resolveImageUrl } from '../lib/imageUrl';
@@ -26,12 +27,12 @@ import {
   CheckSquare, Square,
   Headphones, Send, MessageCircle, FileText, Sparkles,
   GraduationCap, HelpCircle, BookOpen, Phone,
-  Bell, Crown,
+  Bell, Crown, Wallet,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { Dashboard } from '../types';
 
-type AdminTab = 'overview' | 'users' | 'orders' | 'payments' | 'catalog' | 'config' | 'stores' | 'turnkey' | 'moderation' | 'support' | 'school' | 'security';
+type AdminTab = 'overview' | 'users' | 'orders' | 'payments' | 'withdrawals' | 'catalog' | 'config' | 'stores' | 'turnkey' | 'moderation' | 'support' | 'school' | 'security';
 
 // ─── Stat Card Component ────────────────────
 function StatCard({ icon: Icon, label, value, subValue, color, trend }: {
@@ -1114,6 +1115,7 @@ export function AdminDashboardPage() {
     { key: 'users', label: t('admin.tabUsers'), icon: Users },
     { key: 'orders', label: t('admin.tabOrders'), icon: ShoppingBag },
     { key: 'payments', label: t('admin.tabPayments'), icon: CreditCard },
+    { key: 'withdrawals', label: t('withdrawal.adminQueue'), icon: Wallet },
     { key: 'stores', label: t('stores.title'), icon: Store },
     { key: 'turnkey', label: t('turnkey.title'), icon: Hammer },
     { key: 'catalog', label: 'Каталог', icon: FolderTree },
@@ -2223,6 +2225,16 @@ export function AdminDashboardPage() {
       {/* ═══════════════════════════════════════ */}
       {/* TAB: MODERATION                        */}
       {/* ═══════════════════════════════════════ */}
+      {tab === 'withdrawals' && (
+        <div className="space-y-4">
+          <h2 className="font-semibold dark:text-white flex items-center gap-2">
+            <Wallet size={18} className="text-primary-500" />
+            {t('withdrawal.adminQueue')}
+          </h2>
+          <AdminWithdrawals />
+        </div>
+      )}
+
       {tab === 'moderation' && (
         <div className="space-y-4">
           <h2 className="font-semibold dark:text-white flex items-center gap-2">

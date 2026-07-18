@@ -3,6 +3,7 @@
 // Пополнение, транзакции, эскроу
 // ============================================
 
+import { Link } from 'react-router-dom';
 import { useEffect, useState, useCallback } from 'react';
 import { balanceApi } from '../api/client';
 import { LoadingSpinner } from '../components/LoadingSpinner';
@@ -179,13 +180,23 @@ export function BalancePage() {
           <p className="text-3xl font-bold tracking-tight mb-4">
             {formatPrice(balance, t('common.currency'))}
           </p>
-          <button
-            onClick={() => setShowTopUp(!showTopUp)}
-            className="flex items-center gap-2 px-5 py-2.5 bg-white/20 hover:bg-white/30 rounded-xl font-semibold transition-all backdrop-blur-sm"
-          >
-            <Plus size={18} />
-            {t('balance.topUp')}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setShowTopUp(!showTopUp)}
+              className="flex items-center gap-2 px-5 py-2.5 bg-white/20 hover:bg-white/30 rounded-xl font-semibold transition-all backdrop-blur-sm"
+            >
+              <Plus size={18} />
+              {t('balance.topUp')}
+            </button>
+            {/* Вывод — мастеру: заработок должно быть видно, куда забрать */}
+            <Link
+              to="/withdrawal"
+              className="flex items-center gap-2 px-5 py-2.5 bg-white/20 hover:bg-white/30 rounded-xl font-semibold transition-all backdrop-blur-sm"
+            >
+              <Wallet size={18} />
+              {t('withdrawal.title')}
+            </Link>
+          </div>
         </div>
       </div>
 
