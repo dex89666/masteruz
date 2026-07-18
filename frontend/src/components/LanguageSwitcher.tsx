@@ -5,6 +5,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Globe } from 'lucide-react';
 import { useTranslation, LANGUAGES, type Language } from '../i18n';
+import { usersApi } from '../api/client';
 
 export default function LanguageSwitcher() {
   const { language, setLanguage } = useTranslation();
@@ -42,6 +43,9 @@ export default function LanguageSwitcher() {
                 onClick={() => {
                   setLanguage(code);
                   setOpen(false);
+                  // Сохраняем язык на сервере, чтобы уведомления (in-app и Telegram)
+                  // приходили на выбранном языке. Гость не авторизован — молча пропускаем.
+                  usersApi.updateLanguage(code).catch(() => {});
                 }}
                 className={`w-full text-left px-3 py-2 text-sm hover:bg-blue-50 dark:hover:bg-blue-900/30 flex items-center gap-2 transition ${
                   code === language ? 'bg-blue-50 dark:bg-blue-900/30 font-medium text-blue-700 dark:text-blue-400' : 'dark:text-gray-300'

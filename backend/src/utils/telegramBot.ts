@@ -4,6 +4,7 @@
 // ============================================
 
 import { config } from '../config/index.js';
+import { translator, DEFAULT_LANG, type Lang } from '../i18n/index.js';
 import { logger } from './logger.js';
 import { acquireTelegramSlot } from '../services/telegramRateLimiter.js';
 
@@ -132,8 +133,10 @@ export async function notifyMasterOrderApproved(params: {
   price: number;
   isUrgent: boolean;
   tasks: string[];
+  lang?: Lang;
 }): Promise<void> {
   const chatId = String(params.masterTelegramId);
+  const tr = translator(params.lang ?? DEFAULT_LANG);
 
   // Формируем полный адрес
   const addressParts = [
@@ -143,38 +146,29 @@ export async function notifyMasterOrderApproved(params: {
     params.street,
     params.address,
   ].filter(Boolean);
-  const fullAddress = addressParts.join(', ') || 'Не указан';
+  const fullAddress = addressParts.join(', ') || tr('notify.tg.notSpecified');
 
-  const urgentLabel = params.isUrgent ? '🚨 СРОЧНЫЙ ЗАКАЗ' : '';
   const taskList = params.tasks.length > 0
     ? params.tasks.map((t) => `  • ${t}`).join('\n')
-    : '  Не указаны';
+    : tr('notify.tg.tasksNotSpecified');
 
-  const message = `
-✅ <b>Заказ одобрен! Можете приступать</b>
-${urgentLabel}
-
-📋 <b>${params.orderTitle}</b>
-
-💰 <b>Стоимость:</b> ${params.price.toLocaleString('ru')} сум
-${params.isUrgent ? '⚡ <i>Включена надбавка за срочность (+40%)</i>' : ''}
-
-🔧 <b>Что нужно сделать:</b>
-${taskList}
-
-📍 <b>Адрес:</b> ${fullAddress}
-
-📞 <b>Телефон клиента:</b> ${params.clientPhone || 'Не указан'}
-👤 <b>Клиент:</b> ${params.clientName}
-
-🔗 Открыть заказ
-`.trim();
+  const message = tr('notify.tg.orderApproved', {
+    urgent: params.isUrgent ? tr('notify.tg.urgentBadge') : '',
+    title: params.orderTitle,
+    price: params.price.toLocaleString('ru'),
+    currency: tr('common.currency'),
+    surcharge: params.isUrgent ? tr('notify.tg.urgentSurcharge') : '',
+    tasks: taskList,
+    address: fullAddress,
+    phone: params.clientPhone || tr('notify.tg.notSpecified'),
+    clientName: params.clientName,
+  }).trim();
 
   const miniAppUrl = config.telegram.miniAppUrl || 'https://masteruz.uz';
   const orderUrl = `${miniAppUrl}/orders/${params.orderId}`;
   const replyMarkup = {
     inline_keyboard: [
-      [{ text: '📋 Открыть заказ', web_app: { url: orderUrl } }],
+      [{ text: tr('notify.tg.openOrder'), web_app: { url: orderUrl } }],
     ],
   };
 
@@ -204,43 +198,46 @@ export async function notifyMasterNewOrder(params: {
   isUrgent: boolean;
   categoryName: string;
   distance?: number | null;
+  lang?: Lang;
 }): Promise<TelegramSendResult> {
   const chatId = String(params.masterTelegramId);
+  const tr = translator(params.lang ?? DEFAULT_LANG);
 
   const locationParts = [params.city, params.district].filter(Boolean);
-  const locationLabel = locationParts.join(', ') || 'Не указан';
-  const urgentLabel = params.isUrgent ? '🚨 СРОЧНЫЙ ' : '';
-  const distanceLabel = params.distance != null ? `\n📏 <b>Расстояние:</b> ${params.distance} км от вас` : '';
+  const locationLabel = locationParts.join(', ') || tr('notify.tg.notSpecified');
+  const distanceLabel =
+    params.distance != null ? tr('notify.tg.newOrderDistance', { km: params.distance }) : '';
 
   // Deep link: opens the order directly inside Telegram Mini App
   const miniAppUrl = config.telegram.miniAppUrl || 'https://masteruz.uz';
   const botUsername = config.telegram.botUsername;
   const orderUrl = `${miniAppUrl}/orders/${params.orderId}`;
 
-  const message = `
-🆕 <b>${urgentLabel}Новый заказ в вашем районе!</b>
-
-📋 <b>${params.orderTitle}</b>
-🏷 <b>Категория:</b> ${params.categoryName}
-💰 <b>Бюджет:</b> ${params.price.toLocaleString('ru')} сум
-📍 <b>Местоположение:</b> ${locationLabel}${distanceLabel}
-
-👉 Нажмите кнопку ниже, чтобы подтвердить заявку
-`.trim();
+  const message = tr('notify.tg.newOrder', {
+    urgent: params.isUrgent ? tr('notify.tg.urgentPrefix') : '',
+    title: params.orderTitle,
+    category: params.categoryName,
+    price: params.price.toLocaleString('ru'),
+    currency: tr('common.currency'),
+    location: locationLabel,
+    distance: distanceLabel,
+  }).trim();
 
   // Inline-кнопки: «Подтвердить заявку» (открывает заказ в Mini App) + «Посмотреть заказ»
   const respondUrl = `${miniAppUrl}/orders/${params.orderId}?action=respond`;
+  const confirmText = tr('notify.tg.confirmRequest');
+  const viewText = tr('notify.tg.viewOrder');
   const replyMarkup = botUsername
     ? {
         inline_keyboard: [
-          [{ text: '✅ Подтвердить заявку', web_app: { url: respondUrl } }],
-          [{ text: '📋 Посмотреть заказ', web_app: { url: orderUrl } }],
+          [{ text: confirmText, web_app: { url: respondUrl } }],
+          [{ text: viewText, web_app: { url: orderUrl } }],
         ],
       }
     : {
         inline_keyboard: [
-          [{ text: '✅ Подтвердить заявку', url: respondUrl }],
-          [{ text: '📋 Посмотреть заказ', url: orderUrl }],
+          [{ text: confirmText, url: respondUrl }],
+          [{ text: viewText, url: orderUrl }],
         ],
       };
 
@@ -255,23 +252,22 @@ export async function notifyMasterResponseAccepted(params: {
   orderTitle: string;
   orderId: string;
   price: number;
+  lang?: Lang;
 }): Promise<void> {
   const chatId = String(params.masterTelegramId);
+  const tr = translator(params.lang ?? DEFAULT_LANG);
 
-  const message = `
-🎉 <b>Ваш отклик выбран!</b>
-
-📋 <b>${params.orderTitle}</b>
-💰 <b>Стоимость:</b> ${params.price.toLocaleString('ru')} сум
-
-Оплатите комиссию платформы, чтобы получить контакты клиента и приступить к работе.
-`.trim();
+  const message = tr('notify.tg.responseAccepted', {
+    title: params.orderTitle,
+    price: params.price.toLocaleString('ru'),
+    currency: tr('common.currency'),
+  }).trim();
 
   const miniAppUrl = config.telegram.miniAppUrl || 'https://masteruz.uz';
   const orderUrl = `${miniAppUrl}/orders/${params.orderId}`;
   const replyMarkup = {
     inline_keyboard: [
-      [{ text: '📋 Открыть заказ', web_app: { url: orderUrl } }],
+      [{ text: tr('notify.tg.openOrder'), web_app: { url: orderUrl } }],
     ],
   };
 

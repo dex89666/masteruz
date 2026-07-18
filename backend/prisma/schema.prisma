@@ -133,6 +133,9 @@ model User {
   isActive    Boolean  @default(true) @map("is_active")
   isVerified  Boolean  @default(false) @map("is_verified")
   balance     Decimal  @default(0) @db.Decimal(12, 2)
+  // Язык интерфейса и уведомлений: 'ru' | 'uz' | 'en'.
+  // Синхронизируется с выбором языка во фронтенде.
+  language    String   @default("ru")
   referralCode String  @unique @map("referral_code")
   referredById String? @map("referred_by_id")
   // Customer Risk Score (0..100): чем выше — тем рискованнее клиент

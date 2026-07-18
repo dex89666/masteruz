@@ -226,6 +226,10 @@ export const usersApi = {
 
   updateMasterCategories: (categoryIds: string[]) =>
     api.put<ApiResponse<any>>('/users/master-categories', { categoryIds }),
+
+  // Язык интерфейса и уведомлений — чтобы push/Telegram приходили на языке пользователя
+  updateLanguage: (language: 'ru' | 'uz' | 'en') =>
+    api.put<ApiResponse<any>>('/users/language', { language }),
 };
 
 // ─── Online Status API ──────────────────────
