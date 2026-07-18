@@ -68,10 +68,23 @@ const app = express();
 
 // ─── Глобальные Middleware ─────────────────────
 
-// Доверие к прокси Railway/Nginx — иначе req.ip = адрес прокси,
-// и rate-limiter забанит ВСЕХ пользователей разом. 'loopback, linklocal, uniquelocal'
-// доверяет только internal-адресам Railway, не подделке X-Forwarded-For извне.
-app.set('trust proxy', 'loopback, linklocal, uniquelocal');
+// Доверие к прокси Railway/Nginx — иначе req.ip = адрес прокси, а не клиента.
+//
+// Railway проксирует запросы с адресов 100.64.0.0/10 (CGNAT). Этот диапазон НЕ
+// входит в пресет 'uniquelocal' (он покрывает только 10/8, 172.16/12, 192.168/16),
+// поэтому без него Express не доверял X-Forwarded-For и подставлял в req.ip адрес
+// самого прокси. Последствия были незаметными, но серьёзными:
+//   • rate-limiter для НЕавторизованных запросов ключуется по ip → все анонимные
+//     пользователи попадали в одно ведро и упирались в лимит сообща;
+//   • IP-whitelist вебхуков Payme отклонял бы вообще все входящие запросы.
+//
+// Доверяем именно диапазонам прокси, а не `true`: иначе любой клиент смог бы
+// подделать X-Forwarded-For и притвориться доверенным IP.
+const TRUSTED_PROXIES = (process.env.TRUSTED_PROXIES || 'loopback, linklocal, uniquelocal, 100.64.0.0/10')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+app.set('trust proxy', TRUSTED_PROXIES);
 
 // Безопасность: HSTS на год + усиленные заголовки
 app.use(helmet({
