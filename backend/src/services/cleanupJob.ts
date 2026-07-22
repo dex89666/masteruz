@@ -17,10 +17,14 @@ import { checkBackupFreshness } from './backupWatchdog.js';
 const NOTIFICATIONS_TTL_DAYS = Number(process.env.NOTIFICATIONS_TTL_DAYS ?? 30);
 const DELIVERY_LOG_TTL_DAYS  = Number(process.env.DELIVERY_LOG_TTL_DAYS ?? 14);
 const TICK_INTERVAL_MS       = Number(process.env.CLEANUP_TICK_MS ?? 60 * 60 * 1000); // 1 час
+// Заброшенные попытки оплаты: клиент открыл форму провайдера и не завершил.
+// Через сутки такой платёж уже не будет оплачен — переводим в FAILED, чтобы
+// он не засорял отчётность и не мешал отличать реальные проблемы от мусора.
+const STALE_PAYMENT_HOURS    = Number(process.env.STALE_PAYMENT_HOURS ?? 24);
 
 let timer: NodeJS.Timeout | null = null;
 
-export async function runCleanupTick(): Promise<{ notifications: number; deliveryLogs: number }> {
+export async function runCleanupTick(): Promise<{ notifications: number; deliveryLogs: number; stalePayments: number }> {
   const notifCutoff = new Date(Date.now() - NOTIFICATIONS_TTL_DAYS * 86_400_000);
   const logCutoff   = new Date(Date.now() - DELIVERY_LOG_TTL_DAYS * 86_400_000);
 
@@ -37,10 +41,26 @@ export async function runCleanupTick(): Promise<{ notifications: number; deliver
     where: { createdAt: { lt: logCutoff } },
   });
 
-  if (notif.count > 0 || log.count > 0) {
+  // Заброшенные попытки оплаты → FAILED.
+  // ВАЖНО: трогаем только PENDING (форма открыта, но не начата). PROCESSING
+  // не трогаем — там платёж уже в руках провайдера и вебхук ещё может прийти;
+  // пометить его FAILED значило бы разойтись с реальным списанием у клиента.
+  const paymentCutoff = new Date(Date.now() - STALE_PAYMENT_HOURS * 3_600_000);
+  const stalePayments = await prisma.payment.updateMany({
+    where: {
+      status: 'PENDING',
+      createdAt: { lt: paymentCutoff },
+    },
+    data: {
+      status: 'FAILED',
+      metadata: { failedReason: 'auto_timeout', autoFailedAt: new Date().toISOString() },
+    },
+  });
+
+  if (notif.count > 0 || log.count > 0 || stalePayments.count > 0) {
     logger.info(
-      { notifications: notif.count, deliveryLogs: log.count },
-      'cleanup-tick: устаревшие записи удалены',
+      { notifications: notif.count, deliveryLogs: log.count, stalePayments: stalePayments.count },
+      'cleanup-tick: устаревшие записи обработаны',
     );
   }
 
@@ -51,7 +71,7 @@ export async function runCleanupTick(): Promise<{ notifications: number; deliver
     logger.error({ err }, 'cleanup-tick: проверка бэкапа не удалась'),
   );
 
-  return { notifications: notif.count, deliveryLogs: log.count };
+  return { notifications: notif.count, deliveryLogs: log.count, stalePayments: stalePayments.count };
 }
 
 export function startCleanupJob(): void {

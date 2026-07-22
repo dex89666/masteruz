@@ -21,6 +21,12 @@ const en = {
       message: 'The client chose you for order "{title}". Pay the commission to get the client contacts.',
     },
 
+    orderStaleNoMaster: {
+      title: '⏳ No master found yet',
+      message: 'No master has responded to order "{title}" in {days} days. {amount} {currency} is on hold. You can keep waiting or cancel the order and get your money back.',
+      tg: '⏳ <b>No master found yet</b>\n\nNo master has responded to order "{title}" in {days} days.\nOn hold: <b>{amount} {currency}</b>\n\nOpen the order to keep waiting or cancel and get a refund.',
+    },
+
     orderAutoCancelled: {
       title: '⏱ Order cancelled — funds returned',
       message:

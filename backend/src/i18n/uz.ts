@@ -21,6 +21,12 @@ const uz = {
       message: 'Mijoz "{title}" buyurtmasi uchun sizni tanladi. Mijoz kontaktlarini olish uchun komissiyani to‘lang.',
     },
 
+    orderStaleNoMaster: {
+      title: '⏳ Usta hali topilmadi',
+      message: '«{title}» buyurtmasi bo‘yicha {days} kun ichida birorta usta javob bermadi. {amount} {currency} bloklangan. Yana kutishingiz yoki buyurtmani bekor qilib, pulni qaytarishingiz mumkin.',
+      tg: '⏳ <b>Usta hali topilmadi</b>\n\n«{title}» buyurtmasi bo‘yicha {days} kun ichida birorta usta javob bermadi.\nBloklangan: <b>{amount} {currency}</b>\n\nYana kutish yoki bekor qilib pulni qaytarish uchun buyurtmani oching.',
+    },
+
     orderAutoCancelled: {
       title: '⏱ Buyurtma bekor qilindi — mablag‘ qaytarildi',
       message:

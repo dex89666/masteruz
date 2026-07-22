@@ -172,6 +172,45 @@ export async function runReminderTick(): Promise<{ remindersSent: number }> {
   return { remindersSent: total };
 }
 
+/** Через сколько дней без мастера сообщить клиенту, что деньги можно вернуть. */
+const CLIENT_STALE_NOTIFY_DAYS = Number(process.env.CLIENT_STALE_NOTIFY_DAYS ?? 3);
+
+/**
+ * Один раз уведомляет клиента, что мастер долго не находится и деньги можно
+ * вернуть. Авто-отмену НЕ делаем — решение за клиентом. Флаг
+ * clientStaleNotifiedAt защищает от повторной рассылки.
+ */
+export async function runClientStaleNotifyTick(): Promise<{ notified: number }> {
+  const cutoff = new Date(Date.now() - CLIENT_STALE_NOTIFY_DAYS * 86_400_000);
+  const batch = Number(process.env.CLIENT_STALE_NOTIFY_BATCH ?? 500);
+
+  const candidates = await prisma.order.findMany({
+    where: {
+      status: OrderStatus.PUBLISHED,
+      masterId: null,
+      clientStaleNotifiedAt: null,
+      createdAt: { lt: cutoff },
+    },
+    select: { id: true },
+    take: batch,
+    orderBy: { createdAt: 'asc' },
+  });
+
+  let notified = 0;
+  for (const o of candidates) {
+    // Метод сам атомарно захватывает флаг — гонки двух тиков не будет.
+    await notificationService.notifyClientOrderStale(o.id).catch((err) =>
+      logger.error({ err, orderId: o.id }, 'client-stale-notify: сбой уведомления'),
+    );
+    notified++;
+  }
+
+  if (notified > 0) {
+    logger.info({ notified, thresholdDays: CLIENT_STALE_NOTIFY_DAYS }, 'client-stale-notify: клиенты уведомлены');
+  }
+  return { notified };
+}
+
 /**
  * Напоминания мастеру, который уже взял заказ.
  *
@@ -308,6 +347,8 @@ export function startAutoCancellationJob(): void {
       .catch((err) => logger.error({ err }, 'reminder-tick: первый прогон провалился'));
     withLock('cron:master-reminder', TICK_INTERVAL_MS, runMasterReminderTick)
       .catch((err) => logger.error({ err }, 'master-reminder-tick: первый прогон провалился'));
+    withLock('cron:client-stale', TICK_INTERVAL_MS, runClientStaleNotifyTick)
+      .catch((err) => logger.error({ err }, 'client-stale-notify: первый прогон провалился'));
   }, 60_000);
 
   timer = setInterval(() => {
@@ -315,6 +356,8 @@ export function startAutoCancellationJob(): void {
       .catch((err) => logger.error({ err }, 'reminder-tick: провалился'));
     withLock('cron:master-reminder', TICK_INTERVAL_MS, runMasterReminderTick)
       .catch((err) => logger.error({ err }, 'master-reminder-tick: провалился'));
+    withLock('cron:client-stale', TICK_INTERVAL_MS, runClientStaleNotifyTick)
+      .catch((err) => logger.error({ err }, 'client-stale-notify: провалился'));
   }, TICK_INTERVAL_MS);
 
   // Не держим event loop, если процесс хочет завершиться

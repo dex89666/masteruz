@@ -605,6 +605,54 @@ export class NotificationService {
    * Уведомить клиента, что его заказ авто-отменён системой (никто не принял за 72ч)
    * и средства возвращены на баланс.
    */
+  /**
+   * Мастер долго не находится: сообщаем клиенту, что деньги заморожены и их
+   * можно вернуть, отменив заказ. Флаг clientStaleNotifiedAt проставляется
+   * атомарно ДО отправки — при гонке двух тиков уведомление уйдёт один раз.
+   * Решение отменять остаётся за клиентом: авто-отмену не включаем.
+   */
+  async notifyClientOrderStale(orderId: string) {
+    try {
+      const order = await prisma.order.findUnique({
+        where: { id: orderId },
+        include: { client: true },
+      });
+      if (!order || order.masterId || order.status !== OrderStatus.PUBLISHED) return;
+
+      // Атомарный захват: помечаем только если ещё не помечено. Если параллельный
+      // тик уже взял заказ — count=0 и уведомление не дублируется.
+      const claimed = await prisma.order.updateMany({
+        where: { id: orderId, clientStaleNotifiedAt: null },
+        data: { clientStaleNotifiedAt: new Date() },
+      });
+      if (claimed.count === 0) return;
+
+      const tr = await translatorFor(order.clientId);
+      const amount = toNum(order.escrowAmount).toLocaleString('ru');
+      const currency = tr('common.currency');
+      const days = Math.floor((Date.now() - order.createdAt.getTime()) / 86_400_000);
+
+      await this.createNotification({
+        userId: order.clientId,
+        type: 'order_stale_no_master',
+        title: tr('notify.orderStaleNoMaster.title'),
+        message: tr('notify.orderStaleNoMaster.message', { title: order.title, days, amount, currency }),
+        data: { orderId, days, escrowAmount: toNum(order.escrowAmount) },
+      });
+
+      if (order.client?.telegramId) {
+        await sendTelegramMessage({
+          chatId: order.client.telegramId,
+          text: tr('notify.orderStaleNoMaster.tg', { title: order.title, days, amount, currency }),
+        }).catch(() => {});
+      }
+
+      logger.info({ orderId, days }, 'Клиент уведомлён о зависшем заказе');
+    } catch (error) {
+      logger.error({ error, orderId }, 'notifyClientOrderStale failed');
+    }
+  }
+
   async notifyClientOrderAutoCancelled(orderId: string) {
     try {
       const order = await prisma.order.findUnique({

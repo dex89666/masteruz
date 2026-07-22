@@ -32,6 +32,7 @@ const NOTIFICATION_ICONS: Record<string, any> = {
   price_change_rejected: TrendingDown,
   price_change_moderation_rejected: ShieldAlert,
   order_awaiting_remainder: ShoppingBag,
+  order_stale_no_master: AlertTriangle,
 };
 
 const NOTIFICATION_COLORS: Record<string, string> = {
@@ -50,6 +51,7 @@ const NOTIFICATION_COLORS: Record<string, string> = {
   price_change_rejected: 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400',
   price_change_moderation_rejected: 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400',
   order_awaiting_remainder: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400',
+  order_stale_no_master: 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400',
 };
 
 export function NotificationsPage() {
