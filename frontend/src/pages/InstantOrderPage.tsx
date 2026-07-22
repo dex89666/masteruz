@@ -54,6 +54,9 @@ const TIER_CONFIG = {
 
 type Step = 'upload' | 'analyzing' | 'clarify' | 'variants' | 'confirm';
 const STEPS: Step[] = ['upload', 'analyzing', 'variants', 'confirm'];
+// Столько фото уходит в AI. Совпадает с backend OPENAI_VISION_MAX_IMAGES:
+// 3-4 осмысленных кадра точнее 10 случайных и дешевле по токенам.
+const MAX_PHOTOS = 4;
 const STEP_LABELS = ['Фото и описание', 'AI-анализ', 'Выбор варианта', 'Подтверждение'];
 
 export function InstantOrderPage() {
@@ -203,18 +206,25 @@ export function InstantOrderPage() {
   }, []);
 
   // ─── Сжатие изображения через Canvas ──────
-  const compressImage = useCallback((file: File, maxWidth = 1200, quality = 0.7): Promise<File> => {
+  // Сжатие под AI-анализ. Модель всё равно даунскейлит изображение, а платим
+  // мы за пиксели, поэтому ограничиваем ДЛИННУЮ сторону 1024px (портретные фото
+  // с телефона иначе оставались 3000px по высоте) и жмём качество. Цель —
+  // меньше трафика у клиента и меньше токенов у AI без потери сути на фото.
+  const compressImage = useCallback((file: File, maxDim = 1024, quality = 0.65): Promise<File> => {
     return new Promise((resolve) => {
-      // Если файл маленький (< 500KB) — не сжимаем
-      if (file.size < 500 * 1024) { resolve(file); return; }
-
       const img = new window.Image();
       const url = URL.createObjectURL(file);
       img.onload = () => {
         URL.revokeObjectURL(url);
         const canvas = document.createElement('canvas');
         let w = img.width, h = img.height;
-        if (w > maxWidth) { h = Math.round(h * maxWidth / w); w = maxWidth; }
+        // Ресайзим по длинной стороне — работает и для горизонтальных, и для вертикальных.
+        const longest = Math.max(w, h);
+        if (longest > maxDim) {
+          const scale = maxDim / longest;
+          w = Math.round(w * scale);
+          h = Math.round(h * scale);
+        }
         canvas.width = w; canvas.height = h;
         const ctx = canvas.getContext('2d');
         if (!ctx) { resolve(file); return; }
@@ -238,8 +248,8 @@ export function InstantOrderPage() {
 
   // ─── Photo upload ────────────────────
   const addFiles = useCallback(async (files: File[]) => {
-    if (images.length + files.length > 10) {
-      toast.error('Максимум 10 фотографий');
+    if (images.length + files.length > MAX_PHOTOS) {
+      toast.error(`Максимум ${MAX_PHOTOS} фотографии`);
       return;
     }
     const newPreviews: string[] = [];
@@ -827,11 +837,36 @@ export function InstantOrderPage() {
 
             {/* ─── Photo zone ─── */}
             <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 md:p-6 shadow-sm border border-gray-200 dark:border-gray-700">
-              <h2 className="text-lg md:text-xl font-bold mb-4 dark:text-white flex items-center gap-2 flex-wrap">
+              <h2 className="text-lg md:text-xl font-bold mb-3 dark:text-white flex items-center gap-2 flex-wrap">
                 <Camera size={22} className="text-orange-500" />
                 Загрузите фото проблемы
-                <span className="text-sm text-gray-400 font-normal">(до 10 шт., необязательно)</span>
+                <span className="text-sm text-gray-400 font-normal">(до {MAX_PHOTOS} шт., необязательно)</span>
               </h2>
+
+              {/* Подсказка по съёмке: качество фото напрямую влияет на точность
+                  AI-оценки. Три кадра дают модели контекст, размер и модель узла. */}
+              <div className="mb-4 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-900/40 p-3">
+                <p className="text-sm font-semibold text-blue-800 dark:text-blue-300 mb-2">
+                  Как сфотографировать, чтобы оценка была точной:
+                </p>
+                <ul className="space-y-1.5 text-sm text-blue-700 dark:text-blue-300">
+                  <li className="flex gap-2">
+                    <span className="shrink-0">📷</span>
+                    <span><strong>Общий план</strong> — вся зона работ целиком (комната, стена, мебель)</span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="shrink-0">🔍</span>
+                    <span><strong>Крупный план</strong> — сама поломка вблизи (кран, замок, розетка)</span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="shrink-0">🏷️</span>
+                    <span><strong>Маркировка</strong> — шильдик, модель или бренд, если есть</span>
+                  </li>
+                </ul>
+                <p className="mt-2 text-xs text-blue-600/80 dark:text-blue-400/70">
+                  Снимайте при хорошем свете, держите телефон ровно.
+                </p>
+              </div>
 
               {/* Photo previews grid */}
               {images.length > 0 && (
@@ -851,7 +886,7 @@ export function InstantOrderPage() {
                     </div>
                   ))}
                   {/* Add more button */}
-                  {images.length < 10 && (
+                  {images.length < MAX_PHOTOS && (
                     <button
                       onClick={() => fileInputRef.current?.click()}
                       className="aspect-square rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 flex flex-col items-center justify-center gap-1 hover:border-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/10 transition-colors min-h-[88px]"
@@ -883,7 +918,7 @@ export function InstantOrderPage() {
                     <p className="text-orange-600 dark:text-orange-400 font-bold text-base md:text-lg mb-1">
                       Нажмите или перетащите фотографии
                     </p>
-                    <p className="text-sm text-gray-400">JPG, PNG до 10 МБ каждое • до 10 штук</p>
+                    <p className="text-sm text-gray-400">JPG, PNG • до {MAX_PHOTOS} фото</p>
                   </div>
                 </div>
               )}
@@ -1479,37 +1514,42 @@ export function InstantOrderPage() {
                       </div>
                     )}
 
-                    <div className="flex items-start gap-4">
-                      <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${config.color} flex items-center justify-center flex-shrink-0`}>
-                        <TierIcon size={26} className="text-white" />
+                    {/* Шапка: иконка + название + уверенность.
+                        Вертикальная компоновка — на узких экранах трёхколоночный
+                        ряд с ценой сбоку ломался (цена налезала на заголовок,
+                        описание сжималось в колонку по одному слову). */}
+                    <div className="flex items-center gap-3">
+                      <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${config.color} flex items-center justify-center flex-shrink-0`}>
+                        <TierIcon size={24} className="text-white" />
                       </div>
-
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                          <h3 className="font-bold text-lg dark:text-white">{config.label}</h3>
-                          <span className={`text-xs px-2.5 py-1 rounded-full ${config.badge}`}>
-                            {Math.round(variant.confidence * 100)}% уверенность
-                          </span>
-                        </div>
-                        <p className="text-sm text-gray-600 dark:text-gray-300 mb-3">{variant.description}</p>
-
-                        <div className="flex flex-wrap gap-4 text-sm">
-                          <div className="flex items-center gap-1.5">
-                            <Package size={16} className="text-gray-400" />
-                            <span className="dark:text-gray-300"><strong>{variant.taskIds.length}</strong> работ</span>
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                            <Clock size={16} className="text-gray-400" />
-                            <span className="dark:text-gray-300"><strong>{variant.estimatedDays}</strong> дн.</span>
-                          </div>
-                        </div>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="font-bold text-lg dark:text-white leading-tight">{config.label}</h3>
+                        <span className={`inline-block mt-0.5 text-xs px-2 py-0.5 rounded-full ${config.badge}`}>
+                          {Math.round(variant.confidence * 100)}% уверенность
+                        </span>
                       </div>
+                    </div>
 
-                      <div className="text-right flex-shrink-0">
-                        <p className="text-2xl md:text-3xl font-extrabold text-gray-900 dark:text-white">
-                          {formatPrice(variant.estimatedPrice)}
-                        </p>
-                        <p className="text-xs text-gray-400 mt-1">фиксированная цена</p>
+                    {/* Цена — отдельной строкой на всю ширину, крупно и без обрезки */}
+                    <div className="mt-3 flex items-baseline justify-between gap-2">
+                      <p className="text-2xl font-extrabold text-gray-900 dark:text-white break-words">
+                        {formatPrice(variant.estimatedPrice)}
+                      </p>
+                      <p className="text-xs text-gray-400 shrink-0">фиксированная цена</p>
+                    </div>
+
+                    {/* Описание — на всю ширину карточки */}
+                    <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{variant.description}</p>
+
+                    {/* Метрики */}
+                    <div className="mt-3 flex flex-wrap gap-4 text-sm">
+                      <div className="flex items-center gap-1.5">
+                        <Package size={16} className="text-gray-400" />
+                        <span className="dark:text-gray-300"><strong>{variant.taskIds.length}</strong> работ</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Clock size={16} className="text-gray-400" />
+                        <span className="dark:text-gray-300"><strong>{variant.estimatedDays}</strong> дн.</span>
                       </div>
                     </div>
 

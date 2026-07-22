@@ -258,7 +258,15 @@ export function LinkedCardsPage() {
                 className="input dark:bg-gray-900 dark:border-gray-700 dark:text-white uppercase"
                 placeholder="IVANOV IVAN"
                 value={form.cardHolder}
-                onChange={(e) => setForm({ ...form, cardHolder: e.target.value.toUpperCase() })}
+                onChange={(e) =>
+                  // На карте имя печатается латиницей — режем кириллицу и цифры,
+                  // оставляем только латинские буквы, пробел, точку и дефис.
+                  setForm({
+                    ...form,
+                    cardHolder: e.target.value.toUpperCase().replace(/[^A-Z .-]/g, ''),
+                  })
+                }
+                autoCapitalize="characters"
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
