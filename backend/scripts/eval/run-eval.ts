@@ -50,6 +50,10 @@ interface CaseOutcome {
   promptTokens?: number;
   completionTokens?: number;
   latencyMs?: number;
+  /** Откуда взялась цена: спецификация, реестр или диапазон модели. */
+  priceSource?: 'JOBS' | 'PRICEBOOK' | 'PRICE_HINT';
+  /** Сколько работ модель назвала кодами прайса. */
+  jobs?: number;
 }
 
 /** Локальный файл → data-URL. https-ссылки уходят как есть. */
@@ -82,7 +86,11 @@ async function runOnce(cases: EvalCase[], datasetDir: string, model: string) {
   (config.openai as any).model = model;
 
   // Импорт после подмены: сервис читает config лениво, но так надёжнее.
-  const { analyzeOrder } = await import('../../src/services/aiAnalysisService.js');
+  // Берём тот же конвейер, что работает в продакшене: гейт обязан проверять
+  // ровно то, что выпускается, включая контракт «спецификация» и два прохода.
+  const { runVisionAnalysis, estimateFromAnalysis } = await import(
+    '../../src/modules/instant-order/vision-pipeline.js'
+  );
 
   const categories = await prisma.category.findMany({
     where: { isActive: true },
@@ -98,18 +106,30 @@ async function runOnce(cases: EvalCase[], datasetDir: string, model: string) {
 
     try {
       const started = Date.now();
-      const res = await analyzeOrder({
-        photoUrls,
+      const res = await runVisionAnalysis({
+        images: photoUrls,
         text: c.text ?? '',
         availableCategories: categories as any,
       });
       const latencyMs = Date.now() - started;
 
       const top = res.categories[0];
-      // Цену сравниваем по середине диапазона — это то, что видит клиент.
-      const predictedPrice = res.priceHint
-        ? (res.priceHint.min + res.priceHint.max) / 2
-        : null;
+
+      // Цену берём ту, которую увидит клиент. В контракте «спецификация»
+      // модель сумм не называет вовсе — её считает прайс-реестр, и сравнивать
+      // с фактом надо именно её, а не диапазон, придуманный моделью.
+      const estimate = await estimateFromAnalysis(res, {
+        description: c.text ?? '',
+        urgency: res.urgency,
+      });
+      const priceSource = estimate?.source ?? 'PRICE_HINT';
+      const recommended =
+        estimate?.variants.find((v) => v.tier === 'BETTER') ?? estimate?.variants[0];
+      const predictedPrice = recommended
+        ? recommended.estimatedPrice
+        : res.priceHint
+          ? (res.priceHint.min + res.priceHint.max) / 2
+          : null;
 
       const outcome: CaseOutcome = {
         id: c.id,
@@ -124,6 +144,8 @@ async function runOnce(cases: EvalCase[], datasetDir: string, model: string) {
         promptTokens: res.raw.promptTokens,
         completionTokens: res.raw.completionTokens,
         latencyMs,
+        priceSource,
+        jobs: res.jobs.length,
       };
 
       if (c.expectRefusal) {
@@ -174,6 +196,14 @@ function summarize(model: string, outcomes: CaseOutcome[]) {
   const onSiteJudged = ok.filter((o) => o.needsOnSiteHit !== undefined);
   const onSiteHits = onSiteJudged.filter((o) => o.needsOnSiteHit).length;
 
+  // Каким путём считалась цена — иначе непонятно, что именно измерено.
+  const bySource = ok.reduce<Record<string, number>>((acc, o) => {
+    const key = o.priceSource ?? 'PRICE_HINT';
+    acc[key] = (acc[key] ?? 0) + 1;
+    return acc;
+  }, {});
+  const jobsTotal = ok.reduce((s, o) => s + (o.jobs ?? 0), 0);
+
   const promptTokens = ok.reduce((s, o) => s + (o.promptTokens ?? 0), 0);
   const completionTokens = ok.reduce((s, o) => s + (o.completionTokens ?? 0), 0);
   const latencies = ok.map((o) => o.latencyMs ?? 0);
@@ -195,6 +225,8 @@ function summarize(model: string, outcomes: CaseOutcome[]) {
     onSiteAcc: onSiteJudged.length ? (onSiteHits / onSiteJudged.length) * 100 : null,
     refusalAcc: refusalJudged.length ? (refusalHits / refusalJudged.length) * 100 : null,
     refusalN: refusalJudged.length,
+    priceSources: bySource,
+    avgJobs: ok.length ? Math.round((jobsTotal / ok.length) * 10) / 10 : 0,
     avgPromptTokens: ok.length ? Math.round(promptTokens / ok.length) : 0,
     avgLatencyMs: ok.length ? Math.round(latencies.reduce((a, b) => a + b, 0) / ok.length) : 0,
     medLatencyMs: Math.round(median(latencies)),
@@ -210,6 +242,11 @@ function printSummary(rows: ReturnType<typeof summarize>[]) {
   for (const r of rows) {
     console.log(`\nМодель: ${r.model}`);
     console.log(`  кейсов                : ${r.cases}${r.failed ? `  (ошибок: ${r.failed})` : ''}`);
+    const sources = Object.entries(r.priceSources)
+      .map(([k, n]) => `${k}:${n}`)
+      .join('  ');
+    console.log(`  источник цены         : ${sources || '—'}`);
+    console.log(`  работ от модели/кейс  : ${r.avgJobs}`);
     console.log(`  категория угадана     : ${r.categoryAcc?.toFixed(1) ?? '—'}%`);
     console.log(`  цена в пределах ±20%  : ${r.within20?.toFixed(1) ?? '—'}%`);
     console.log(`  грубые промахи (>50%) : ${r.grossMiss?.toFixed(1) ?? '—'}%`);

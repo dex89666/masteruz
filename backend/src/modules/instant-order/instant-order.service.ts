@@ -23,7 +23,9 @@ import {
 } from './pricing-catalog.js';
 import { analyzeOrder, type AiAnalysisResult } from '../../services/aiAnalysisService.js';
 import { buildVariantsFromPriceBook, buildVariantsFromJobs, attachPriceRanges } from './pricebook.service.js';
-import { findCandidateWorkItems } from './pricebook.candidates.js';
+// Конвейер Vision общий с замером точности: гейт обязан проверять ровно то,
+// что работает в продакшене.
+import { runVisionAnalysis, buildAiContext } from './vision-pipeline.js';
 import { config } from '../../config/index.js';
 
 // Тип AI-уровня (AiTier будет доступен после prisma generate)
@@ -627,21 +629,6 @@ export function decideEscalation(input: {
 }
 
 /**
- * Текст, описывающий то, ЧТО УВИДЕЛ Vision: резюме, объекты на фото, материалы.
- *
- * Нужен там, где слов клиента недостаточно или их нет совсем. Продукт
- * называется «сфотографируй проблему», но подбор решения до этого шёл
- * исключительно по тексту: заказ по одной фотографии не находил ничего.
- */
-export function buildAiContext(ai: AiAnalysisResult | null): string {
-  if (!ai) return '';
-  return [ai.summary, ...(ai.visualTags || []), ...(ai.materials || [])]
-    .filter(Boolean)
-    .join('. ')
-    .trim();
-}
-
-/**
  * Уверенность в смете — из наблюдаемых сигналов, а не из константы.
  *
  * Раньше клиенту показывали 0.85 / 0.92 / 0.97 в зависимости от уровня
@@ -746,85 +733,6 @@ export class InstantOrderService {
   }
 
   /**
-   * Анализ фото через Vision — в один или два прохода.
-   *
-   * Контракт «спецификация» требует списка позиций прайса, из которых модель
-   * выбирает работы. Список подбирается по тексту — и здесь возникает
-   * развилка:
-   *
-   *   • клиент что-то написал → кандидатов находим сразу, хватает одного прохода;
-   *   • клиент прислал только фото → сначала спрашиваем модель, ЧТО она видит,
-   *     затем по её описанию подбираем кандидатов и спрашиваем второй раз,
-   *     КАКИЕ работы это закрывают.
-   *
-   * Второй проход стоит ещё одного запроса к Vision, но без него заказ по
-   * одной фотографии не с чем сопоставлять: у нас нет ни слова текста.
-   */
-  private async runVisionAnalysis(input: {
-    images: string[];
-    text: string;
-    leafCategories: any[];
-  }): Promise<AiAnalysisResult> {
-    const availableCategories = input.leafCategories.map((c: any) => ({ slug: c.slug, name: c.name }));
-    const hasText = input.text.trim().length > 0;
-
-    // Спецификация работает только поверх заполненного реестра.
-    if (!config.pricebook.enabled) {
-      return analyzeOrder({ photoUrls: input.images, text: input.text, availableCategories });
-    }
-
-    if (hasText) {
-      const candidates = await findCandidateWorkItems({ text: input.text }).catch(() => []);
-      return analyzeOrder({
-        photoUrls: input.images,
-        text: input.text,
-        availableCategories,
-        workCandidates: candidates,
-      });
-    }
-
-    // ─── Проход 1: что на фотографии ───
-    const firstPass = await analyzeOrder({ photoUrls: input.images, text: '', availableCategories });
-    const context = buildAiContext(firstPass);
-    const topSlug = firstPass.categories[0]?.slug;
-    if (!context || !topSlug) return firstPass;
-
-    const candidates = await findCandidateWorkItems({
-      text: context,
-      categorySlugs: [topSlug],
-    }).catch(() => []);
-    if (candidates.length === 0) return firstPass;
-
-    // ─── Проход 2: какие работы это закрывают ───
-    try {
-      const secondPass = await analyzeOrder({
-        photoUrls: input.images,
-        // Во второй проход отдаём то, что модель сама увидела в первом:
-        // так она сопоставляет работы со своим же описанием объекта.
-        text: context,
-        availableCategories,
-        workCandidates: candidates,
-      });
-
-      // Расхождение проходов в категории — честный сигнал неуверенности,
-      // а не повод молча выбрать один из ответов.
-      const agreed = secondPass.categories[0]?.slug === topSlug;
-      logger.info(
-        { firstPass: topSlug, secondPass: secondPass.categories[0]?.slug, agreed, jobs: secondPass.jobs.length },
-        'Vision: второй проход завершён'
-      );
-
-      if (!agreed && secondPass.categories[0]) {
-        secondPass.categories[0].confidence = Math.round(secondPass.categories[0].confidence * 0.8);
-      }
-      return secondPass;
-    } catch (err) {
-      logger.warn({ err: (err as Error).message }, 'Vision: второй проход не удался — берём результат первого');
-      return firstPass;
-    }
-  }
-
-  /**
    * AI-анализ фотографий и описания → 3 варианта (Good / Better / Best)
    */
   async analyzePhotos(userId: string, data: {
@@ -908,10 +816,10 @@ export class InstantOrderService {
       // может выбрать родителя («Помощь по дому»), у которого нет услуг.
       const leafCategories = allCategoriesActive.filter(categoryHasTasks);
 
-      aiAnalysis = await this.runVisionAnalysis({
+      aiAnalysis = await runVisionAnalysis({
         images,
         text: combinedDescription,
-        leafCategories,
+        availableCategories: leafCategories.map((c: any) => ({ slug: c.slug, name: c.name })),
       });
 
       // ─── Лестница эскалации ───────────────────────────────────────

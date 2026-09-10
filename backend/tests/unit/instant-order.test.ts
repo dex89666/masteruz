@@ -53,8 +53,8 @@ import {
   computeEstimateConfidence,
   decideEscalation,
   priceSpreadRatio,
-  buildAiContext,
 } from '../../src/modules/instant-order/instant-order.service.js';
+import { buildAiContext } from '../../src/modules/instant-order/vision-pipeline.js';
 
 const db = prisma as any;
 const CLIENT = 'client-1';
