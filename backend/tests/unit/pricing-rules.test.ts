@@ -16,6 +16,7 @@ import {
   scaleVariantsToPriceHint,
   dropVisitFeeOnCheapVariant,
   buildSmartVariants,
+  roundUnitPrice,
   MAX_UNIT_QUANTITY,
   type EstimateVariant,
 } from '../../src/modules/instant-order/pricing-catalog.js';
@@ -243,5 +244,47 @@ describe('buildSmartVariants — сквозной расчёт по катало
 
   it('неизвестная категория — смета не строится', () => {
     expect(buildSmartVariants('nonexistent-slug', 'Нет такой', 'что-то сломалось')).toBeNull();
+  });
+});
+
+describe('округление цены за единицу', () => {
+  it('не искажает дешёвые позиции', () => {
+    // Покос газона стоит 500 сум за м². Единый шаг в 1 000 сум удваивал его,
+    // и на 200 м² смета вырастала на 100 000 сум из ниоткуда.
+    expect(roundUnitPrice(500)).toBe(500);
+    expect(roundUnitPrice(3_000)).toBe(3_000);
+    expect(roundUnitPrice(540)).toBe(500);
+  });
+
+  it('шаг растёт вместе с ценой', () => {
+    expect(roundUnitPrice(35_400)).toBe(35_500);
+    expect(roundUnitPrice(71_447)).toBe(71_000);
+    expect(roundUnitPrice(124_600)).toBe(125_000);
+  });
+
+  it('погрешность округления не превышает 10% на любой величине', () => {
+    for (const price of [100, 500, 1_500, 4_900, 12_000, 47_000, 90_000, 1_200_000]) {
+      const rounded = roundUnitPrice(price);
+      expect(Math.abs(rounded - price) / price).toBeLessThanOrEqual(0.1);
+    }
+  });
+
+  it('на нуле и мусоре возвращает ноль', () => {
+    expect(roundUnitPrice(0)).toBe(0);
+    expect(roundUnitPrice(-5)).toBe(0);
+    expect(roundUnitPrice(NaN)).toBe(0);
+  });
+
+  it('масштабирование по хинту AI сохраняет порядок дешёвых позиций', () => {
+    const cheap: EstimateVariant = makeVariant({
+      works: [{ name: 'Покос газона', qty: 200, unit: 'м²', unitPrice: 500, total: 100_000 }],
+      materials: [],
+      estimatedPrice: 100_000,
+    });
+
+    const [v] = scaleVariantsToPriceHint([cheap], { min: 190_000, max: 210_000 });
+    // Цена за м² выросла примерно вдвое, а не в четыре раза из-за округления
+    expect(v.works[0].unitPrice).toBeGreaterThanOrEqual(900);
+    expect(v.works[0].unitPrice).toBeLessThanOrEqual(1_100);
   });
 });

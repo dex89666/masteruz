@@ -1630,6 +1630,21 @@ export function solutionBaseQuantity(variant: Pick<EstimateVariant, 'works'>): n
 
 const sumLines = (lines: PricedLine[]): number => lines.reduce((s, l) => s + l.total, 0);
 
+/**
+ * Округление цены за единицу с учётом её порядка.
+ *
+ * Единый шаг в 1 000 сум искажает дешёвые позиции: покос газона стоит
+ * 500 сум за м², и округление до тысячи удваивает его — на 200 м² это
+ * лишние 100 000 сум в смете. Шаг подбирается под величину цены, чтобы
+ * смета не пестрела числами вроде «71 447» и при этом не врала.
+ */
+export function roundUnitPrice(value: number): number {
+  if (!Number.isFinite(value) || value <= 0) return 0;
+  if (value < 5_000) return Math.round(value / 100) * 100;
+  if (value < 50_000) return Math.round(value / 500) * 500;
+  return Math.round(value / 1_000) * 1_000;
+}
+
 const recalcTotal = (v: EstimateVariant): number => sumLines(v.works) + sumLines(v.materials);
 
 /**
@@ -1710,8 +1725,8 @@ export function scaleVariantsToPriceHint(
 
   return variants.map((v) => {
     const works = v.works.map((w) => {
-      const unitPrice = Math.round((w.unitPrice * laborScale) / 5000) * 5000;
-      return { ...w, unitPrice, total: w.qty * unitPrice };
+      const unitPrice = roundUnitPrice(w.unitPrice * laborScale);
+      return { ...w, unitPrice, total: Math.round(w.qty * unitPrice) };
     });
     const next = { ...v, works };
     return { ...next, estimatedPrice: recalcTotal(next) };

@@ -22,6 +22,7 @@ import {
   scaleVariantsToPriceHint,
   dropVisitFeeOnCheapVariant,
   TIER_LABELS,
+  roundUnitPrice,
   type EstimateVariant,
   type PricedLine,
 } from './pricing-catalog.js';
@@ -293,10 +294,11 @@ export async function buildVariantsFromPriceBook(
 
     for (const line of solution.lines) {
       if (line.kind === 'LABOR') {
-        // Множители — только к труду. Округляем до 1 000 сум: цифры вроде
-        // «71 447 сум» в смете выглядят как ошибка, а не как расчёт.
+        // Множители — только к труду. Без множителей цена проходит как есть:
+        // округлять неизменённую каталожную цену незачем, а на дешёвых
+        // позициях вроде 500 сум за м² это ещё и искажает смету.
         const unitPrice = Math.max(
-          Math.round((line.unitPrice * laborMultiplier) / 1000) * 1000,
+          laborMultiplier === 1 ? line.unitPrice : roundUnitPrice(line.unitPrice * laborMultiplier),
           line.minCheck,
         );
         works.push({ code: line.code, name: line.name, qty: line.qty, unit: line.unit, unitPrice, total: Math.round(line.qty * unitPrice) });
@@ -413,10 +415,9 @@ export async function buildVariantsFromJobs(
   const laborMultiplier = resolveLaborMultiplier(book.modifiers, query as PriceBookQuery);
   const confidence = query.confidence ?? 0.75;
 
-  // Множители — только к труду; округление до 1 000 сум, чтобы в смете не
-  // появлялись цифры вроде «71 447», читающиеся как сбой расчёта.
+  // Множители — только к труду. Без множителей цена проходит как есть.
   const priceLabor = (unitPrice: number, minCheck: number): number =>
-    Math.max(Math.round((unitPrice * laborMultiplier) / 1000) * 1000, minCheck);
+    Math.max(laborMultiplier === 1 ? unitPrice : roundUnitPrice(unitPrice * laborMultiplier), minCheck);
 
   // ─── Ищем проблему, которой принадлежит большинство кодов ───
   const matchingLines = await prisma.priceSolutionLine.findMany({
@@ -500,7 +501,7 @@ export async function buildVariantsFromJobs(
 
     const laborTotal = works.reduce((s, w) => s + w.total, 0);
     const materials: PricedLine[] = [];
-    const uplift = Math.round((laborTotal * MATERIAL_CLASS_UPLIFT[tier]) / 1000) * 1000;
+    const uplift = roundUnitPrice(laborTotal * MATERIAL_CLASS_UPLIFT[tier]);
     if (uplift > 0) {
       materials.push({
         name: MATERIAL_CLASS_TITLE[tier],

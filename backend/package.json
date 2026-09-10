@@ -23,7 +23,8 @@
     "pricebook:embed": "tsx scripts/pricebook/embed-problems.ts",
     "pricebook:calibrate": "tsx scripts/pricebook/calibrate.ts",
     "pricebook:calibrate:dry": "tsx scripts/pricebook/calibrate.ts --dry",
-    "eval:gate": "tsx scripts/eval/gate.ts"
+    "eval:gate": "tsx scripts/eval/gate.ts",
+    "pricebook:parity": "tsx scripts/pricebook/parity-check.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1057.0",

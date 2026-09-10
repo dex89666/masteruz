@@ -23,6 +23,7 @@
 import { prisma } from '../config/database.js';
 import { logger } from '../utils/logger.js';
 import { invalidatePriceBookCache } from '../modules/instant-order/pricebook.service.js';
+import { roundUnitPrice } from '../modules/instant-order/pricing-catalog.js';
 
 /** Окно наблюдений: цены старше устаревают быстрее, чем накапливается выборка. */
 export const CALIBRATION_WINDOW_DAYS = 90;
@@ -312,7 +313,9 @@ export async function calibratePrices(options: { dryRun?: boolean; windowDays?: 
       Math.max(target, current * (1 - MAX_STEP_RATIO)),
       current * (1 + MAX_STEP_RATIO),
     );
-    const next = Math.max(1000, Math.round(capped / 1000) * 1000);
+    // Шаг округления по величине цены: единый шаг в 1 000 сум поднял бы
+    // позицию вроде «покос газона, 500 сум за м²» вдвое при первой же калибровке.
+    const next = Math.max(roundUnitPrice(capped), 100);
     if (next === current) {
       result.skippedSmallDelta += 1;
       continue;

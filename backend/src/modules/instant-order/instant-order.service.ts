@@ -17,6 +17,7 @@ import {
   dropVisitFeeOnCheapVariant,
   MAX_UNIT_QUANTITY,
   TIER_LABELS,
+  roundUnitPrice,
   type EstimateVariant,
   type PricedLine,
 } from './pricing-catalog.js';
@@ -2299,7 +2300,7 @@ export class InstantOrderService {
       const works: PricedLine[] = [
         { name: 'Выезд мастера', qty: 1, unit: 'выезд', unitPrice: MASTER_VISIT_FEE, total: MASTER_VISIT_FEE },
         ...coreTasks.map((t: any) => {
-          const unitPrice = Math.round(((Number(t.minPrice) || 50000) * mult) / 1000) * 1000;
+          const unitPrice = roundUnitPrice((Number(t.minPrice) || 50000) * mult);
           return {
             // Задачи каталога живут в реестре под кодом task.<slug> — благодаря
             // этому резервный путь тоже попадает в калибровку.

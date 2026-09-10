@@ -20,6 +20,8 @@ import { ApiError } from '../../utils/ApiError.js';
 import { auditService } from '../../services/auditService.js';
 import { clampPagination } from '../../utils/helpers.js';
 import { invalidatePriceBookCache } from './pricebook.service.js';
+import { roundUnitPrice } from './pricing-catalog.js';
+import { buildPriceBookSeed, findPriceConflicts } from './pricebook.mapping.js';
 import { getAccuracyReport } from '../../services/priceAccuracyService.js';
 import { calibratePrices, collectObservations } from '../../services/priceCalibrationService.js';
 
@@ -191,8 +193,9 @@ router.post('/items/bulk-price', validateBody(bulkPriceSchema), async (req: Requ
     const changes: PriceChange[] = [];
     for (const item of items) {
       const from = Number(item.unitPrice);
-      // Округление до 1 000 сум: смета с «71 447» читается как ошибка расчёта.
-      const to = Math.max(Math.round((from * factor) / 1000) * 1000, 0);
+      // Шаг округления подбирается под величину цены: единый шаг в 1 000 сум
+      // удвоил бы позицию вроде «покос газона, 500 сум за м²».
+      const to = Math.max(roundUnitPrice(from * factor), 0);
       if (to === from) continue;
       changes.push({ code: item.code, field: 'unitPrice', from, to });
       await prisma.priceItem.update({
@@ -290,6 +293,55 @@ router.patch('/modifiers/:id', validateBody(updateModifierSchema), async (req: R
     invalidatePriceBookCache();
 
     res.json({ success: true, data: updated });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ─── Расхождения в ценах ─────────────────────
+
+/**
+ * Позиции, которые выглядят как одна и та же работа с разной ценой.
+ *
+ * Импорт намеренно не «чинит» такие места: цена — решение владельца сервиса,
+ * а не скрипта. Но невидимыми они быть не должны, иначе клиент получает
+ * разную сумму за одно и то же в зависимости от того, каким путём пошёл
+ * расчёт. Здесь они собраны в один список для разбора в панели.
+ */
+router.get('/conflicts', async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    // Сверяем по фактическому состоянию реестра, а не по каталогу в коде:
+    // после ручных правок и калибровки картина меняется.
+    const items = await prisma.priceItem.findMany({
+      where: { isActive: true },
+      select: { code: true, name: true, unit: true, kind: true, unitPrice: true, categorySlug: true, source: true },
+    });
+
+    const seed = {
+      items: items.map((i) => ({
+        code: i.code,
+        name: i.name,
+        unit: i.unit,
+        kind: i.kind as 'LABOR' | 'MATERIAL',
+        unitPrice: Number(i.unitPrice),
+        minCheck: 0,
+        laborMinutes: 0,
+        categorySlug: i.categorySlug,
+      })),
+      problems: [],
+      modifiers: [],
+    };
+
+    const conflicts = findPriceConflicts(seed as ReturnType<typeof buildPriceBookSeed>);
+    res.json({
+      success: true,
+      data: {
+        conflicts,
+        total: conflicts.length,
+        // Подсказка для панели: что именно предстоит решить человеку.
+        hint: 'Импорт переносит каталог как есть. Разброс ниже — решение владельца сервиса, а не ошибка переноса.',
+      },
+    });
   } catch (error) {
     next(error);
   }
