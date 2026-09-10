@@ -12,6 +12,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   applyQuantity,
+  solutionBaseQuantity,
   scaleVariantsToPriceHint,
   dropVisitFeeOnCheapVariant,
   buildSmartVariants,
@@ -67,6 +68,64 @@ describe('applyQuantity — количество единиц доходит д�
     expect(applyQuantity([base], 1)[0].estimatedPrice).toBe(base.estimatedPrice);
     expect(applyQuantity([base], null)[0].estimatedPrice).toBe(base.estimatedPrice);
     expect(applyQuantity([base], undefined)[0].estimatedPrice).toBe(base.estimatedPrice);
+  });
+
+  it('учитывает количество, уже заложенное в решение', () => {
+    // Каталожные уровни не всегда рассчитаны на одну единицу: «Замена блока
+    // розеток (2-3 шт.)» уже содержит три. Без учёта этого запрос «три
+    // розетки» превращал бы решение в девять и утраивал цену.
+    const blockOfThree = makeVariant({
+      works: [
+        { name: 'Выезд электрика', qty: 1, unit: 'выезд', unitPrice: 40_000, total: 40_000 },
+        { name: 'Замена розеток', qty: 3, unit: 'шт.', unitPrice: 35_000, total: 105_000 },
+      ],
+      materials: [{ name: 'Розетки', qty: 3, unit: 'шт.', unitPrice: 25_000, total: 75_000 }],
+      estimatedPrice: 220_000,
+    });
+
+    expect(solutionBaseQuantity(blockOfThree)).toBe(3);
+
+    const [v] = applyQuantity([blockOfThree], 3);
+    expect(v.works.find((w) => w.unit === 'шт.')!.qty).toBe(3);
+    expect(v.estimatedPrice).toBe(220_000);
+  });
+
+  it('масштабирует решение вниз, когда единиц нужно меньше заложенного', () => {
+    const forFour = makeVariant({
+      works: [
+        { name: 'Выезд электрика', qty: 1, unit: 'выезд', unitPrice: 40_000, total: 40_000 },
+        { name: 'Замена розеток', qty: 4, unit: 'шт.', unitPrice: 35_000, total: 140_000 },
+      ],
+      materials: [],
+      estimatedPrice: 180_000,
+    });
+
+    const [v] = applyQuantity([forFour], 2);
+    expect(v.works.find((w) => w.unit === 'шт.')!.qty).toBe(2);
+    expect(v.estimatedPrice).toBeLessThan(180_000);
+  });
+
+  it('выезд не размножается и не сокращается вместе с количеством', () => {
+    const [up] = applyQuantity([makeVariant()], 5);
+    const [down] = applyQuantity([makeVariant({ works: [
+      { name: 'Диагностика и выезд мастера', qty: 1, unit: 'выезд', unitPrice: 50_000, total: 50_000 },
+      { name: 'Замена розеток', qty: 4, unit: 'шт.', unitPrice: 60_000, total: 240_000 },
+    ], estimatedPrice: 290_000 })], 2);
+
+    expect(up.works.find((w) => w.unit === 'выезд')!.total).toBe(50_000);
+    expect(down.works.find((w) => w.unit === 'выезд')!.total).toBe(50_000);
+  });
+
+  it('без штучных строк количество работает как прежний множитель', () => {
+    const byArea = makeVariant({
+      works: [{ name: 'Штробление стены', qty: 2, unit: 'м.п.', unitPrice: 25_000, total: 50_000 }],
+      materials: [],
+      estimatedPrice: 50_000,
+    });
+
+    expect(solutionBaseQuantity(byArea)).toBe(1);
+    const [v] = applyQuantity([byArea], 3);
+    expect(v.estimatedPrice).toBe(150_000);
   });
 
   it('ограничивает множитель потолком — опечатка «100 розеток» не улетает в космос', () => {

@@ -1608,6 +1608,26 @@ function isPerVisitLine(line: PricedLine): boolean {
   return /выезд|диагностик/i.test(line.name) || /выезд/i.test(line.unit);
 }
 
+/** Единицы, которыми считают штучные предметы (в отличие от метража и площади). */
+const COUNTABLE_UNITS = new Set(['шт', 'шт.', 'штук', 'точка', 'точек', 'ед.', 'ед']);
+
+/**
+ * На сколько единиц работы уже рассчитано решение.
+ *
+ * Уровни каталога не обязательно описывают одну единицу: «Замена розетки»
+ * рассчитана на одну, «Замена блока розеток (2-3 шт.)» — на три, а
+ * «Замена розеток + новая линия» — на четыре. Если этого не учитывать,
+ * количество от клиента умножает уже заложенное количество, и три розетки
+ * превращаются в двенадцать.
+ */
+export function solutionBaseQuantity(variant: Pick<EstimateVariant, 'works'>): number {
+  const counted = variant.works
+    .filter((w) => !isPerVisitLine(w) && COUNTABLE_UNITS.has(w.unit.trim().toLowerCase()))
+    .map((w) => w.qty)
+    .filter((q) => q > 0);
+  return counted.length > 0 ? Math.max(...counted) : 1;
+}
+
 const sumLines = (lines: PricedLine[]): number => lines.reduce((s, l) => s + l.total, 0);
 
 const recalcTotal = (v: EstimateVariant): number => sumLines(v.works) + sumLines(v.materials);
@@ -1621,15 +1641,24 @@ const recalcTotal = (v: EstimateVariant): number => sumLines(v.works) + sumLines
  * от того, сколько розеток менять.
  */
 export function applyQuantity(variants: EstimateVariant[], quantity?: number | null): EstimateVariant[] {
-  if (!quantity || quantity < 2) return variants;
-  const factor = Math.min(Math.floor(quantity), MAX_UNIT_QUANTITY);
+  if (!quantity || quantity < 1) return variants;
+  const wanted = Math.min(Math.floor(quantity), MAX_UNIT_QUANTITY);
 
   return variants.map((v) => {
+    // Масштабируем не «во столько-то раз», а «до нужного количества»: решение
+    // уже рассчитано на какое-то число единиц, и его надо учесть.
+    const baseQty = solutionBaseQuantity(v);
+    const factor = wanted / baseQty;
+    if (!Number.isFinite(factor) || Math.abs(factor - 1) < 0.01) return v;
+
     const scale = (lines: PricedLine[]) =>
       lines.map((l) => {
         if (isPerVisitLine(l)) return l;
-        const qty = l.qty * factor;
-        return { ...l, qty, total: Math.round(qty * l.unitPrice) };
+        // Дробное количество единиц смысла не имеет — округляем вверх,
+        // недосчитать работу хуже, чем показать на единицу больше.
+        const qty = Math.max(l.qty > 0 ? 0.01 : 0, Math.round(l.qty * factor * 100) / 100);
+        const rounded = COUNTABLE_UNITS.has(l.unit.trim().toLowerCase()) ? Math.max(1, Math.ceil(qty)) : qty;
+        return { ...l, qty: rounded, total: Math.round(rounded * l.unitPrice) };
       });
 
     const works = scale(v.works);
@@ -1639,7 +1668,7 @@ export function applyQuantity(variants: EstimateVariant[], quantity?: number | n
       ...next,
       estimatedPrice: recalcTotal(next),
       // Больше единиц — больше времени, но не линейно: мастер уже на объекте.
-      estimatedDays: Math.max(1, Math.ceil(v.estimatedDays * (1 + (factor - 1) * 0.35))),
+      estimatedDays: Math.max(1, Math.ceil(v.estimatedDays * (1 + Math.max(0, factor - 1) * 0.35))),
     };
   });
 }
