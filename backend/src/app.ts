@@ -54,6 +54,7 @@ import storesRoutes from './modules/stores/stores.routes.js';
 import turnkeyRoutes from './modules/turnkey/turnkey.routes.js';
 import estimationRoutes from './modules/estimation/estimation.routes.js';
 import instantOrderRoutes from './modules/instant-order/instant-order.routes.js';
+import priceBookRoutes from './modules/instant-order/pricebook.routes.js';
 import supportChatRoutes from './modules/support/support.routes.js';
 import forumRoutes from './modules/forum/forum.routes.js';
 import cardsRoutes from './modules/cards/cards.routes.js';
@@ -346,6 +347,10 @@ app.use('/api/referrals', referralsRoutes);
 app.use('/api/reviews', ratingsRoutes);
 app.use('/api/geo', geoRoutes);
 app.use('/api/school', schoolRoutes);
+// Прайс-реестр — отдельная ветка админки: цена правится здесь, а не деплоем.
+// Монтируется ДО /api/admin, иначе запрос сначала прошёл бы через общий
+// админ-роутер и авторизацию дважды.
+app.use('/api/admin/pricebook', priceBookRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/catalog', catalogRoutes);
 app.use('/api/chat', chatRoutes);

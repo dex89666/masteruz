@@ -16,6 +16,7 @@
 
 import { prisma } from '../../src/config/database.js';
 import { toNum } from '../../src/utils/helpers.js';
+import { computeStats, getCalibrationCoverage } from '../../src/services/priceAccuracyService.js';
 
 interface Row {
   id: string;
@@ -28,27 +29,20 @@ interface Row {
   completedAt: Date | null;
 }
 
+// Арифметику метрик держит priceAccuracyService — она же питает админ-панель.
+// Две реализации одних и тех же цифр неизбежно разъезжаются: ровно так
+// сервис и получил два разных прайса.
 function stats(rows: Row[]) {
-  if (!rows.length) return null;
-
-  const errors = rows.map((r) => Math.abs(r.predicted - r.actual));
-  const pctErrors = rows.map((r) => (Math.abs(r.predicted - r.actual) / r.actual) * 100);
-
-  const mae = errors.reduce((a, b) => a + b, 0) / rows.length;
-  const within20 = pctErrors.filter((p) => p <= 20).length;
-  const gross = pctErrors.filter((p) => p > 50).length;
-  const catHits = rows.filter((r) => r.predictedCategoryId === r.actualCategoryId).length;
-
-  // Систематическое смещение: занижает модель или завышает.
-  const bias = rows.reduce((s, r) => s + (r.predicted - r.actual), 0) / rows.length;
-
+  const s = computeStats(rows);
+  if (!s) return null;
   return {
-    n: rows.length,
-    mae,
-    bias,
-    within20Pct: (within20 / rows.length) * 100,
-    grossPct: (gross / rows.length) * 100,
-    catAccPct: (catHits / rows.length) * 100,
+    n: s.n,
+    mae: s.mae,
+    bias: s.bias,
+    within20Pct: s.within20Pct,
+    grossPct: s.grossPct,
+    catAccPct: s.categoryAccuracyPct,
+    mape: s.mape,
   };
 }
 
@@ -65,6 +59,7 @@ function printBlock(title: string, s: ReturnType<typeof stats>) {
   console.log(`  категория угадана     : ${s.catAccPct.toFixed(1)}%`);
   console.log(`  цена в пределах ±20%  : ${s.within20Pct.toFixed(1)}%`);
   console.log(`  грубые промахи (>50%) : ${s.grossPct.toFixed(1)}%`);
+  console.log(`  средняя ошибка (MAPE) : ${s.mape.toFixed(1)}%`);
   console.log(`  MAE                   : ${fmt(s.mae)} сум`);
   console.log(
     `  смещение              : ${s.bias >= 0 ? '+' : ''}${fmt(s.bias)} сум ` +
@@ -172,6 +167,16 @@ async function main() {
     const pct = ((Math.abs(r.predicted - r.actual) / r.actual) * 100).toFixed(0);
     console.log(`  ${r.id}  прогноз ${fmt(r.predicted)} → факт ${fmt(r.actual)}  (±${pct}%)`);
   }
+  // Опирается ли прайс на сделки или всё ещё на экспертную оценку.
+  const coverage = await getCalibrationCoverage();
+  console.log('\n' + '─'.repeat(70));
+  console.log('ОПОРА ПРАЙСА НА РЕАЛЬНЫЕ СДЕЛКИ');
+  console.log(`  позиций работ в реестре   : ${coverage.totalItems}`);
+  console.log(`  из них откалибровано      : ${coverage.calibratedItems} (${coverage.coveragePct.toFixed(1)}%)`);
+  console.log(`  наблюдений за 90 дней     : ${coverage.observations90d}`);
+  console.log(
+    `  последняя калибровка      : ${coverage.lastCalibratedAt ? coverage.lastCalibratedAt.toISOString().slice(0, 10) : 'не проводилась'}`,
+  );
   console.log('');
 
   await prisma.$disconnect();

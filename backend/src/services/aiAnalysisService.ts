@@ -41,6 +41,15 @@ export interface AiCategoryHint {
   name: string;
 }
 
+export interface AiWorkCandidate {
+  /** Код позиции прайса — модель возвращает его буквально */
+  code: string;
+  name: string;
+  unit: string;
+  /** Проблема, в решение которой входит позиция (для группировки в промпте) */
+  problemName?: string | null;
+}
+
 export interface AiAnalysisInput {
   /** data URLs (base64) или публичные https URL фото */
   photoUrls: string[];
@@ -48,6 +57,25 @@ export interface AiAnalysisInput {
   text: string;
   /** Доступные в системе категории — AI выбирает только из них */
   availableCategories: AiCategoryHint[];
+  /**
+   * Позиции прайса, из которых модель выбирает работы.
+   *
+   * Если список передан, включается контракт «спецификация»: модель
+   * определяет ЧТО делать и в каком объёме, а цену считает прайс-движок.
+   * Без списка действует прежний контракт с ориентировочным диапазоном —
+   * так система продолжает работать, пока реестр не заполнен.
+   */
+  workCandidates?: AiWorkCandidate[];
+}
+
+export interface AiJob {
+  /** Код позиции прайса из переданного списка кандидатов */
+  workCode: string;
+  /** Объём работ в единицах позиции */
+  qty: number;
+  unit: string;
+  /** Что на фото или в тексте говорит, что эта работа нужна */
+  evidence: string;
 }
 
 export interface AiCategoryGuess {
@@ -73,6 +101,14 @@ export interface AiAnalysisResult {
   needsOnSite: boolean;
   /** Визуальные теги объектов ремонта на фото — пойдут в knowledge base при закрытии заказа */
   visualTags: string[];
+  /**
+   * Перечень работ с кодами прайса и объёмом.
+   *
+   * Заполняется только в контракте «спецификация» (когда переданы кандидаты).
+   * Это и есть замена выдуманной моделью цены: сумму по этим строкам считает
+   * прайс-движок из реестра, а не языковая модель по памяти.
+   */
+  jobs: AiJob[];
   /** Дополнительные данные для логирования/отладки */
   raw: {
     model: string;
@@ -114,7 +150,28 @@ function buildSystemPrompt(
   categories: AiCategoryHint[],
   ragContext: string,
   knowledgeContext: string,
+  candidates: AiWorkCandidate[],
 ): string {
+  // Контракт «спецификация»: модель называет работы и объём, цену считает
+  // прайс-движок. В этой редакции из промпта убраны рыночные ориентиры —
+  // именно между их строчками модель прежде и «придумывала» сумму.
+  const specMode = candidates.length > 0;
+
+  // Список работ группируем по проблемам: так модели легче увидеть, что
+  // позиции связаны между собой, и не смешать разные ремонты в одну смету.
+  const candidatesBlock = specMode
+    ? (() => {
+        const byProblem = new Map<string, AiWorkCandidate[]>();
+        for (const c of candidates) {
+          const key = c.problemName ?? 'Отдельные услуги каталога';
+          byProblem.set(key, [...(byProblem.get(key) ?? []), c]);
+        }
+        const groups = Array.from(byProblem.entries()).map(([problem, items]) =>
+          `  ${problem}:\n${items.map((i) => `    • ${i.code} — ${i.name} (за ${i.unit})`).join('\n')}`,
+        );
+        return `ДОСТУПНЫЕ РАБОТЫ (workCode бери ТОЛЬКО отсюда):\n${groups.join('\n')}`;
+      })()
+    : '';
   const list = categories
     .map((c) => `  • ${c.slug} — ${c.name}`)
     .join('\n');
@@ -125,6 +182,53 @@ function buildSystemPrompt(
   // RAG (история) + Knowledge Base (рецепты).
   const dynamicTail = [knowledgeContext, ragContext].filter(Boolean).join('\n\n');
   const tail = dynamicTail ? `\n\n${dynamicTail}` : '';
+
+  // Оценка размера нужна в обоих контрактах, но служит разному: в режиме
+  // спецификации она задаёт ОБЪЁМ работ, в прежнем — сумму. Рыночные цифры
+  // остаются только там, где модель действительно называет цену.
+  const sizingGuidance = specMode
+    ? `🔍 ОЦЕНКА РАЗМЕРА И СЛОЖНОСТИ ПО ФОТО (определяет ОБЪЁМ работ):
+- ВНИМАТЕЛЬНО оцени габариты предмета по фото: используй стандарты комнаты (плинтус ~10см, дверь ~2м, розетка ~8см, плитка пола ~30-60см).
+- Для МЕБЕЛИ обязательно различай:
+  • Маленький предмет (тумба, комод до 80см, стеллаж до 1м)
+  • Шкаф средний (до 1.8м высоты, до 1.5м ширины)
+  • Шкаф-купе / гардероб / до потолка / шириной 2м+ — крупная работа
+  • Гарнитур / кухня / комплект 2-3 предмета
+- РАЗЛИЧАЙ «собрать» и «разобрать/демонтаж»:
+  • «разобрать», «демонтаж», «снять», «вывезти», «утилизировать» = РАЗБОРКА
+  • «собрать», «установить», «поставить» = СБОРКА
+- Размер объекта переводи в qty работ, а НЕ в цену: цену считает сервис.
+
+📋 КАК ЗАПОЛНЯТЬ jobs:
+- Бери workCode ТОЛЬКО из списка доступных работ, копируй код буквально, без изменений.
+- qty — объём в единице позиции: «шт.» → количество предметов, «м²» → площадь, «м.п.» → метраж.
+- Если объём по фото не определить — ставь qty 1 и needsOnSite: true.
+- evidence — короткая ссылка на то, что видно: «на фото смеситель с течью по корпусу».
+- Не выдумывай коды, которых нет в списке. Нет подходящего — верни jobs пустым и needsOnSite: true.
+
+${candidatesBlock}`
+    : `🔍 ОЦЕНКА РАЗМЕРА И СЛОЖНОСТИ ПО ФОТО (КРИТИЧНО для priceHint):
+- ВНИМАТЕЛЬНО оцени габариты предмета по фото: используй стандарты комнаты (плинтус ~10см, дверь ~2м, розетка ~8см, плитка пола ~30-60см).
+- Для МЕБЕЛИ обязательно различай:
+  • Маленький предмет (тумба, комод до 80см, стеллаж до 1м) — простая работа
+  • Шкаф средний (до 1.8м высоты, до 1.5м ширины) — средняя
+  • Шкаф-купе / гардероб / до потолка / шириной 2м+ — КРУПНАЯ работа (одна стоит 400-600к)
+  • Гарнитур / кухня / комплект 2-3 предмета — премиум (600-1200к)
+- РАЗЛИЧАЙ «собрать» и «разобрать/демонтаж»:
+  • «разобрать», «демонтаж», «снять», «вывезти», «утилизировать» = РАЗБОРКА (≈70% цены сборки, но крупный шкаф = 300-500к)
+  • «собрать», «установить», «поставить» = СБОРКА
+- Не занижай цену! Если на фото явно крупная мебель/большая работа — priceHint min должен быть РЕАЛЬНЫМ рыночным минимумом, даже если клиент написал коротко.
+
+💰 РЫНОЧНЫЕ ОРИЕНТИРЫ ТАШКЕНТА 2026 (UZS):
+- Заделка щели/трещины/дыры локально, силиконовый шов, подкрасить участок: 80–200 тыс (минимальный выезд)
+- Прикрутить полку/карниз/повесить картину: 80–150 тыс
+- Замена розетки: 50–80 тыс
+- Замена смесителя: 100–180 тыс
+- Сборка маленького комода/стеллажа: 150–250 тыс
+- Сборка/разборка шкафа-купе крупного: 350–550 тыс
+- Сборка комплекта (2-3 предмета): 500–900 тыс
+- Покраска комнаты 15м²: 600–1200 тыс
+- Укладка плитки 5м²: 400–700 тыс`;
 
   return `Ты — AI-эксперт сервиса MasterUz (Ташкент, Узбекистан). Ты помогаешь определить, какие ремонтные/бытовые работы нужны клиенту, на основании фотографий и текста.
 
@@ -168,7 +272,9 @@ function buildSystemPrompt(
 4. Определи срочность: emergency (авария — потоп, замыкание, газ), urgent (сегодня-завтра), normal (на неделе), flexible (не срочно)
 5. Если работа требует обмера (площадь, метраж, объём) — пометь needsOnSite: true
 6. Перечисли основные материалы, если применимо
-7. Дай ориентировочный бюджет в сумах UZS (минимум-максимум по Ташкенту 2026)
+${specMode
+  ? '7. Собери перечень работ jobs: код позиции из списка ниже + объём в её единицах'
+  : '7. Дай ориентировочный бюджет в сумах UZS (минимум-максимум по Ташкенту 2026)'}
 
 ДОСТУПНЫЕ КАТЕГОРИИ (используй ТОЛЬКО эти slug):
 ${list}
@@ -178,7 +284,9 @@ ${list}
 - Все строки — на русском
 - Если на фото вообще не видно работ или предмета ремонта — confidence для всех ≤ 30
 - Если на фото видно, что нужны измерения (стены, пол, потолок) — needsOnSite: true
-- Бюджет priceHint указывай ТОЛЬКО когда уверен ≥ 70, иначе null
+${specMode
+  ? '- priceHint ВСЕГДА null: стоимость считает сервис по прайсу, называть суммы не нужно'
+  : '- Бюджет priceHint указывай ТОЛЬКО когда уверен ≥ 70, иначе null'}
 
 ПРИНЦИП «МАКСИМАЛЬНОГО УПРОЩЕНИЯ» ДЛЯ КЛИЕНТА (только для запросов, прошедших ШАГ 0):
 - Клиент уже описал проблему голосом/текстом + приложил фото — этого достаточно.
@@ -199,7 +307,7 @@ ${list}
 - Заменить силиконовый шов
 - Подтянуть петли, отрегулировать дверь
 - Прочистить сифон, заменить прокладку
-Для таких работ ВСЕГДА: confidence ≥ 80, needsOnSite: false, priceHint в диапазоне 80–250 тыс UZS (минимальный выезд мастера в Ташкенте).
+Для таких работ ВСЕГДА: confidence ≥ 80, needsOnSite: false.${specMode ? '' : ' priceHint в диапазоне 80–250 тыс UZS (минимальный выезд мастера в Ташкенте).'}
 
 🚧 КОГДА needsOnSite = true (РЕДКО — только крупные объёмы):
 ТОЛЬКО для работ, где объём измеряется квадратными/погонными метрами и клиент его не знает:
@@ -212,28 +320,7 @@ ${list}
 - Утепление фасада
 ВАЖНО: само по себе слово «раствор», «цемент», «штукатурка», «шпаклёвка» НЕ означает needsOnSite=true — смотри на ОБЪЁМ. «Залить раствором щель» = мелкая работа. «Залить стяжку» = крупная.
 
-🔍 ОЦЕНКА РАЗМЕРА И СЛОЖНОСТИ ПО ФОТО (КРИТИЧНО для priceHint):
-- ВНИМАТЕЛЬНО оцени габариты предмета по фото: используй стандарты комнаты (плинтус ~10см, дверь ~2м, розетка ~8см, плитка пола ~30-60см).
-- Для МЕБЕЛИ обязательно различай:
-  • Маленький предмет (тумба, комод до 80см, стеллаж до 1м) — простая работа
-  • Шкаф средний (до 1.8м высоты, до 1.5м ширины) — средняя
-  • Шкаф-купе / гардероб / до потолка / шириной 2м+ — КРУПНАЯ работа (одна стоит 400-600к)
-  • Гарнитур / кухня / комплект 2-3 предмета — премиум (600-1200к)
-- РАЗЛИЧАЙ «собрать» и «разобрать/демонтаж»:
-  • «разобрать», «демонтаж», «снять», «вывезти», «утилизировать» = РАЗБОРКА (≈70% цены сборки, но крупный шкаф = 300-500к)
-  • «собрать», «установить», «поставить» = СБОРКА
-- Не занижай цену! Если на фото явно крупная мебель/большая работа — priceHint min должен быть РЕАЛЬНЫМ рыночным минимумом, даже если клиент написал коротко.
-
-💰 РЫНОЧНЫЕ ОРИЕНТИРЫ ТАШКЕНТА 2026 (UZS):
-- Заделка щели/трещины/дыры локально, силиконовый шов, подкрасить участок: 80–200 тыс (минимальный выезд)
-- Прикрутить полку/карниз/повесить картину: 80–150 тыс
-- Замена розетки: 50–80 тыс
-- Замена смесителя: 100–180 тыс
-- Сборка маленького комода/стеллажа: 150–250 тыс
-- Сборка/разборка шкафа-купе крупного: 350–550 тыс
-- Сборка комплекта (2-3 предмета): 500–900 тыс
-- Покраска комнаты 15м²: 600–1200 тыс
-- Укладка плитки 5м²: 400–700 тыс
+${sizingGuidance}
 
 СХЕМА ОТВЕТА:
 {
@@ -243,9 +330,12 @@ ${list}
   "urgency": "emergency" | "urgent" | "normal" | "flexible",
   "summary": "<1-2 предложения о том, что нужно сделать>",
   "materials": ["<материал1>", "<материал2>"],
-  "priceHint": { "min": число_UZS, "max": число_UZS } | null,
+  "priceHint": ${specMode ? 'null' : '{ "min": число_UZS, "max": число_UZS } | null'},
   "needsOnSite": true | false,
-  "visualTags": ["<конкретный объект ремонта 1>", "<объект 2>"]
+  "visualTags": ["<конкретный объект ремонта 1>", "<объект 2>"],
+  "jobs": ${specMode
+    ? '[{ "workCode": "<код из списка выше>", "qty": число, "unit": "<единица позиции>", "evidence": "<что на фото это подтверждает>" }]'
+    : '[]'}
 }
 
 ОБЯЗАТЕЛЬНО заполняй visualTags 3-8 КОНКРЕТНЫМИ объектами ремонта, которые видишь на фото
@@ -266,7 +356,7 @@ const AI_RESPONSE_FORMAT = {
     schema: {
       type: 'object',
       additionalProperties: false,
-      required: ['categories', 'urgency', 'summary', 'materials', 'priceHint', 'needsOnSite', 'visualTags'],
+      required: ['categories', 'urgency', 'summary', 'materials', 'priceHint', 'needsOnSite', 'visualTags', 'jobs'],
       properties: {
         categories: {
           type: 'array',
@@ -296,6 +386,21 @@ const AI_RESPONSE_FORMAT = {
         },
         needsOnSite: { type: 'boolean' },
         visualTags: { type: 'array', items: { type: 'string' } },
+        // Перечень работ с кодами прайса. В прежнем контракте остаётся пустым.
+        jobs: {
+          type: 'array',
+          items: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['workCode', 'qty', 'unit', 'evidence'],
+            properties: {
+              workCode: { type: 'string' },
+              qty: { type: 'number' },
+              unit: { type: 'string' },
+              evidence: { type: 'string' },
+            },
+          },
+        },
       },
     },
   },
@@ -305,6 +410,9 @@ const AI_RESPONSE_FORMAT = {
 
 export async function analyzeOrder(input: AiAnalysisInput): Promise<AiAnalysisResult> {
   const { photoUrls, text, availableCategories } = input;
+  // Список кандидатов включает контракт «спецификация»: модель называет
+  // работы и объём, а цену считает прайс-движок.
+  const candidates = input.workCandidates ?? [];
 
   if (!availableCategories.length) {
     throw ApiError.badRequest('Нет доступных категорий для AI-анализа');
@@ -379,7 +487,7 @@ export async function analyzeOrder(input: AiAnalysisInput): Promise<AiAnalysisRe
           temperature: 0.2,
           max_tokens: 800,
           messages: [
-            { role: 'system', content: buildSystemPrompt(availableCategories, ragContext, knowledgeContext) },
+            { role: 'system', content: buildSystemPrompt(availableCategories, ragContext, knowledgeContext, candidates) },
             { role: 'user', content: userContent },
           ],
         });
@@ -473,7 +581,7 @@ export async function analyzeOrder(input: AiAnalysisInput): Promise<AiAnalysisRe
     ragTopSimilarity: similar[0]?.similarity ?? null,
     knowledgeHits: knowledge.length,
     knowledgeTopSimilarity: knowledge[0]?.similarity ?? null,
-  });
+  }, candidates);
 
   logger.info(
     {
@@ -481,6 +589,8 @@ export async function analyzeOrder(input: AiAnalysisInput): Promise<AiAnalysisRe
       tokens: response.usage?.total_tokens,
       topCategory: result.categories[0]?.slug,
       topConfidence: result.categories[0]?.confidence,
+      contract: candidates.length > 0 ? 'SPEC' : 'PRICE_HINT',
+      jobs: result.jobs.length,
       urgency: result.urgency,
       needsOnSite: result.needsOnSite,
       ragHits: similar.length,
@@ -500,7 +610,8 @@ export async function analyzeOrder(input: AiAnalysisInput): Promise<AiAnalysisRe
 function normalize(
   raw: any,
   available: AiCategoryHint[],
-  meta: AiAnalysisResult['raw']
+  meta: AiAnalysisResult['raw'],
+  candidates: AiWorkCandidate[] = [],
 ): AiAnalysisResult {
   const allowedSlugs = new Set(available.map((c) => c.slug));
 
@@ -540,6 +651,27 @@ function normalize(
         .slice(0, 12)
     : [];
 
+  // Коды работ принимаем только из выданного списка: выдуманный код означал
+  // бы позицию, которой нет в прайсе, и сорванный расчёт.
+  const allowedCodes = new Map(candidates.map((c) => [c.code, c]));
+  const jobs: AiJob[] = Array.isArray(raw?.jobs)
+    ? raw.jobs
+        .filter((j: any) => typeof j?.workCode === 'string' && allowedCodes.has(j.workCode))
+        .map((j: any) => {
+          const candidate = allowedCodes.get(j.workCode)!;
+          const qty = toNum(j.qty);
+          return {
+            workCode: j.workCode,
+            // Объём ограничиваем сверху: одна опечатка модели не должна
+            // превращаться в смету на сто квадратных метров.
+            qty: clamp(qty > 0 ? qty : 1, 0.1, 500),
+            unit: typeof j.unit === 'string' && j.unit ? j.unit : candidate.unit,
+            evidence: String(j.evidence || '').slice(0, 300),
+          };
+        })
+        .slice(0, 15)
+    : [];
+
   return {
     categories,
     urgency,
@@ -548,6 +680,7 @@ function normalize(
     priceHint,
     needsOnSite: Boolean(raw?.needsOnSite),
     visualTags,
+    jobs,
     raw: meta,
   };
 }

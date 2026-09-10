@@ -275,6 +275,14 @@ async function main() {
   }
 
   printSummary(rows);
+
+  // Машиночитаемый результат для гейта в CI: --json results.json
+  if (args.includes('--json')) {
+    const out = path.resolve(args[args.indexOf('--json') + 1] ?? 'eval-results.json');
+    fs.writeFileSync(out, JSON.stringify({ dataset: abs, ranAt: new Date().toISOString(), rows }, null, 2));
+    console.log(`\nРезультат сохранён: ${out}`);
+  }
+
   await prisma.$disconnect();
 }
 

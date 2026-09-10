@@ -36,17 +36,17 @@ enum OrderStatus {
   ACCEPTED
   IN_TRANSIT
   IN_PROGRESS
-  AWAITING_REMAINDER   // Мастер подтвердил выполнение. Клиент выбирает способ оплаты остатка (CASH/CARD).
+  AWAITING_REMAINDER // Мастер подтвердил выполнение. Клиент выбирает способ оплаты остатка (CASH/CARD).
   COMPLETED
   CANCELLED
   DISPUTED
   // Статусы для оценки
-  ESTIMATION_IN_PROGRESS  // Мастер едет на оценку
-  ESTIMATION_DONE         // Оценка завершена, мастер составляет смету
-  ESTIMATE_SENT           // Смета отправлена клиенту
-  ESTIMATE_APPROVED       // Клиент согласился, ожидание модерации
-  ESTIMATE_REJECTED       // Клиент отказался от сметы
-  MODERATION              // Модерация сметы админом/менеджером
+  ESTIMATION_IN_PROGRESS // Мастер едет на оценку
+  ESTIMATION_DONE // Оценка завершена, мастер составляет смету
+  ESTIMATE_SENT // Смета отправлена клиенту
+  ESTIMATE_APPROVED // Клиент согласился, ожидание модерации
+  ESTIMATE_REJECTED // Клиент отказался от сметы
+  MODERATION // Модерация сметы админом/менеджером
 }
 
 // ─── Уровни AI-варианта ──────────────────────
@@ -86,8 +86,8 @@ enum PaymentType {
   PENALTY
   BALANCE_TOPUP
   VISIT_FEE
-  ESTIMATION_FEE     // Плата за выезд на оценку
-  ESTIMATE_PAYMENT   // Оплата по смете
+  ESTIMATION_FEE // Плата за выезд на оценку
+  ESTIMATE_PAYMENT // Оплата по смете
 }
 
 // ─── Провайдеры платежей ──────────────────────
@@ -124,78 +124,78 @@ enum ResponseStatus {
 // ════════════════════════════════════════════════
 
 model User {
-  id          String   @id @default(uuid())
-  telegramId  BigInt   @unique @map("telegram_id")
-  username    String?
-  phone       String?
-  email       String?
-  role        UserRole @default(CLIENT)
-  isActive    Boolean  @default(true) @map("is_active")
-  isVerified  Boolean  @default(false) @map("is_verified")
-  balance     Decimal  @default(0) @db.Decimal(12, 2)
+  id            String    @id @default(uuid())
+  telegramId    BigInt    @unique @map("telegram_id")
+  username      String?
+  phone         String?
+  email         String?
+  role          UserRole  @default(CLIENT)
+  isActive      Boolean   @default(true) @map("is_active")
+  isVerified    Boolean   @default(false) @map("is_verified")
+  balance       Decimal   @default(0) @db.Decimal(12, 2)
   // Язык интерфейса и уведомлений: 'ru' | 'uz' | 'en'.
   // Синхронизируется с выбором языка во фронтенде.
-  language    String   @default("ru")
-  referralCode String  @unique @map("referral_code")
-  referredById String? @map("referred_by_id")
+  language      String    @default("ru")
+  referralCode  String    @unique @map("referral_code")
+  referredById  String?   @map("referred_by_id")
   // Customer Risk Score (0..100): чем выше — тем рискованнее клиент
   // 0–30 = надёжный, 31–60 = нейтральный, 61–80 = осторожно, 81+ = высокий риск
-  riskScore     Int      @default(50) @map("risk_score")
+  riskScore     Int       @default(50) @map("risk_score")
   riskUpdatedAt DateTime? @map("risk_updated_at")
-  riskFactors   Json?   @map("risk_factors") // снапшот факторов последнего пересчёта
+  riskFactors   Json?     @map("risk_factors") // снапшот факторов последнего пересчёта
   // Дисциплина мастера: накопление предупреждений за отмены ПОСЛЕ выезда
   // (статус IN_TRANSIT и далее). 4 warning → блок на 5 дней, счётчик в 0.
-  warningCount   Int       @default(0)     @map("warning_count")
-  blockedUntil   DateTime?                  @map("blocked_until")
-  lastWarningAt  DateTime?                  @map("last_warning_at")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  warningCount  Int       @default(0) @map("warning_count")
+  blockedUntil  DateTime? @map("blocked_until")
+  lastWarningAt DateTime? @map("last_warning_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
 
   // Связи
-  referredBy     User?          @relation("UserReferrals", fields: [referredById], references: [id])
-  referrals      User[]         @relation("UserReferrals")
-  profile        UserProfile?
-  masterProfile  MasterProfile?
-  clientOrders   Order[]        @relation("ClientOrders")
-  masterOrders   Order[]        @relation("MasterOrders")
-  responses      OrderResponse[]
-  reviewsGiven   Review[]       @relation("ReviewerReviews")
-  reviewsReceived Review[]      @relation("RevieweeReviews")
-  payments       Payment[]
-  referralsGiven Referral[]     @relation("ReferrerReferrals")
-  referralsReceived Referral[]  @relation("ReferredReferrals")
-  certificates   Certificate[]
-  courseProgress  CourseProgress[]
-  notifications  Notification[]
-  blacklistEntries Blacklist[]  @relation("BlockedUser")
-  blacklistActions Blacklist[]  @relation("BlockedByUser")
-  configUpdates  PlatformConfig[] @relation("ConfigUpdater")
-  chatMessages   ChatMessage[]
-  favoriteMasters FavoriteMaster[] @relation("ClientFavorites")
-  favoritedBy    FavoriteMaster[] @relation("MasterFavorites")
-  usedPromoCodes PromoCodeUsage[]
-  portfolioItems PortfolioItem[] @relation("MasterPortfolio")
-  balanceTransactions BalanceTransaction[]
-  storeReviews   StoreReview[]
-  turnkeyProjects TurnkeyProject[]
-  estimates      Estimate[]     @relation("EstimateMaster")
-  withdrawals         WithdrawalRequest[] @relation("UserWithdrawals")
-  processedWithdrawals WithdrawalRequest[] @relation("WithdrawalProcessor")
-  priceChangeRequests PriceChangeRequest[] @relation("PriceChangeMaster")
-  aiOrderTemplates AiOrderTemplate[]
-  supportChatsAsUser  SupportChat[]    @relation("SupportChatUser")
-  supportChatsAsAdmin SupportChat[]    @relation("SupportChatAdmin")
-  supportMessages     SupportMessage[] @relation("SupportMsgSender")
-  auditLogs           AuditLog[]
-  forumTopics         ForumTopic[]     @relation("ForumTopicAuthor")
-  forumPosts          ForumPost[]      @relation("ForumPostAuthor")
-  linkedCards         LinkedCard[]
-  savedCards          SavedCard[]
-  clientReviewsGiven    MasterReviewClient[] @relation("MRC_Master")
-  clientReviewsReceived MasterReviewClient[] @relation("MRC_Client")
-  masterSubscriptions   MasterSubscription[] @relation("MasterSubscriptions")
-  referredSubscriptions MasterSubscription[] @relation("ReferrerSubscriptions")
-  warnings              MasterWarning[]      @relation("UserWarnings")
+  referredBy            User?                       @relation("UserReferrals", fields: [referredById], references: [id])
+  referrals             User[]                      @relation("UserReferrals")
+  profile               UserProfile?
+  masterProfile         MasterProfile?
+  clientOrders          Order[]                     @relation("ClientOrders")
+  masterOrders          Order[]                     @relation("MasterOrders")
+  responses             OrderResponse[]
+  reviewsGiven          Review[]                    @relation("ReviewerReviews")
+  reviewsReceived       Review[]                    @relation("RevieweeReviews")
+  payments              Payment[]
+  referralsGiven        Referral[]                  @relation("ReferrerReferrals")
+  referralsReceived     Referral[]                  @relation("ReferredReferrals")
+  certificates          Certificate[]
+  courseProgress        CourseProgress[]
+  notifications         Notification[]
+  blacklistEntries      Blacklist[]                 @relation("BlockedUser")
+  blacklistActions      Blacklist[]                 @relation("BlockedByUser")
+  configUpdates         PlatformConfig[]            @relation("ConfigUpdater")
+  chatMessages          ChatMessage[]
+  favoriteMasters       FavoriteMaster[]            @relation("ClientFavorites")
+  favoritedBy           FavoriteMaster[]            @relation("MasterFavorites")
+  usedPromoCodes        PromoCodeUsage[]
+  portfolioItems        PortfolioItem[]             @relation("MasterPortfolio")
+  balanceTransactions   BalanceTransaction[]
+  storeReviews          StoreReview[]
+  turnkeyProjects       TurnkeyProject[]
+  estimates             Estimate[]                  @relation("EstimateMaster")
+  withdrawals           WithdrawalRequest[]         @relation("UserWithdrawals")
+  processedWithdrawals  WithdrawalRequest[]         @relation("WithdrawalProcessor")
+  priceChangeRequests   PriceChangeRequest[]        @relation("PriceChangeMaster")
+  aiOrderTemplates      AiOrderTemplate[]
+  supportChatsAsUser    SupportChat[]               @relation("SupportChatUser")
+  supportChatsAsAdmin   SupportChat[]               @relation("SupportChatAdmin")
+  supportMessages       SupportMessage[]            @relation("SupportMsgSender")
+  auditLogs             AuditLog[]
+  forumTopics           ForumTopic[]                @relation("ForumTopicAuthor")
+  forumPosts            ForumPost[]                 @relation("ForumPostAuthor")
+  linkedCards           LinkedCard[]
+  savedCards            SavedCard[]
+  clientReviewsGiven    MasterReviewClient[]        @relation("MRC_Master")
+  clientReviewsReceived MasterReviewClient[]        @relation("MRC_Client")
+  masterSubscriptions   MasterSubscription[]        @relation("MasterSubscriptions")
+  referredSubscriptions MasterSubscription[]        @relation("ReferrerSubscriptions")
+  warnings              MasterWarning[]             @relation("UserWarnings")
   privilegedProfile     PrivilegedOfficialProfile?
   approverForOfficials  PrivilegedOfficialProfile[] @relation("OfficialApprover")
 
@@ -213,10 +213,10 @@ model MasterWarning {
   id            String    @id @default(uuid())
   userId        String    @map("user_id")
   orderId       String?   @map("order_id")
-  reason        String                                              // 'CANCEL_AFTER_TRANSIT'
+  reason        String // 'CANCEL_AFTER_TRANSIT'
   penaltyAmount Decimal   @default(0) @map("penalty_amount") @db.Decimal(12, 2)
-  warningNo     Int       @map("warning_no")                        // 1..4 в текущем цикле
-  blockedUntil  DateTime? @map("blocked_until")                      // если этот warning вызвал блок
+  warningNo     Int       @map("warning_no") // 1..4 в текущем цикле
+  blockedUntil  DateTime? @map("blocked_until") // если этот warning вызвал блок
   createdAt     DateTime  @default(now()) @map("created_at")
 
   user User @relation("UserWarnings", fields: [userId], references: [id], onDelete: Cascade)
@@ -252,7 +252,7 @@ model LocalClient {
 
 model LocalMaster {
   id            String   @id @default(uuid())
-  pinfl         String   @unique                      // 14 цифр, персональный идентификатор РУз
+  pinfl         String   @unique // 14 цифр, персональный идентификатор РУз
   fullName      String   @map("full_name")
   phone         String
   address       String
@@ -288,11 +288,11 @@ model ConsentRecord {
 // ════════════════════════════════════════════════
 
 enum WithdrawalStatus {
-  PENDING    // создана, ждёт обработки админом
+  PENDING // создана, ждёт обработки админом
   PROCESSING // админ взял в работу (деньги отправляются)
-  COMPLETED  // средства отправлены мастеру
-  REJECTED   // админ отклонил — сумма возвращена на баланс
-  CANCELLED  // мастер отозвал — сумма возвращена на баланс
+  COMPLETED // средства отправлены мастеру
+  REJECTED // админ отклонил — сумма возвращена на баланс
+  CANCELLED // мастер отозвал — сумма возвращена на баланс
 }
 
 // Заявка мастера на вывод заработанного на карту.
@@ -305,24 +305,24 @@ enum WithdrawalStatus {
 // Реквизиты карты копируются В ЗАЯВКУ снимком: карту могут удалить или
 // изменить, а платёжное поручение должно остаться воспроизводимым.
 model WithdrawalRequest {
-  id          String           @id @default(uuid())
-  userId      String           @map("user_id")
-  amount      Decimal          @db.Decimal(12, 2)                     // запрошено мастером
-  commission  Decimal          @default(0) @db.Decimal(12, 2)         // удержание платформы
-  payoutAmount Decimal         @map("payout_amount") @db.Decimal(12, 2) // сколько реально отправить
-  status      WithdrawalStatus @default(PENDING)
+  id           String           @id @default(uuid())
+  userId       String           @map("user_id")
+  amount       Decimal          @db.Decimal(12, 2) // запрошено мастером
+  commission   Decimal          @default(0) @db.Decimal(12, 2) // удержание платформы
+  payoutAmount Decimal          @map("payout_amount") @db.Decimal(12, 2) // сколько реально отправить
+  status       WithdrawalStatus @default(PENDING)
 
   // Снимок реквизитов на момент подачи заявки
-  cardId      String?  @map("card_id")
-  cardNumber  String   @map("card_number")   // маскированный
-  cardHolder  String?  @map("card_holder")
+  cardId       String? @map("card_id")
+  cardNumber   String  @map("card_number") // маскированный
+  cardHolder   String? @map("card_holder")
   cardProvider String? @map("card_provider")
 
   // Обработка админом
   processedById String?   @map("processed_by_id")
   processedAt   DateTime? @map("processed_at")
-  adminNote     String?   @map("admin_note")     // комментарий/номер платёжного поручения
-  rejectReason  String?   @map("reject_reason")  // виден мастеру
+  adminNote     String?   @map("admin_note") // комментарий/номер платёжного поручения
+  rejectReason  String?   @map("reject_reason") // виден мастеру
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -336,16 +336,16 @@ model WithdrawalRequest {
 }
 
 model LinkedCard {
-  id           String   @id @default(uuid())
-  userId       String   @map("user_id")
-  cardNumber   String   @map("card_number")   // Маскированный: 8600 **** **** 1234
-  cardHolder   String?  @map("card_holder")   // Имя держателя
-  expiryMonth  Int?     @map("expiry_month")
-  expiryYear   Int?     @map("expiry_year")
-  provider     String   @default("UZCARD")    // UZCARD, HUMO, VISA, MASTERCARD
-  isDefault    Boolean  @default(false) @map("is_default")
-  isActive     Boolean  @default(true) @map("is_active")
-  createdAt    DateTime @default(now()) @map("created_at")
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  cardNumber  String   @map("card_number") // Маскированный: 8600 **** **** 1234
+  cardHolder  String?  @map("card_holder") // Имя держателя
+  expiryMonth Int?     @map("expiry_month")
+  expiryYear  Int?     @map("expiry_year")
+  provider    String   @default("UZCARD") // UZCARD, HUMO, VISA, MASTERCARD
+  isDefault   Boolean  @default(false) @map("is_default")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -391,22 +391,22 @@ model UserProfile {
 }
 
 model MasterProfile {
-  id              String    @id @default(uuid())
-  userId          String    @unique @map("user_id")
-  specializations String[]  @default([])
-  experienceYears Int       @default(0) @map("experience_years")
-  rating          Float     @default(0)
-  completedOrders Int       @default(0) @map("completed_orders")
-  isAvailable     Boolean   @default(true) @map("is_available")
-  isOnline        Boolean   @default(false) @map("is_online")
-  lastSeenAt      DateTime? @map("last_seen_at")
-  maxDistanceKm   Int       @default(10) @map("max_distance_km")
-  hourlyRate      Decimal?  @map("hourly_rate") @db.Decimal(12, 2)
-  schoolCompleted  Boolean   @default(false) @map("school_completed")
-  registrationPaid Boolean   @default(false) @map("registration_paid")
+  id                 String    @id @default(uuid())
+  userId             String    @unique @map("user_id")
+  specializations    String[]  @default([])
+  experienceYears    Int       @default(0) @map("experience_years")
+  rating             Float     @default(0)
+  completedOrders    Int       @default(0) @map("completed_orders")
+  isAvailable        Boolean   @default(true) @map("is_available")
+  isOnline           Boolean   @default(false) @map("is_online")
+  lastSeenAt         DateTime? @map("last_seen_at")
+  maxDistanceKm      Int       @default(10) @map("max_distance_km")
+  hourlyRate         Decimal?  @map("hourly_rate") @db.Decimal(12, 2)
+  schoolCompleted    Boolean   @default(false) @map("school_completed")
+  registrationPaid   Boolean   @default(false) @map("registration_paid")
   registrationPaidAt DateTime? @map("registration_paid_at")
-  createdAt        DateTime  @default(now()) @map("created_at")
-  updatedAt        DateTime  @updatedAt @map("updated_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -416,13 +416,13 @@ model MasterProfile {
 }
 
 model Certificate {
-  id         String   @id @default(uuid())
-  userId     String   @map("user_id")
+  id         String    @id @default(uuid())
+  userId     String    @map("user_id")
   title      String
-  fileUrl    String   @map("file_url")
-  verified   Boolean  @default(false)
+  fileUrl    String    @map("file_url")
+  verified   Boolean   @default(false)
   verifiedAt DateTime? @map("verified_at")
-  createdAt  DateTime @default(now()) @map("created_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -434,23 +434,23 @@ model Certificate {
 // ════════════════════════════════════════════════
 
 model Category {
-  id        String    @id @default(uuid())
+  id        String   @id @default(uuid())
   name      String
-  nameUz    String?   @map("name_uz")
-  nameEn    String?   @map("name_en")
-  slug      String    @unique
+  nameUz    String?  @map("name_uz")
+  nameEn    String?  @map("name_en")
+  slug      String   @unique
   icon      String?
-  parentId  String?   @map("parent_id")
-  sortOrder Int       @default(0) @map("sort_order")
-  isActive  Boolean   @default(true) @map("is_active")
-  createdAt DateTime  @default(now()) @map("created_at")
+  parentId  String?  @map("parent_id")
+  sortOrder Int      @default(0) @map("sort_order")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
 
-  parent        Category?      @relation("CategoryHierarchy", fields: [parentId], references: [id])
-  children      Category[]     @relation("CategoryHierarchy")
-  orders        Order[]
-  courses       SchoolCourse[]
-  subcategories Subcategory[]
-  portfolioItems PortfolioItem[] @relation("PortfolioCategory")
+  parent           Category?        @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children         Category[]       @relation("CategoryHierarchy")
+  orders           Order[]
+  courses          SchoolCourse[]
+  subcategories    Subcategory[]
+  portfolioItems   PortfolioItem[]  @relation("PortfolioCategory")
   masterCategories MasterCategory[]
   knowledgeEntries KnowledgeEntry[]
 
@@ -503,24 +503,24 @@ model Subcategory {
 // ════════════════════════════════════════════════
 
 model Task {
-  id             String   @id @default(uuid())
-  subcategoryId  String   @map("subcategory_id")
-  name           String
-  nameUz         String?  @map("name_uz")
-  nameEn         String?  @map("name_en")
-  description    String?
-  descriptionUz  String?  @map("description_uz")
-  descriptionEn  String?  @map("description_en")
-  estimatedTime  String?  @map("estimated_time")          // e.g. "30-60 мин"
-  estimatedTimeUz String? @map("estimated_time_uz")
-  estimatedTimeEn String? @map("estimated_time_en")
-  minPrice       Decimal? @map("min_price") @db.Decimal(12, 2)  // Минимальная цена (сум), e.g. 150000
-  slug           String   @unique
-  sortOrder      Int      @default(0) @map("sort_order")
-  isActive       Boolean  @default(true) @map("is_active")
-  createdAt      DateTime @default(now()) @map("created_at")
+  id              String   @id @default(uuid())
+  subcategoryId   String   @map("subcategory_id")
+  name            String
+  nameUz          String?  @map("name_uz")
+  nameEn          String?  @map("name_en")
+  description     String?
+  descriptionUz   String?  @map("description_uz")
+  descriptionEn   String?  @map("description_en")
+  estimatedTime   String?  @map("estimated_time") // e.g. "30-60 мин"
+  estimatedTimeUz String?  @map("estimated_time_uz")
+  estimatedTimeEn String?  @map("estimated_time_en")
+  minPrice        Decimal? @map("min_price") @db.Decimal(12, 2) // Минимальная цена (сум), e.g. 150000
+  slug            String   @unique
+  sortOrder       Int      @default(0) @map("sort_order")
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
 
-  subcategory Subcategory  @relation(fields: [subcategoryId], references: [id], onDelete: Cascade)
+  subcategory Subcategory @relation(fields: [subcategoryId], references: [id], onDelete: Cascade)
   orderTasks  OrderTask[]
 
   @@index([subcategoryId])
@@ -548,119 +548,119 @@ model OrderTask {
 // ════════════════════════════════════════════════
 
 model Order {
-  id               String      @id @default(uuid())
-  clientId         String      @map("client_id")
-  masterId         String?     @map("master_id")
-  categoryId       String      @map("category_id")
-  title            String
-  description      String
-  price            Decimal     @db.Decimal(12, 2)
-  priceMax         Decimal?    @map("price_max") @db.Decimal(12, 2)
-  commissionRate   Decimal     @map("commission_rate") @db.Decimal(5, 2)
-  commissionAmount Decimal     @map("commission_amount") @db.Decimal(12, 2)
-  status           OrderStatus @default(DRAFT)
-  isUrgent         Boolean     @default(false) @map("is_urgent")
-  urgentMultiplier Float       @default(1.0) @map("urgent_multiplier")
-  commissionPaid   Boolean     @default(false) @map("commission_paid")
+  id                    String      @id @default(uuid())
+  clientId              String      @map("client_id")
+  masterId              String?     @map("master_id")
+  categoryId            String      @map("category_id")
+  title                 String
+  description           String
+  price                 Decimal     @db.Decimal(12, 2)
+  priceMax              Decimal?    @map("price_max") @db.Decimal(12, 2)
+  commissionRate        Decimal     @map("commission_rate") @db.Decimal(5, 2)
+  commissionAmount      Decimal     @map("commission_amount") @db.Decimal(12, 2)
+  status                OrderStatus @default(DRAFT)
+  isUrgent              Boolean     @default(false) @map("is_urgent")
+  urgentMultiplier      Float       @default(1.0) @map("urgent_multiplier")
+  commissionPaid        Boolean     @default(false) @map("commission_paid")
   // Anti-fraud: Escrow / подтверждения / штрафы
-  visitFee         Decimal?    @map("visit_fee") @db.Decimal(12, 2)
-  escrowAmount     Decimal     @default(0) @map("escrow_amount") @db.Decimal(12, 2)
+  visitFee              Decimal?    @map("visit_fee") @db.Decimal(12, 2)
+  escrowAmount          Decimal     @default(0) @map("escrow_amount") @db.Decimal(12, 2)
   // ─── Модель оплаты ──────────────────────────────────────────────
   // FULL_ESCROW  — legacy: клиент при создании блокирует 100% суммы.
   // DEPOSIT_30   — клиент платит депозит при создании (по умолчанию 30%),
   //                остаток выбирает при завершении: наличными мастеру (CASH)
   //                или списать с баланса (CARD). Комиссия платформы всегда
   //                уже включена в депозит — мастер ничего не должен.
-  paymentModel     String      @default("DEPOSIT_30") @map("payment_model")
-  depositAmount    Decimal     @default(0) @map("deposit_amount") @db.Decimal(12, 2)
-  remainingAmount  Decimal     @default(0) @map("remaining_amount") @db.Decimal(12, 2)
-  remainderMethod  String?     @map("remainder_method")     // 'CASH' | 'CARD'
-  remainderPaidAt  DateTime?   @map("remainder_paid_at")
-  offerAccepted    Boolean     @default(false) @map("offer_accepted")
-  masterConfirmedAt DateTime?  @map("master_confirmed_at")
-  clientConfirmedAt DateTime?  @map("client_confirmed_at")
-  acceptedAt       DateTime?   @map("accepted_at")
-  inTransitAt      DateTime?   @map("in_transit_at")
+  paymentModel          String      @default("DEPOSIT_30") @map("payment_model")
+  depositAmount         Decimal     @default(0) @map("deposit_amount") @db.Decimal(12, 2)
+  remainingAmount       Decimal     @default(0) @map("remaining_amount") @db.Decimal(12, 2)
+  remainderMethod       String?     @map("remainder_method") // 'CASH' | 'CARD'
+  remainderPaidAt       DateTime?   @map("remainder_paid_at")
+  offerAccepted         Boolean     @default(false) @map("offer_accepted")
+  masterConfirmedAt     DateTime?   @map("master_confirmed_at")
+  clientConfirmedAt     DateTime?   @map("client_confirmed_at")
+  acceptedAt            DateTime?   @map("accepted_at")
+  inTransitAt           DateTime?   @map("in_transit_at")
   // Подтверждение выезда мастера: причина и обещанное время прибытия
-  transitReason    String?     @map("transit_reason")        // 'MATERIAL' | 'TO_CLIENT'
-  transitEtaAt     DateTime?   @map("transit_eta_at")        // когда мастер обещал быть
-  lastMasterPingAt DateTime?   @map("last_master_ping_at")   // анти-спам для cron-напоминаний
+  transitReason         String?     @map("transit_reason") // 'MATERIAL' | 'TO_CLIENT'
+  transitEtaAt          DateTime?   @map("transit_eta_at") // когда мастер обещал быть
+  lastMasterPingAt      DateTime?   @map("last_master_ping_at") // анти-спам для cron-напоминаний
   // Live-позиция мастера во время доставки (обновляется с фронта раз в ~10с)
-  masterLat        Float?      @map("master_lat")
-  masterLng        Float?      @map("master_lng")
-  masterLocationAt DateTime?   @map("master_location_at")
-  penaltyAmount    Decimal     @default(0) @map("penalty_amount") @db.Decimal(12, 2)
-  cancelReason     String?     @map("cancel_reason")
-  cancelledBy      String?     @map("cancelled_by")
-  disputeReason    String?     @map("dispute_reason")
+  masterLat             Float?      @map("master_lat")
+  masterLng             Float?      @map("master_lng")
+  masterLocationAt      DateTime?   @map("master_location_at")
+  penaltyAmount         Decimal     @default(0) @map("penalty_amount") @db.Decimal(12, 2)
+  cancelReason          String?     @map("cancel_reason")
+  cancelledBy           String?     @map("cancelled_by")
+  disputeReason         String?     @map("dispute_reason")
   // Счётчик отправленных напоминаний мастерам перед авто-отменой (0..3)
-  remindersSent    Int         @default(0) @map("reminders_sent")
+  remindersSent         Int         @default(0) @map("reminders_sent")
   // Когда клиенту сообщили, что мастер долго не находится и деньги можно
   // вернуть. Флаг против повторной рассылки в часовом тике.
-  clientStaleNotifiedAt DateTime? @map("client_stale_notified_at")
+  clientStaleNotifiedAt DateTime?   @map("client_stale_notified_at")
   // Оценка (выезд мастера)
-  isEstimationOrder Boolean    @default(false) @map("is_estimation_order")
-  estimationFee    Decimal?    @map("estimation_fee") @db.Decimal(12, 2) // 150 000 сум
-  parentOrderId    String?     @map("parent_order_id")        // Связь: заказ оценки → основной заказ
+  isEstimationOrder     Boolean     @default(false) @map("is_estimation_order")
+  estimationFee         Decimal?    @map("estimation_fee") @db.Decimal(12, 2) // 150 000 сум
+  parentOrderId         String?     @map("parent_order_id") // Связь: заказ оценки → основной заказ
   // ─── Снимок прогноза AI на момент создания заказа ─────────────────
   // Самообучение: сравнивая эти поля с фактическим итогом заказа
   // (price / categoryId после закрытия), система измеряет свою точность
   // и накапливает обучающий набор без ручной разметки.
   // Плоские колонки, а не JSON — чтобы точность считалась обычным SQL,
   // а eval-набор выгружался одним запросом.
-  aiPredictedPrice      Decimal?  @map("ai_predicted_price") @db.Decimal(12, 2)
-  aiPredictedCategoryId String?   @map("ai_predicted_category_id")
-  aiConfidence          Float?    @map("ai_confidence")       // 0..1, как в AiOrderTemplate
-  aiNeedsOnSite         Boolean?  @map("ai_needs_on_site")
-  aiModel               String?   @map("ai_model")            // какая модель дала прогноз
-  aiPredictedAt         DateTime? @map("ai_predicted_at")
+  aiPredictedPrice      Decimal?    @map("ai_predicted_price") @db.Decimal(12, 2)
+  aiPredictedCategoryId String?     @map("ai_predicted_category_id")
+  aiConfidence          Float?      @map("ai_confidence") // 0..1, как в AiOrderTemplate
+  aiNeedsOnSite         Boolean?    @map("ai_needs_on_site")
+  aiModel               String?     @map("ai_model") // какая модель дала прогноз
+  aiPredictedAt         DateTime?   @map("ai_predicted_at")
 
   // AI Instant Order (ФотоЗаказ за 30 сек)
-  isInstantAiOrder Boolean     @default(false) @map("is_instant_ai_order")
-  source           OrderSource @default(DETAILED_WIZARD)
-  aiTemplateId     String?     @map("ai_template_id")
-  additionalWishes String?     @map("additional_wishes")
-  moderationRequired Boolean   @default(false) @map("moderation_required")
-  voiceDescription String?     @map("voice_description")      // Текстовая расшифровка голоса
+  isInstantAiOrder   Boolean     @default(false) @map("is_instant_ai_order")
+  source             OrderSource @default(DETAILED_WIZARD)
+  aiTemplateId       String?     @map("ai_template_id")
+  additionalWishes   String?     @map("additional_wishes")
+  moderationRequired Boolean     @default(false) @map("moderation_required")
+  voiceDescription   String?     @map("voice_description") // Текстовая расшифровка голоса
   // Комментарий админа
-  adminComment     String?     @map("admin_comment")
+  adminComment       String?     @map("admin_comment")
   // Geo / адрес
-  latitude         Float?
-  longitude        Float?
-  address          String?
-  street           String?
-  city             String?
-  district         String?
-  region           String?
-  deadline         DateTime?
-  images           String[]    @default([])
-  createdAt        DateTime    @default(now()) @map("created_at")
-  updatedAt        DateTime    @updatedAt @map("updated_at")
-  completedAt      DateTime?   @map("completed_at")
-  cancelledAt      DateTime?   @map("cancelled_at")
+  latitude           Float?
+  longitude          Float?
+  address            String?
+  street             String?
+  city               String?
+  district           String?
+  region             String?
+  deadline           DateTime?
+  images             String[]    @default([])
+  createdAt          DateTime    @default(now()) @map("created_at")
+  updatedAt          DateTime    @updatedAt @map("updated_at")
+  completedAt        DateTime?   @map("completed_at")
+  cancelledAt        DateTime?   @map("cancelled_at")
 
   // ─── RAG: самообучаемый поиск решений ──────────────────────────
   // Прямого поля Prisma не делаем — pgvector тип нативно не
   // поддерживается. Поиск выполняется через `prisma.$queryRaw`,
   // запись — через тот же raw-канал. Здесь объявляем поле
   // как Unsupported, чтобы Prisma не дропнула колонку при `db push`.
-  embedding          Unsupported("vector(1536)")? 
-  embeddingUpdatedAt DateTime? @map("embedding_updated_at")
+  embedding          Unsupported("vector(1536)")?
+  embeddingUpdatedAt DateTime?                    @map("embedding_updated_at")
 
-  client     User            @relation("ClientOrders", fields: [clientId], references: [id])
-  master     User?           @relation("MasterOrders", fields: [masterId], references: [id])
-  category   Category        @relation(fields: [categoryId], references: [id])
-  responses  OrderResponse[]
-  reviews    Review[]
-  payments   Payment[]
-  orderTasks OrderTask[]
-  chatMessages ChatMessage[]
-  photos     OrderPhoto[]
-  guarantee  Guarantee?
-  estimates  Estimate[]
-  parentOrder Order?         @relation("EstimationChain", fields: [parentOrderId], references: [id])
-  childOrders Order[]        @relation("EstimationChain")
-  aiTemplate  AiOrderTemplate? @relation(fields: [aiTemplateId], references: [id])
+  client              User                 @relation("ClientOrders", fields: [clientId], references: [id])
+  master              User?                @relation("MasterOrders", fields: [masterId], references: [id])
+  category            Category             @relation(fields: [categoryId], references: [id])
+  responses           OrderResponse[]
+  reviews             Review[]
+  payments            Payment[]
+  orderTasks          OrderTask[]
+  chatMessages        ChatMessage[]
+  photos              OrderPhoto[]
+  guarantee           Guarantee?
+  estimates           Estimate[]
+  parentOrder         Order?               @relation("EstimationChain", fields: [parentOrderId], references: [id])
+  childOrders         Order[]              @relation("EstimationChain")
+  aiTemplate          AiOrderTemplate?     @relation(fields: [aiTemplateId], references: [id])
   masterClientReviews MasterReviewClient[]
   priceChangeRequests PriceChangeRequest[]
 
@@ -703,7 +703,7 @@ model Review {
   orderId    String   @map("order_id")
   reviewerId String   @map("reviewer_id")
   revieweeId String   @map("reviewee_id")
-  rating     Int      // 1-5
+  rating     Int // 1-5
   comment    String?
   createdAt  DateTime @default(now()) @map("created_at")
 
@@ -729,10 +729,10 @@ model MasterReviewClient {
   // 1..5: общая адекватность клиента
   overall        Int
   // Опциональные флаги (для скоринга)
-  wasRude        Boolean  @default(false) @map("was_rude")        // хамил, грубил
-  wasNoShow      Boolean  @default(false) @map("was_no_show")     // не открыл / не пришёл
-  haggledHard    Boolean  @default(false) @map("haggled_hard")    // торговался после согласования
-  changedScope   Boolean  @default(false) @map("changed_scope")   // менял ТЗ по ходу
+  wasRude        Boolean  @default(false) @map("was_rude") // хамил, грубил
+  wasNoShow      Boolean  @default(false) @map("was_no_show") // не открыл / не пришёл
+  haggledHard    Boolean  @default(false) @map("haggled_hard") // торговался после согласования
+  changedScope   Boolean  @default(false) @map("changed_scope") // менял ТЗ по ходу
   delayedPayment Boolean  @default(false) @map("delayed_payment") // тянул оплату
   comment        String?
   createdAt      DateTime @default(now()) @map("created_at")
@@ -755,13 +755,13 @@ model MasterReviewClient {
 // делают `getActiveMasterSubscription(userId)` и решают по результату.
 
 enum MasterPlan {
-  TRIAL       // 14 дней при регистрации, бесплатно
-  MONTH       // 99 000 сум / 30 дней
-  QUARTER     // 249 000 сум / 90 дней
-  FIVE_MONTH  // 300 000 сум / 150 дней — флагман
-  YEAR        // 590 000 сум / 365 дней
-  REFERRAL    // +30 дней за приведённого мастера (бесплатно)
-  FOUNDER     // Founder pricing — первые 1000 мастеров
+  TRIAL // 14 дней при регистрации, бесплатно
+  MONTH // 99 000 сум / 30 дней
+  QUARTER // 249 000 сум / 90 дней
+  FIVE_MONTH // 300 000 сум / 150 дней — флагман
+  YEAR // 590 000 сум / 365 дней
+  REFERRAL // +30 дней за приведённого мастера (бесплатно)
+  FOUNDER // Founder pricing — первые 1000 мастеров
 }
 
 enum SubscriptionStatus {
@@ -772,21 +772,21 @@ enum SubscriptionStatus {
 }
 
 model MasterSubscription {
-  id                 String              @id @default(uuid())
-  masterId           String              @map("master_id")
+  id                 String             @id @default(uuid())
+  masterId           String             @map("master_id")
   plan               MasterPlan
-  status             SubscriptionStatus  @default(ACTIVE)
+  status             SubscriptionStatus @default(ACTIVE)
   // Период действия (UTC, end = exclusive)
-  currentPeriodStart DateTime            @map("current_period_start")
-  currentPeriodEnd   DateTime            @map("current_period_end")
+  currentPeriodStart DateTime           @map("current_period_start")
+  currentPeriodEnd   DateTime           @map("current_period_end")
   // Сколько уплачено (для trial/referral = 0)
-  amountPaid         Decimal             @default(0) @map("amount_paid") @db.Decimal(12, 2)
+  amountPaid         Decimal            @default(0) @map("amount_paid") @db.Decimal(12, 2)
   // Связь с платежом (если был)
-  paymentId          String?             @unique @map("payment_id")
+  paymentId          String?            @unique @map("payment_id")
   // Кто привёл (для REFERRAL-плана)
-  referrerMasterId   String?             @map("referrer_master_id")
-  createdAt          DateTime            @default(now()) @map("created_at")
-  updatedAt          DateTime            @updatedAt @map("updated_at")
+  referrerMasterId   String?            @map("referrer_master_id")
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
 
   master   User     @relation("MasterSubscriptions", fields: [masterId], references: [id], onDelete: Cascade)
   payment  Payment? @relation(fields: [paymentId], references: [id])
@@ -802,20 +802,20 @@ model MasterSubscription {
 // ════════════════════════════════════════════════
 
 model Payment {
-  id            String          @id @default(uuid())
-  orderId       String?         @map("order_id")
-  userId        String          @map("user_id")
-  amount        Decimal       @db.Decimal(12, 2)
-  type          PaymentType
-  provider      PaymentProvider
-  providerTxId  String?         @unique @map("provider_tx_id")
-  status        PaymentStatus   @default(PENDING)
-  metadata      Json?
-  createdAt     DateTime        @default(now()) @map("created_at")
-  updatedAt     DateTime        @updatedAt @map("updated_at")
+  id           String          @id @default(uuid())
+  orderId      String?         @map("order_id")
+  userId       String          @map("user_id")
+  amount       Decimal         @db.Decimal(12, 2)
+  type         PaymentType
+  provider     PaymentProvider
+  providerTxId String?         @unique @map("provider_tx_id")
+  status       PaymentStatus   @default(PENDING)
+  metadata     Json?
+  createdAt    DateTime        @default(now()) @map("created_at")
+  updatedAt    DateTime        @updatedAt @map("updated_at")
 
-  order Order? @relation(fields: [orderId], references: [id])
-  user  User   @relation(fields: [userId], references: [id])
+  order              Order?               @relation(fields: [orderId], references: [id])
+  user               User                 @relation(fields: [userId], references: [id])
   masterSubscription MasterSubscription?
   paymeTransactions  PaymentTransaction[]
 
@@ -832,15 +832,15 @@ model Payment {
 // Что именно предлагает мастер.
 enum PriceChangeKind {
   PRICE_CHANGE // новая цена работ (доп. работы / уточнение объёма)
-  SETTLEMENT   // расчёт при отказе клиента: фактически выполненная работа
+  SETTLEMENT // расчёт при отказе клиента: фактически выполненная работа
 }
 
 enum PriceChangeStatus {
-  PENDING    // ждёт решения клиента
+  PENDING // ждёт решения клиента
   MODERATION // рост выше лимита → сначала решает админ
-  APPROVED   // клиент (и админ, если требовалось) согласился
-  REJECTED   // клиент отказался
-  CANCELLED  // мастер отозвал предложение
+  APPROVED // клиент (и админ, если требовалось) согласился
+  REJECTED // клиент отказался
+  CANCELLED // мастер отозвал предложение
 }
 
 // Предложение мастера изменить цену заказа по ходу работ.
@@ -855,8 +855,8 @@ model PriceChangeRequest {
   status        PriceChangeStatus @default(PENDING)
   oldPrice      Decimal           @map("old_price") @db.Decimal(12, 2) // цена работ до изменения
   newPrice      Decimal           @map("new_price") @db.Decimal(12, 2) // предлагаемая цена работ
-  reason        String                                                  // обоснование (обязательно)
-  photos        String[]          @default([])                          // фото-доказательства
+  reason        String // обоснование (обязательно)
+  photos        String[]          @default([]) // фото-доказательства
   // Модерация (если рост выше priceChangeLimitPct)
   moderatedById String?           @map("moderated_by_id")
   moderatedAt   DateTime?         @map("moderated_at")
@@ -881,12 +881,12 @@ model PriceChangeRequest {
 // CheckTransaction / GetStatement / идемпотентности.
 model PaymentTransaction {
   id          String    @id @default(uuid())
-  paymeId     String    @unique @map("payme_id")   // params.id, присланный Payme
-  paymentId   String    @map("payment_id")          // наш Payment.id (account.payment_id)
-  amount      Decimal   @db.Decimal(16, 2)          // сумма в тийинах
-  state       Int       @default(1)                  // 1 создана, 2 проведена, -1 отменена до, -2 отменена после
-  reason      Int?                                    // код причины отмены (Payme)
-  createTime  DateTime  @map("create_time")          // из params.time (мс с эпохи)
+  paymeId     String    @unique @map("payme_id") // params.id, присланный Payme
+  paymentId   String    @map("payment_id") // наш Payment.id (account.payment_id)
+  amount      Decimal   @db.Decimal(16, 2) // сумма в тийинах
+  state       Int       @default(1) // 1 создана, 2 проведена, -1 отменена до, -2 отменена после
+  reason      Int? // код причины отмены (Payme)
+  createTime  DateTime  @map("create_time") // из params.time (мс с эпохи)
   performTime DateTime? @map("perform_time")
   cancelTime  DateTime? @map("cancel_time")
   createdAt   DateTime  @default(now()) @map("created_at")
@@ -910,7 +910,7 @@ model Referral {
   referredId  String         @map("referred_id")
   type        ReferralType
   bonusAmount Decimal?       @map("bonus_amount") @db.Decimal(12, 2)
-  bonusRate   Decimal         @map("bonus_rate") @db.Decimal(5, 2)
+  bonusRate   Decimal        @map("bonus_rate") @db.Decimal(5, 2)
   status      ReferralStatus @default(PENDING)
   createdAt   DateTime       @default(now()) @map("created_at")
 
@@ -944,7 +944,7 @@ model SchoolCourse {
   passingScore    Int      @default(70) @map("passing_score")
   createdAt       DateTime @default(now()) @map("created_at")
 
-  category  Category?      @relation(fields: [categoryId], references: [id])
+  category  Category?        @relation(fields: [categoryId], references: [id])
   progress  CourseProgress[]
   questions QuizQuestion[]
 
@@ -952,15 +952,15 @@ model SchoolCourse {
 }
 
 model QuizQuestion {
-  id              String   @id @default(uuid())
-  courseId         String   @map("course_id")
-  question         String
-  questionUz       String?  @map("question_uz")
-  options          Json     // ["вариант1","вариант2","вариант3","вариант4"]
-  optionsUz        Json?    @map("options_uz")
-  correctIndex     Int      @map("correct_index") // индекс правильного ответа (0-based)
-  sortOrder        Int      @default(0) @map("sort_order")
-  createdAt        DateTime @default(now()) @map("created_at")
+  id           String   @id @default(uuid())
+  courseId     String   @map("course_id")
+  question     String
+  questionUz   String?  @map("question_uz")
+  options      Json // ["вариант1","вариант2","вариант3","вариант4"]
+  optionsUz    Json?    @map("options_uz")
+  correctIndex Int      @map("correct_index") // индекс правильного ответа (0-based)
+  sortOrder    Int      @default(0) @map("sort_order")
+  createdAt    DateTime @default(now()) @map("created_at")
 
   course SchoolCourse @relation(fields: [courseId], references: [id], onDelete: Cascade)
 
@@ -968,16 +968,16 @@ model QuizQuestion {
 }
 
 model CourseProgress {
-  id                String    @id @default(uuid())
-  userId            String    @map("user_id")
-  courseId           String    @map("course_id")
-  completed         Boolean   @default(false)
-  completedAt       DateTime? @map("completed_at")
-  videoWatchedSec   Int       @default(0) @map("video_watched_sec")
-  videoCompleted    Boolean   @default(false) @map("video_completed")
-  quizScore         Int?      @map("quiz_score")
-  quizPassedAt      DateTime? @map("quiz_passed_at")
-  quizAttempts      Int       @default(0) @map("quiz_attempts")
+  id              String    @id @default(uuid())
+  userId          String    @map("user_id")
+  courseId        String    @map("course_id")
+  completed       Boolean   @default(false)
+  completedAt     DateTime? @map("completed_at")
+  videoWatchedSec Int       @default(0) @map("video_watched_sec")
+  videoCompleted  Boolean   @default(false) @map("video_completed")
+  quizScore       Int?      @map("quiz_score")
+  quizPassedAt    DateTime? @map("quiz_passed_at")
+  quizAttempts    Int       @default(0) @map("quiz_attempts")
 
   user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   course SchoolCourse @relation(fields: [courseId], references: [id], onDelete: Cascade)
@@ -1014,9 +1014,9 @@ model NotificationDeliveryLog {
   id          String   @id @default(uuid())
   orderId     String   @map("order_id")
   userId      String   @map("user_id")
-  channel     String   // 'in_app' | 'telegram'
-  status      String   // 'success' | 'failed' | 'skipped'
-  reason      String?  // 'no_telegram_id' | 'bot_blocked' | 'chat_not_found' | etc.
+  channel     String // 'in_app' | 'telegram'
+  status      String // 'success' | 'failed' | 'skipped'
+  reason      String? // 'no_telegram_id' | 'bot_blocked' | 'chat_not_found' | etc.
   errorCode   Int?     @map("error_code")
   description String?
   matchMode   String?  @map("match_mode") // 'category' | 'fallback_all_masters'
@@ -1034,22 +1034,22 @@ model NotificationDeliveryLog {
 // ════════════════════════════════════════════════
 
 model Blacklist {
-  id         String    @id @default(uuid())
-  userId     String    @map("user_id")
-  reason     String
-  blockedById String   @map("blocked_by_id")
+  id               String    @id @default(uuid())
+  userId           String    @map("user_id")
+  reason           String
+  blockedById      String    @map("blocked_by_id")
   // Расширенные данные
-  violationType String? @map("violation_type")  // bypass_commission, fraud, abuse, spam
-  evidence    String?                           // Доказательства (ссылки, скриншоты)
-  address     String?                           // Адрес нарушителя
-  city        String?                           // Город
-  district    String?                           // Район
-  telegramLocation String? @map("telegram_location") // Геолокация из Telegram
-  penaltyAmount Decimal? @map("penalty_amount") @db.Decimal(12, 2) // Удержанная сумма
-  orderId     String?  @map("order_id")         // Связанный заказ
-  isPermanent Boolean  @default(true) @map("is_permanent")
-  createdAt  DateTime  @default(now()) @map("created_at")
-  expiresAt  DateTime? @map("expires_at")
+  violationType    String?   @map("violation_type") // bypass_commission, fraud, abuse, spam
+  evidence         String? // Доказательства (ссылки, скриншоты)
+  address          String? // Адрес нарушителя
+  city             String? // Город
+  district         String? // Район
+  telegramLocation String?   @map("telegram_location") // Геолокация из Telegram
+  penaltyAmount    Decimal?  @map("penalty_amount") @db.Decimal(12, 2) // Удержанная сумма
+  orderId          String?   @map("order_id") // Связанный заказ
+  isPermanent      Boolean   @default(true) @map("is_permanent")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  expiresAt        DateTime? @map("expires_at")
 
   user      User @relation("BlockedUser", fields: [userId], references: [id])
   blockedBy User @relation("BlockedByUser", fields: [blockedById], references: [id])
@@ -1081,20 +1081,20 @@ model PlatformConfig {
 // ════════════════════════════════════════════════
 
 model ChatMessage {
-  id        String   @id @default(uuid())
-  orderId   String   @map("order_id")
-  senderId  String   @map("sender_id")
-  text      String?
-  imageUrl  String?  @map("image_url")
-  isSystem  Boolean  @default(false) @map("is_system")
-  isRead    Boolean  @default(false) @map("is_read")
+  id            String    @id @default(uuid())
+  orderId       String    @map("order_id")
+  senderId      String    @map("sender_id")
+  text          String?
+  imageUrl      String?   @map("image_url")
+  isSystem      Boolean   @default(false) @map("is_system")
+  isRead        Boolean   @default(false) @map("is_read")
   // Модерация чата
-  isFlagged Boolean  @default(false) @map("is_flagged")
-  flagReason String? @map("flag_reason")
-  isBlocked Boolean  @default(false) @map("is_blocked")
-  moderatedById String? @map("moderated_by_id")
-  moderatedAt DateTime? @map("moderated_at")
-  createdAt DateTime @default(now()) @map("created_at")
+  isFlagged     Boolean   @default(false) @map("is_flagged")
+  flagReason    String?   @map("flag_reason")
+  isBlocked     Boolean   @default(false) @map("is_blocked")
+  moderatedById String?   @map("moderated_by_id")
+  moderatedAt   DateTime? @map("moderated_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
 
   order  Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
   sender User  @relation(fields: [senderId], references: [id])
@@ -1113,7 +1113,7 @@ model OrderPhoto {
   id        String   @id @default(uuid())
   orderId   String   @map("order_id")
   url       String
-  type      String   // 'before' | 'after'
+  type      String // 'before' | 'after'
   caption   String?
   sortOrder Int      @default(0) @map("sort_order")
   createdAt DateTime @default(now()) @map("created_at")
@@ -1146,16 +1146,16 @@ model FavoriteMaster {
 // ════════════════════════════════════════════════
 
 model PromoCode {
-  id           String    @id @default(uuid())
-  code         String    @unique
-  discountType String    @map("discount_type") // 'percentage' | 'fixed'
-  discountValue Decimal  @map("discount_value") @db.Decimal(12, 2)
-  maxUses      Int?      @map("max_uses")
-  usedCount    Int       @default(0) @map("used_count")
-  minOrderPrice Decimal? @map("min_order_price") @db.Decimal(12, 2)
-  isActive     Boolean   @default(true) @map("is_active")
-  expiresAt    DateTime? @map("expires_at")
-  createdAt    DateTime  @default(now()) @map("created_at")
+  id            String    @id @default(uuid())
+  code          String    @unique
+  discountType  String    @map("discount_type") // 'percentage' | 'fixed'
+  discountValue Decimal   @map("discount_value") @db.Decimal(12, 2)
+  maxUses       Int?      @map("max_uses")
+  usedCount     Int       @default(0) @map("used_count")
+  minOrderPrice Decimal?  @map("min_order_price") @db.Decimal(12, 2)
+  isActive      Boolean   @default(true) @map("is_active")
+  expiresAt     DateTime? @map("expires_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
 
   usages PromoCodeUsage[]
 
@@ -1206,7 +1206,7 @@ model PortfolioItem {
 model Guarantee {
   id           String    @id @default(uuid())
   orderId      String    @unique @map("order_id")
-  durationDays Int       @map("duration_days")  // Срок гарантии в днях
+  durationDays Int       @map("duration_days") // Срок гарантии в днях
   description  String?
   isActive     Boolean   @default(true) @map("is_active")
   claimedAt    DateTime? @map("claimed_at")
@@ -1238,39 +1238,39 @@ enum PartnerRequestStatus {
 }
 
 model PartnerStore {
-  id              String      @id @default(uuid())
-  name            String
-  nameUz          String?     @map("name_uz")
-  nameEn          String?     @map("name_en")
-  slug            String      @unique
-  description     String?
-  descriptionUz   String?     @map("description_uz")
-  descriptionEn   String?     @map("description_en")
-  logoUrl         String?     @map("logo_url")
-  coverUrl        String?     @map("cover_url")
-  phone           String
-  email           String?
-  website         String?
-  telegramUsername String?    @map("telegram_username")
-  contactPerson   String      @map("contact_person")
-  address         String?
-  city            String?
-  district        String?
-  latitude        Float?
-  longitude       Float?
-  storeCategory   String      @map("store_category") // building-materials, tools, paints, plumbing, electrical, finishing, furniture-materials
-  rating          Float       @default(0)
-  reviewCount     Int         @default(0) @map("review_count")
-  status          StoreStatus @default(PENDING)
-  isVerified      Boolean     @default(false) @map("is_verified")
-  workingHours    String?     @map("working_hours")
-  deliveryAvailable Boolean   @default(false) @map("delivery_available")
-  discountForMasters Decimal?  @map("discount_for_masters") @db.Decimal(5, 2) // Скидка для мастеров платформы (%)
-  createdAt       DateTime    @default(now()) @map("created_at")
-  updatedAt       DateTime    @updatedAt @map("updated_at")
+  id                 String      @id @default(uuid())
+  name               String
+  nameUz             String?     @map("name_uz")
+  nameEn             String?     @map("name_en")
+  slug               String      @unique
+  description        String?
+  descriptionUz      String?     @map("description_uz")
+  descriptionEn      String?     @map("description_en")
+  logoUrl            String?     @map("logo_url")
+  coverUrl           String?     @map("cover_url")
+  phone              String
+  email              String?
+  website            String?
+  telegramUsername   String?     @map("telegram_username")
+  contactPerson      String      @map("contact_person")
+  address            String?
+  city               String?
+  district           String?
+  latitude           Float?
+  longitude          Float?
+  storeCategory      String      @map("store_category") // building-materials, tools, paints, plumbing, electrical, finishing, furniture-materials
+  rating             Float       @default(0)
+  reviewCount        Int         @default(0) @map("review_count")
+  status             StoreStatus @default(PENDING)
+  isVerified         Boolean     @default(false) @map("is_verified")
+  workingHours       String?     @map("working_hours")
+  deliveryAvailable  Boolean     @default(false) @map("delivery_available")
+  discountForMasters Decimal?    @map("discount_for_masters") @db.Decimal(5, 2) // Скидка для мастеров платформы (%)
+  createdAt          DateTime    @default(now()) @map("created_at")
+  updatedAt          DateTime    @updatedAt @map("updated_at")
 
-  products        StoreProduct[]
-  reviews         StoreReview[]
+  products StoreProduct[]
+  reviews  StoreReview[]
 
   @@index([storeCategory])
   @@index([status])
@@ -1279,22 +1279,22 @@ model PartnerStore {
 }
 
 model StoreProduct {
-  id           String   @id @default(uuid())
-  storeId      String   @map("store_id")
-  name         String
-  nameUz       String?  @map("name_uz")
-  nameEn       String?  @map("name_en")
-  description  String?
-  descriptionUz String? @map("description_uz")
-  descriptionEn String? @map("description_en")
-  price        Decimal  @db.Decimal(12, 2)
-  unit         String?  // шт, м², кг, литр, рулон
-  imageUrl     String?  @map("image_url")
-  category     String   // category of product
-  inStock      Boolean  @default(true) @map("in_stock")
-  sortOrder    Int      @default(0) @map("sort_order")
-  isActive     Boolean  @default(true) @map("is_active")
-  createdAt    DateTime @default(now()) @map("created_at")
+  id            String   @id @default(uuid())
+  storeId       String   @map("store_id")
+  name          String
+  nameUz        String?  @map("name_uz")
+  nameEn        String?  @map("name_en")
+  description   String?
+  descriptionUz String?  @map("description_uz")
+  descriptionEn String?  @map("description_en")
+  price         Decimal  @db.Decimal(12, 2)
+  unit          String? // шт, м², кг, литр, рулон
+  imageUrl      String?  @map("image_url")
+  category      String // category of product
+  inStock       Boolean  @default(true) @map("in_stock")
+  sortOrder     Int      @default(0) @map("sort_order")
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at")
 
   store PartnerStore @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
@@ -1306,7 +1306,7 @@ model StoreReview {
   id        String   @id @default(uuid())
   storeId   String   @map("store_id")
   userId    String   @map("user_id")
-  rating    Int      // 1-5
+  rating    Int // 1-5
   comment   String?
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -1341,42 +1341,42 @@ model PartnerRequest {
 // ════════════════════════════════════════════════
 
 enum TurnkeyStatus {
-  INQUIRY       // Заявка
-  CONSULTATION  // Консультация/замер
-  DESIGNING     // Разработка дизайн-проекта
-  APPROVED      // Утвержден
-  IN_PROGRESS   // В работе
-  COMPLETED     // Завершён
-  CANCELLED     // Отменён
+  INQUIRY // Заявка
+  CONSULTATION // Консультация/замер
+  DESIGNING // Разработка дизайн-проекта
+  APPROVED // Утвержден
+  IN_PROGRESS // В работе
+  COMPLETED // Завершён
+  CANCELLED // Отменён
 }
 
 model TurnkeyProject {
-  id              String        @id @default(uuid())
-  clientId        String        @map("client_id")
-  title           String
-  description     String?
-  propertyType    String        @map("property_type")  // apartment, house, office, commercial
-  area            Float?        // Площадь в м²
-  rooms           Int?          // Количество комнат
-  budgetMin       Decimal?      @map("budget_min") @db.Decimal(12, 2)
-  budgetMax       Decimal?      @map("budget_max") @db.Decimal(12, 2)
-  address         String?
-  city            String?
-  district        String?
-  latitude        Float?
-  longitude       Float?
-  status          TurnkeyStatus @default(INQUIRY)
-  designIncluded  Boolean       @default(false) @map("design_included")
-  furnitureIncluded Boolean     @default(false) @map("furniture_included")
-  estimatedDays   Int?          @map("estimated_days")
-  actualStartDate DateTime?     @map("actual_start_date")
-  actualEndDate   DateTime?     @map("actual_end_date")
-  totalPrice      Decimal?      @map("total_price") @db.Decimal(12, 2)
-  images          String[]      @default([])
-  floorPlanUrl    String?       @map("floor_plan_url")
-  designProjectUrl String?      @map("design_project_url")
-  createdAt       DateTime      @default(now()) @map("created_at")
-  updatedAt       DateTime      @updatedAt @map("updated_at")
+  id                String        @id @default(uuid())
+  clientId          String        @map("client_id")
+  title             String
+  description       String?
+  propertyType      String        @map("property_type") // apartment, house, office, commercial
+  area              Float? // Площадь в м²
+  rooms             Int? // Количество комнат
+  budgetMin         Decimal?      @map("budget_min") @db.Decimal(12, 2)
+  budgetMax         Decimal?      @map("budget_max") @db.Decimal(12, 2)
+  address           String?
+  city              String?
+  district          String?
+  latitude          Float?
+  longitude         Float?
+  status            TurnkeyStatus @default(INQUIRY)
+  designIncluded    Boolean       @default(false) @map("design_included")
+  furnitureIncluded Boolean       @default(false) @map("furniture_included")
+  estimatedDays     Int?          @map("estimated_days")
+  actualStartDate   DateTime?     @map("actual_start_date")
+  actualEndDate     DateTime?     @map("actual_end_date")
+  totalPrice        Decimal?      @map("total_price") @db.Decimal(12, 2)
+  images            String[]      @default([])
+  floorPlanUrl      String?       @map("floor_plan_url")
+  designProjectUrl  String?       @map("design_project_url")
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
 
   stages TurnkeyStage[]
   client User           @relation(fields: [clientId], references: [id], onDelete: Cascade)
@@ -1387,18 +1387,18 @@ model TurnkeyProject {
 }
 
 model TurnkeyStage {
-  id          String   @id @default(uuid())
-  projectId   String   @map("project_id")
+  id          String    @id @default(uuid())
+  projectId   String    @map("project_id")
   name        String
-  nameUz      String?  @map("name_uz")
-  nameEn      String?  @map("name_en")
+  nameUz      String?   @map("name_uz")
+  nameEn      String?   @map("name_en")
   description String?
-  sortOrder   Int      @default(0) @map("sort_order")
-  status      String   @default("pending") // pending, in_progress, completed
-  progress    Int      @default(0) // 0-100 (процент выполнения)
+  sortOrder   Int       @default(0) @map("sort_order")
+  status      String    @default("pending") // pending, in_progress, completed
+  progress    Int       @default(0) // 0-100 (процент выполнения)
   startDate   DateTime? @map("start_date")
   endDate     DateTime? @map("end_date")
-  createdAt   DateTime @default(now()) @map("created_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
 
   project TurnkeyProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
@@ -1411,20 +1411,24 @@ model TurnkeyStage {
 // ════════════════════════════════════════════════
 
 model AiOrderTemplate {
-  id              String   @id @default(uuid())
-  categoryId      String   @map("category_id")
-  tier            AiTier   // GOOD / BETTER / BEST
-  tierLabel       String   @map("tier_label")          // "Хороший" / "Отличный" / "Премиум"
-  taskIds         String[] @default([]) @map("task_ids")  // ID задач из каталога
-  materials       Json     @default("[]")                // [{name, quantity, unit, unitPrice, total}]
-  estimatedPrice  Float    @map("estimated_price")     // Итоговая цена варианта
-  estimatedDays   Int      @map("estimated_days")        // Срок выполнения (дни)
-  confidence      Float    @default(0.8)                 // Уверенность AI (0-1)
-  prompt          String?                                // Промпт, использованный для анализа
-  imageAnalysis   Json?    @map("image_analysis")        // Результат анализа фото
-  description     String?                                // Описание варианта
-  createdById     String?  @map("created_by_id")
-  createdAt       DateTime @default(now()) @map("created_at")
+  id             String   @id @default(uuid())
+  categoryId     String   @map("category_id")
+  tier           AiTier // GOOD / BETTER / BEST
+  tierLabel      String   @map("tier_label") // "Хороший" / "Отличный" / "Премиум"
+  taskIds        String[] @default([]) @map("task_ids") // ID задач из каталога
+  materials      Json     @default("[]") // [{name, quantity, unit, unitPrice, total}]
+  estimatedPrice Float    @map("estimated_price") // Итоговая цена варианта
+  estimatedDays  Int      @map("estimated_days") // Срок выполнения (дни)
+  confidence     Float    @default(0.8) // Уверенность AI (0-1)
+  prompt         String? // Промпт, использованный для анализа
+  imageAnalysis  Json?    @map("image_analysis") // Результат анализа фото
+  description    String? // Описание варианта
+  // Состав сметы в кодах позиций прайса: [{code, kind, qty, unitPrice, total}].
+  // Без него закрытый заказ невозможно разложить обратно по позициям, а значит
+  // и откалибровать цену по факту.
+  priceLines     Json     @default("[]") @map("price_lines")
+  createdById    String?  @map("created_by_id")
+  createdAt      DateTime @default(now()) @map("created_at")
 
   createdBy User?   @relation(fields: [createdById], references: [id])
   orders    Order[]
@@ -1442,34 +1446,34 @@ model AiOrderTemplate {
 // ════════════════════════════════════════════════
 
 model KnowledgeEntry {
-  id                  String   @id @default(uuid())
-  categoryId          String   @map("category_id")
+  id         String @id @default(uuid())
+  categoryId String @map("category_id")
 
-  problemSignature    String   @map("problem_signature")     // Короткая подпись («Замена личинки замка двери авто»)
-  problemDescription  String   @map("problem_description")    // Развёрнутое описание проблемы
+  problemSignature   String @map("problem_signature") // Короткая подпись («Замена личинки замка двери авто»)
+  problemDescription String @map("problem_description") // Развёрнутое описание проблемы
 
-  diagnosis           String?                                 // Что обычно ломается / в чём причина
-  rootCauses          String[] @default([]) @map("root_causes")     // Возможные причины в порядке вероятности
-  solutionSteps       Json     @default("[]") @map("solution_steps") // [{step, action, tool?}]
-  materials           Json     @default("[]")                        // [{name, quantity, unit, approxPrice}]
+  diagnosis     String? // Что обычно ломается / в чём причина
+  rootCauses    String[] @default([]) @map("root_causes") // Возможные причины в порядке вероятности
+  solutionSteps Json     @default("[]") @map("solution_steps") // [{step, action, tool?}]
+  materials     Json     @default("[]") // [{name, quantity, unit, approxPrice}]
 
-  priceMin            Decimal? @map("price_min") @db.Decimal(12, 2)
-  priceMax            Decimal? @map("price_max") @db.Decimal(12, 2)
-  priceAvg            Decimal? @map("price_avg") @db.Decimal(12, 2)
+  priceMin Decimal? @map("price_min") @db.Decimal(12, 2)
+  priceMax Decimal? @map("price_max") @db.Decimal(12, 2)
+  priceAvg Decimal? @map("price_avg") @db.Decimal(12, 2)
 
-  visualTags          String[] @default([]) @map("visual_tags")
-  sourceOrderIds      String[] @default([]) @map("source_order_ids")
-  hits                Int      @default(0)
-  confidence          Float    @default(0.5)
+  visualTags     String[] @default([]) @map("visual_tags")
+  sourceOrderIds String[] @default([]) @map("source_order_ids")
+  hits           Int      @default(0)
+  confidence     Float    @default(0.5)
 
   // pgvector тип не поддерживается Prisma — поле объявлено как Unsupported,
   // запись и поиск делаются через $queryRaw в knowledgeService.
-  embedding           Unsupported("vector(1536)")?
+  embedding Unsupported("vector(1536)")?
 
-  createdAt           DateTime @default(now()) @map("created_at")
-  updatedAt           DateTime @updatedAt      @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
-  category            Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
   @@index([categoryId])
   @@map("knowledge_entries")
@@ -1480,16 +1484,16 @@ model KnowledgeEntry {
 // ════════════════════════════════════════════════
 
 model SupportChat {
-  id          String   @id @default(uuid())
-  userId      String   @map("user_id")        // Клиент / мастер
-  adminId     String   @map("admin_id")        // Кто инициировал (ADMIN/MANAGER)
-  subject     String?                           // Тема обращения
-  isClosed    Boolean  @default(false) @map("is_closed")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id") // Клиент / мастер
+  adminId   String   @map("admin_id") // Кто инициировал (ADMIN/MANAGER)
+  subject   String? // Тема обращения
+  isClosed  Boolean  @default(false) @map("is_closed")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
-  user     User  @relation("SupportChatUser", fields: [userId], references: [id])
-  admin    User  @relation("SupportChatAdmin", fields: [adminId], references: [id])
+  user     User             @relation("SupportChatUser", fields: [userId], references: [id])
+  admin    User             @relation("SupportChatAdmin", fields: [adminId], references: [id])
   messages SupportMessage[]
 
   @@index([userId])
@@ -1517,32 +1521,32 @@ model SupportMessage {
 // ════════════════════════════════════════════════
 
 model Estimate {
-  id              String         @id @default(uuid())
-  orderId         String         @map("order_id")
-  masterId        String         @map("master_id")
-  status          EstimateStatus @default(DRAFT)
+  id               String         @id @default(uuid())
+  orderId          String         @map("order_id")
+  masterId         String         @map("master_id")
+  status           EstimateStatus @default(DRAFT)
   // Элементы сметы
-  workItems       Json           @default("[]") @map("work_items")      // [{name, quantity, unitPrice, total}]
-  materialItems   Json           @default("[]") @map("material_items")  // [{name, quantity, unit, unitPrice, total}]
-  workTotal       Decimal        @default(0) @map("work_total") @db.Decimal(12, 2)
-  materialTotal   Decimal        @default(0) @map("material_total") @db.Decimal(12, 2)
-  totalAmount     Decimal        @default(0) @map("total_amount") @db.Decimal(12, 2)
-  estimatedDays   Int?           @map("estimated_days")
-  notes           String?
+  workItems        Json           @default("[]") @map("work_items") // [{name, quantity, unitPrice, total}]
+  materialItems    Json           @default("[]") @map("material_items") // [{name, quantity, unit, unitPrice, total}]
+  workTotal        Decimal        @default(0) @map("work_total") @db.Decimal(12, 2)
+  materialTotal    Decimal        @default(0) @map("material_total") @db.Decimal(12, 2)
+  totalAmount      Decimal        @default(0) @map("total_amount") @db.Decimal(12, 2)
+  estimatedDays    Int?           @map("estimated_days")
+  notes            String?
   // Медиа-файлы (фото/видео с устройства)
-  photos          String[]       @default([])
-  videos          String[]       @default([])
+  photos           String[]       @default([])
+  videos           String[]       @default([])
   // Модерация
-  moderatedById   String?        @map("moderated_by_id")
-  moderatedAt     DateTime?      @map("moderated_at")
-  moderationNote  String?        @map("moderation_note")
+  moderatedById    String?        @map("moderated_by_id")
+  moderatedAt      DateTime?      @map("moderated_at")
+  moderationNote   String?        @map("moderation_note")
   // Реакция клиента
-  clientResponseAt DateTime?     @map("client_response_at")
-  rejectionReason String?        @map("rejection_reason")
+  clientResponseAt DateTime?      @map("client_response_at")
+  rejectionReason  String?        @map("rejection_reason")
   // Даты
-  sentAt          DateTime?      @map("sent_at")
-  createdAt       DateTime       @default(now()) @map("created_at")
-  updatedAt       DateTime       @updatedAt @map("updated_at")
+  sentAt           DateTime?      @map("sent_at")
+  createdAt        DateTime       @default(now()) @map("created_at")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
 
   order  Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
   master User  @relation("EstimateMaster", fields: [masterId], references: [id])
@@ -1558,36 +1562,36 @@ model Estimate {
 // ════════════════════════════════════════════════
 
 enum BalanceTransactionType {
-  TOPUP           // Пополнение баланса
-  ESCROW_HOLD     // Блокировка средств при создании заказа (legacy / DEPOSIT_HOLD теперь предпочтительнее)
-  ESCROW_RELEASE  // Разблокировка / перевод мастеру
-  DEPOSIT_HOLD    // Блокировка депозита 30% при создании заказа
+  TOPUP // Пополнение баланса
+  ESCROW_HOLD // Блокировка средств при создании заказа (legacy / DEPOSIT_HOLD теперь предпочтительнее)
+  ESCROW_RELEASE // Разблокировка / перевод мастеру
+  DEPOSIT_HOLD // Блокировка депозита 30% при создании заказа
   REMAINDER_PAYMENT // Доплата клиентом остатка 70% картой при завершении
-  PENALTY         // Штраф за отмену
+  PENALTY // Штраф за отмену
   FALSE_DISPUTE_PENALTY // Штраф клиенту за ложный диспут (наличку получил, но отказался)
-  REFUND          // Возврат средств
-  COMMISSION      // Оплата комиссии
-  PAYOUT          // Выплата мастеру
-  ESTIMATION_FEE  // Оплата за выезд на оценку
+  REFUND // Возврат средств
+  COMMISSION // Оплата комиссии
+  PAYOUT // Выплата мастеру
+  ESTIMATION_FEE // Оплата за выезд на оценку
   ESTIMATE_PAYOUT // Выплата мастеру за оценку
-  ADMIN_TOPUP     // Админское зачисление средств
-  ADMIN_WITHDRAW  // Админское списание средств
-  REFERRAL_BONUS  // Реферальный бонус
-  WITHDRAWAL      // Вывод средств мастером на карту (списание при создании заявки)
+  ADMIN_TOPUP // Админское зачисление средств
+  ADMIN_WITHDRAW // Админское списание средств
+  REFERRAL_BONUS // Реферальный бонус
+  WITHDRAWAL // Вывод средств мастером на карту (списание при создании заявки)
   WITHDRAWAL_REFUND // Возврат на баланс при отклонении/отзыве заявки на вывод
 }
 
 model BalanceTransaction {
-  id            String                @id @default(uuid())
-  userId        String                @map("user_id")
+  id            String                 @id @default(uuid())
+  userId        String                 @map("user_id")
   type          BalanceTransactionType
-  amount        Decimal               @db.Decimal(12, 2) // Сумма (положительная — приход, отрицательная — расход)
-  balanceBefore Decimal               @map("balance_before") @db.Decimal(12, 2)
-  balanceAfter  Decimal               @map("balance_after") @db.Decimal(12, 2)
-  orderId       String?               @map("order_id")
+  amount        Decimal                @db.Decimal(12, 2) // Сумма (положительная — приход, отрицательная — расход)
+  balanceBefore Decimal                @map("balance_before") @db.Decimal(12, 2)
+  balanceAfter  Decimal                @map("balance_after") @db.Decimal(12, 2)
+  orderId       String?                @map("order_id")
   description   String?
   metadata      Json?
-  createdAt     DateTime              @default(now()) @map("created_at")
+  createdAt     DateTime               @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id])
 
@@ -1602,14 +1606,14 @@ model BalanceTransaction {
 // ════════════════════════════════════════════════
 
 model AuditLog {
-  id          String   @id @default(uuid())
-  actorId     String   @map("actor_id")          // Кто выполнил действие
-  action      String                              // ban_user, manual_balance, config_change, resolve_dispute, etc.
-  entityType  String   @map("entity_type")        // User, Order, Payment, etc.
-  entityId    String   @map("entity_id")          // ID сущности
-  details     Json?                               // Подробности действия
-  ipAddress   String?  @map("ip_address")
-  createdAt   DateTime @default(now()) @map("created_at")
+  id         String   @id @default(uuid())
+  actorId    String   @map("actor_id") // Кто выполнил действие
+  action     String // ban_user, manual_balance, config_change, resolve_dispute, etc.
+  entityType String   @map("entity_type") // User, Order, Payment, etc.
+  entityId   String   @map("entity_id") // ID сущности
+  details    Json? // Подробности действия
+  ipAddress  String?  @map("ip_address")
+  createdAt  DateTime @default(now()) @map("created_at")
 
   actor User @relation(fields: [actorId], references: [id])
 
@@ -1621,15 +1625,15 @@ model AuditLog {
 
 // ─── Форум мастеров ───────────────────────
 model ForumTopic {
-  id          String       @id @default(uuid())
-  title       String
-  content     String
-  images      String[]     @default([])
-  authorId    String       @map("author_id")
-  isPinned    Boolean      @default(false) @map("is_pinned")
-  isLocked    Boolean      @default(false) @map("is_locked")
-  createdAt   DateTime     @default(now()) @map("created_at")
-  updatedAt   DateTime     @updatedAt @map("updated_at")
+  id        String   @id @default(uuid())
+  title     String
+  content   String
+  images    String[] @default([])
+  authorId  String   @map("author_id")
+  isPinned  Boolean  @default(false) @map("is_pinned")
+  isLocked  Boolean  @default(false) @map("is_locked")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   author User        @relation("ForumTopicAuthor", fields: [authorId], references: [id])
   posts  ForumPost[]
@@ -1663,61 +1667,61 @@ model ForumPost {
 
 // Статусы привилегированного профиля
 enum PrivilegeStatus {
-  PENDING        // Ожидание проверки
-  ACTIVE         // Активен
-  SUSPENDED      // Приостановлен
-  REVOKED        // Отозван
+  PENDING // Ожидание проверки
+  ACTIVE // Активен
+  SUSPENDED // Приостановлен
+  REVOKED // Отозван
 }
 
 // Типы привилегированных лиц
 enum PrivilegeType {
-  OFFICIAL        // Государственный чиновник
-  BUILDING_HEAD   // Начальник жилого дома, ЖЭК, УК
-  BUSINESS_OWNER  // Владелец/директор предприятия
-  DISTRICT_HEAD   // Начальник объединённого квартала/округа
+  OFFICIAL // Государственный чиновник
+  BUILDING_HEAD // Начальник жилого дома, ЖЭК, УК
+  BUSINESS_OWNER // Владелец/директор предприятия
+  DISTRICT_HEAD // Начальник объединённого квартала/округа
 }
 
 // Модель: Профиль привилегированного должностного лица
 model PrivilegedOfficialProfile {
-  id                String            @id @default(uuid())
-  userId            String            @unique @map("user_id")
+  id                    String          @id @default(uuid())
+  userId                String          @unique @map("user_id")
   // Документ/реквизиты верификации
-  organizationName  String            @map("organization_name")    // ТОО "ЖЭК №3", Алмалинский жилой комплекс
-  position          String                                          // "Начальник", "Директор", "Уполномоченный"
-  documentNumber    String?           @map("document_number")       // Номер приказа, справки
-  documentUrl       String?           @map("document_url")          // URL скана документа
-  privilegeType     PrivilegeType                                    // Категория привилегий
+  organizationName      String          @map("organization_name") // ТОО "ЖЭК №3", Алмалинский жилой комплекс
+  position              String // "Начальник", "Директор", "Уполномоченный"
+  documentNumber        String?         @map("document_number") // Номер приказа, справки
+  documentUrl           String?         @map("document_url") // URL скана документа
+  privilegeType         PrivilegeType // Категория привилегий
   // Статус и жизненный цикл
-  status            PrivilegeStatus   @default(PENDING)
-  statusReason      String?           @map("status_reason")         // Причина отказа / приостановки
+  status                PrivilegeStatus @default(PENDING)
+  statusReason          String?         @map("status_reason") // Причина отказа / приостановки
   // Привилегии
-  canFastTrack      Boolean           @default(true) @map("can_fast_track")      // Ускорить своё заявления в очереди
-  canAssignMaster   Boolean           @default(true) @map("can_assign_master")   // Назначить мастера
-  canOverrideSla    Boolean           @default(false) @map("can_override_sla")  // Переопределить SLA
-  canAccessAnalytics Boolean          @default(true) @map("can_access_analytics") // Видеть метрики
+  canFastTrack          Boolean         @default(true) @map("can_fast_track") // Ускорить своё заявления в очереди
+  canAssignMaster       Boolean         @default(true) @map("can_assign_master") // Назначить мастера
+  canOverrideSla        Boolean         @default(false) @map("can_override_sla") // Переопределить SLA
+  canAccessAnalytics    Boolean         @default(true) @map("can_access_analytics") // Видеть метрики
   // Сроки действия и отсчёт
-  expiresAt         DateTime?         @map("expires_at")
-  renewalNotifSentAt DateTime?        @map("renewal_notif_sent_at")
+  expiresAt             DateTime?       @map("expires_at")
+  renewalNotifSentAt    DateTime?       @map("renewal_notif_sent_at")
   // KPI и мотивация
-  targetSlaScore    Float             @default(85.0) @map("target_sla_score")   // % заказов в срок
-  targetSatisfaction Float            @default(4.0) @map("target_satisfaction") // средняя оценка 1-5
+  targetSlaScore        Float           @default(85.0) @map("target_sla_score") // % заказов в срок
+  targetSatisfaction    Float           @default(4.0) @map("target_satisfaction") // средняя оценка 1-5
   // Бонусные программы
-  monthlyBonusPool  Decimal           @default(0) @map("monthly_bonus_pool") @db.Decimal(12, 2) // Пул на месяц (сум)
-  bonusPercentage   Float             @default(5.0) @map("bonus_percentage")    // % от сэкономленной суммы
+  monthlyBonusPool      Decimal         @default(0) @map("monthly_bonus_pool") @db.Decimal(12, 2) // Пул на месяц (сум)
+  bonusPercentage       Float           @default(5.0) @map("bonus_percentage") // % от сэкономленной суммы
   // Лимиты действий за день/месяц
-  dailyFastTrackLimit Int             @default(5) @map("daily_fast_track_limit")
-  dailyFastTrackUsed Int              @default(0) @map("daily_fast_track_used")
-  dailyFastTrackResetAt DateTime?     @map("daily_fast_track_reset_at")
+  dailyFastTrackLimit   Int             @default(5) @map("daily_fast_track_limit")
+  dailyFastTrackUsed    Int             @default(0) @map("daily_fast_track_used")
+  dailyFastTrackResetAt DateTime?       @map("daily_fast_track_reset_at")
   // Аудит
-  approvedBy        String?           @map("approved_by")           // ID админа, одобрившего статус
-  createdAt         DateTime          @default(now()) @map("created_at")
-  updatedAt         DateTime          @updatedAt @map("updated_at")
+  approvedBy            String?         @map("approved_by") // ID админа, одобрившего статус
+  createdAt             DateTime        @default(now()) @map("created_at")
+  updatedAt             DateTime        @updatedAt @map("updated_at")
 
-  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  approver          User?             @relation("OfficialApprover", fields: [approvedBy], references: [id])
-  actions           PrivilegedAction[]
-  kpiRecords        KPIRecord[]
-  orderPriorities   OfficialOrderPriority[]
+  user            User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  approver        User?                   @relation("OfficialApprover", fields: [approvedBy], references: [id])
+  actions         PrivilegedAction[]
+  kpiRecords      KPIRecord[]
+  orderPriorities OfficialOrderPriority[]
 
   @@index([status, expiresAt])
   @@index([privilegeType])
@@ -1727,16 +1731,16 @@ model PrivilegedOfficialProfile {
 
 // Модель: История и аудит действий привилегированного лица
 model PrivilegedAction {
-  id                String   @id @default(uuid())
-  officialId        String   @map("official_id")
-  action            String                         // 'FAST_TRACKED', 'ASSIGNED_MASTER', 'COMMENT_ADDED', 'PRIORITY_SET'
-  targetEntityType  String   @map("target_entity_type")  // 'ORDER', 'USER', 'MASTER'
-  targetEntityId    String   @map("target_entity_id")    // ID заказа, пользователя, мастера
-  description       String?                        // Описание действия
-  metadata          Json?                          // Доп. данные: {orderId, masterId, reason, etc}
-  ipAddress         String?  @map("ip_address")
-  userAgent         String?  @map("user_agent")
-  createdAt         DateTime @default(now()) @map("created_at")
+  id               String   @id @default(uuid())
+  officialId       String   @map("official_id")
+  action           String // 'FAST_TRACKED', 'ASSIGNED_MASTER', 'COMMENT_ADDED', 'PRIORITY_SET'
+  targetEntityType String   @map("target_entity_type") // 'ORDER', 'USER', 'MASTER'
+  targetEntityId   String   @map("target_entity_id") // ID заказа, пользователя, мастера
+  description      String? // Описание действия
+  metadata         Json? // Доп. данные: {orderId, masterId, reason, etc}
+  ipAddress        String?  @map("ip_address")
+  userAgent        String?  @map("user_agent")
+  createdAt        DateTime @default(now()) @map("created_at")
 
   official PrivilegedOfficialProfile @relation(fields: [officialId], references: [id], onDelete: Cascade)
 
@@ -1748,29 +1752,29 @@ model PrivilegedAction {
 
 // Модель: KPI и метрики по привилегированным лицам
 model KPIRecord {
-  id                String   @id @default(uuid())
-  officialId        String   @map("official_id")
-  period            String                         // '2024-06', '2024-Q2' (год-месяц или квартал)
+  id                 String    @id @default(uuid())
+  officialId         String    @map("official_id")
+  period             String // '2024-06', '2024-Q2' (год-месяц или квартал)
   // Метрики SLA: % заказов завершено в срок
-  totalOrders       Int      @default(0) @map("total_orders")
-  onTimeOrders      Int      @default(0) @map("on_time_orders")
-  slaScore          Float    @default(0.0) @map("sla_score")        // % (0–100)
+  totalOrders        Int       @default(0) @map("total_orders")
+  onTimeOrders       Int       @default(0) @map("on_time_orders")
+  slaScore           Float     @default(0.0) @map("sla_score") // % (0–100)
   // Метрики качества: средняя оценка клиентов (1–5звезд)
-  avgRating         Float    @default(0.0) @map("avg_rating")
-  ratingCount       Int      @default(0) @map("rating_count")
+  avgRating          Float     @default(0.0) @map("avg_rating")
+  ratingCount        Int       @default(0) @map("rating_count")
   // Метрики скорости решения жалоб
-  totalComplaints   Int      @default(0) @map("total_complaints")
-  resolvedComplaints Int     @default(0) @map("resolved_complaints")
-  avgResolutionDays Float    @default(0.0) @map("avg_resolution_days")
+  totalComplaints    Int       @default(0) @map("total_complaints")
+  resolvedComplaints Int       @default(0) @map("resolved_complaints")
+  avgResolutionDays  Float     @default(0.0) @map("avg_resolution_days")
   // Финансовые метрики
-  totalOrderAmount  Decimal  @default(0) @map("total_order_amount") @db.Decimal(12, 2)
-  savings           Decimal  @default(0) @map("savings") @db.Decimal(12, 2)  // Сумма сэкономленная по SLA
-  bonusEarned       Decimal  @default(0) @map("bonus_earned") @db.Decimal(12, 2)
+  totalOrderAmount   Decimal   @default(0) @map("total_order_amount") @db.Decimal(12, 2)
+  savings            Decimal   @default(0) @map("savings") @db.Decimal(12, 2) // Сумма сэкономленная по SLA
+  bonusEarned        Decimal   @default(0) @map("bonus_earned") @db.Decimal(12, 2)
   // Status
-  status            String   @default("PRELIMINARY")  // PRELIMINARY, FINAL, VOIDED
-  lockedAt          DateTime? @map("locked_at")
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @updatedAt @map("updated_at")
+  status             String    @default("PRELIMINARY") // PRELIMINARY, FINAL, VOIDED
+  lockedAt           DateTime? @map("locked_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
 
   official PrivilegedOfficialProfile @relation(fields: [officialId], references: [id], onDelete: Cascade)
 
@@ -1782,15 +1786,15 @@ model KPIRecord {
 
 // Модель: Приоритет к заказу, назначенный привилегированным лицом
 model OfficialOrderPriority {
-  id                String   @id @default(uuid())
-  orderId           String   @map("order_id")
-  officialId        String   @map("official_id")
-  priorityLevel     Int                            // 1 = критично, 2 = высокий, 3 = нормальный
-  reason            String?                        // Причина приоритизации
+  id             String   @id @default(uuid())
+  orderId        String   @map("order_id")
+  officialId     String   @map("official_id")
+  priorityLevel  Int // 1 = критично, 2 = высокий, 3 = нормальный
+  reason         String? // Причина приоритизации
   // SLA для этого заказа (переопределение глобального)
-  customSlaHours    Int?     @map("custom_sla_hours")     // Например: 4 часа вместо 24
-  bonusAmount       Decimal? @map("bonus_amount") @db.Decimal(12, 2) // Доп. награда за ускорение
-  createdAt         DateTime @default(now()) @map("created_at")
+  customSlaHours Int?     @map("custom_sla_hours") // Например: 4 часа вместо 24
+  bonusAmount    Decimal? @map("bonus_amount") @db.Decimal(12, 2) // Доп. награда за ускорение
+  createdAt      DateTime @default(now()) @map("created_at")
 
   official PrivilegedOfficialProfile @relation(fields: [officialId], references: [id], onDelete: Cascade)
 
@@ -1802,25 +1806,222 @@ model OfficialOrderPriority {
 
 // Модель: Настройки мотивации для привилегированных (кастомизируются админом)
 model MotivationSetting {
-  id                String   @id @default(uuid())
+  id                  String        @id @default(uuid())
   // Правые привилегии для разных уровней
-  privilegeType     PrivilegeType    @unique @map("privilege_type")
+  privilegeType       PrivilegeType @unique @map("privilege_type")
   // Пороги для достижений и бонусов
-  slaThresholdPct   Float   @default(85.0) @map("sla_threshold_pct")      // % для "Отличный SLA"
-  satisfactionMin   Float   @default(4.0) @map("satisfaction_min")        // минимум для бонуса
+  slaThresholdPct     Float         @default(85.0) @map("sla_threshold_pct") // % для "Отличный SLA"
+  satisfactionMin     Float         @default(4.0) @map("satisfaction_min") // минимум для бонуса
   // Бонус-структура
-  baseBonusPercentage Float @default(5.0) @map("base_bonus_percentage")  // % от экономии
-  slaBonusBoost     Float  @default(1.5) @map("sla_bonus_boost")         // множитель за хороший SLA
+  baseBonusPercentage Float         @default(5.0) @map("base_bonus_percentage") // % от экономии
+  slaBonusBoost       Float         @default(1.5) @map("sla_bonus_boost") // множитель за хороший SLA
   // Приоритеты и ускорение
-  fastTrackLimit    Int     @default(5) @map("fast_track_limit")         // Номер ускорений в день
-  maxCustomSlaHours Int     @default(4) @map("max_custom_sla_hours")     // max SLA override
+  fastTrackLimit      Int           @default(5) @map("fast_track_limit") // Номер ускорений в день
+  maxCustomSlaHours   Int           @default(4) @map("max_custom_sla_hours") // max SLA override
   // Памятки и напоминания
-  renewalDaysBefore Int     @default(30) @map("renewal_days_before")     // Напомнить за N дней до истечения
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @updatedAt @map("updated_at")
+  renewalDaysBefore   Int           @default(30) @map("renewal_days_before") // Напомнить за N дней до истечения
+  createdAt           DateTime      @default(now()) @map("created_at")
+  updatedAt           DateTime      @updatedAt @map("updated_at")
 
   @@map("motivation_settings")
 }
 
 // Модель: Связь User → PrivilegedOfficialProfile (добавляем в User)
 // (уже есть в User relationsи: privilegedProfile: PrivilegedOfficialProfile?)
+
+// ════════════════════════════════════════════════
+// ПРАЙС-РЕЕСТР — единый источник цены
+// ────────────────────────────────────────────────
+// До этого цены жили в двух местах: справочник решений в pricing-catalog.ts
+// (код, правится только деплоем) и Task.minPrice в каталоге услуг. Один и тот
+// же заказ считался по разным прайсам в зависимости от того, сматчилась
+// проблема по ключевым словам или нет.
+//
+// Здесь структура каталога решений перенесена в БД целиком:
+//   PriceProblem  — узнаваемая проблема в категории («Протечка трубы»)
+//   PriceSolution — её решение уровня GOOD / BETTER / BEST
+//   PriceSolutionLine — позиция решения с количеством
+//   PriceItem     — атомарная позиция с ценой за единицу (работа или материал)
+//
+// Цена позиции — единственное, что двигает калибровщик; структура решения
+// при этом не меняется. Каждая правка фиксируется в PriceBookVersion.
+// ════════════════════════════════════════════════
+
+enum PriceItemKind {
+  LABOR // работа мастера
+  MATERIAL // материал или расходник
+}
+
+enum PriceSource {
+  EXPERT // экспертная оценка (перенос из каталога, ручная правка админа)
+  CALIBRATED // подтянуто к медиане реальных сделок
+}
+
+enum PriceModifierType {
+  REGION // район / город
+  URGENCY // срочность
+  FLOOR // этаж без лифта
+  ACCESS // стеснённый доступ
+  SEASON // сезонный спрос
+}
+
+// Класс комплектующих: чем отличаются уровни сметы при одном объёме работ.
+enum MaterialClass {
+  STANDARD
+  ENHANCED
+  PREMIUM
+}
+
+model PriceItem {
+  id     String        @id @default(uuid())
+  code   String        @unique // plumbing.pipe.solder
+  name   String
+  nameUz String?       @map("name_uz")
+  nameEn String?       @map("name_en")
+  unit   String // шт. / м.п. / м² / точка / выезд
+  kind   PriceItemKind @default(LABOR)
+
+  unitPrice    Decimal @map("unit_price") @db.Decimal(12, 2) // цена за единицу
+  minCheck     Decimal @default(0) @map("min_check") @db.Decimal(12, 2)
+  laborMinutes Int     @default(60) @map("labor_minutes")
+
+  categorySlug String  @map("category_slug")
+  taskSlug     String? @map("task_slug") // связь с каталогом услуг
+
+  // ─── Калибровка по реальным сделкам (неделя 4) ───
+  source        PriceSource @default(EXPERT)
+  sampleSize    Int         @default(0) @map("sample_size") // сколько наблюдений за окно
+  priceP25      Decimal?    @map("price_p25") @db.Decimal(12, 2)
+  priceP75      Decimal?    @map("price_p75") @db.Decimal(12, 2)
+  calibratedAt  DateTime?   @map("calibrated_at")
+  // Когда цену последний раз правил человек. Калибровщик выдерживает после
+  // этого паузу: решение админа не должно перетираться на следующую ночь.
+  manualPriceAt DateTime?   @map("manual_price_at")
+
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  lines PriceSolutionLine[]
+
+  @@index([categorySlug])
+  @@index([kind])
+  @@index([taskSlug])
+  @@map("price_items")
+}
+
+model PriceProblem {
+  id           String   @id @default(uuid())
+  slug         String   @unique // plumbing.leak
+  categorySlug String   @map("category_slug")
+  name         String
+  keywords     String[] @default([])
+
+  // Векторный поиск проблемы по описанию клиента и по тому, что увидел Vision.
+  // Заполняется отдельным скриптом, поиск идёт через $queryRaw.
+  embedding Unsupported("vector(1536)")?
+
+  isActive  Boolean  @default(true) @map("is_active")
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  solutions PriceSolution[]
+
+  @@index([categorySlug])
+  @@map("price_problems")
+}
+
+model PriceSolution {
+  id            String        @id @default(uuid())
+  problemId     String        @map("problem_id")
+  tier          AiTier
+  title         String
+  description   String
+  days          Int           @default(1)
+  materialClass MaterialClass @default(STANDARD) @map("material_class")
+
+  problem PriceProblem        @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  lines   PriceSolutionLine[]
+
+  @@unique([problemId, tier])
+  @@index([problemId])
+  @@map("price_solutions")
+}
+
+model PriceSolutionLine {
+  id         String  @id @default(uuid())
+  solutionId String  @map("solution_id")
+  itemId     String  @map("item_id")
+  qty        Decimal @default(1) @db.Decimal(10, 3)
+  sortOrder  Int     @default(0) @map("sort_order")
+
+  solution PriceSolution @relation(fields: [solutionId], references: [id], onDelete: Cascade)
+  item     PriceItem     @relation(fields: [itemId], references: [id], onDelete: Restrict)
+
+  @@index([solutionId])
+  @@index([itemId])
+  @@map("price_solution_lines")
+}
+
+model PriceModifier {
+  id        String            @id @default(uuid())
+  type      PriceModifierType
+  key       String // yunusabad / urgent / floor-5-no-lift
+  label     String
+  factor    Decimal           @default(1.000) @db.Decimal(5, 3)
+  isActive  Boolean           @default(true) @map("is_active")
+  createdAt DateTime          @default(now()) @map("created_at")
+  updatedAt DateTime          @updatedAt @map("updated_at")
+
+  @@unique([type, key])
+  @@map("price_modifiers")
+}
+
+model PriceBookVersion {
+  id           String   @id @default(uuid())
+  version      Int      @unique
+  reason       String // «ручная правка», «калибровка 2026-09-10»
+  changedById  String?  @map("changed_by_id")
+  changes      Json     @default("[]") // [{code, field, from, to}]
+  itemsTouched Int      @default(0) @map("items_touched")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@map("price_book_versions")
+}
+
+// ════════════════════════════════════════════════
+// КАЛИБРОВКА ЦЕН ПО РЕАЛЬНЫМ СДЕЛКАМ
+// ────────────────────────────────────────────────
+// Экспертная цена стареет. Рынок говорит о себе двумя голосами, и оба уже
+// лежат в базе: сколько мастера ПРОСЯТ за заказ (OrderResponse.priceOffer)
+// и сколько за него в итоге ЗАПЛАТИЛИ (Order.price после закрытия).
+//
+// Наблюдение — это одна такая цифра, разложенная на позицию прайса.
+// Ночной калибровщик собирает их в медиану и квартили и двигает цену
+// позиции к рынку небольшими шагами.
+// ════════════════════════════════════════════════
+
+enum ObservationSource {
+  MASTER_OFFER // ставка мастера по заказу — сигнал предложения
+  FINAL_PRICE // фактическая цена закрытого заказа — сигнал сделки
+}
+
+model PriceObservation {
+  id         String            @id @default(uuid())
+  itemCode   String            @map("item_code")
+  orderId    String            @map("order_id")
+  source     ObservationSource
+  qty        Decimal           @default(1) @db.Decimal(10, 3)
+  // Выведенная цена за единицу: доля позиции в смете, отнесённая к её объёму.
+  unitPrice  Decimal           @map("unit_price") @db.Decimal(12, 2)
+  observedAt DateTime          @map("observed_at")
+  createdAt  DateTime          @default(now()) @map("created_at")
+
+  // Один заказ даёт по одному наблюдению на позицию и источник — повторный
+  // прогон сборщика не должен раздувать выборку копиями.
+  @@unique([orderId, itemCode, source])
+  @@index([itemCode, observedAt])
+  @@map("price_observations")
+}
