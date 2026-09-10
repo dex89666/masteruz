@@ -17,7 +17,13 @@
     "eval": "tsx scripts/eval/run-eval.ts",
     "eval:export": "tsx scripts/eval/export-dataset.ts",
     "eval:accuracy": "tsx scripts/eval/accuracy-report.ts",
-    "eval:seed": "tsx scripts/eval/seed-dataset.ts"
+    "eval:seed": "tsx scripts/eval/seed-dataset.ts",
+    "pricebook:import": "tsx scripts/pricebook/import-from-catalogs.ts",
+    "pricebook:dry": "tsx scripts/pricebook/import-from-catalogs.ts --dry",
+    "pricebook:embed": "tsx scripts/pricebook/embed-problems.ts",
+    "pricebook:calibrate": "tsx scripts/pricebook/calibrate.ts",
+    "pricebook:calibrate:dry": "tsx scripts/pricebook/calibrate.ts --dry",
+    "eval:gate": "tsx scripts/eval/gate.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1057.0",

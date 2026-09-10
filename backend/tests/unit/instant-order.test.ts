@@ -47,7 +47,14 @@ vi.mock('../../src/services/platformConfigService.js', () => ({
 
 import { prisma } from '../../src/config/database.js';
 import { balanceService } from '../../src/modules/balance/balance.service.js';
-import { instantOrderService } from '../../src/modules/instant-order/instant-order.service.js';
+import {
+  instantOrderService,
+  extractUnitQuantity,
+  computeEstimateConfidence,
+  decideEscalation,
+  priceSpreadRatio,
+  buildAiContext,
+} from '../../src/modules/instant-order/instant-order.service.js';
 
 const db = prisma as any;
 const CLIENT = 'client-1';
@@ -201,5 +208,137 @@ describe('пометки AI-заказа', () => {
     expect(order.isInstantAiOrder).toBe(true);
     expect(order.source).toBe('INSTANT_AI');
     expect(order.aiTemplateId).toBe('tpl-1');
+  });
+});
+
+describe('количество единиц работы', () => {
+  it('считает количество рядом с предметом', () => {
+    expect(extractUnitQuantity('заменить 3 розетки')).toBe(3);
+    expect(extractUnitQuantity('поменять 2 новые дверцы')).toBe(2);
+    expect(extractUnitQuantity('нужно 5 шт')).toBe(5);
+    expect(extractUnitQuantity('две розетки не работают')).toBe(2);
+  });
+
+  it('игнорирует числа, не относящиеся к количеству работ', () => {
+    // Главная причина завышенных смет: любое число в тексте раньше
+    // умножало цену — «уже 2 дня» превращалось в две протечки.
+    expect(extractUnitQuantity('течёт кран уже 2 дня')).toBeNull();
+    expect(extractUnitQuantity('живу на 5 этаже, сломался замок')).toBeNull();
+    expect(extractUnitQuantity('труба диаметром 20 мм подтекает')).toBeNull();
+    expect(extractUnitQuantity('перезвоните после 18:00')).toBeNull();
+  });
+
+  it('без чисел возвращает null', () => {
+    expect(extractUnitQuantity('не работает розетка')).toBeNull();
+    expect(extractUnitQuantity('')).toBeNull();
+  });
+
+  it('ограничивает количество разумным потолком', () => {
+    expect(extractUnitQuantity('99 розеток')).toBeLessThanOrEqual(20);
+  });
+});
+
+describe('уверенность в смете', () => {
+  it('следует за уверенностью AI, а не за уровнем варианта', () => {
+    const high = computeEstimateConfidence({ aiTopConfidence: 95, matchedCatalog: true, quantityKnown: true });
+    const low = computeEstimateConfidence({ aiTopConfidence: 55, matchedCatalog: true, quantityKnown: true });
+    expect(high).toBeGreaterThan(low);
+  });
+
+  it('fallback-путь менее уверен, чем каталожный', () => {
+    const catalog = computeEstimateConfidence({ aiTopConfidence: 80, matchedCatalog: true, quantityKnown: true });
+    const fallback = computeEstimateConfidence({ aiTopConfidence: 80, matchedCatalog: false, quantityKnown: true });
+    expect(fallback).toBeLessThan(catalog);
+  });
+
+  it('похожий закрытый заказ в истории повышает уверенность', () => {
+    const bare = computeEstimateConfidence({ aiTopConfidence: 75, matchedCatalog: true, quantityKnown: true });
+    const supported = computeEstimateConfidence({
+      aiTopConfidence: 75, matchedCatalog: true, quantityKnown: true, ragTopSimilarity: 0.86,
+    });
+    expect(supported).toBeGreaterThan(bare);
+  });
+
+  it('без AI-анализа уверенность заметно ниже', () => {
+    const manual = computeEstimateConfidence({ aiTopConfidence: null, matchedCatalog: true, quantityKnown: true });
+    expect(manual).toBeLessThan(0.7);
+  });
+
+  it('всегда остаётся в границах 0.35..0.95', () => {
+    const max = computeEstimateConfidence({
+      aiTopConfidence: 100, matchedCatalog: true, quantityKnown: true, ragTopSimilarity: 1, knowledgeTopSimilarity: 1,
+    });
+    const min = computeEstimateConfidence({
+      aiTopConfidence: 0, matchedCatalog: false, quantityKnown: false,
+    });
+    expect(max).toBeLessThanOrEqual(0.95);
+    expect(min).toBeGreaterThanOrEqual(0.35);
+  });
+});
+
+describe('ширина ценового разброса', () => {
+  it('считает разброс относительно середины диапазона', () => {
+    // 80–150 тыс: середина 115, разброс 70 / 115 ≈ 0.61
+    expect(priceSpreadRatio({ min: 80_000, max: 150_000 })).toBeCloseTo(0.61, 1);
+    // 100–110 тыс: узкий диапазон
+    expect(priceSpreadRatio({ min: 100_000, max: 110_000 })).toBeCloseTo(0.095, 2);
+  });
+
+  it('на отсутствующем или битом диапазоне возвращает null', () => {
+    expect(priceSpreadRatio(null)).toBeNull();
+    expect(priceSpreadRatio({ min: 0, max: 100 })).toBeNull();
+    expect(priceSpreadRatio({ min: 500, max: 100 })).toBeNull();
+  });
+});
+
+describe('лестница эскалации', () => {
+  it('уверенность + узкий разброс → фиксированная цена', () => {
+    expect(decideEscalation({ confidence: 90, priceSpread: 0.2, modelSaysOnSite: false })).toBe('AUTO');
+  });
+
+  it('уверенность есть, но разброс широкий → не фиксируем цену', () => {
+    // Классический случай: модель уверена, что это покраска, но 600 тыс это
+    // или 1,2 млн — не знает. Обещать одну цифру здесь нельзя.
+    expect(decideEscalation({ confidence: 92, priceSpread: 0.9, modelSaysOnSite: false })).toBe('ON_SITE');
+  });
+
+  it('средняя уверенность → уточняющий вопрос, а не сразу выезд', () => {
+    expect(decideEscalation({ confidence: 70, priceSpread: 0.4, modelSaysOnSite: false })).toBe('CONFIRM');
+  });
+
+  it('требование обмера при очень узком диапазоне считается перестраховкой', () => {
+    expect(decideEscalation({ confidence: 88, priceSpread: 0.1, modelSaysOnSite: true })).toBe('AUTO');
+  });
+
+  it('требование обмера при заметном разбросе уважается', () => {
+    expect(decideEscalation({ confidence: 88, priceSpread: 0.25, modelSaysOnSite: true })).toBe('CONFIRM');
+    expect(decideEscalation({ confidence: 70, priceSpread: 0.5, modelSaysOnSite: true })).toBe('ON_SITE');
+  });
+
+  it('без цены фиксировать нечего', () => {
+    expect(decideEscalation({ confidence: 95, priceSpread: null, modelSaysOnSite: false })).toBe('CONFIRM');
+    expect(decideEscalation({ confidence: 95, priceSpread: null, modelSaysOnSite: true })).toBe('ON_SITE');
+  });
+
+  it('низкая уверенность отправляет на выезд', () => {
+    expect(decideEscalation({ confidence: 40, priceSpread: 0.2, modelSaysOnSite: false })).toBe('ON_SITE');
+  });
+});
+
+describe('контекст от Vision', () => {
+  it('собирает резюме, объекты на фото и материалы', () => {
+    const ctx = buildAiContext({
+      summary: 'Течёт смеситель на кухне',
+      visualTags: ['смеситель grohe', 'гибкая подводка'],
+      materials: ['прокладка'],
+    } as any);
+
+    expect(ctx).toContain('Течёт смеситель');
+    expect(ctx).toContain('смеситель grohe');
+    expect(ctx).toContain('прокладка');
+  });
+
+  it('без анализа возвращает пустую строку', () => {
+    expect(buildAiContext(null)).toBe('');
   });
 });

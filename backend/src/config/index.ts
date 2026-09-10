@@ -100,6 +100,18 @@ export const config = {
     knowledgeTopK:       parseInt(env('RAG_KNOWLEDGE_TOP_K', '3'), 10),
   },
 
+  // Прайс-реестр — единый источник цены в БД (см. pricebook.service.ts).
+  // Пока выключен, расчёт идёт по каталогу в коде: флаг снимается после того,
+  // как прогон eval покажет паритет старого и нового пути.
+  pricebook: {
+    enabled: env('PRICEBOOK_ENABLED', 'false') === 'true',
+    // Реестр меняется редко, а читается на каждый заказ — держим в памяти.
+    cacheTtlMs: parseInt(env('PRICEBOOK_CACHE_TTL_MS', '300000'), 10),
+    // Множители (срочность, район, этаж) применяются только к труду:
+    // аварийный вызов не делает герметик дороже.
+    modifiersEnabled: env('PRICEBOOK_MODIFIERS_ENABLED', 'true') !== 'false',
+  },
+
   // Click (платежи)
   click: {
     merchantId: env('CLICK_MERCHANT_ID'),

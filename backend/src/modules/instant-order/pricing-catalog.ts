@@ -1547,117 +1547,244 @@ export function calculateSolutionPrice(
   return { workTotal, materialsTotal, total: workTotal + materialsTotal };
 }
 
+// ═══════════════════════════════════════════════
+// ОБЩАЯ ФОРМА СМЕТЫ
+// ───────────────────────────────────────────────
+// Оба пути расчёта (каталог решений и fallback по задачам БД) возвращают
+// одну и ту же структуру. Благодаря этому количество, ценовой хинт AI и
+// снятие выезда применяются к ним одинаково — раньше fallback проходил
+// мимо этих правил и давал другую цену на тот же заказ.
+// ═══════════════════════════════════════════════
+
+export interface PricedLine {
+  /**
+   * Код позиции прайс-реестра, если строка из него взята.
+   *
+   * По этому коду закрытый заказ раскладывается обратно на позиции и
+   * попадает в калибровку. У строк из каталога в коде его нет — такие
+   * сметы в обучение цены не идут.
+   */
+  code?: string;
+  name: string;
+  qty: number;
+  unit: string;
+  unitPrice: number;
+  total: number;
+}
+
+export interface EstimateVariant {
+  tier: 'GOOD' | 'BETTER' | 'BEST';
+  tierLabel: string;
+  title: string;
+  description: string;
+  works: PricedLine[];
+  materials: PricedLine[];
+  estimatedPrice: number;
+  estimatedDays: number;
+  confidence: number;
+  /**
+   * Диапазон цены по квартилям реальных сделок.
+   *
+   * Появляется, когда позиции сметы уже откалиброваны. Одна цифра честна
+   * только при узком разбросе — 80–150 тыс фиксировать можно, 400 тыс —
+   * 1,2 млн нельзя, даже если модель уверена в категории.
+   */
+  priceRange?: { min: number; max: number };
+  /** Можно ли показывать одну сумму вместо диапазона. */
+  priceIsFixed?: boolean;
+}
+
+export const TIER_LABELS: Record<string, string> = {
+  GOOD: 'Хороший — быстрое решение',
+  BETTER: 'Отличный — оптимальный',
+  BEST: 'Премиум — капитальное решение',
+};
+
+/** Максимум единиц штучной работы, который считаем без выезда мастера. */
+export const MAX_UNIT_QUANTITY = 20;
+
+/** Строки, которые не размножаются вместе с количеством: выезд оплачивается один раз. */
+function isPerVisitLine(line: PricedLine): boolean {
+  return /выезд|диагностик/i.test(line.name) || /выезд/i.test(line.unit);
+}
+
+const sumLines = (lines: PricedLine[]): number => lines.reduce((s, l) => s + l.total, 0);
+
+const recalcTotal = (v: EstimateVariant): number => sumLines(v.works) + sumLines(v.materials);
+
+/**
+ * Умножить смету на количество единиц работы.
+ *
+ * Раньше количество извлекалось из описания («заменить 3 розетки») и уходило
+ * только в классификатор сложности — цена оставалась как за одну единицу.
+ * Выезд мастера при этом остаётся однократным: он едет один раз независимо
+ * от того, сколько розеток менять.
+ */
+export function applyQuantity(variants: EstimateVariant[], quantity?: number | null): EstimateVariant[] {
+  if (!quantity || quantity < 2) return variants;
+  const factor = Math.min(Math.floor(quantity), MAX_UNIT_QUANTITY);
+
+  return variants.map((v) => {
+    const scale = (lines: PricedLine[]) =>
+      lines.map((l) => {
+        if (isPerVisitLine(l)) return l;
+        const qty = l.qty * factor;
+        return { ...l, qty, total: Math.round(qty * l.unitPrice) };
+      });
+
+    const works = scale(v.works);
+    const materials = scale(v.materials);
+    const next = { ...v, works, materials };
+    return {
+      ...next,
+      estimatedPrice: recalcTotal(next),
+      // Больше единиц — больше времени, но не линейно: мастер уже на объекте.
+      estimatedDays: Math.max(1, Math.ceil(v.estimatedDays * (1 + (factor - 1) * 0.35))),
+    };
+  });
+}
+
+// Порог, ниже которого расхождение с оценкой AI считаем шумом каталога.
+const HINT_MIN_RATIO = 1.3;
+// Выше этого AI явно ошибся в масштабе объекта — доверяем каталогу.
+const HINT_MAX_RATIO = 5;
+// Предел роста ставки труда, чтобы одна аномальная оценка не улетела в космос.
+const LABOR_SCALE_CAP = 8;
+
+/**
+ * Подтянуть смету к ценовому диапазону, который назвал AI Vision.
+ *
+ * Применяется ТОЛЬКО к труду. Стоимость материалов остаётся каталожной:
+ * хомут, фум-лента и герметик не дорожают оттого, что на фото оказался
+ * шкаф-купе вместо тумбы. Раньше коэффициент умножал и материалы —
+ * это давало строки вроде «Хомут — 45 000 сум».
+ */
+export function scaleVariantsToPriceHint(
+  variants: EstimateVariant[],
+  aiPriceHint?: { min: number; max: number } | null,
+): EstimateVariant[] {
+  if (!aiPriceHint || aiPriceHint.min <= 0 || aiPriceHint.max < aiPriceHint.min) return variants;
+  if (variants.length === 0) return variants;
+
+  const anchor = variants.find((v) => v.tier === 'BETTER') ?? variants[Math.floor(variants.length / 2)];
+  const aiMid = (aiPriceHint.min + aiPriceHint.max) / 2;
+  const ratio = aiMid / Math.max(anchor.estimatedPrice, 1);
+  if (ratio < HINT_MIN_RATIO || ratio > HINT_MAX_RATIO) return variants;
+
+  const anchorLabor = sumLines(anchor.works);
+  const anchorMaterials = sumLines(anchor.materials);
+  if (anchorLabor <= 0) return variants;
+
+  // Материалы фиксированы → весь недостающий объём добираем ставкой труда.
+  const laborScale = Math.min(Math.max((aiMid - anchorMaterials) / anchorLabor, 1), LABOR_SCALE_CAP);
+  if (laborScale <= 1.05) return variants;
+
+  return variants.map((v) => {
+    const works = v.works.map((w) => {
+      const unitPrice = Math.round((w.unitPrice * laborScale) / 5000) * 5000;
+      return { ...w, unitPrice, total: w.qty * unitPrice };
+    });
+    const next = { ...v, works };
+    return { ...next, estimatedPrice: recalcTotal(next) };
+  });
+}
+
+// Ниже этой суммы платный выезд удваивает чек и выглядит накруткой.
+const VISIT_FEE_DROP_THRESHOLD = 120_000;
+
+/**
+ * Убрать строку выезда из самого дешёвого варианта, если работа копеечная:
+ * замена розетки за 50 000 + выезд 50 000 = 100 % накрутки.
+ */
+export function dropVisitFeeOnCheapVariant(variants: EstimateVariant[]): EstimateVariant[] {
+  const good = variants.find((v) => v.tier === 'GOOD');
+  if (!good || good.estimatedPrice > VISIT_FEE_DROP_THRESHOLD) return variants;
+
+  return variants.map((v) => {
+    if (v.tier !== 'GOOD') return v;
+    const works = v.works.filter((w) => !isPerVisitLine(w));
+    if (works.length === v.works.length || works.length === 0) return v;
+    const next = { ...v, works };
+    return { ...next, estimatedPrice: recalcTotal(next) };
+  });
+}
+
+export interface BuildVariantsOptions {
+  /** Количество единиц штучной работы, извлечённое из описания клиента. */
+  quantity?: number | null;
+  /** Уверенность в смете, посчитанная из сигналов (см. computeEstimateConfidence). */
+  confidence?: number;
+  /**
+   * То, что понял Vision: краткое резюме, объекты на фото, материалы.
+   *
+   * Используется, только если по словам самого клиента проблема не нашлась.
+   * Порядок именно такой: слова клиента — истина, зрение — подсказка. Без
+   * этого заказ по одной фотографии без текста не находил ничего вообще.
+   */
+  aiContext?: string;
+}
+
 /**
  * Построить 3 варианта (GOOD / BETTER / BEST) из каталога расценок.
  *
- * Опционально принимает `aiPriceHint` от AI Vision. Если AI оценил работу
- * существенно дороже каталога (например, увидел крупный шкаф вместо маленького
- * комода) — пропорционально масштабируем все варианты в диапазон AI.
+ * Порядок применения правил важен:
+ *   1. базовые позиции из каталога;
+ *   2. умножение на количество единиц («3 розетки»);
+ *   3. подтягивание труда к оценке AI, если она существенно выше;
+ *   4. снятие выезда с самого дешёвого варианта.
  *
- * Для мелких работ (GOOD tier ≤ 70 000) убираем строку «Выезд мастера»,
- * чтобы не накручивать стоимость на простых заказах (замена розетки, лампочки).
+ * Шаг 3 идёт после шага 2 намеренно: AI оценивает весь объём работ целиком,
+ * поэтому сравнивать его диапазон нужно с уже умноженной сметой.
  */
 export function buildSmartVariants(
   categorySlug: string,
   categoryName: string,
   description: string,
-  aiPriceHint?: { min: number; max: number } | null
-): {
-  problemName: string;
-  variants: {
-    tier: 'GOOD' | 'BETTER' | 'BEST';
-    tierLabel: string;
-    title: string;
-    description: string;
-    works: { name: string; qty: number; unit: string; unitPrice: number; total: number }[];
-    materials: { name: string; qty: number; unit: string; unitPrice: number; total: number }[];
-    estimatedPrice: number;
-    estimatedDays: number;
-    confidence: number;
-  }[];
-} | null {
-  const problem = findProblemByDescription(categorySlug, description);
+  aiPriceHint?: { min: number; max: number } | null,
+  options: BuildVariantsOptions = {},
+): { problemName: string; variants: EstimateVariant[] } | null {
+  let problem = findProblemByDescription(categorySlug, description);
+  if (!problem && options.aiContext) {
+    problem = findProblemByDescription(categorySlug, options.aiContext);
+  }
   if (!problem) return null;
 
-  const TIER_LABELS: Record<string, string> = {
-    GOOD: 'Хороший — быстрое решение',
-    BETTER: 'Отличный — оптимальный',
-    BEST: 'Премиум — капитальное решение',
-  };
-  const TIER_CONFIDENCE: Record<string, number> = {
-    GOOD: 0.85,
-    BETTER: 0.92,
-    BEST: 0.97,
-  };
+  // Уверенность одинакова для всех трёх уровней: премиум-вариант не «вернее»
+  // базового, он просто дороже. Прежние 0.85 / 0.92 / 0.97 были константами,
+  // которые показывались клиенту как измеренная величина.
+  const confidence = options.confidence ?? 0.75;
 
-  // ── Шаг 1: построение базовых вариантов из каталога ─────────────
-  let variants = problem.solutions.map(sol => {
-    const pricing = calculateSolutionPrice(sol);
+  let variants: EstimateVariant[] = problem.solutions.map((sol) => {
+    const works: PricedLine[] = sol.works.map((w) => ({
+      name: w.name,
+      qty: w.qty,
+      unit: w.unit,
+      unitPrice: w.unitPrice,
+      total: w.qty * w.unitPrice,
+    }));
+    const materials: PricedLine[] = sol.materials.map((m) => ({
+      name: m.name,
+      qty: m.qty,
+      unit: m.unit,
+      unitPrice: m.unitPrice,
+      total: m.qty * m.unitPrice,
+    }));
     return {
       tier: sol.tier,
       tierLabel: TIER_LABELS[sol.tier] || sol.tier,
       title: sol.title,
       description: sol.description,
-      works: sol.works.map(w => ({
-        name: w.name,
-        qty: w.qty,
-        unit: w.unit,
-        unitPrice: w.unitPrice,
-        total: w.qty * w.unitPrice,
-      })),
-      materials: sol.materials.map(m => ({
-        name: m.name,
-        qty: m.qty,
-        unit: m.unit,
-        unitPrice: m.unitPrice,
-        total: m.qty * m.unitPrice,
-      })),
-      estimatedPrice: pricing.total,
+      works,
+      materials,
+      estimatedPrice: sumLines(works) + sumLines(materials),
       estimatedDays: sol.days,
-      confidence: TIER_CONFIDENCE[sol.tier] || 0.85,
+      confidence,
     };
   });
 
-  // ── Шаг 2: масштабирование под AI priceHint ──────────────────────
-  // Если AI Vision увидел нечто крупнее/дороже каталога (например,
-  // 2.5-метровый шкаф-купе вместо маленького комода), вариант GOOD
-  // в каталоге будет слишком дешёвым. Масштабируем все варианты
-  // пропорционально, чтобы BETTER попал в середину AI-диапазона.
-  if (aiPriceHint && aiPriceHint.min > 0 && aiPriceHint.max > 0 && variants.length > 0) {
-    const better = variants.find(v => v.tier === 'BETTER') ?? variants[Math.floor(variants.length / 2)];
-    const aiMid = (aiPriceHint.min + aiPriceHint.max) / 2;
-    const ratio = aiMid / Math.max(better.estimatedPrice, 1);
-    // Скейлим только если AI считает существенно дороже (>1.3x) и не безумно (<5x)
-    if (ratio >= 1.3 && ratio <= 5) {
-      const SCALE = ratio;
-      variants = variants.map(v => {
-        const scaledWorks = v.works.map(w => {
-          const newUnit = Math.round(w.unitPrice * SCALE / 5000) * 5000; // округление до 5к
-          return { ...w, unitPrice: newUnit, total: w.qty * newUnit };
-        });
-        const scaledMaterials = v.materials.map(m => {
-          const newUnit = Math.round(m.unitPrice * SCALE / 5000) * 5000;
-          return { ...m, unitPrice: newUnit, total: m.qty * newUnit };
-        });
-        const newPrice =
-          scaledWorks.reduce((s, w) => s + w.total, 0) +
-          scaledMaterials.reduce((s, m) => s + m.total, 0);
-        return { ...v, works: scaledWorks, materials: scaledMaterials, estimatedPrice: newPrice };
-      });
-    }
-  }
-
-  // ── Шаг 3: для мелких работ убираем «Выезд мастера» ──────────────
-  // Если итог GOOD-варианта ≤ 70 000, выезд платный делает заказ
-  // непропорционально дорогим (замена розетки 50к + выезд 50к = 100к = 100% накрутка).
-  const good = variants.find(v => v.tier === 'GOOD');
-  if (good && good.estimatedPrice <= 70_000 + 50_000) {
-    const visitRegex = /выезд\s+мастера|диагностика\s+и\s+выезд/i;
-    good.works = good.works.filter(w => !visitRegex.test(w.name));
-    good.estimatedPrice =
-      good.works.reduce((s, w) => s + w.total, 0) +
-      good.materials.reduce((s, m) => s + m.total, 0);
-  }
+  variants = applyQuantity(variants, options.quantity);
+  variants = scaleVariantsToPriceHint(variants, aiPriceHint);
+  variants = dropVisitFeeOnCheapVariant(variants);
 
   return { problemName: problem.problemName, variants };
 }

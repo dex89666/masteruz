@@ -1,0 +1,93 @@
+name: AI eval gate
+
+# Прогон размеченного набора через AI-анализ и проверка порогов качества.
+#
+# Запускается вручную и на изменения AI-контура. На каждый коммит не вешаем:
+# прогон обращается к OpenAI и стоит денег, поэтому он осознанный, а не фоновый.
+#
+# Требуемый GitHub Secret: OPENAI_API_KEY
+# Без него job завершается успешно с предупреждением — форки и внешние PR
+# не должны падать из-за отсутствия чужого ключа.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dataset:
+        description: 'Путь к набору'
+        default: 'scripts/eval/dataset.draft.json'
+      model:
+        description: 'Модель Vision (пусто — из конфигурации)'
+        default: ''
+  pull_request:
+    paths:
+      - 'backend/src/services/aiAnalysisService.ts'
+      - 'backend/src/modules/instant-order/**'
+      - 'backend/scripts/eval/**'
+
+jobs:
+  eval:
+    name: Прогон и гейт
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    defaults:
+      run:
+        working-directory: backend
+
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      # Пороги качества. Поднимаются по мере роста набора — на восьми кейсах
+      # строгий гейт ловит шум, а не регрессии.
+      EVAL_MIN_CASES: '8'
+      EVAL_MIN_CATEGORY_ACC: '75'
+      EVAL_MIN_WITHIN20: '40'
+      EVAL_MAX_GROSS_MISS: '35'
+      EVAL_MIN_REFUSAL_ACC: '50'
+      EVAL_MAX_REGRESSION_PP: '5'
+
+    steps:
+      - name: Checkout репозитория
+        uses: actions/checkout@v4
+
+      - name: Установить Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Установить зависимости
+        run: npm ci
+
+      - name: Сгенерировать Prisma Client
+        run: npx prisma generate
+
+      - name: Проверить наличие ключа
+        id: key
+        run: |
+          if [ -z "$OPENAI_API_KEY" ]; then
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::OPENAI_API_KEY не задан — прогон пропущен"
+          else
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Прогон набора
+        if: steps.key.outputs.available == 'true'
+        run: |
+          DATASET="${{ inputs.dataset || 'scripts/eval/dataset.draft.json' }}"
+          MODEL_ARG=""
+          if [ -n "${{ inputs.model }}" ]; then MODEL_ARG="--model ${{ inputs.model }}"; fi
+          npx tsx scripts/eval/run-eval.ts "$DATASET" $MODEL_ARG --json /tmp/eval.json
+
+      - name: Проверить пороги
+        if: steps.key.outputs.available == 'true'
+        run: npx tsx scripts/eval/gate.ts /tmp/eval.json
+
+      - name: Сохранить результат прогона
+        if: steps.key.outputs.available == 'true' && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-results
+          path: /tmp/eval.json
+          retention-days: 30

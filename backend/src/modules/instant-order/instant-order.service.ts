@@ -10,8 +10,20 @@ import { balanceService } from '../balance/balance.service.js';
 import { notificationService } from '../../services/notificationService.js';
 import { toNum, moneyMul, moneyAdd, calculateCommission } from '../../utils/helpers.js';
 import { OrderStatus } from '@prisma/client';
-import { buildSmartVariants } from './pricing-catalog.js';
+import {
+  buildSmartVariants,
+  applyQuantity,
+  scaleVariantsToPriceHint,
+  dropVisitFeeOnCheapVariant,
+  MAX_UNIT_QUANTITY,
+  TIER_LABELS,
+  type EstimateVariant,
+  type PricedLine,
+} from './pricing-catalog.js';
 import { analyzeOrder, type AiAnalysisResult } from '../../services/aiAnalysisService.js';
+import { buildVariantsFromPriceBook, buildVariantsFromJobs, attachPriceRanges } from './pricebook.service.js';
+import { findCandidateWorkItems } from './pricebook.candidates.js';
+import { config } from '../../config/index.js';
 
 // Тип AI-уровня (AiTier будет доступен после prisma generate)
 type AiTierType = 'GOOD' | 'BETTER' | 'BEST';
@@ -40,6 +52,18 @@ const TIER_MULTIPLIERS: Record<string, { price: number; days: number; label: str
 const MASTER_VISIT_FEE = 50_000;
 // Минимальный чек заказа — ниже этой суммы мастер на выезд не поедет.
 const MIN_VARIANT_PRICE = 90_000;
+
+// Сколько задач максимум попадает в резервную смету. Ограничение не даёт
+// собрать «пакет» из слабо связанных работ, которых клиент не просил.
+const FALLBACK_MAX_TASKS = 3;
+// Расходники мастера на одну работу: крепёж, герметик, изолента, перчатки.
+const CONSUMABLES_PER_TASK = 15_000;
+// Надбавка за класс комплектующих. Отличие уровней — в материале, не в объёме.
+const MATERIAL_CLASS_UPLIFT: Record<'GOOD' | 'BETTER' | 'BEST', number> = {
+  GOOD: 0,
+  BETTER: 25_000,
+  BEST: 60_000,
+};
 
 // ─── Минимальная длина внятного описания ──────
 const MIN_CLEAR_DESCRIPTION_LEN = 25;
@@ -409,28 +433,58 @@ const UNIT_WORK_KEYWORDS = [
 
 const SIMPLE_MAX_QTY = 3;
 
-/**
- * Извлекает количество штук из описания: «одна розетка», «1 розетка», «2 шт»…
- * Возвращает null, если не нашли число.
- */
-function extractUnitQuantity(text: string): number | null {
-  if (!text) return null;
-  const lower = text.toLowerCase();
+// Существительные штучных работ. Число считается количеством ТОЛЬКО рядом с
+// одним из них или с явным «шт». Прежний разбор брал любое число в тексте,
+// из-за чего «течёт кран уже 2 дня» превращалось в две протечки и удваивало смету.
+const COUNTABLE_NOUNS = [
+  // Основы даны с учётом беглых гласных: «розеток» не начинается с «розетк».
+  'розет', 'выключател', 'светильник', 'люстр', 'лампочк', 'ламп',
+  'смесител', 'кран', 'сифон', 'унитаз', 'раковин', 'мойк', 'ванн',
+  'замок', 'замк', 'ручк', 'ручек', 'петл', 'петел',
+  'дверц', 'дверец', 'фасад', 'ящик', 'полк', 'полок', 'крючок', 'крючк',
+  'карниз', 'плинтус', 'точк', 'точек', 'шкаф', 'комод', 'тумб',
+  'стул', 'стуль', 'стол', 'окн', 'окон', 'двер',
+  'радиатор', 'батаре', 'счетчик', 'кроват', 'диван', 'зеркал',
+];
 
-  // Словесные числительные → цифры
+/** Количество единиц работы: 1..MAX_UNIT_QUANTITY, либо null если не названо. */
+function clampUnitQuantity(n: number): number | null {
+  if (!Number.isFinite(n) || n < 1) return null;
+  return Math.min(Math.floor(n), MAX_UNIT_QUANTITY);
+}
+
+/**
+ * Извлекает количество штук из описания: «3 розетки», «две дверцы», «2 шт».
+ *
+ * Требует привязки числа к штучному предмету или к слову «шт» — иначе любые
+ * числа в тексте (сроки, этаж, диаметр, «уже 2 дня») попадали бы в расчёт цены.
+ *
+ * Границы слов заданы явно: \b в JavaScript опирается на латиницу и с
+ * кириллицей не работает — «5 шт» такому шаблону не соответствует.
+ */
+export function extractUnitQuantity(text: string): number | null {
+  if (!text) return null;
+  const lower = text.toLowerCase().replace(/ё/g, 'е');
+  const nouns = COUNTABLE_NOUNS.join('|');
+
+  // «2 шт», «3 штуки» — явная единица счёта, предмет называть не обязательно
+  const explicit = lower.match(/(?:^|[^\d])(\d{1,2})\s*шт(?:\.|ук[аиу]?)?(?![а-я])/);
+  if (explicit) return clampUnitQuantity(parseInt(explicit[1], 10));
+
+  // «3 розетки», «2 новые дверцы» — число вплотную к предмету
+  // (допускаем одно прилагательное между ними)
+  const nearNoun = lower.match(new RegExp(`(?:^|[^\\d])(\\d{1,2})\\s+(?:[а-я]+\\s+)?(?:${nouns})`));
+  if (nearNoun) return clampUnitQuantity(parseInt(nearNoun[1], 10));
+
+  // Словесные числительные: «две розетки», «пару выключателей»
   const wordToNum: Record<string, number> = {
     'один': 1, 'одну': 1, 'одна': 1, 'одно': 1,
     'два': 2, 'две': 2, 'двух': 2, 'пару': 2, 'пара': 2,
-    'три': 3, 'трёх': 3, 'трех': 3,
+    'три': 3, 'трех': 3, 'четыре': 4, 'пять': 5, 'шесть': 6,
   };
   for (const [w, n] of Object.entries(wordToNum)) {
-    const re = new RegExp(`(^|\\s)${w}(\\s|$)`, 'i');
-    if (re.test(lower)) return n;
+    if (new RegExp(`(?:^|[^а-я])${w}\\s+(?:[а-я]+\\s+)?(?:${nouns})`).test(lower)) return n;
   }
-
-  // Числа: «1 розетка», «2 шт», «3 светильника»
-  const numMatch = lower.match(/\b(\d{1,3})\s*(?:шт|штук|штуки|штуку)?/);
-  if (numMatch) return parseInt(numMatch[1], 10);
 
   return null;
 }
@@ -476,6 +530,135 @@ function descriptionHasMetrics(text: string): boolean {
     /(?:^|\s)[2-9]\s+(?:розет|выключ|окн|двер|комнат|светильник|точк|раковин|унитаз|смесител|шкаф|ламп)/i,
   ];
   return patterns.some((re) => re.test(lower));
+}
+
+/**
+ * Состав сметы в кодах позиций прайса — то, по чему закрытый заказ потом
+ * раскладывается обратно и попадает в калибровку цен.
+ *
+ * Строки без кода (каталог в коде) просто не попадают в обучение: лучше
+ * меньше наблюдений, чем наблюдения, привязанные не к той позиции.
+ */
+export function toPriceLines(variant: { works: PricedLine[]; materials: PricedLine[] }) {
+  const lines = [
+    ...variant.works.map((w) => ({ ...w, kind: 'LABOR' as const })),
+    ...variant.materials.map((m) => ({ ...m, kind: 'MATERIAL' as const })),
+  ];
+  return lines
+    .filter((l) => !!l.code)
+    .map((l) => ({ code: l.code!, kind: l.kind, qty: l.qty, unitPrice: l.unitPrice, total: l.total }));
+}
+
+export type EscalationLevel = 'AUTO' | 'CONFIRM' | 'ON_SITE';
+
+/** Ширина ценового разброса относительно середины: (max − min) / mid. */
+export function priceSpreadRatio(hint?: { min: number; max: number } | null): number | null {
+  if (!hint || hint.min <= 0 || hint.max < hint.min) return null;
+  const mid = (hint.min + hint.max) / 2;
+  if (mid <= 0) return null;
+  return (hint.max - hint.min) / mid;
+}
+
+// Уверенность, при которой цену можно фиксировать сразу.
+const AUTO_CONFIDENCE = 80;
+// Разброс, при котором одна цифра ещё честна: 80–150 тыс фиксировать можно.
+const AUTO_SPREAD = 0.3;
+// Ниже этой уверенности смету не собираем даже с уточнениями.
+const CONFIRM_CONFIDENCE = 60;
+// Разброс шире этого означает, что мы не знаем объём: 400 тыс — 1,2 млн.
+const CONFIRM_SPREAD = 0.6;
+// Насколько узким должен быть разброс, чтобы перебить требование обмера.
+const OVERRIDE_ONSITE_SPREAD = 0.15;
+
+/**
+ * Что делать со сметой: назвать цену, уточнить или ехать мерить.
+ *
+ * Решение принимается по двум осям, а не по одному флагу `needsOnSite`.
+ * Ширина ценового разброса не менее важна, чем уверенность модели: можно
+ * быть уверенным в категории «покраска» и при этом не знать, 600 тысяч
+ * это или полтора миллиона. Фиксированная цена в такой ситуации — обещание,
+ * которое мастер не сдержит.
+ */
+export function decideEscalation(input: {
+  /** Уверенность AI в категории, 0..100. */
+  confidence: number | null;
+  /** Ширина ценового разброса, см. priceSpreadRatio. null — цены нет вовсе. */
+  priceSpread: number | null;
+  /** Модель считает, что нужны замеры на месте. */
+  modelSaysOnSite: boolean;
+}): EscalationLevel {
+  const { confidence, priceSpread, modelSaysOnSite } = input;
+
+  // Цены нет — фиксировать нечего.
+  if (priceSpread === null) return modelSaysOnSite ? 'ON_SITE' : 'CONFIRM';
+  if (confidence === null) return 'CONFIRM';
+
+  if (confidence >= AUTO_CONFIDENCE && priceSpread <= AUTO_SPREAD) {
+    // Модель просит обмер, но сама назвала узкий диапазон — значит объём
+    // ей понятен, и это перестраховка. Уступаем ей только при широком разбросе.
+    if (modelSaysOnSite && priceSpread > OVERRIDE_ONSITE_SPREAD) return 'CONFIRM';
+    return 'AUTO';
+  }
+
+  if (confidence >= CONFIRM_CONFIDENCE && priceSpread <= CONFIRM_SPREAD) {
+    return modelSaysOnSite ? 'ON_SITE' : 'CONFIRM';
+  }
+
+  return 'ON_SITE';
+}
+
+/**
+ * Текст, описывающий то, ЧТО УВИДЕЛ Vision: резюме, объекты на фото, материалы.
+ *
+ * Нужен там, где слов клиента недостаточно или их нет совсем. Продукт
+ * называется «сфотографируй проблему», но подбор решения до этого шёл
+ * исключительно по тексту: заказ по одной фотографии не находил ничего.
+ */
+export function buildAiContext(ai: AiAnalysisResult | null): string {
+  if (!ai) return '';
+  return [ai.summary, ...(ai.visualTags || []), ...(ai.materials || [])]
+    .filter(Boolean)
+    .join('. ')
+    .trim();
+}
+
+/**
+ * Уверенность в смете — из наблюдаемых сигналов, а не из константы.
+ *
+ * Раньше клиенту показывали 0.85 / 0.92 / 0.97 в зависимости от уровня
+ * варианта: премиум якобы «вернее» базового. Это ничего не измеряло.
+ * Теперь величина отражает то, что система действительно знает о заказе:
+ * насколько уверен Vision в категории, нашлась ли проблема в каталоге
+ * расценок, есть ли похожие закрытые заказы и известен ли объём работ.
+ */
+export function computeEstimateConfidence(input: {
+  /** Уверенность AI в топ-категории, 0..100. null — анализ не проводился. */
+  aiTopConfidence?: number | null;
+  /** Проблема найдена в каталоге расценок (а не собрана fallback-путём). */
+  matchedCatalog: boolean;
+  /** Похожесть лучшего заказа из истории RAG, 0..1. */
+  ragTopSimilarity?: number | null;
+  /** Похожесть лучшего рецепта из базы знаний, 0..1. */
+  knowledgeTopSimilarity?: number | null;
+  /** Клиент назвал количество единиц работы. */
+  quantityKnown?: boolean;
+}): number {
+  // Без AI-анализа (клиент выбрал категорию руками) база ниже: система знает
+  // направление работ, но не видела объект.
+  let c = typeof input.aiTopConfidence === 'number' ? input.aiTopConfidence / 100 : 0.55;
+
+  // Fallback собирает смету из задач БД по совпадению слов — грубее каталога.
+  if (!input.matchedCatalog) c *= 0.85;
+
+  // Подтверждение историей: похожий закрытый заказ или проверенный рецепт.
+  const support = Math.max(input.ragTopSimilarity ?? 0, input.knowledgeTopSimilarity ?? 0);
+  if (support >= 0.8) c += 0.06;
+  else if (support >= 0.7) c += 0.03;
+
+  // Объём не назван — считаем по одной единице, риск промаха выше.
+  if (input.quantityKnown === false) c -= 0.05;
+
+  return Math.round(Math.min(Math.max(c, 0.35), 0.95) * 100) / 100;
 }
 
 /**
@@ -544,6 +727,85 @@ export class InstantOrderService {
   }
 
   /**
+   * Анализ фото через Vision — в один или два прохода.
+   *
+   * Контракт «спецификация» требует списка позиций прайса, из которых модель
+   * выбирает работы. Список подбирается по тексту — и здесь возникает
+   * развилка:
+   *
+   *   • клиент что-то написал → кандидатов находим сразу, хватает одного прохода;
+   *   • клиент прислал только фото → сначала спрашиваем модель, ЧТО она видит,
+   *     затем по её описанию подбираем кандидатов и спрашиваем второй раз,
+   *     КАКИЕ работы это закрывают.
+   *
+   * Второй проход стоит ещё одного запроса к Vision, но без него заказ по
+   * одной фотографии не с чем сопоставлять: у нас нет ни слова текста.
+   */
+  private async runVisionAnalysis(input: {
+    images: string[];
+    text: string;
+    leafCategories: any[];
+  }): Promise<AiAnalysisResult> {
+    const availableCategories = input.leafCategories.map((c: any) => ({ slug: c.slug, name: c.name }));
+    const hasText = input.text.trim().length > 0;
+
+    // Спецификация работает только поверх заполненного реестра.
+    if (!config.pricebook.enabled) {
+      return analyzeOrder({ photoUrls: input.images, text: input.text, availableCategories });
+    }
+
+    if (hasText) {
+      const candidates = await findCandidateWorkItems({ text: input.text }).catch(() => []);
+      return analyzeOrder({
+        photoUrls: input.images,
+        text: input.text,
+        availableCategories,
+        workCandidates: candidates,
+      });
+    }
+
+    // ─── Проход 1: что на фотографии ───
+    const firstPass = await analyzeOrder({ photoUrls: input.images, text: '', availableCategories });
+    const context = buildAiContext(firstPass);
+    const topSlug = firstPass.categories[0]?.slug;
+    if (!context || !topSlug) return firstPass;
+
+    const candidates = await findCandidateWorkItems({
+      text: context,
+      categorySlugs: [topSlug],
+    }).catch(() => []);
+    if (candidates.length === 0) return firstPass;
+
+    // ─── Проход 2: какие работы это закрывают ───
+    try {
+      const secondPass = await analyzeOrder({
+        photoUrls: input.images,
+        // Во второй проход отдаём то, что модель сама увидела в первом:
+        // так она сопоставляет работы со своим же описанием объекта.
+        text: context,
+        availableCategories,
+        workCandidates: candidates,
+      });
+
+      // Расхождение проходов в категории — честный сигнал неуверенности,
+      // а не повод молча выбрать один из ответов.
+      const agreed = secondPass.categories[0]?.slug === topSlug;
+      logger.info(
+        { firstPass: topSlug, secondPass: secondPass.categories[0]?.slug, agreed, jobs: secondPass.jobs.length },
+        'Vision: второй проход завершён'
+      );
+
+      if (!agreed && secondPass.categories[0]) {
+        secondPass.categories[0].confidence = Math.round(secondPass.categories[0].confidence * 0.8);
+      }
+      return secondPass;
+    } catch (err) {
+      logger.warn({ err: (err as Error).message }, 'Vision: второй проход не удался — берём результат первого');
+      return firstPass;
+    }
+  }
+
+  /**
    * AI-анализ фотографий и описания → 3 варианта (Good / Better / Best)
    */
   async analyzePhotos(userId: string, data: {
@@ -575,8 +837,11 @@ export class InstantOrderService {
     // Объединяем описание из голоса и текста
     const combinedDescription = [voiceText, description].filter(Boolean).join('. ');
 
-    if (!combinedDescription && explicitIds.length === 0) {
-      throw ApiError.badRequest('Опишите что нужно сделать (голосом или текстом) или выберите категорию');
+    // Заказ по одной фотографии без единого слова — основной сценарий продукта:
+    // клиент снимает поломку и получает смету. Раньше такой запрос отклонялся,
+    // и «Заказ за 30 секунд» на деле требовал описания.
+    if (!combinedDescription && explicitIds.length === 0 && images.length === 0) {
+      throw ApiError.badRequest('Добавьте фото или опишите, что нужно сделать');
     }
 
     // ═══════════════════════════════════════════════════════════════════
@@ -624,31 +889,37 @@ export class InstantOrderService {
       // может выбрать родителя («Помощь по дому»), у которого нет услуг.
       const leafCategories = allCategoriesActive.filter(categoryHasTasks);
 
-      aiAnalysis = await analyzeOrder({
-        photoUrls: images,
+      aiAnalysis = await this.runVisionAnalysis({
+        images,
         text: combinedDescription,
-        availableCategories: leafCategories.map((c: any) => ({
-          slug: c.slug,
-          name: c.name,
-        })),
+        leafCategories,
       });
 
-      // AI сказал — нужен выезд для замеров → сразу ON_SITE
-      // НО: если AI уверенно определил категорию и дал ценовой диапазон —
-      // он реально знает работу, просто перестраховался. Игнорируем needsOnSite и строим смету.
+      // ─── Лестница эскалации ───────────────────────────────────────
+      // Решение принимается по двум осям: уверенность модели и ширина
+      // ценового разброса. Прежде хватало одного флага needsOnSite, из-за
+      // чего система либо обещала точную цену там, где не знала объём,
+      // либо гнала мастера на замер ради замены розетки.
       const aiTop = aiAnalysis.categories[0];
-      const aiHasConfidentPrice =
-        !!aiAnalysis.priceHint &&
-        aiAnalysis.priceHint.min > 0 &&
-        aiAnalysis.priceHint.max >= aiAnalysis.priceHint.min &&
-        !!aiTop &&
-        aiTop.confidence >= 70;
+      const spread = priceSpreadRatio(aiAnalysis.priceHint);
+      const escalation = decideEscalation({
+        confidence: aiTop?.confidence ?? null,
+        priceSpread: spread,
+        modelSaysOnSite: aiAnalysis.needsOnSite,
+      });
 
-      if (aiAnalysis.needsOnSite && !aiHasConfidentPrice) {
-        logger.info(
-          { topCat: aiAnalysis.categories[0]?.slug, conf: aiAnalysis.categories[0]?.confidence },
-          'AI-анализ: требуется выезд мастера для обмера (определено AI)'
-        );
+      logger.info(
+        {
+          topCat: aiTop?.slug,
+          conf: aiTop?.confidence,
+          spread: spread === null ? null : Math.round(spread * 100) / 100,
+          modelSaysOnSite: aiAnalysis.needsOnSite,
+          escalation,
+        },
+        'AI-анализ: уровень эскалации определён'
+      );
+
+      if (escalation === 'ON_SITE') {
         const partialMatches = aiAnalysis.categories
           .map((g) => allCategoriesActive.find((c: any) => c.slug === g.slug))
           .filter(Boolean)
@@ -659,6 +930,7 @@ export class InstantOrderService {
           needsClarification: false,
           needsOnSiteEstimation: true,
           complexity: 'ON_SITE' as const,
+          escalation,
           aiSummary: aiAnalysis.summary,
           urgency: aiAnalysis.urgency,
           message:
@@ -676,10 +948,10 @@ export class InstantOrderService {
         const cat = allCategoriesActive.find((c: any) => c.slug === top.slug);
         if (cat) {
           detectedCategories = [cat];
-          // AI уверен в категории и не запросил выезд → доверяем ему и пропускаем
-          // локальные эвристики «уточняющих вопросов». Клиент уже описал суть проблемы —
-          // сразу собираем варианты Good/Better/Best.
-          aiConfidentSkipClarify = true;
+          // Уточнения пропускаем только на уровне AUTO: модель уверена И
+          // назвала узкий диапазон. На уровне CONFIRM клиент получит вопрос
+          // об объёме — это дешевле, чем неверная цена в эскроу.
+          aiConfidentSkipClarify = escalation === 'AUTO';
         }
       } else if (top && top.confidence >= POSSIBLE_THRESHOLD) {
         // Клиент должен подтвердить — возвращаем топ-3 с confidence
@@ -794,7 +1066,8 @@ export class InstantOrderService {
         userId,
         detectedCategories,
         combinedDescription,
-        images
+        images,
+        aiAnalysis,
       );
     }
 
@@ -820,52 +1093,164 @@ export class InstantOrderService {
     }
 
     // ─── УМНЫЙ AI-анализ: сначала каталог расценок, потом fallback ──
-    let analysisResult: any;
+    // Количество единиц («заменить 3 розетки») теперь доходит до расчёта цены,
+    // а не остаётся в классификаторе сложности.
+    const unitQuantity = extractUnitQuantity(combinedDescription);
+    const aiContext = buildAiContext(aiAnalysis);
+    const estimateConfidence = computeEstimateConfidence({
+      aiTopConfidence: aiAnalysis?.categories[0]?.confidence ?? null,
+      matchedCatalog: true,
+      ragTopSimilarity: aiAnalysis?.raw.ragTopSimilarity ?? null,
+      knowledgeTopSimilarity: aiAnalysis?.raw.knowledgeTopSimilarity ?? null,
+      quantityKnown: unitQuantity !== null,
+    });
+
     const smartResult = buildSmartVariants(
       category.slug,
       category.name,
       combinedDescription,
-      aiAnalysis?.priceHint ?? null
+      aiAnalysis?.priceHint ?? null,
+      { quantity: unitQuantity, confidence: estimateConfidence, aiContext }
     );
 
-    if (smartResult) {
-      // Умный каталог нашёл конкретную проблему → точные цены Ташкента 2026
+    // ─── Прайс-реестр в БД: основной путь, когда включён ───────────
+    // Реестр правится из админки и калибруется по реальным сделкам, поэтому
+    // при готовности он имеет приоритет над каталогом в коде. Флаг снимается
+    // после того, как прогон eval покажет паритет двух путей.
+    // Спецификация от Vision — самый точный путь: коды работ и объём известны,
+    // остаётся сложить по прайсу. Языковая модель в цене не участвует вовсе.
+    const fromJobs = config.pricebook.enabled && (aiAnalysis?.jobs?.length ?? 0) > 0
+      ? await buildVariantsFromJobs(aiAnalysis!.jobs, {
+          categorySlug: category.slug,
+          description: combinedDescription,
+          confidence: estimateConfidence,
+          urgency: aiAnalysis?.urgency,
+        }).catch((err) => {
+          logger.warn({ err: err?.message }, 'Смета по спецификации не собралась — идём обычным путём');
+          return null;
+        })
+      : null;
+
+    const fromPriceBook = !fromJobs && config.pricebook.enabled
+      ? await buildVariantsFromPriceBook({
+          categorySlug: category.slug,
+          description: combinedDescription,
+          quantity: unitQuantity,
+          confidence: estimateConfidence,
+          urgency: aiAnalysis?.urgency,
+          aiPriceHint: aiAnalysis?.priceHint ?? null,
+          aiContext,
+        }).catch((err) => {
+          logger.warn({ err: err?.message }, 'Прайс-реестр недоступен — считаем по каталогу в коде');
+          return null;
+        })
+      : null;
+
+    // Все пути дают одну и ту же форму сметы — расходятся только источником
+    // позиций и привязкой к задачам БД.
+    let variants: EstimateVariant[];
+    let variantTaskIds: string[];
+    let priceSource: 'JOBS' | 'PRICEBOOK' | 'CATALOG' | 'FALLBACK';
+
+    if (fromJobs) {
       logger.info(
-        { categorySlug: category.slug, problem: smartResult.problemName },
+        {
+          categorySlug: category.slug,
+          problem: fromJobs.problemSlug,
+          jobs: aiAnalysis!.jobs.map((j) => `${j.workCode}×${j.qty}`),
+        },
+        'AI-анализ: смета собрана по спецификации работ'
+      );
+      variants = fromJobs.variants;
+      const matched = this.matchTasksToSolution(
+        allTasks,
+        fromJobs.variants[0]?.title ?? '',
+        fromJobs.variants[0]?.description ?? '',
+      );
+      variantTaskIds = matched.length > 0 ? matched : [allTasks[0]?.id].filter(Boolean);
+      priceSource = 'JOBS';
+    } else if (fromPriceBook) {
+      logger.info(
+        { categorySlug: category.slug, problem: fromPriceBook.problemSlug, quantity: unitQuantity },
+        'AI-анализ: смета собрана из прайс-реестра'
+      );
+      variants = fromPriceBook.variants;
+      const matched = this.matchTasksToSolution(
+        allTasks,
+        fromPriceBook.variants[0]?.title ?? '',
+        fromPriceBook.variants[0]?.description ?? '',
+      );
+      variantTaskIds = matched.length > 0 ? matched : [allTasks[0]?.id].filter(Boolean);
+      priceSource = 'PRICEBOOK';
+    } else if (smartResult) {
+      // Умный каталог нашёл конкретную проблему → позиции с ценами Ташкента
+      logger.info(
+        { categorySlug: category.slug, problem: smartResult.problemName, quantity: unitQuantity },
         'AI-анализ: найдена проблема в каталоге расценок'
       );
-
-      // Подбираем taskIds из БД-задач по ключевым словам решения
-      analysisResult = {
-        variants: smartResult.variants.map((v: any) => {
-          // Ищем подходящие задачи из каталога для привязки
-          const matchedTaskIds = this.matchTasksToSolution(allTasks, v.title, v.description);
-          return {
-            tier: v.tier,
-            tierLabel: v.tierLabel,
-            taskIds: matchedTaskIds.length > 0 ? matchedTaskIds : [allTasks[0]?.id].filter(Boolean),
-            materials: v.materials.map((m: any) => ({
-              name: m.name,
-              quantity: m.qty,
-              unit: m.unit,
-              unitPrice: m.unitPrice,
-              total: m.total,
-            })),
-            estimatedPrice: v.estimatedPrice,
-            estimatedDays: v.estimatedDays,
-            confidence: v.confidence,
-            description: `${v.title}. ${v.description}`,
-          };
-        }),
-      };
+      variants = smartResult.variants;
+      const matched = this.matchTasksToSolution(
+        allTasks,
+        smartResult.variants[0]?.title ?? '',
+        smartResult.variants[0]?.description ?? '',
+      );
+      variantTaskIds = matched.length > 0 ? matched : [allTasks[0]?.id].filter(Boolean);
+      priceSource = 'CATALOG';
     } else {
-      // Fallback: старая логика на основе задач из каталога
+      // Fallback: смета собирается из задач БД по совпадению с описанием
       logger.info(
-        { categorySlug: category.slug },
+        { categorySlug: category.slug, quantity: unitQuantity },
         'AI-анализ: проблема не найдена в каталоге, используем fallback'
       );
-      analysisResult = this.generateVariantsFallback(category, allTasks, combinedDescription, images);
+      const fb = this.generateVariantsFallback(category, allTasks, combinedDescription, {
+        quantity: unitQuantity,
+        aiContext,
+        aiPriceHint: aiAnalysis?.priceHint ?? null,
+        // Fallback грубее каталожного пути — уверенность ниже.
+        confidence: computeEstimateConfidence({
+          aiTopConfidence: aiAnalysis?.categories[0]?.confidence ?? null,
+          matchedCatalog: false,
+          ragTopSimilarity: aiAnalysis?.raw.ragTopSimilarity ?? null,
+          knowledgeTopSimilarity: aiAnalysis?.raw.knowledgeTopSimilarity ?? null,
+          quantityKnown: unitQuantity !== null,
+        }),
+      });
+      variants = fb.variants;
+      variantTaskIds = fb.taskIds;
+      priceSource = 'FALLBACK';
     }
+
+    // Диапазон по квартилям реальных сделок. Считается только для реестра:
+    // у каталога в коде нет ни кодов позиций, ни статистики сделок.
+    if (config.pricebook.enabled && (priceSource === 'JOBS' || priceSource === 'PRICEBOOK')) {
+      variants = await attachPriceRanges(variants).catch((err) => {
+        logger.warn({ err: err?.message }, 'Диапазон цены не посчитан — показываем одну сумму');
+        return variants;
+      });
+    }
+
+    const analysisResult = {
+      variants: variants.map((v) => ({
+        tier: v.tier,
+        tierLabel: v.tierLabel,
+        taskIds: variantTaskIds,
+        materials: v.materials.map((m) => ({
+          name: m.name,
+          quantity: m.qty,
+          unit: m.unit,
+          unitPrice: m.unitPrice,
+          total: m.total,
+        })),
+        works: v.works,
+        priceLines: toPriceLines(v),
+        estimatedPrice: v.estimatedPrice,
+        priceRange: v.priceRange,
+        priceIsFixed: v.priceIsFixed,
+        estimatedDays: v.estimatedDays,
+        confidence: v.confidence,
+        description: `${v.title}. ${v.description}`,
+      })),
+    };
 
     // Сохраняем шаблоны в БД
     let templates;
@@ -879,6 +1264,7 @@ export class InstantOrderService {
               tierLabel: variant.tierLabel,
               taskIds: variant.taskIds,
               materials: variant.materials,
+              priceLines: variant.priceLines ?? [],
               estimatedPrice: Math.min(Math.round(variant.estimatedPrice), 9_999_999_999),
               estimatedDays: variant.estimatedDays,
               confidence: variant.confidence,
@@ -920,7 +1306,7 @@ export class InstantOrderService {
     }
 
     logger.info(
-      { userId, categoryId: category.id, variantCount: templates.length },
+      { userId, categoryId: category.id, variantCount: templates.length, priceSource, quantity: unitQuantity },
       'AI-анализ завершён, варианты созданы'
     );
 
@@ -933,6 +1319,9 @@ export class InstantOrderService {
         slug: category.slug,
       },
       detectedFromPhoto: explicitIds.length === 0,
+      // Откуда взялась цена: реестр в БД, каталог в коде или резервный расчёт.
+      // Нужно для сверки паритета путей на eval-наборе.
+      priceSource,
       aiSummary: aiAnalysis?.summary,
       aiConfidence: aiAnalysis?.categories[0]?.confidence,
       urgency: aiAnalysis?.urgency,
@@ -949,7 +1338,7 @@ export class InstantOrderService {
           confidence: aiAnalysis?.categories[0]?.confidence,
         },
       ],
-      variants: templates.map((t: any) => ({
+      variants: templates.map((t: any, i: number) => ({
         id: t.id,
         tier: t.tier,
         tierLabel: t.tierLabel,
@@ -959,6 +1348,10 @@ export class InstantOrderService {
         estimatedDays: t.estimatedDays,
         confidence: t.confidence,
         description: t.description,
+        // Диапазон живёт в ответе, а не в шаблоне: он меняется вместе с
+        // калибровкой, а шаблон фиксирует цену на момент показа.
+        priceRange: analysisResult.variants[i]?.priceRange,
+        priceIsFixed: analysisResult.variants[i]?.priceIsFixed,
       })),
       allTasks: allTasks.map((t: any) => ({
         id: t.id,
@@ -1040,7 +1433,19 @@ export class InstantOrderService {
         category.slug,
         category.name,
         combinedDescription,
-        aiAnalysis.priceHint ?? null
+        aiAnalysis.priceHint ?? null,
+        // Экспресс-оценка считается по тем же правилам, что и полная смета:
+        // иначе анонимный калькулятор и авторизованный заказ дают разные цены.
+        {
+          quantity: extractUnitQuantity(combinedDescription),
+          confidence: computeEstimateConfidence({
+            aiTopConfidence: top?.confidence ?? null,
+            matchedCatalog: true,
+            ragTopSimilarity: aiAnalysis.raw.ragTopSimilarity,
+            knowledgeTopSimilarity: aiAnalysis.raw.knowledgeTopSimilarity,
+            quantityKnown: extractUnitQuantity(combinedDescription) !== null,
+          }),
+        }
       );
       if (smart) {
         variants = smart.variants.map((v) => ({
@@ -1370,9 +1775,10 @@ export class InstantOrderService {
    * 1. Для каждой найденной категории строим её собственный набор вариантов
    *    (через buildSmartVariants → fallback). Берём BEST per-категория для самой полной картины.
    * 2. Объединяем результаты в 3 уровня:
-   *    GOOD    = сумма GOOD по всем категориям (минимально достаточно)
-   *    BETTER  = сумма BETTER (рекомендуем)
-   *    BEST    = сумма BEST (всё с премиум-материалами)
+   *    GOOD    = сумма GOOD по всем категориям (стандартные комплектующие)
+   *    BETTER  = сумма BETTER (комплектующие повышенного класса)
+   *    BEST    = сумма BEST (премиум-комплектующие)
+   *    Объём работ во всех трёх уровнях одинаковый — отличается класс исполнения.
    * 3. taskIds объединяются, materials конкатенируются.
    * 4. Сохраняем шаблоны в БД как обычно (categoryId — самая весомая = первая).
    */
@@ -1380,13 +1786,15 @@ export class InstantOrderService {
     userId: string,
     categories: any[],
     description: string,
-    images: string[]
+    images: string[],
+    aiAnalysis: AiAnalysisResult | null,
   ) {
     type SubVariant = {
       tier: AiTierType;
       tierLabel: string;
       taskIds: string[];
       materials: any[];
+      priceLines: ReturnType<typeof toPriceLines>;
       estimatedPrice: number;
       estimatedDays: number;
       confidence: number;
@@ -1394,34 +1802,57 @@ export class InstantOrderService {
     };
     type CategoryBundle = {
       category: any;
-      variants: Record<AiTierType, SubVariant>;
+      taskIds: string[];
+      variants: EstimateVariant[];
     };
 
+    const unitQuantity = extractUnitQuantity(description);
     const bundles: CategoryBundle[] = [];
 
+    // ─── Шаг 1: смета по каждому направлению БЕЗ ценового хинта ──────
+    // Хинт AI относится ко всему заказу целиком, поэтому применить его
+    // к каждой категории по отдельности значило бы умножить его на их число.
     for (const cat of categories) {
       const tasks = cat.subcategories?.flatMap((s: any) => s.tasks || []) || [];
       if (tasks.length === 0) continue;
 
-      const smart = buildSmartVariants(cat.slug, cat.name, description);
-      let perTier: Record<AiTierType, SubVariant>;
+      const confidence = computeEstimateConfidence({
+        aiTopConfidence: aiAnalysis?.categories[0]?.confidence ?? null,
+        matchedCatalog: true,
+        ragTopSimilarity: aiAnalysis?.raw.ragTopSimilarity ?? null,
+        knowledgeTopSimilarity: aiAnalysis?.raw.knowledgeTopSimilarity ?? null,
+        quantityKnown: unitQuantity !== null,
+      });
+
+      const smart = buildSmartVariants(cat.slug, cat.name, description, null, {
+        quantity: unitQuantity,
+        confidence,
+      });
 
       if (smart) {
-        perTier = {
-          GOOD: this.smartToSubVariant(smart.variants.find((v: any) => v.tier === 'GOOD'), tasks),
-          BETTER: this.smartToSubVariant(smart.variants.find((v: any) => v.tier === 'BETTER'), tasks),
-          BEST: this.smartToSubVariant(smart.variants.find((v: any) => v.tier === 'BEST'), tasks),
-        } as any;
+        const matched = this.matchTasksToSolution(
+          tasks,
+          smart.variants[0]?.title ?? '',
+          smart.variants[0]?.description ?? '',
+        );
+        bundles.push({
+          category: cat,
+          taskIds: matched.length > 0 ? matched : tasks[0] ? [tasks[0].id] : [],
+          variants: smart.variants,
+        });
       } else {
-        const fb = this.generateVariantsFallback(cat, tasks, description, images);
-        perTier = {
-          GOOD: fb.variants[0] as SubVariant,
-          BETTER: fb.variants[1] as SubVariant,
-          BEST: fb.variants[2] as SubVariant,
-        };
+        const fb = this.generateVariantsFallback(cat, tasks, description, {
+          quantity: unitQuantity,
+          confidence: computeEstimateConfidence({
+            aiTopConfidence: aiAnalysis?.categories[0]?.confidence ?? null,
+            matchedCatalog: false,
+            ragTopSimilarity: aiAnalysis?.raw.ragTopSimilarity ?? null,
+            knowledgeTopSimilarity: aiAnalysis?.raw.knowledgeTopSimilarity ?? null,
+            quantityKnown: unitQuantity !== null,
+          }),
+        });
+        bundles.push({ category: cat, taskIds: fb.taskIds, variants: fb.variants });
       }
-
-      bundles.push({ category: cat, variants: perTier });
     }
 
     if (bundles.length === 0) {
@@ -1430,30 +1861,72 @@ export class InstantOrderService {
 
     const primary = bundles[0].category;
 
-    // ─── Объединяем по уровням ──────────────────────────────
+    // ─── Шаг 2: ценовой хинт AI распределяем по направлениям ─────────
+    // Доля направления в общей смете = его вес в хинте. Раньше мульти-смета
+    // считалась вообще без хинта, из-за чего один и тот же заказ стоил
+    // по-разному в зависимости от того, одну категорию нашёл AI или две.
+    const hint = aiAnalysis?.priceHint ?? null;
+    if (hint && hint.min > 0 && hint.max >= hint.min) {
+      const anchorOf = (vs: EstimateVariant[]) =>
+        vs.find((v) => v.tier === 'BETTER') ?? vs[Math.floor(vs.length / 2)];
+      const totalAnchor = bundles.reduce((s, b) => s + (anchorOf(b.variants)?.estimatedPrice ?? 0), 0);
+
+      if (totalAnchor > 0) {
+        for (const b of bundles) {
+          const share = (anchorOf(b.variants)?.estimatedPrice ?? 0) / totalAnchor;
+          if (share <= 0) continue;
+          b.variants = scaleVariantsToPriceHint(b.variants, {
+            min: hint.min * share,
+            max: hint.max * share,
+          });
+        }
+      }
+    }
+
+    // ─── Шаг 3: объединяем по уровням ───────────────────────────────
+    const dirs = bundles.map((b) => b.category.name).join(', ');
     const merge = (tier: AiTierType): SubVariant => {
-      const subs = bundles.map((b) => b.variants[tier]).filter(Boolean);
-      const taskIds = Array.from(new Set(subs.flatMap((s) => s.taskIds)));
-      const materials = subs.flatMap((s) => s.materials);
-      const estimatedPrice = subs.reduce((sum, s) => sum + s.estimatedPrice, 0);
-      const estimatedDays = Math.max(...subs.map((s) => s.estimatedDays || 1));
-      const confidence = subs.reduce((sum, s) => sum + s.confidence, 0) / subs.length;
-      const dirs = bundles.map((b) => b.category.name).join(', ');
-      const tierLabel = TIER_MULTIPLIERS[tier].label;
+      const parts = bundles
+        .map((b) => ({ bundle: b, variant: b.variants.find((v) => v.tier === tier) }))
+        .filter((p): p is { bundle: CategoryBundle; variant: EstimateVariant } => !!p.variant);
+
+      const taskIds = Array.from(new Set(parts.flatMap((p) => p.bundle.taskIds)));
+      // Строки всех направлений складываются: калибровка потом разложит
+      // фактическую цену по ним пропорционально их доле в смете.
+      const priceLines = parts.flatMap((p) => toPriceLines(p.variant));
+      const materials = parts.flatMap((p) =>
+        p.variant.materials.map((m) => ({
+          name: `${p.bundle.category.name}: ${m.name}`,
+          quantity: m.qty,
+          unit: m.unit,
+          unitPrice: m.unitPrice,
+          total: m.total,
+        })),
+      );
+      const estimatedPrice = parts.reduce((sum, p) => sum + p.variant.estimatedPrice, 0);
+      const estimatedDays = Math.max(1, ...parts.map((p) => p.variant.estimatedDays || 1));
+      const confidence = parts.length
+        ? parts.reduce((sum, p) => sum + p.variant.confidence, 0) / parts.length
+        : 0.6;
+
+      // Уровни отличаются классом исполнения, а не набором направлений:
+      // объём работ во всех трёх одинаковый.
       const desc =
         tier === 'GOOD'
-          ? `Базовый объём по ${bundles.length} направлениям: ${dirs}. Минимально необходимые работы и расходники.`
+          ? `${bundles.length} ${this.pluralize(bundles.length, 'направление', 'направления', 'направлений')}: ${dirs}. Стандартные комплектующие.`
           : tier === 'BETTER'
-          ? `Оптимальный пакет по ${bundles.length} направлениям: ${dirs}. Рекомендуемое соотношение качество/цена.`
-          : `Премиум-пакет: всё по ${bundles.length} направлениям (${dirs}) + лучшие материалы и расширенная гарантия.`;
+          ? `${bundles.length} ${this.pluralize(bundles.length, 'направление', 'направления', 'направлений')}: ${dirs}. Комплектующие повышенного класса.`
+          : `${bundles.length} ${this.pluralize(bundles.length, 'направление', 'направления', 'направлений')}: ${dirs}. Премиум-комплектующие и максимально тщательное исполнение.`;
+
       return {
         tier,
-        tierLabel,
+        tierLabel: TIER_MULTIPLIERS[tier].label,
         taskIds,
         materials,
+        priceLines,
         estimatedPrice,
         estimatedDays,
-        confidence,
+        confidence: Math.round(confidence * 100) / 100,
         description: desc,
       };
     };
@@ -1472,6 +1945,7 @@ export class InstantOrderService {
               tierLabel: variant.tierLabel,
               taskIds: variant.taskIds,
               materials: variant.materials,
+              priceLines: variant.priceLines,
               estimatedPrice: Math.min(Math.round(variant.estimatedPrice), 9_999_999_999),
               estimatedDays: variant.estimatedDays,
               confidence: variant.confidence,
@@ -1548,42 +2022,6 @@ export class InstantOrderService {
         categoryName: t.categoryName,
         subcategoryName: t.subcategoryName,
       })),
-    };
-  }
-
-  /**
-   * Преобразование одного решения из buildSmartVariants в SubVariant.
-   */
-  private smartToSubVariant(v: any, tasks: any[]): any {
-    if (!v) {
-      const fallback = tasks[0];
-      return {
-        tier: 'GOOD',
-        tierLabel: TIER_MULTIPLIERS.GOOD.label,
-        taskIds: fallback ? [fallback.id] : [],
-        materials: [],
-        estimatedPrice: 100000,
-        estimatedDays: 1,
-        confidence: 0.7,
-        description: 'Базовый набор работ',
-      };
-    }
-    const matched = this.matchTasksToSolution(tasks, v.title, v.description);
-    return {
-      tier: v.tier,
-      tierLabel: v.tierLabel,
-      taskIds: matched.length > 0 ? matched : tasks[0] ? [tasks[0].id] : [],
-      materials: (v.materials || []).map((m: any) => ({
-        name: m.name,
-        quantity: m.qty,
-        unit: m.unit,
-        unitPrice: m.unitPrice,
-        total: m.total,
-      })),
-      estimatedPrice: v.estimatedPrice,
-      estimatedDays: v.estimatedDays,
-      confidence: v.confidence,
-      description: `${v.title}. ${v.description}`,
     };
   }
 
@@ -1751,14 +2189,34 @@ export class InstantOrderService {
   }
 
   /**
-   * Fallback: генерация 3 вариантов из доступных задач (когда каталог расценок не нашёл проблему).
-   * Умный подбор: сопоставляем задачи с описанием, точный расчёт цен.
+   * Резервный расчёт, когда проблема не нашлась в каталоге расценок:
+   * смета собирается из задач БД, подходящих по описанию.
+   *
+   * Уровни отличаются КЛАССОМ исполнения, а не объёмом работ. Раньше GOOD
+   * брал 1–2 задачи, а BEST — до пяти: клиенту с одной сломанной розеткой
+   * в премиум-вариант докладывали работы, которых он не просил. Теперь все
+   * три уровня закрывают один и тот же объём разными комплектующими.
    */
-  private generateVariantsFallback(category: any, allTasks: any[], description: string, images: string[]) {
-    const lower = description.toLowerCase();
+  private generateVariantsFallback(
+    category: any,
+    allTasks: any[],
+    description: string,
+    opts: {
+      quantity?: number | null;
+      confidence?: number;
+      aiPriceHint?: { min: number; max: number } | null;
+      /** Что увидел Vision — подключается, если слов клиента не хватило. */
+      aiContext?: string;
+    } = {},
+  ): { variants: EstimateVariant[]; taskIds: string[] } {
+    // Ранжируем по словам клиента; если их нет или они ничего не дали —
+    // по тому, что увидел Vision. Иначе заказ по одной фотографии выбирал
+    // просто самую дешёвую задачу категории.
+    const matchText = description.trim() ? description : (opts.aiContext ?? '');
+    const lower = matchText.toLowerCase();
 
     // Стемминг: обрезаем русские окончания для нечёткого поиска
-    const stem = (word: string) => word.replace(/(ами|ями|ов|ев|ей|ой|ий|ый|ая|яя|ое|ее|ие|ые|ую|юю|ого|его|ому|ему|ость|ам|ям|ах|ях|ен|ан|\u0443|ю|а|я|и|ы|о|е|ь)$/i, '');
+    const stem = (word: string) => word.replace(/(ами|ями|ов|ев|ей|ой|ий|ый|ая|яя|ое|ее|ие|ые|ую|юю|ого|его|ому|ему|ость|ам|ям|ах|ях|ен|ан|у|ю|а|я|и|ы|о|е|ь)$/i, '');
 
     // ─── Ранжируем задачи по релевантности к описанию ─────
     const scored = allTasks.map((task: any) => {
@@ -1766,14 +2224,12 @@ export class InstantOrderService {
       const taskDesc = (task.description || '').toLowerCase();
       let relevance = 0;
 
-      // Проверяем совпадение ключевых слов описания с названием/описанием задачи
-      const descWords = lower.split(/\s+/).filter(w => w.length > 2);
+      const descWords = lower.split(/\s+/).filter((w) => w.length > 2);
       for (const word of descWords) {
         const s = stem(word);
         if (s.length >= 3 && taskName.includes(s)) relevance += 3;
         if (s.length >= 3 && taskDesc.includes(s)) relevance += 1;
       }
-      // Проверяем обратное: корни слов задачи в описании пользователя
       const taskWords = taskName.split(/\s+/).filter((w: string) => w.length > 3);
       for (const word of taskWords) {
         const s = stem(word);
@@ -1783,31 +2239,34 @@ export class InstantOrderService {
       return { task, relevance, price: Number(task.minPrice) || 50000 };
     });
 
-    // Сортируем: сначала по релевантности (desc), потом по цене (asc)
     scored.sort((a, b) => b.relevance - a.relevance || a.price - b.price);
 
-    // Берём наиболее релевантные задачи (макс 8 — чтобы цена не улетала)
-    const relevant = scored.filter(s => s.relevance > 0);
-    const topTasks = (relevant.length > 0 ? relevant : scored).slice(0, 8);
+    // Слова клиента ничего не выбрали — пробуем то, что увидел Vision.
+    if (scored.every((s) => s.relevance === 0) && opts.aiContext && description.trim()) {
+      const aiLower = opts.aiContext.toLowerCase();
+      for (const entry of scored) {
+        const taskName = (entry.task.name || '').toLowerCase();
+        for (const word of aiLower.split(/\s+/).filter((w) => w.length > 3)) {
+          const st = stem(word);
+          if (st.length >= 3 && taskName.includes(st)) entry.relevance += 2;
+        }
+      }
+      scored.sort((a, b) => b.relevance - a.relevance || a.price - b.price);
+    }
 
-    // GOOD: 1-2 самые релевантные задачи (минимальный объём)
-    const goodCount = Math.max(1, Math.min(2, Math.ceil(topTasks.length * 0.3)));
-    const goodTasks = topTasks.slice(0, goodCount).map(s => s.task);
+    // ─── Объём работ: только то, что близко к лучшему совпадению ─────
+    // Отсекаем «хвост» слабо связанных задач: они и создавали раздутый BEST.
+    const relevant = scored.filter((s) => s.relevance > 0);
+    const topRelevance = relevant[0]?.relevance ?? 0;
+    const core = (relevant.length > 0
+      ? relevant.filter((s) => s.relevance >= Math.max(1, topRelevance * 0.6))
+      : scored.slice(0, 1)
+    ).slice(0, FALLBACK_MAX_TASKS);
 
-    // BETTER: 2-3 задачи (оптимальный объём)
-    const betterCount = Math.max(2, Math.min(3, Math.ceil(topTasks.length * 0.5)));
-    const betterTasks = topTasks.slice(0, betterCount).map(s => s.task);
+    const coreTasks = core.map((s) => s.task);
 
-    // BEST: до 5 наиболее релевантных задач
-    const bestCount = Math.min(5, topTasks.length);
-    const bestTasks = topTasks.slice(0, bestCount).map(s => s.task);
-
-    // ─── Точный расчёт стоимости ─────────────────────────
-    const calculateWorkPrice = (tasks: any[]) =>
-      tasks.reduce((sum: number, t: any) => sum + (Number(t.minPrice) || 50000), 0);
-
+    // ─── Срок: суммарное время задач, 6 рабочих часов в дне ─────
     const calculateDays = (tasks: any[], multiplier: number) => {
-      // Парсим estimatedTime: "30-60 мин" → 0.75 часа → 0.1 дня
       const totalHours = tasks.reduce((sum: number, t: any) => {
         const time = (t.estimatedTime || '1 час').toLowerCase();
         const hourMatch = time.match(/(\d+)(?:\s*-\s*(\d+))?\s*час/);
@@ -1823,93 +2282,100 @@ export class InstantOrderService {
         return sum + 1;
       }, 0);
 
-      return Math.max(1, Math.ceil((totalHours / 6) * multiplier)); // 6 рабочих часов в дне
+      return Math.max(1, Math.ceil((totalHours / 6) * multiplier));
     };
 
-    // Материалы — зависят от типа работ и уровня
-    const generateMaterials = (tasks: any[], tier: string) => {
-      const workPrice = calculateWorkPrice(tasks);
-      const materials: any[] = [];
+    const TIER_SCOPE_NOTE: Record<AiTierType, string> = {
+      GOOD: 'Стандартные комплектующие и расходники мастера.',
+      BETTER: 'Комплектующие повышенного класса, аккуратная подгонка по месту.',
+      BEST: 'Премиум-комплектующие и максимально тщательное исполнение.',
+    };
 
-      // Базовые расходники: 5% от стоимости работ
-      const baseAmount = Math.round(workPrice * 0.05);
-      materials.push({
-        name: 'Расходные материалы',
-        quantity: 1, unit: 'компл.',
-        unitPrice: baseAmount, total: baseAmount,
-      });
+    const buildVariant = (tier: AiTierType): EstimateVariant => {
+      const mult = TIER_MULTIPLIERS[tier].price;
 
-      if (tier === 'BETTER' || tier === 'BEST') {
-        // Качественные материалы: 8% от стоимости работ
-        const qualityAmount = Math.round(workPrice * 0.08);
+      // Выезд оплачивается один раз и не размножается количеством —
+      // за это отвечает applyQuantity по имени строки.
+      const works: PricedLine[] = [
+        { name: 'Выезд мастера', qty: 1, unit: 'выезд', unitPrice: MASTER_VISIT_FEE, total: MASTER_VISIT_FEE },
+        ...coreTasks.map((t: any) => {
+          const unitPrice = Math.round(((Number(t.minPrice) || 50000) * mult) / 1000) * 1000;
+          return {
+            // Задачи каталога живут в реестре под кодом task.<slug> — благодаря
+            // этому резервный путь тоже попадает в калибровку.
+            code: t.slug ? `task.${t.slug}` : undefined,
+            name: t.name as string,
+            qty: 1,
+            unit: 'услуга',
+            unitPrice,
+            total: unitPrice,
+          };
+        }),
+      ];
+
+      // Расходники — плоская величина на работу, а не процент от её стоимости.
+      // Процент давал абсурд: крепёж «дорожал» вместе со ставкой мастера.
+      // Полноценные материалы появятся вместе с прайс-реестром в БД.
+      const materials: PricedLine[] = [
+        {
+          name: 'Расходники мастера (крепёж, герметик, изолента)',
+          qty: coreTasks.length || 1,
+          unit: 'работа',
+          unitPrice: CONSUMABLES_PER_TASK,
+          total: CONSUMABLES_PER_TASK * (coreTasks.length || 1),
+        },
+      ];
+      const uplift = MATERIAL_CLASS_UPLIFT[tier];
+      if (uplift > 0) {
         materials.push({
-          name: 'Качественные комплектующие',
-          quantity: 1, unit: 'компл.',
-          unitPrice: qualityAmount, total: qualityAmount,
+          name: tier === 'BEST' ? 'Комплектующие премиум-класса' : 'Комплектующие повышенного класса',
+          qty: 1,
+          unit: 'компл.',
+          unitPrice: uplift,
+          total: uplift,
         });
       }
 
-      if (tier === 'BEST') {
-        // Премиум материалы: 10% от стоимости работ
-        const premiumAmount = Math.round(workPrice * 0.10);
-        materials.push({
-          name: 'Премиум материалы и гарантия',
-          quantity: 1, unit: 'компл.',
-          unitPrice: premiumAmount, total: premiumAmount,
-        });
-      }
-
-      return materials;
-    };
-
-    // Итоговая цена = работа * tier_multiplier + материалы
-    const buildVariant = (tasks: any[], tier: keyof typeof TIER_MULTIPLIERS) => {
-      const workPrice = calculateWorkPrice(tasks);
-      const materials = generateMaterials(tasks, tier);
-      const materialsPrice = materials.reduce((sum: number, m: any) => sum + m.total, 0);
-      // Цена клиенту = выезд мастера + работа × коэффициент уровня + материалы,
-      // но не ниже минимального чека по рынку Ташкента.
-      const estimatedPrice = Math.max(
-        Math.round(MASTER_VISIT_FEE + workPrice * TIER_MULTIPLIERS[tier].price + materialsPrice),
-        MIN_VARIANT_PRICE,
-      );
+      const estimatedPrice =
+        works.reduce((s, w) => s + w.total, 0) + materials.reduce((s, m) => s + m.total, 0);
 
       return {
         tier,
         tierLabel: TIER_MULTIPLIERS[tier].label,
-        taskIds: tasks.map((t: any) => t.id),
+        title: `${category.name}: ${coreTasks.length} ${this.pluralize(coreTasks.length, 'работа', 'работы', 'работ')}`,
+        description: TIER_SCOPE_NOTE[tier],
+        works,
         materials,
         estimatedPrice,
-        estimatedDays: calculateDays(tasks, TIER_MULTIPLIERS[tier].days),
-        confidence: tier === 'GOOD' ? 0.85 : tier === 'BETTER' ? 0.92 : 0.97,
-        description:
-          tier === 'GOOD'
-            ? `Базовый ремонт: ${tasks.length} ${this.pluralize(tasks.length, 'работа', 'работы', 'работ')}. Стандартные материалы. Стоимость: ${estimatedPrice.toLocaleString('ru')} сум.`
-            : tier === 'BETTER'
-            ? `Оптимальный вариант: ${tasks.length} ${this.pluralize(tasks.length, 'работа', 'работы', 'работ')}. Качественные комплектующие, лучшее соотношение цена/качество.`
-            : `Премиум решение: ${tasks.length} ${this.pluralize(tasks.length, 'работа', 'работы', 'работ')}. Все задачи + лучшие материалы. Расширенная гарантия.`,
+        estimatedDays: calculateDays(coreTasks, TIER_MULTIPLIERS[tier].days),
+        confidence: opts.confidence ?? 0.7,
       };
     };
 
-    return {
-      variants: (() => {
-        const good = buildVariant(goodTasks, 'GOOD');
-        const better = buildVariant(betterTasks, 'BETTER');
-        const best = buildVariant(bestTasks, 'BEST');
+    let variants: EstimateVariant[] = [buildVariant('GOOD'), buildVariant('BETTER'), buildVariant('BEST')];
 
-        // Защита: BETTER не более 2x от GOOD, BEST не более 3x от GOOD
-        const maxBetter = Math.round(good.estimatedPrice * 2);
-        const maxBest = Math.round(good.estimatedPrice * 3);
-        if (better.estimatedPrice > maxBetter) better.estimatedPrice = maxBetter;
-        if (best.estimatedPrice > maxBest) best.estimatedPrice = maxBest;
-        // BETTER не может быть дороже BEST
-        if (better.estimatedPrice > best.estimatedPrice) {
-          better.estimatedPrice = Math.round(best.estimatedPrice * 0.75);
-        }
+    // Те же правила, что и для каталожного пути: раньше fallback шёл мимо них
+    // и давал другую цену на тот же заказ.
+    variants = applyQuantity(variants, opts.quantity);
+    variants = scaleVariantsToPriceHint(variants, opts.aiPriceHint);
+    variants = dropVisitFeeOnCheapVariant(variants);
 
-        return [good, better, best];
-      })(),
-    };
+    // Минимальный чек: ниже этой суммы мастер на выезд не поедет.
+    variants = variants.map((v) =>
+      v.estimatedPrice >= MIN_VARIANT_PRICE ? v : { ...v, estimatedPrice: MIN_VARIANT_PRICE },
+    );
+
+    // Уровни идут строго по возрастанию цены.
+    for (let i = 1; i < variants.length; i++) {
+      if (variants[i].estimatedPrice <= variants[i - 1].estimatedPrice) {
+        variants[i] = {
+          ...variants[i],
+          estimatedPrice: Math.round(variants[i - 1].estimatedPrice * 1.08),
+        };
+      }
+    }
+
+    return { variants, taskIds: coreTasks.map((t: any) => t.id).filter(Boolean) };
   }
 
   /** Склонение числительных */
