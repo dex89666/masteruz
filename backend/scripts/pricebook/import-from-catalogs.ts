@@ -33,9 +33,17 @@ interface ChangeRecord {
 
 async function importItems(seed: PriceBookSeed): Promise<{ created: number; updated: number; changes: ChangeRecord[] }> {
   const existing = await prisma.priceItem.findMany({
-    select: { code: true, unitPrice: true, unit: true, name: true, isActive: true },
+    select: { code: true, unitPrice: true, unit: true, name: true, isActive: true, source: true },
   });
   const byCode = new Map(existing.map((i) => [i.code, i]));
+
+  // Позиции, уже подтянутые к реальным сделкам: их цену импорт не трогает,
+  // иначе прогон откатил бы рыночные данные к экспертной оценке. Набор
+  // берём одним запросом — прежде на каждую из 606 позиций уходил свой,
+  // и импорт по удалённой базе тянулся минутами.
+  const calibrated = new Set(
+    existing.filter((i) => i.source === 'CALIBRATED').map((i) => i.code),
+  );
 
   const changes: ChangeRecord[] = [];
   let created = 0;
@@ -83,20 +91,12 @@ async function importItems(seed: PriceBookSeed): Promise<{ created: number; upda
         categorySlug: item.categorySlug,
         taskSlug: item.taskSlug ?? null,
         isActive: true,
-        // Цену перезаписываем только там, где её ещё не двигал калибровщик:
-        // иначе импорт откатил бы рыночные данные к экспертной оценке.
-        ...(await shouldOverwritePrice(item.code) ? { unitPrice: item.unitPrice } : {}),
+        ...(calibrated.has(item.code) ? {} : { unitPrice: item.unitPrice }),
       },
     });
   }
 
   return { created, updated, changes };
-}
-
-/** Позицию, уже подтянутую к реальным сделкам, импорт не трогает. */
-async function shouldOverwritePrice(code: string): Promise<boolean> {
-  const item = await prisma.priceItem.findUnique({ where: { code }, select: { source: true } });
-  return !item || item.source === 'EXPERT';
 }
 
 async function importProblems(seed: PriceBookSeed): Promise<{ problems: number; solutions: number; lines: number }> {
