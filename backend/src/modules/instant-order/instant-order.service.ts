@@ -587,8 +587,26 @@ export function decideEscalation(input: {
   priceSpread: number | null;
   /** Модель считает, что нужны замеры на месте. */
   modelSaysOnSite: boolean;
+  /**
+   * Модель вернула перечень работ с кодами прайса.
+   *
+   * В этом случае цену считает реестр, а не модель, и ценового диапазона от
+   * неё не приходит вовсе. Без этого признака отсутствие диапазона читалось
+   * бы как «цены нет», и ни один заказ не получал бы мгновенную смету —
+   * ровно та ситуация, ради которой контракт и менялся.
+   */
+  hasSpecPrice?: boolean;
 }): EscalationLevel {
-  const { confidence, priceSpread, modelSaysOnSite } = input;
+  const { confidence, priceSpread, modelSaysOnSite, hasSpecPrice } = input;
+
+  // Цена из реестра: неопределённость здесь не в сумме, а в том, верно ли
+  // распознан объём работ. Поэтому решает уверенность и признак обмера.
+  if (hasSpecPrice) {
+    if (confidence === null) return 'CONFIRM';
+    if (modelSaysOnSite) return confidence >= AUTO_CONFIDENCE ? 'CONFIRM' : 'ON_SITE';
+    if (confidence >= AUTO_CONFIDENCE) return 'AUTO';
+    return confidence >= CONFIRM_CONFIDENCE ? 'CONFIRM' : 'ON_SITE';
+  }
 
   // Цены нет — фиксировать нечего.
   if (priceSpread === null) return modelSaysOnSite ? 'ON_SITE' : 'CONFIRM';
@@ -907,6 +925,7 @@ export class InstantOrderService {
         confidence: aiTop?.confidence ?? null,
         priceSpread: spread,
         modelSaysOnSite: aiAnalysis.needsOnSite,
+        hasSpecPrice: aiAnalysis.jobs.length > 0,
       });
 
       logger.info(
@@ -914,6 +933,7 @@ export class InstantOrderService {
           topCat: aiTop?.slug,
           conf: aiTop?.confidence,
           spread: spread === null ? null : Math.round(spread * 100) / 100,
+          jobs: aiAnalysis.jobs.length,
           modelSaysOnSite: aiAnalysis.needsOnSite,
           escalation,
         },

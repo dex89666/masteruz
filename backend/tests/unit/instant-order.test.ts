@@ -323,6 +323,44 @@ describe('лестница эскалации', () => {
   it('низкая уверенность отправляет на выезд', () => {
     expect(decideEscalation({ confidence: 40, priceSpread: 0.2, modelSaysOnSite: false })).toBe('ON_SITE');
   });
+
+  describe('когда цену считает прайс-реестр', () => {
+    // В контракте «спецификация» модель не называет цену вовсе, поэтому
+    // диапазона от неё нет. Без отдельной ветки отсутствие диапазона читалось
+    // бы как «цены нет», и мгновенную смету не получал бы никто.
+    it('уверенное распознавание даёт смету сразу, хотя диапазона от модели нет', () => {
+      expect(
+        decideEscalation({ confidence: 90, priceSpread: null, modelSaysOnSite: false, hasSpecPrice: true }),
+      ).toBe('AUTO');
+    });
+
+    it('средняя уверенность — уточняющий вопрос', () => {
+      expect(
+        decideEscalation({ confidence: 70, priceSpread: null, modelSaysOnSite: false, hasSpecPrice: true }),
+      ).toBe('CONFIRM');
+    });
+
+    it('низкая уверенность — выезд, даже когда цена считается по прайсу', () => {
+      expect(
+        decideEscalation({ confidence: 45, priceSpread: null, modelSaysOnSite: false, hasSpecPrice: true }),
+      ).toBe('ON_SITE');
+    });
+
+    it('требование обмера не даёт зафиксировать цену', () => {
+      expect(
+        decideEscalation({ confidence: 90, priceSpread: null, modelSaysOnSite: true, hasSpecPrice: true }),
+      ).toBe('CONFIRM');
+      expect(
+        decideEscalation({ confidence: 65, priceSpread: null, modelSaysOnSite: true, hasSpecPrice: true }),
+      ).toBe('ON_SITE');
+    });
+
+    it('без анализа категории решение не принимается', () => {
+      expect(
+        decideEscalation({ confidence: null, priceSpread: null, modelSaysOnSite: false, hasSpecPrice: true }),
+      ).toBe('CONFIRM');
+    });
+  });
 });
 
 describe('контекст от Vision', () => {
