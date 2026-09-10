@@ -19,7 +19,7 @@ import { validateBody, validateQuery } from '../../middleware/validate.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { auditService } from '../../services/auditService.js';
 import { clampPagination } from '../../utils/helpers.js';
-import { invalidatePriceBookCache } from './pricebook.service.js';
+import { invalidatePriceBookCache, embedProblems, getEmbeddingCoverage } from './pricebook.service.js';
 import { roundUnitPrice } from './pricing-catalog.js';
 import { buildPriceBookSeed, findPriceConflicts } from './pricebook.mapping.js';
 import { getAccuracyReport } from '../../services/priceAccuracyService.js';
@@ -342,6 +342,46 @@ router.get('/conflicts', async (_req: Request, res: Response, next: NextFunction
         hint: 'Импорт переносит каталог как есть. Разброс ниже — решение владельца сервиса, а не ошибка переноса.',
       },
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ─── Эмбеддинги для семантического подбора ───
+
+/**
+ * Пересчитать векторы проблем реестра.
+ *
+ * Ключ OpenAI есть у приложения, поэтому пересчёт живёт здесь, а не только
+ * в локальном скрипте: после правки проблем в панели вектор устаревает,
+ * и подбор работ откатывается на ключевые слова.
+ *
+ * `force: true` пересчитывает все — прогон стоит денег, поэтому по умолчанию
+ * считаются только проблемы без вектора.
+ */
+router.post('/embed', authorize('ADMIN'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const force = req.body?.force === true;
+    const result = await embedProblems({ force });
+
+    await auditService.log({
+      actorId: req.user!.userId,
+      action: 'PRICEBOOK_EMBED',
+      entityType: 'PriceProblem',
+      entityId: 'all',
+      details: { force, embedded: result.embedded, failed: result.failed.length } as any,
+    });
+
+    res.json({ success: true, data: result });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/** Готовность семантического подбора: доля проблем с посчитанным вектором. */
+router.get('/embed/coverage', async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    res.json({ success: true, data: await getEmbeddingCoverage() });
   } catch (error) {
     next(error);
   }

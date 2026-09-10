@@ -595,3 +595,94 @@ export async function attachPriceRanges(variants: EstimateVariant[]): Promise<Es
     return { ...variant, priceRange: { min, max }, priceIsFixed: spread <= FIXED_PRICE_SPREAD };
   });
 }
+
+// ─── Эмбеддинги проблем ──────────────────────────────────────────────────
+
+/**
+ * Текст, который векторизуется для поиска проблемы.
+ * Одно правило для записи и для поиска — иначе вектора несравнимы.
+ */
+export function problemEmbeddingText(problem: {
+  name: string;
+  keywords: string[];
+  solutions: { title: string }[];
+}): string {
+  return [problem.name, problem.keywords.join(', '), problem.solutions.map((s) => s.title).join('. ')]
+    .filter(Boolean)
+    .join('. ');
+}
+
+export interface EmbedResult {
+  total: number;
+  embedded: number;
+  skipped: number;
+  failed: { slug: string; error: string }[];
+}
+
+/**
+ * Посчитать векторы для проблем реестра.
+ *
+ * Без них подбор работ идёт по ключевым словам и не понимает формулировок
+ * вроде «не держит воду» — общих слов с «протечкой» там нет ни одного.
+ *
+ * Живёт в сервисе, а не только в скрипте: ключ OpenAI есть у приложения,
+ * и пересчёт нужен админу после каждой правки проблем в панели.
+ */
+export async function embedProblems(options: { force?: boolean } = {}): Promise<EmbedResult> {
+  const { getEmbedding, toVectorLiteral } = await import('../../services/embeddingService.js');
+
+  const problems = await prisma.priceProblem.findMany({
+    where: { isActive: true },
+    select: { id: true, slug: true, name: true, keywords: true, solutions: { select: { title: true } } },
+    orderBy: { slug: 'asc' },
+  });
+
+  // Prisma не читает столбец vector — какие уже посчитаны, узнаём сырым запросом.
+  const withVector = await prisma.$queryRawUnsafe<Array<{ id: string }>>(
+    `SELECT "id" FROM "price_problems" WHERE "embedding" IS NOT NULL`,
+  );
+  const done = new Set(withVector.map((r) => r.id));
+
+  const todo = options.force ? problems : problems.filter((p) => !done.has(p.id));
+  const result: EmbedResult = {
+    total: problems.length,
+    embedded: 0,
+    skipped: problems.length - todo.length,
+    failed: [],
+  };
+
+  for (const problem of todo) {
+    try {
+      const vector = await getEmbedding(problemEmbeddingText(problem));
+      await prisma.$executeRawUnsafe(
+        `UPDATE "price_problems" SET "embedding" = $1::vector WHERE "id" = $2`,
+        toVectorLiteral(vector),
+        problem.id,
+      );
+      result.embedded += 1;
+    } catch (err) {
+      result.failed.push({ slug: problem.slug, error: (err as Error).message });
+    }
+  }
+
+  if (result.embedded > 0) invalidatePriceBookCache();
+
+  logger.info(
+    { total: result.total, embedded: result.embedded, skipped: result.skipped, failed: result.failed.length },
+    'Прайс-реестр: эмбеддинги проблем пересчитаны',
+  );
+
+  return result;
+}
+
+/** Сколько проблем реестра уже имеют вектор — видно, готов ли семантический подбор. */
+export async function getEmbeddingCoverage(): Promise<{ total: number; embedded: number; coveragePct: number }> {
+  const [total, rows] = await Promise.all([
+    prisma.priceProblem.count({ where: { isActive: true } }),
+    prisma.$queryRawUnsafe<Array<{ count: bigint }>>(
+      `SELECT COUNT(*)::bigint AS count FROM "price_problems" WHERE "embedding" IS NOT NULL AND "is_active" = true`,
+    ),
+  ]);
+  const embedded = Number(rows[0]?.count ?? 0);
+  return { total, embedded, coveragePct: total > 0 ? (embedded / total) * 100 : 0 };
+}
