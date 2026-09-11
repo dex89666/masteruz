@@ -253,6 +253,10 @@ export function resolveLaborMultiplier(
   if (!config.pricebook.modifiersEnabled) return 1;
 
   let factor = 1;
+  // Срочность платформа берёт отдельно и по явному выбору клиента
+  // (галочка «срочно» → Order.urgentMultiplier). Здесь она участвует только
+  // если админ сознательно выставит множитель — по умолчанию он 1.000,
+  // иначе наценка начислялась бы дважды и без объяснения в чеке.
   if (query.urgency) factor *= modifiers.URGENCY?.[query.urgency] ?? 1;
   if (query.region) factor *= modifiers.REGION?.[query.region] ?? 1;
   if (query.floorNoLift) factor *= modifiers.FLOOR?.['no-lift-above-3'] ?? 1;
