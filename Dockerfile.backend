@@ -20,6 +20,10 @@ RUN npm run build
 FROM base AS runner
 ENV NODE_ENV=production
 
+# pg_dump для резервного копирования изнутри бэкенда (services/databaseBackup.ts).
+# Клиент обязан быть не старше сервера — прод на PostgreSQL 18.
+RUN apk add --no-cache postgresql18-client
+
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 masteruz
 

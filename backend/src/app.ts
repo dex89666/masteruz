@@ -27,6 +27,9 @@ import { checkUserActive } from './middleware/auth.js';
 import { betaGate } from './middleware/betaGate.js';
 import { startAutoCancellationJob, stopAutoCancellationJob } from './services/orderAutoCancellation.js';
 import { startCleanupJob, stopCleanupJob } from './services/cleanupJob.js';
+import { startBackupJob, stopBackupJob } from './services/backupJob.js';
+import { startPricebookMaintenanceJob, stopPricebookMaintenanceJob } from './services/pricebookMaintenanceJob.js';
+import backupRoutes from './modules/admin/backup.routes.js';
 
 // Импорт маршрутов модулей
 import authRoutes from './modules/auth/auth.routes.js';
@@ -55,6 +58,7 @@ import turnkeyRoutes from './modules/turnkey/turnkey.routes.js';
 import estimationRoutes from './modules/estimation/estimation.routes.js';
 import instantOrderRoutes from './modules/instant-order/instant-order.routes.js';
 import priceBookRoutes from './modules/instant-order/pricebook.routes.js';
+import { cleanupUploadedFiles } from './middleware/upload.js';
 import supportChatRoutes from './modules/support/support.routes.js';
 import forumRoutes from './modules/forum/forum.routes.js';
 import cardsRoutes from './modules/cards/cards.routes.js';
@@ -135,6 +139,8 @@ app.use(cors({
 // Парсинг тела запроса
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+// Временные копии загруженных файлов удаляются, даже если запрос провалился.
+app.use(cleanupUploadedFiles);
 app.use(cookieParser());
 
 // Rate Limiting (в test-окружении отключаем, чтобы интеграционные тесты не били о лимиты)
@@ -249,6 +255,13 @@ if (process.env.NODE_ENV !== 'test') {
   });
   app.use('/api/photos', uploadLimiter);
   app.use('/api/portfolio', uploadLimiter);
+  // Форум и сертификаты тоже принимают файлы — до 5 за запрос. Без лимита
+  // один аккаунт мог забивать хранилище и канал. Лимит только на отправку:
+  // чтение ленты форума под него попадать не должно.
+  const uploadOnPost: express.RequestHandler = (req, res, next) =>
+    req.method === 'POST' ? uploadLimiter(req, res, next) : next();
+  app.use('/api/forum/topics', uploadOnPost);
+  app.use('/api/users/certificates', uploadOnPost);
 
   // Rate Limiting — лимит для заявок на партнёрство (антиспам)
   const partnerRequestLimiter = makeLimiter('partner', {
@@ -350,6 +363,8 @@ app.use('/api/school', schoolRoutes);
 // Прайс-реестр — отдельная ветка админки: цена правится здесь, а не деплоем.
 // Монтируется ДО /api/admin, иначе запрос сначала прошёл бы через общий
 // админ-роутер и авторизацию дважды.
+// Бэкапы базы — только администратор: дамп содержит все персональные данные.
+app.use('/api/admin/backup', backupRoutes);
 app.use('/api/admin/pricebook', priceBookRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/catalog', catalogRoutes);
@@ -532,6 +547,8 @@ if (process.env.NODE_ENV !== 'test') {
       startAutoCancellationJob();
       // Фоновая задача: уборка устаревших уведомлений/журналов доставки
       startCleanupJob();
+      startBackupJob();
+      startPricebookMaintenanceJob();
 
       // Регистрация Telegram webhook для one-tap авторизации.
       // Делаем после старта сервера, без await — сервер не должен падать,
@@ -550,6 +567,8 @@ if (process.env.NODE_ENV !== 'test') {
     logger.info('SIGTERM получен, завершаю...');
     stopAutoCancellationJob();
     stopCleanupJob();
+    stopBackupJob();
+    stopPricebookMaintenanceJob();
     await prisma.$disconnect();
     process.exit(0);
   });
@@ -558,6 +577,8 @@ if (process.env.NODE_ENV !== 'test') {
     logger.info('SIGINT получен, завершаю...');
     stopAutoCancellationJob();
     stopCleanupJob();
+    stopBackupJob();
+    stopPricebookMaintenanceJob();
     await prisma.$disconnect();
     process.exit(0);
   });

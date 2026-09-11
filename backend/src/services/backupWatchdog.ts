@@ -58,6 +58,11 @@ export async function markBackupSuccess(at: Date = new Date()): Promise<void> {
   logger.info({ at: at.toISOString() }, 'backup-watchdog: отметка об успешном бэкапе');
 }
 
+/** Когда был последний успешный бэкап (null — не было ни одного). */
+export async function getLastBackupAt(): Promise<Date | null> {
+  return readTimestamp(LAST_BACKUP_KEY);
+}
+
 /**
  * Проверить свежесть бэкапа и предупредить владельцев, если он устарел.
  * Возвращает состояние — удобно для тестов и ручной диагностики.

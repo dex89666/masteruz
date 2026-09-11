@@ -110,6 +110,11 @@ export const config = {
     // Множители (срочность, район, этаж) применяются только к труду:
     // аварийный вызов не делает герметик дороже.
     modifiersEnabled: env('PRICEBOOK_MODIFIERS_ENABLED', 'true') !== 'false',
+    // Ночное обслуживание реестра: векторы для новых проблем и сбор наблюдений.
+    maintenanceEnabled: env('PRICEBOOK_MAINTENANCE_ENABLED', 'true') !== 'false',
+    // Применять ли калибровку к ценам. По умолчанию — только сухой прогон:
+    // движение цен по всему сервису включается сознательным решением.
+    calibrationEnabled: env('PRICEBOOK_CALIBRATION_ENABLED', 'false') === 'true',
   },
 
   // Click (платежи)
@@ -185,6 +190,11 @@ export const config = {
     s3Bucket: env('BACKUP_S3_BUCKET'),
     s3AccessKey: env('BACKUP_S3_ACCESS_KEY'),
     s3SecretKey: env('BACKUP_S3_SECRET_KEY'),
+    s3Region: env('BACKUP_S3_REGION', 'auto'),
+    // Бэкап снимается изнутри бэкенда (services/databaseBackup.ts). Прежний
+    // путь через GitHub Actions дважды молча вставал из-за биллинга.
+    enabled: env('BACKUP_ENABLED', 'true') !== 'false',
+    retentionDays: parseInt(env('BACKUP_RETENTION_DAYS', '30'), 10),
   },
 
   // Логирование
