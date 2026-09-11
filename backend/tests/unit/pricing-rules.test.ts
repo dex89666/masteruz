@@ -288,3 +288,89 @@ describe('округление цены за единицу', () => {
     expect(v.works[0].unitPrice).toBeLessThanOrEqual(1_100);
   });
 });
+
+describe('сборка мебели — уровни одного объёма', () => {
+  // Раньше уровни проблемы «Сборка мебели» означали разные объёмы: GOOD —
+  // комод, BETTER — шкаф-купе или кухонный гарнитур, BEST — комплект. Клиенту
+  // с чертежом одного кухонного модуля рекомендовалась «сборка гарнитура»
+  // за 590 000.
+  const FURNITURE = ['furniture', 'Сборка и ремонт мебели'] as const;
+
+  it('кухонный модуль не попадает в сборку гарнитура', () => {
+    const res = buildSmartVariants(...FURNITURE, 'собрать кухонный модуль');
+    expect(res).not.toBeNull();
+    expect(res!.problemName).toBe('Сборка кухни (по модулям)');
+    const better = res!.variants.find((v) => v.tier === 'BETTER')!;
+    expect(better.estimatedPrice).toBeLessThan(250_000);
+  });
+
+  it('гарнитур из восьми модулей стоит кратно дороже одного модуля', () => {
+    const one = buildSmartVariants(...FURNITURE, 'собрать кухонный модуль', null, { quantity: 1 })!;
+    const eight = buildSmartVariants(...FURNITURE, 'собрать кухонный гарнитур', null, { quantity: 8 })!;
+    const b1 = one.variants.find((v) => v.tier === 'BETTER')!.estimatedPrice;
+    const b8 = eight.variants.find((v) => v.tier === 'BETTER')!.estimatedPrice;
+    expect(b8).toBeGreaterThan(b1 * 5);
+  });
+
+  it('выезд при сборке гарнитура оплачивается один раз', () => {
+    const eight = buildSmartVariants(...FURNITURE, 'собрать кухонный гарнитур', null, { quantity: 8 })!;
+    for (const variant of eight.variants) {
+      const visits = variant.works.filter((w) => w.unit === 'выезд');
+      expect(visits.length).toBeLessThanOrEqual(1);
+      if (visits[0]) expect(visits[0].qty).toBe(1);
+    }
+  });
+
+  it('шкаф-купе считается как шкаф, а не как комод', () => {
+    const res = buildSmartVariants(...FURNITURE, 'собрать шкаф-купе')!;
+    expect(res.problemName).toBe('Сборка шкафа / шкафа-купе');
+    expect(res.variants.find((v) => v.tier === 'GOOD')!.estimatedPrice).toBeGreaterThanOrEqual(400_000);
+  });
+
+  it('комод — небольшая мебель', () => {
+    expect(buildSmartVariants(...FURNITURE, 'собрать комод')!.problemName).toBe('Сборка небольшой мебели');
+  });
+
+  it('когда клиент написал лишь «собрать», предмет определяет фото', () => {
+    const res = buildSmartVariants(...FURNITURE, 'Как собрать?', null, {
+      aiContext:
+        'Необходимо собрать один кухонный модуль по предоставленной схеме. фасад ящика. петли. направляющие для ящика',
+    })!;
+    expect(res.problemName).toBe('Сборка кухни (по модулям)');
+  });
+
+  it('конкретные слова клиента важнее фото', () => {
+    const res = buildSmartVariants(...FURNITURE, 'собрать шкаф-купе', null, { aiContext: 'кухонный модуль' })!;
+    expect(res.problemName).toBe('Сборка шкафа / шкафа-купе');
+  });
+
+  it('в каждой проблеме сборки уровни рассчитаны на один и тот же объём', () => {
+    for (const text of ['собрать комод', 'собрать шкаф-купе', 'собрать кухонный модуль']) {
+      const res = buildSmartVariants(...FURNITURE, text)!;
+      const bases = new Set(res.variants.map((v) => solutionBaseQuantity(v)));
+      expect(bases.size).toBe(1);
+    }
+  });
+
+  it('уровни идут по возрастанию цены', () => {
+    for (const text of ['собрать комод', 'собрать шкаф-купе', 'собрать кухонный модуль']) {
+      const [good, better, best] = buildSmartVariants(...FURNITURE, text)!.variants;
+      expect(better.estimatedPrice).toBeGreaterThan(good.estimatedPrice);
+      expect(best.estimatedPrice).toBeGreaterThan(better.estimatedPrice);
+    }
+  });
+
+  it('база решения — основная работа, а не сопутствующие операции', () => {
+    // Сборка ОДНОГО шкафа с двумя зеркальными дверями: двери — не второй шкаф.
+    const wardrobe = makeVariant({
+      works: [
+        { name: 'Сборка крупной мебели', qty: 1, unit: 'шт.', unitPrice: 400_000, total: 400_000 },
+        { name: 'Установка зеркальных дверей', qty: 2, unit: 'шт.', unitPrice: 40_000, total: 80_000 },
+      ],
+      materials: [],
+      estimatedPrice: 480_000,
+    });
+    expect(solutionBaseQuantity(wardrobe)).toBe(1);
+    expect(applyQuantity([wardrobe], 1)[0].estimatedPrice).toBe(480_000);
+  });
+});

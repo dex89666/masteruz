@@ -53,6 +53,7 @@ import {
   computeEstimateConfidence,
   decideEscalation,
   priceSpreadRatio,
+  resolveUnitQuantity,
 } from '../../src/modules/instant-order/instant-order.service.js';
 import { buildAiContext } from '../../src/modules/instant-order/vision-pipeline.js';
 
@@ -378,5 +379,29 @@ describe('контекст от Vision', () => {
 
   it('без анализа возвращает пустую строку', () => {
     expect(buildAiContext(null)).toBe('');
+  });
+});
+
+describe('кухня по модулям — количество', () => {
+  it('понимает количество модулей и секций', () => {
+    expect(extractUnitQuantity('собрать один кухонный модуль')).toBe(1);
+    expect(extractUnitQuantity('кухня из 6 модулей')).toBe(6);
+    expect(extractUnitQuantity('две секции')).toBe(2);
+  });
+
+  it('берёт количество из пересказа модели, если клиент его не назвал', () => {
+    // Клиент прислал чертёж одного модуля и спросил «как собрать?» — число
+    // не написано, оно на картинке.
+    const ai = { summary: 'Необходимо собрать один кухонный модуль по предоставленной схеме.' } as any;
+    expect(resolveUnitQuantity('Как собрать?', ai)).toBe(1);
+  });
+
+  it('слова клиента важнее пересказа модели', () => {
+    const ai = { summary: 'Собрать один кухонный модуль' } as any;
+    expect(resolveUnitQuantity('собрать 3 модуля', ai)).toBe(3);
+  });
+
+  it('без текста и анализа количества нет', () => {
+    expect(resolveUnitQuantity('', null)).toBeNull();
   });
 });

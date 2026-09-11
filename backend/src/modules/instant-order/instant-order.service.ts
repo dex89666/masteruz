@@ -448,6 +448,8 @@ const COUNTABLE_NOUNS = [
   'карниз', 'плинтус', 'точк', 'точек', 'шкаф', 'комод', 'тумб',
   'стул', 'стуль', 'стол', 'окн', 'окон', 'двер',
   'радиатор', 'батаре', 'счетчик', 'кроват', 'диван', 'зеркал',
+  // Кухня собирается по модулям: «гарнитур из 6 модулей», «один кухонный модуль».
+  'модул', 'секци', 'пенал',
 ];
 
 /** Количество единиц работы: 1..MAX_UNIT_QUANTITY, либо null если не названо. */
@@ -490,6 +492,17 @@ export function extractUnitQuantity(text: string): number | null {
   }
 
   return null;
+}
+
+/**
+ * Количество единиц работы: сначала из слов клиента, затем из того, как
+ * Vision пересказал увиденное («собрать один кухонный модуль»).
+ *
+ * Клиент, приславший чертёж одного модуля, количество обычно не пишет —
+ * оно на картинке. Без второго шага такой заказ считался бы без объёма.
+ */
+export function resolveUnitQuantity(text: string, ai: AiAnalysisResult | null): number | null {
+  return extractUnitQuantity(text) ?? (ai?.summary ? extractUnitQuantity(ai.summary) : null);
 }
 
 /**
@@ -1024,7 +1037,7 @@ export class InstantOrderService {
     // ─── УМНЫЙ AI-анализ: сначала каталог расценок, потом fallback ──
     // Количество единиц («заменить 3 розетки») теперь доходит до расчёта цены,
     // а не остаётся в классификаторе сложности.
-    const unitQuantity = extractUnitQuantity(combinedDescription);
+    const unitQuantity = resolveUnitQuantity(combinedDescription, aiAnalysis);
     const aiContext = buildAiContext(aiAnalysis);
     const estimateConfidence = computeEstimateConfidence({
       aiTopConfidence: aiAnalysis?.categories[0]?.confidence ?? null,
@@ -1366,13 +1379,14 @@ export class InstantOrderService {
         // Экспресс-оценка считается по тем же правилам, что и полная смета:
         // иначе анонимный калькулятор и авторизованный заказ дают разные цены.
         {
-          quantity: extractUnitQuantity(combinedDescription),
+          quantity: resolveUnitQuantity(combinedDescription, aiAnalysis),
+          aiContext: buildAiContext(aiAnalysis),
           confidence: computeEstimateConfidence({
             aiTopConfidence: top?.confidence ?? null,
             matchedCatalog: true,
             ragTopSimilarity: aiAnalysis.raw.ragTopSimilarity,
             knowledgeTopSimilarity: aiAnalysis.raw.knowledgeTopSimilarity,
-            quantityKnown: extractUnitQuantity(combinedDescription) !== null,
+            quantityKnown: resolveUnitQuantity(combinedDescription, aiAnalysis) !== null,
           }),
         }
       );
@@ -1735,7 +1749,7 @@ export class InstantOrderService {
       variants: EstimateVariant[];
     };
 
-    const unitQuantity = extractUnitQuantity(description);
+    const unitQuantity = resolveUnitQuantity(description, aiAnalysis);
     const bundles: CategoryBundle[] = [];
 
     // ─── Шаг 1: смета по каждому направлению БЕЗ ценового хинта ──────

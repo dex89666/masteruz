@@ -22,6 +22,7 @@ process.env.PRICEBOOK_ENABLED = 'true';
 import { prisma } from '../../src/config/database.js';
 import { PRICING_CATALOG, buildSmartVariants } from '../../src/modules/instant-order/pricing-catalog.js';
 import { buildVariantsFromPriceBook } from '../../src/modules/instant-order/pricebook.service.js';
+import { buildPriceBookSeed } from '../../src/modules/instant-order/pricebook.mapping.js';
 
 const args = process.argv.slice(2);
 const VERBOSE = args.includes('--verbose');
@@ -112,6 +113,15 @@ async function main() {
     }
   }
 
+  // Проблема, которой больше нет в каталоге, но которая активна в реестре,
+  // продолжит подбираться по старым ключевым словам со старыми ценами.
+  const codeSlugs = new Set(buildPriceBookSeed().problems.map((p) => p.slug));
+  const staleInBook = (
+    await prisma.priceProblem.findMany({ where: { isActive: true }, select: { slug: true } })
+  )
+    .map((p) => p.slug)
+    .filter((slug) => !codeSlugs.has(slug));
+
   console.log(`  Проверено проблем:   ${casesChecked}`);
   console.log(`  Сравнено вариантов:  ${compared}`);
   console.log(`  Расхождений:         ${mismatches.length}`);
@@ -138,7 +148,13 @@ async function main() {
     if (mismatches.length > 30) console.log(`      …и ещё ${mismatches.length - 30}`);
   }
 
-  const blocking = mismatches.length > 0 || notFoundInBook.length > 0;
+  if (staleInBook.length > 0) {
+    console.log(`\n  ⚠ В реестре активны проблемы, которых нет в каталоге (${staleInBook.length}):`);
+    for (const slug of staleInBook) console.log(`      ${slug}`);
+    console.log('      Выполните npm run pricebook:import — устаревшие проблемы будут сняты с подбора.');
+  }
+
+  const blocking = mismatches.length > 0 || notFoundInBook.length > 0 || staleInBook.length > 0;
   if (blocking) {
     console.log('\n❌ Паритет НЕ достигнут — включать PRICEBOOK_ENABLED рано\n');
     process.exitCode = 1;

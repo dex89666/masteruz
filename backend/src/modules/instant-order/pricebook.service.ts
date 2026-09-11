@@ -208,22 +208,20 @@ export async function findProblemInBook(
   const candidates = book.problems.filter((p) => p.categorySlug === categorySlug);
   if (candidates.length === 0) return null;
 
-  const pick = (text: string): BookProblem | null => {
-    let best: BookProblem | null = null;
-    let bestScore = 0;
-    for (const problem of candidates) {
-      const score = scoreProblemMatch(problem.keywords, text);
-      if (score > bestScore) {
-        bestScore = score;
-        best = problem;
-      }
-    }
-    return bestScore >= MATCH_THRESHOLD ? best : null;
-  };
+  const scored = candidates.map((problem) => ({
+    problem,
+    text: scoreProblemMatch(problem.keywords, description),
+    photo: aiContext ? scoreProblemMatch(problem.keywords, aiContext) : 0,
+  }));
 
-  // Слова клиента — истина; понимание Vision подключается, только если по ним
-  // ничего не нашлось. Заказ по одной фотографии живёт именно на втором шаге.
-  return pick(description) ?? (aiContext ? pick(aiContext) : null);
+  // Слова клиента решают; фото разрешает ничью между ними — когда клиент
+  // написал лишь «собрать», какой предмет собирать, видно только на снимке.
+  // Правило общее с каталогом в коде: иначе пути разошлись бы в выборе.
+  const byText = [...scored].sort((x, y) => y.text - x.text || y.photo - x.photo)[0];
+  if (byText && byText.text >= MATCH_THRESHOLD) return byText.problem;
+
+  const byPhoto = [...scored].sort((x, y) => y.photo - x.photo)[0];
+  return byPhoto && byPhoto.photo >= MATCH_THRESHOLD ? byPhoto.problem : null;
 }
 
 // ─── Расчёт ──────────────────────────────────────────────────────────────

@@ -608,14 +608,23 @@ export const PRICING_CATALOG: CategoryPricing[] = [
           },
         ],
       },
+      // ─── Сборка мебели ─────────────────────────────────────────────
+      // Раньше это была одна проблема, и её уровни означали РАЗНЫЕ объёмы
+      // работ: GOOD — один комод, BETTER — шкаф-купе или кухонный гарнитур,
+      // BEST — комплект из 2-3 предметов. Клиенту с одним кухонным модулем
+      // система рекомендовала «сборку гарнитура» за 590 000.
+      //
+      // Теперь проблема разбита по типу предмета, а уровни внутри каждой —
+      // качество исполнения на ОДНОМ и том же объёме. Количество предметов
+      // или модулей называет клиент или видит модель на фото.
       {
-        keywords: ['шкаф', 'собрать', 'сборка', 'комод', 'стеллаж', 'купе', 'полка', 'гардероб', 'ikea', 'икеа'],
-        problemName: 'Сборка мебели',
+        keywords: ['собрать', 'сборка', 'комод', 'стеллаж', 'тумба', 'тумбочка', 'стол', 'стул', 'полка', 'кровать', 'детская мебель', 'ikea', 'икеа'],
+        problemName: 'Сборка небольшой мебели',
         solutions: [
           {
             tier: 'GOOD',
-            title: 'Сборка 1 предмета (стеллаж/комод)',
-            description: 'Сборка одного небольшого предмета мебели из готового комплекта.',
+            title: 'Сборка предмета мебели',
+            description: 'Сборка комода, тумбы, стеллажа или стола из готового комплекта с регулировкой фурнитуры.',
             works: [
               { name: 'Сборка мебели', qty: 1, unit: 'шт.', unitPrice: 150_000 },
               { name: 'Регулировка фурнитуры', qty: 1, unit: 'компл.', unitPrice: 30_000 },
@@ -625,13 +634,12 @@ export const PRICING_CATALOG: CategoryPricing[] = [
           },
           {
             tier: 'BETTER',
-            title: 'Сборка шкафа-купе / гарнитура',
-            description: 'Сборка крупного шкафа-купе или кухонного гарнитура (до 2.5 м).',
+            title: 'Сборка с креплением к стене',
+            description: 'Сборка, регулировка и крепление к стене — высокий предмет не опрокинется.',
             works: [
-              { name: 'Сборка крупной мебели', qty: 1, unit: 'шт.', unitPrice: 400_000 },
-              { name: 'Установка зеркальных дверей', qty: 2, unit: 'шт.', unitPrice: 40_000 },
+              { name: 'Сборка мебели', qty: 1, unit: 'шт.', unitPrice: 150_000 },
+              { name: 'Регулировка фурнитуры', qty: 1, unit: 'компл.', unitPrice: 30_000 },
               { name: 'Крепление к стене', qty: 1, unit: 'компл.', unitPrice: 50_000 },
-              { name: 'Регулировка и финальная подгонка', qty: 1, unit: 'компл.', unitPrice: 30_000 },
             ],
             materials: [
               { name: 'Доп. крепёж / дюбели', qty: 1, unit: 'компл.', unitPrice: 30_000 },
@@ -640,18 +648,113 @@ export const PRICING_CATALOG: CategoryPricing[] = [
           },
           {
             tier: 'BEST',
-            title: 'Сборка комплекта мебели (2-3 предмета)',
-            description: 'Сборка нескольких предметов: шкаф-купе + комод + кровать или аналогичный комплект.',
+            title: 'Сборка под ключ',
+            description: 'Сборка, крепление к стене и навеска комплектующих — полок, зеркал.',
             works: [
-              { name: 'Сборка крупных предметов', qty: 2, unit: 'шт.', unitPrice: 350_000 },
-              { name: 'Сборка дополнительного предмета', qty: 1, unit: 'шт.', unitPrice: 150_000 },
-              { name: 'Навеска на стену (зеркала, полки)', qty: 4, unit: 'шт.', unitPrice: 25_000 },
-              { name: 'Регулировка и подгонка', qty: 1, unit: 'компл.', unitPrice: 50_000 },
+              { name: 'Сборка мебели', qty: 1, unit: 'шт.', unitPrice: 150_000 },
+              { name: 'Регулировка фурнитуры', qty: 1, unit: 'компл.', unitPrice: 30_000 },
+              { name: 'Крепление к стене', qty: 1, unit: 'компл.', unitPrice: 50_000 },
+              { name: 'Навеска на стену (зеркала, полки)', qty: 2, unit: 'шт.', unitPrice: 25_000 },
             ],
             materials: [
-              { name: 'Крепёж, дюбели, фурнитура', qty: 1, unit: 'компл.', unitPrice: 50_000 },
+              { name: 'Доп. крепёж / дюбели', qty: 1, unit: 'компл.', unitPrice: 30_000 },
             ],
-            days: 2,
+            days: 1,
+          },
+        ],
+      },
+      {
+        keywords: ['собрать', 'сборка', 'шкаф', 'шкаф-купе', 'шкаф купе', 'купе', 'гардероб', 'гардеробная', 'распашной шкаф', 'шкаф до потолка'],
+        problemName: 'Сборка шкафа / шкафа-купе',
+        solutions: [
+          {
+            tier: 'GOOD',
+            title: 'Сборка шкафа',
+            description: 'Сборка корпуса шкафа, установка полок и штанг, финальная подгонка.',
+            works: [
+              { name: 'Сборка крупной мебели', qty: 1, unit: 'шт.', unitPrice: 400_000 },
+              { name: 'Регулировка и финальная подгонка', qty: 1, unit: 'компл.', unitPrice: 30_000 },
+            ],
+            materials: [],
+            days: 1,
+          },
+          {
+            tier: 'BETTER',
+            title: 'Сборка с креплением к стене',
+            description: 'Сборка и крепление высокого шкафа к стене — обязательно для шкафов до потолка.',
+            works: [
+              { name: 'Сборка крупной мебели', qty: 1, unit: 'шт.', unitPrice: 400_000 },
+              { name: 'Регулировка и финальная подгонка', qty: 1, unit: 'компл.', unitPrice: 30_000 },
+              { name: 'Крепление к стене', qty: 1, unit: 'компл.', unitPrice: 50_000 },
+            ],
+            materials: [
+              { name: 'Доп. крепёж / дюбели', qty: 1, unit: 'компл.', unitPrice: 30_000 },
+            ],
+            days: 1,
+          },
+          {
+            tier: 'BEST',
+            title: 'Сборка под ключ с дверями-купе',
+            description: 'Сборка, крепление к стене, установка и регулировка раздвижных или зеркальных дверей.',
+            works: [
+              { name: 'Сборка крупной мебели', qty: 1, unit: 'шт.', unitPrice: 400_000 },
+              { name: 'Регулировка и финальная подгонка', qty: 1, unit: 'компл.', unitPrice: 30_000 },
+              { name: 'Крепление к стене', qty: 1, unit: 'компл.', unitPrice: 50_000 },
+              { name: 'Установка зеркальных дверей', qty: 2, unit: 'шт.', unitPrice: 40_000 },
+            ],
+            materials: [
+              { name: 'Доп. крепёж / дюбели', qty: 1, unit: 'компл.', unitPrice: 30_000 },
+            ],
+            days: 1,
+          },
+        ],
+      },
+      // Кухня считается по модулям. Ставка сборки модуля — 90 000: это
+      // 150 000 сум за погонный метр из каталога услуг (assemble-kitchen),
+      // отнесённые к стандартному модулю шириной 60 см. Остальные строки —
+      // те же ставки, что у прочей корпусной мебели. Цифры экспертные и будут
+      // уточнены калибровкой по реальным сделкам.
+      {
+        keywords: ['собрать', 'сборка', 'кухня', 'кухню', 'кухонный', 'кухонная', 'гарнитур', 'кухонный гарнитур', 'модуль', 'модули', 'кухонный модуль', 'кухонная тумба', 'навесной шкаф', 'пенал'],
+        problemName: 'Сборка кухни (по модулям)',
+        solutions: [
+          {
+            tier: 'GOOD',
+            title: 'Сборка кухонного модуля',
+            description: 'Сборка корпуса, ящиков и фасадов по схеме производителя.',
+            works: [
+              { name: 'Выезд мастера', qty: 1, unit: 'выезд', unitPrice: 30_000 },
+              { name: 'Сборка кухонного модуля', qty: 1, unit: 'модуль', unitPrice: 90_000 },
+            ],
+            materials: [],
+            days: 1,
+          },
+          {
+            tier: 'BETTER',
+            title: 'Сборка с регулировкой фасадов',
+            description: 'Сборка модуля, регулировка петель, ящиков и зазоров между фасадами.',
+            works: [
+              { name: 'Выезд мастера', qty: 1, unit: 'выезд', unitPrice: 30_000 },
+              { name: 'Сборка кухонного модуля', qty: 1, unit: 'модуль', unitPrice: 90_000 },
+              { name: 'Регулировка фасадов и фурнитуры', qty: 1, unit: 'модуль', unitPrice: 30_000 },
+            ],
+            materials: [],
+            days: 1,
+          },
+          {
+            tier: 'BEST',
+            title: 'Сборка под ключ: выставление и крепление',
+            description: 'Сборка, регулировка, выставление по уровню и крепление к стене.',
+            works: [
+              { name: 'Выезд мастера', qty: 1, unit: 'выезд', unitPrice: 30_000 },
+              { name: 'Сборка кухонного модуля', qty: 1, unit: 'модуль', unitPrice: 90_000 },
+              { name: 'Регулировка фасадов и фурнитуры', qty: 1, unit: 'модуль', unitPrice: 30_000 },
+              { name: 'Выставление по уровню и крепление к стене', qty: 1, unit: 'модуль', unitPrice: 50_000 },
+            ],
+            materials: [
+              { name: 'Крепёж, стяжки, дюбели', qty: 1, unit: 'модуль', unitPrice: 30_000 },
+            ],
+            days: 1,
           },
         ],
       },
@@ -1459,15 +1562,13 @@ export const PRICING_CATALOG: CategoryPricing[] = [
 // ═══════════════════════════════════════════════
 
 /**
- * Найти подходящую проблему по описанию в каталоге расценок
+ * Вес совпадения проблемы с текстом.
+ *
+ * Алгоритм прежний — подстрока плюс стемминг с учётом беглых гласных. Вынесен
+ * отдельно, чтобы один и тот же расчёт применялся и к словам клиента, и к тому,
+ * что увидела модель.
  */
-export function findProblemByDescription(
-  categorySlug: string,
-  description: string
-): ProblemSolution | null {
-  const catalog = PRICING_CATALOG.find(c => c.slug === categorySlug);
-  if (!catalog) return null;
-
+function scoreCatalogProblem(problem: ProblemSolution, description: string): number {
   const lower = description.toLowerCase();
   const descWords = lower.split(/\s+/).filter(w => w.length > 1);
   // Простой стемминг: обрезаем русские окончания (розетку/розетки/розеткой → розетк)
@@ -1487,53 +1588,75 @@ export function findProblemByDescription(
     return false;
   };
 
-  let bestMatch: ProblemSolution | null = null;
-  let bestScore = 0;
+  let score = 0;
+  for (const kw of problem.keywords) {
+    const kwLower = kw.toLowerCase();
+    // Точное совпадение (подстрока в описании)
+    if (lower.includes(kwLower)) {
+      score += kw.length;
+      continue;
+    }
+    // Нечёткое: для мультисловных ключевых слов проверяем каждое слово отдельно
+    const kwWords = kwLower.split(/\s+/).filter(w => w.length > 2);
+    if (kwWords.length === 0) continue;
 
-  for (const problem of catalog.problems) {
-    let score = 0;
-    for (const kw of problem.keywords) {
-      const kwLower = kw.toLowerCase();
-      // Точное совпадение (подстрока в описании)
-      if (lower.includes(kwLower)) {
-        score += kw.length;
-        continue;
-      }
-      // Нечёткое: для мультисловных ключевых слов проверяем каждое слово отдельно
-      const kwWords = kwLower.split(/\s+/).filter(w => w.length > 2);
-      if (kwWords.length === 0) continue;
-
-      if (kwWords.length === 1) {
-        // Однословное: сравниваем стеммы
-        const kwStem = stem(kwWords[0]);
-        if (kwStem.length >= 3) {
-          for (const ds of descStems) {
-            if (ds.length >= 3 && stemMatch(ds, kwStem)) {
-              score += kwStem.length;
-              break;
-            }
+    if (kwWords.length === 1) {
+      // Однословное: сравниваем стеммы
+      const kwStem = stem(kwWords[0]);
+      if (kwStem.length >= 3) {
+        for (const ds of descStems) {
+          if (ds.length >= 3 && stemMatch(ds, kwStem)) {
+            score += kwStem.length;
+            break;
           }
         }
-      } else {
-        // Мультисловное: ВСЕ значимые слова должны совпасть по стемму
-        const kwStems = kwWords.map(w => stem(w)).filter(s => s.length >= 3);
-        if (kwStems.length === 0) continue;
-        const allMatch = kwStems.every(ks =>
-          descStems.some(ds => ds.length >= 3 && stemMatch(ds, ks))
-        );
-        if (allMatch) {
-          // Бонус пропорционален количеству совпавших слов, но меньше чем длина всей фразы
-          score += kwStems.reduce((s, ks) => s + ks.length, 0);
-        }
+      }
+    } else {
+      // Мультисловное: ВСЕ значимые слова должны совпасть по стемму
+      const kwStems = kwWords.map(w => stem(w)).filter(s => s.length >= 3);
+      if (kwStems.length === 0) continue;
+      const allMatch = kwStems.every(ks =>
+        descStems.some(ds => ds.length >= 3 && stemMatch(ds, ks))
+      );
+      if (allMatch) {
+        // Бонус пропорционален количеству совпавших слов, но меньше чем длина всей фразы
+        score += kwStems.reduce((s, ks) => s + ks.length, 0);
       }
     }
-    if (score > bestScore) {
-      bestScore = score;
-      bestMatch = problem;
-    }
   }
+  return score;
+}
 
-  return bestMatch;
+/**
+ * Найти подходящую проблему в каталоге расценок.
+ *
+ * Слова клиента — истина: они решают выбор. Но когда клиент написал лишь
+ * «собрать», все проблемы сборки набирают поровну, и тогда решает фото: какой
+ * именно предмет собирать — комод, шкаф-купе или кухонный модуль, — видно
+ * только на нём. Раньше в такой ситуации побеждала первая проблема списка.
+ */
+export function findProblemByDescription(
+  categorySlug: string,
+  description: string,
+  aiContext?: string,
+): ProblemSolution | null {
+  const catalog = PRICING_CATALOG.find(c => c.slug === categorySlug);
+  if (!catalog) return null;
+
+  const scored = catalog.problems.map((problem) => ({
+    problem,
+    text: scoreCatalogProblem(problem, description),
+    photo: aiContext ? scoreCatalogProblem(problem, aiContext) : 0,
+  }));
+
+  // Слова клиента решают; фото разрешает ничью между ними. Сортировка
+  // устойчивая — при полном равенстве побеждает проблема, стоящая раньше.
+  const byText = [...scored].sort((x, y) => y.text - x.text || y.photo - x.photo)[0];
+  if (byText && byText.text > 0) return byText.problem;
+
+  // Слова ничего не дали — решает то, что увидела модель.
+  const byPhoto = [...scored].sort((x, y) => y.photo - x.photo)[0];
+  return byPhoto && byPhoto.photo > 0 ? byPhoto.problem : null;
 }
 
 /**
@@ -1609,7 +1732,7 @@ function isPerVisitLine(line: PricedLine): boolean {
 }
 
 /** Единицы, которыми считают штучные предметы (в отличие от метража и площади). */
-const COUNTABLE_UNITS = new Set(['шт', 'шт.', 'штук', 'точка', 'точек', 'ед.', 'ед']);
+const COUNTABLE_UNITS = new Set(['шт', 'шт.', 'штук', 'точка', 'точек', 'ед.', 'ед', 'модуль', 'модуля', 'модулей', 'мод.']);
 
 /**
  * На сколько единиц работы уже рассчитано решение.
@@ -1621,11 +1744,14 @@ const COUNTABLE_UNITS = new Set(['шт', 'шт.', 'штук', 'точка', 'т�
  * превращаются в двенадцать.
  */
 export function solutionBaseQuantity(variant: Pick<EstimateVariant, 'works'>): number {
-  const counted = variant.works
-    .filter((w) => !isPerVisitLine(w) && COUNTABLE_UNITS.has(w.unit.trim().toLowerCase()))
-    .map((w) => w.qty)
-    .filter((q) => q > 0);
-  return counted.length > 0 ? Math.max(...counted) : 1;
+  // Берём основную работу — первую штучную строку после выезда. Следом в
+  // каталоге идут сопутствующие операции: «Установка зеркальных дверей, 2 шт.»
+  // при сборке ОДНОГО шкафа. Максимум по всем строкам принимал двери за два
+  // шкафа и делил смету пополам.
+  const main = variant.works.find(
+    (w) => !isPerVisitLine(w) && w.qty > 0 && COUNTABLE_UNITS.has(w.unit.trim().toLowerCase()),
+  );
+  return main ? main.qty : 1;
 }
 
 const sumLines = (lines: PricedLine[]): number => lines.reduce((s, l) => s + l.total, 0);
@@ -1787,10 +1913,7 @@ export function buildSmartVariants(
   aiPriceHint?: { min: number; max: number } | null,
   options: BuildVariantsOptions = {},
 ): { problemName: string; variants: EstimateVariant[] } | null {
-  let problem = findProblemByDescription(categorySlug, description);
-  if (!problem && options.aiContext) {
-    problem = findProblemByDescription(categorySlug, options.aiContext);
-  }
+  const problem = findProblemByDescription(categorySlug, description, options.aiContext);
   if (!problem) return null;
 
   // Уверенность одинакова для всех трёх уровней: премиум-вариант не «вернее»

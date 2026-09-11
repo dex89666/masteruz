@@ -99,12 +99,24 @@ async function importItems(seed: PriceBookSeed): Promise<{ created: number; upda
   return { created, updated, changes };
 }
 
-async function importProblems(seed: PriceBookSeed): Promise<{ problems: number; solutions: number; lines: number }> {
+/**
+ * Проблемы целиком выводятся из каталога в коде — админ их не создаёт.
+ * Исчезнувшую из каталога проблему нужно снять с подбора, иначе прайс-движок
+ * продолжит находить её по старым ключевым словам и со старыми ценами.
+ */
+function staleProblemsWhere(seed: PriceBookSeed) {
+  return { isActive: true, slug: { notIn: seed.problems.map((p) => p.slug) } };
+}
+
+async function importProblems(
+  seed: PriceBookSeed,
+): Promise<{ problems: number; solutions: number; lines: number; deactivated: number }> {
   if (DRY) {
     return {
       problems: seed.problems.length,
       solutions: seed.problems.reduce((n, p) => n + p.solutions.length, 0),
       lines: seed.problems.reduce((n, p) => n + p.solutions.reduce((m, s) => m + s.lines.length, 0), 0),
+      deactivated: await prisma.priceProblem.count({ where: staleProblemsWhere(seed) }),
     };
   }
 
@@ -171,7 +183,12 @@ async function importProblems(seed: PriceBookSeed): Promise<{ problems: number; 
     }
   }
 
-  return { problems: seed.problems.length, solutions, lines };
+  const stale = await prisma.priceProblem.updateMany({
+    where: staleProblemsWhere(seed),
+    data: { isActive: false },
+  });
+
+  return { problems: seed.problems.length, solutions, lines, deactivated: stale.count };
 }
 
 async function importModifiers(seed: PriceBookSeed): Promise<number> {
@@ -238,6 +255,9 @@ async function main() {
 
   const structure = await importProblems(seed);
   console.log(`  Структура:  ${structure.problems} проблем, ${structure.solutions} решений, ${structure.lines} строк`);
+  if (structure.deactivated > 0) {
+    console.log(`  Снято с подбора устаревших проблем: ${structure.deactivated}`);
+  }
 
   const modifiers = await importModifiers(seed);
   console.log(`  Множители:  ${modifiers}`);
