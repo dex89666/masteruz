@@ -18,6 +18,13 @@ import {
   buildSmartVariants,
   roundUnitPrice,
   MAX_UNIT_QUANTITY,
+  PRICING_CATALOG,
+  WALL_AREA_UNIT,
+  wallAreaFromFloor,
+  mainWorkLine,
+  volumeClassOf,
+  findProblemByDescription,
+  calculateSolutionPrice,
   type EstimateVariant,
 } from '../../src/modules/instant-order/pricing-catalog.js';
 
@@ -436,4 +443,129 @@ describe('разборка мебели — уровни одного объём
       expect(best.estimatedPrice).toBeGreaterThan(better.estimatedPrice);
     }
   });
+});
+
+describe('площадь и метраж — объём клиента доходит до цены', () => {
+  const byArea = (unit: string, qty: number) =>
+    makeVariant({
+      works: [
+        { name: 'Выезд мастера', qty: 1, unit: 'выезд', unitPrice: 30_000, total: 30_000 },
+        { name: 'Покраска (2 слоя)', qty, unit, unitPrice: 15_000, total: qty * 15_000 },
+      ],
+      materials: [{ name: 'Краска интерьерная (10 л)', qty: 1, unit: 'ведро', unitPrice: 150_000, total: 150_000 }],
+      estimatedPrice: 30_000 + qty * 15_000 + 150_000,
+    });
+
+  it('площадь доводит работу по м² до названной, выезд не меняется', () => {
+    const [v] = applyQuantity([byArea('м²', 30)], null, { value: 60, unit: 'м²' });
+    expect(v.works[1].qty).toBe(60);
+    expect(v.works[0].total).toBe(30_000);
+    // Краску покупают вёдрами: на 60 м² — два ведра
+    expect(v.materials[0].qty).toBe(2);
+  });
+
+  it('площадь комнаты по полу пересчитывается в площадь стен', () => {
+    const [v] = applyQuantity([byArea(WALL_AREA_UNIT, 30)], null, { value: 16, unit: 'м²', basis: 'room' });
+    expect(v.works[1].qty).toBe(wallAreaFromFloor(16));
+    // В комнате 16 м² стен около 40 м², а не 16
+    expect(wallAreaFromFloor(16)).toBeGreaterThanOrEqual(38);
+    expect(wallAreaFromFloor(16)).toBeLessThanOrEqual(44);
+  });
+
+  it('площадь самой стены не пересчитывается', () => {
+    const [v] = applyQuantity([byArea(WALL_AREA_UNIT, 30)], null, { value: 12, unit: 'м²', basis: 'surface' });
+    expect(v.works[1].qty).toBe(12);
+  });
+
+  it('квартира считается несколькими комнатами — у неё есть внутренние стены', () => {
+    // Одна «коробка» 60 м² дала бы ~80 м² стен; у трёх комнат их ~135
+    expect(wallAreaFromFloor(60)).toBeGreaterThan(120);
+  });
+
+  it('метраж не трогает работы по площади, площадь — штучные работы', () => {
+    const area = byArea('м²', 30);
+    expect(applyQuantity([area], null, { value: 5, unit: 'м.п.' })[0].estimatedPrice).toBe(area.estimatedPrice);
+    const piece = makeVariant();
+    expect(applyQuantity([piece], null, { value: 20, unit: 'м²' })[0].estimatedPrice).toBe(piece.estimatedPrice);
+  });
+
+  it('разовые строки заказа не множатся: три розетки на новой линии — один автомат', () => {
+    const base = makeVariant({
+      works: [
+        { name: 'Выезд электрика', qty: 1, unit: 'выезд', unitPrice: 40_000, total: 40_000 },
+        { name: 'Замена розетки', qty: 1, unit: 'шт.', unitPrice: 35_000, total: 35_000 },
+        { name: 'Установка автомата в щиток', qty: 1, unit: 'заказ', unitPrice: 40_000, total: 40_000 },
+      ],
+      materials: [],
+      estimatedPrice: 115_000,
+    });
+    const [v] = applyQuantity([base], 3);
+    expect(v.works[1].qty).toBe(3);
+    expect(v.works[2].qty).toBe(1);
+  });
+});
+
+describe('каталог — уровни одной проблемы описывают один объём работ', () => {
+  // Уровни — это качество исполнения, а не объём: клиенту с одной розеткой
+  // не предлагают «Премиум» на четыре. Протечка — осознанное исключение:
+  // очаг один, но «Премиум» меняет участок трубы до 3 м вместо точечного ремонта.
+  const ESCALATION = new Set(['Протечка / прорыв трубы']);
+  type Solution = Parameters<typeof calculateSolutionPrice>[0];
+  const base = (s: Solution) => {
+    const main = mainWorkLine({ works: s.works.map((w) => ({ ...w, total: w.qty * w.unitPrice })) });
+    return main ? `${main.qty} ${volumeClassOf(main.unit)}` : 'нет основной работы';
+  };
+
+  for (const cat of PRICING_CATALOG) {
+    for (const pr of cat.problems) {
+      it(`${cat.slug} / ${pr.problemName}`, () => {
+        const totals = pr.solutions.map((s) => calculateSolutionPrice(s).total);
+        // Цена растёт строго от «Хорошего» к «Премиуму»
+        expect(totals).toEqual([...totals].sort((a, b) => a - b));
+        expect(new Set(totals).size).toBe(totals.length);
+        if (!ESCALATION.has(pr.problemName)) expect(new Set(pr.solutions.map(base)).size).toBe(1);
+      });
+    }
+  }
+});
+
+describe('подбор проблемы — разные работы не смешиваются', () => {
+  const cases: [string, string, string][] = [
+    ['electrical', 'почистить кондиционер', 'Обслуживание / ремонт кондиционера'],
+    ['electrical', 'кондиционер не холодит', 'Обслуживание / ремонт кондиционера'],
+    ['electrical', 'установить кондиционер в спальне', 'Установка кондиционера'],
+    ['electrical', 'повесить люстру', 'Установка люстры / светильника'],
+    ['electrical', 'не горит свет в коридоре', 'Проблемы с освещением'],
+    ['electrical', 'сделать точечные светильники', 'Монтаж точечного освещения'],
+    ['electrical', 'выбивает автомат', 'Замена автомата / УЗО'],
+    ['electrical', 'собрать новый щиток', 'Ревизия / замена электрощитка'],
+    ['construction', 'дырка в стене', 'Заделка трещин и отверстий в стене'],
+    ['construction', 'выровнять стены', 'Штукатурка / выравнивание стен'],
+    ['construction', 'вздулся ламинат', 'Ремонт участка пола'],
+    ['construction', 'постелить ламинат в комнате', 'Укладка пола'],
+    ['construction', 'натяжной потолок в зал', 'Натяжной потолок'],
+    ['construction', 'потолок из гипсокартона', 'Потолок из гипсокартона'],
+    ['construction', 'побелить потолок', 'Ремонт / покраска потолка'],
+    ['painting', 'отходят обои на стыках', 'Подклейка обоев'],
+    ['painting', 'поклеить обои в комнате', 'Поклейка обоев'],
+    ['painting', 'отвалилась плитка в ванной', 'Замена отдельных плиток'],
+    ['painting', 'положить плитку на кухне', 'Укладка плитки'],
+    ['windows-doors', 'дует из окна', 'Ремонт / регулировка окна'],
+    ['windows-doors', 'разбилось стекло в окне', 'Замена стеклопакета'],
+    ['windows-doors', 'сломался замок', 'Замена / ремонт замка'],
+    ['windows-doors', 'скрипит дверь', 'Ремонт / регулировка двери'],
+    ['windows-doors', 'установить межкомнатную дверь', 'Установка межкомнатной двери'],
+    ['furniture', 'провисла дверца шкафа', 'Замена петель / ручек мебели'],
+    ['furniture', 'не выдвигается ящик', 'Ремонт ящиков (направляющие)'],
+    ['furniture', 'шатается шкаф', 'Ремонт корпуса мебели'],
+    ['carpentry', 'починить забор', 'Ремонт деревянного забора / перил'],
+    ['carpentry', 'построить навес во дворе', 'Строительство навеса / беседки / террасы'],
+    ['garden-outdoor', 'покосить траву на участке', 'Покос газона / уход за участком'],
+    ['garden-outdoor', 'обрезать деревья', 'Обрезка деревьев и кустов'],
+  ];
+  for (const [slug, text, expected] of cases) {
+    it(`«${text}» → ${expected}`, () => {
+      expect(findProblemByDescription(slug, text)?.problemName).toBe(expected);
+    });
+  }
 });

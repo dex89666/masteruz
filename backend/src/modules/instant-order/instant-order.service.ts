@@ -18,6 +18,7 @@ import {
   MAX_UNIT_QUANTITY,
   TIER_LABELS,
   roundUnitPrice,
+  type VolumeMeasure,
   type EstimateVariant,
   type PricedLine,
 } from './pricing-catalog.js';
@@ -503,6 +504,74 @@ export function extractUnitQuantity(text: string): number | null {
  */
 export function resolveUnitQuantity(text: string, ai: AiAnalysisResult | null): number | null {
   return extractUnitQuantity(text) ?? (ai?.summary ? extractUnitQuantity(ai.summary) : null);
+}
+
+const ROOM_WORDS = /комнат|квартир|спальн|гостин|помещени|кухн|детск|офис|санузл|ванн|зал[аеу]?(?![а-я])|дом[аеу]?(?![а-я])/g;
+const WALL_WORDS = /стен/g;
+
+const lastMatch = (text: string, re: RegExp): number => {
+  let last = -1;
+  for (const m of text.matchAll(re)) last = m.index!;
+  return last;
+};
+
+/**
+ * Площадь пола комнаты или площадь самой поверхности?
+ *
+ * «Комната 16 м²» — это пол, стен в такой комнате около 40 м²; «стена 12 м²» —
+ * сама стена. Решает слово, стоящее ближе к числу. Без подсказок рядом
+ * размеры «4 на 5» — это комната, а просто «20 м²» — поверхность.
+ */
+function areaBasis(lower: string, at: number, dims: boolean): 'room' | 'surface' {
+  const before = lower.slice(Math.max(0, at - 40), at);
+  const room = lastMatch(before, ROOM_WORDS);
+  const wall = lastMatch(before, WALL_WORDS);
+  if (room >= 0 || wall >= 0) return room > wall ? 'room' : 'surface';
+  if (lastMatch(lower, ROOM_WORDS) >= 0 && lastMatch(lower, WALL_WORDS) < 0) return 'room';
+  return dims ? 'room' : 'surface';
+}
+
+/**
+ * Площадь или метраж из описания: «20 м²», «20 кв.м», «20 квадратов»,
+ * «комната 4 на 5 м», «6 соток», «5 метров», «3 м.п.».
+ *
+ * Работы по площади — покраска, штукатурка, пол, уборка — считаются за м².
+ * Без этого разбора клиент, написавший «покрасить 20 м²», получал цены,
+ * посчитанные на объём из каталога, а не на свою стену.
+ */
+export function extractMeasure(text: string): VolumeMeasure | null {
+  if (!text) return null;
+  const lower = text.toLowerCase().replace(/ё/g, 'е').replace(/(\d),(\d)/g, '$1.$2');
+  const num = String.raw`(\d{1,4}(?:\.\d{1,2})?)`;
+  const make = (value: number, unit: VolumeMeasure['unit'], at: number, dims = false): VolumeMeasure | null => {
+    const max = unit === 'м²' ? 2000 : 1000;
+    if (!Number.isFinite(value) || value <= 0 || value > max) return null;
+    return unit === 'м²' ? { value, unit, basis: areaBasis(lower, at, dims) } : { value, unit };
+  };
+
+  // Участки в Узбекистане меряют сотками: сотка — 100 м²
+  const sotki = lower.match(new RegExp(String.raw`${num}\s*сот(?:ок|ки|ка|ку|ых)`));
+  if (sotki) return make(parseFloat(sotki[1]) * 100, 'м²', sotki.index!);
+
+  // «кв. м», но не «3 кв. мне» — после «м» не должно идти буквы
+  const area = lower.match(new RegExp(String.raw`${num}\s*(?:м²|м2|кв\.?\s*м(?![а-я])|квадрат|кв\.?\s*метр)`));
+  if (area) return make(parseFloat(area[1]), 'м²', area.index!);
+
+  // «4 на 5 м», «4х5 м» — размеры помещения или стены
+  const dims = lower.match(new RegExp(String.raw`${num}\s*(?:на|x|х|×|\*)\s*${num}\s*(?:м|метр)`));
+  if (dims) return make(Math.round(parseFloat(dims[1]) * parseFloat(dims[2]) * 100) / 100, 'м²', dims.index!, true);
+
+  // «5 м», «5 метров», «3 м.п.»; «мм», «мин», «мешка» не подходят —
+  // после «м» не должно идти кириллической буквы
+  const length = lower.match(new RegExp(String.raw`${num}\s*(?:м\.?\s*п|пог\S*\s*м|метр|м(?![а-я]))`));
+  if (length) return make(parseFloat(length[1]), 'м.п.', length.index!);
+
+  return null;
+}
+
+/** Площадь или метраж: сначала из слов клиента, затем из пересказа модели. */
+export function resolveMeasure(text: string, ai: AiAnalysisResult | null): VolumeMeasure | null {
+  return extractMeasure(text) ?? (ai?.summary ? extractMeasure(ai.summary) : null);
 }
 
 /**
@@ -1038,13 +1107,14 @@ export class InstantOrderService {
     // Количество единиц («заменить 3 розетки») теперь доходит до расчёта цены,
     // а не остаётся в классификаторе сложности.
     const unitQuantity = resolveUnitQuantity(combinedDescription, aiAnalysis);
+    const unitMeasure = resolveMeasure(combinedDescription, aiAnalysis);
     const aiContext = buildAiContext(aiAnalysis);
     const estimateConfidence = computeEstimateConfidence({
       aiTopConfidence: aiAnalysis?.categories[0]?.confidence ?? null,
       matchedCatalog: true,
       ragTopSimilarity: aiAnalysis?.raw.ragTopSimilarity ?? null,
       knowledgeTopSimilarity: aiAnalysis?.raw.knowledgeTopSimilarity ?? null,
-      quantityKnown: unitQuantity !== null,
+      quantityKnown: unitQuantity !== null || unitMeasure !== null,
     });
 
     const smartResult = buildSmartVariants(
@@ -1052,7 +1122,7 @@ export class InstantOrderService {
       category.name,
       combinedDescription,
       aiAnalysis?.priceHint ?? null,
-      { quantity: unitQuantity, confidence: estimateConfidence, aiContext }
+      { quantity: unitQuantity, measure: unitMeasure, confidence: estimateConfidence, aiContext }
     );
 
     // ─── Прайс-реестр в БД: основной путь, когда включён ───────────
@@ -1078,6 +1148,7 @@ export class InstantOrderService {
           categorySlug: category.slug,
           description: combinedDescription,
           quantity: unitQuantity,
+          measure: unitMeasure,
           confidence: estimateConfidence,
           urgency: aiAnalysis?.urgency,
           aiPriceHint: aiAnalysis?.priceHint ?? null,
@@ -1154,7 +1225,7 @@ export class InstantOrderService {
           matchedCatalog: false,
           ragTopSimilarity: aiAnalysis?.raw.ragTopSimilarity ?? null,
           knowledgeTopSimilarity: aiAnalysis?.raw.knowledgeTopSimilarity ?? null,
-          quantityKnown: unitQuantity !== null,
+          quantityKnown: unitQuantity !== null || unitMeasure !== null,
         }),
       });
       variants = fb.variants;
@@ -1380,13 +1451,16 @@ export class InstantOrderService {
         // иначе анонимный калькулятор и авторизованный заказ дают разные цены.
         {
           quantity: resolveUnitQuantity(combinedDescription, aiAnalysis),
+          measure: resolveMeasure(combinedDescription, aiAnalysis),
           aiContext: buildAiContext(aiAnalysis),
           confidence: computeEstimateConfidence({
             aiTopConfidence: top?.confidence ?? null,
             matchedCatalog: true,
             ragTopSimilarity: aiAnalysis.raw.ragTopSimilarity,
             knowledgeTopSimilarity: aiAnalysis.raw.knowledgeTopSimilarity,
-            quantityKnown: resolveUnitQuantity(combinedDescription, aiAnalysis) !== null,
+            quantityKnown:
+              resolveUnitQuantity(combinedDescription, aiAnalysis) !== null ||
+              resolveMeasure(combinedDescription, aiAnalysis) !== null,
           }),
         }
       );
@@ -1750,6 +1824,7 @@ export class InstantOrderService {
     };
 
     const unitQuantity = resolveUnitQuantity(description, aiAnalysis);
+    const unitMeasure = resolveMeasure(description, aiAnalysis);
     const bundles: CategoryBundle[] = [];
 
     // ─── Шаг 1: смета по каждому направлению БЕЗ ценового хинта ──────
@@ -1764,11 +1839,12 @@ export class InstantOrderService {
         matchedCatalog: true,
         ragTopSimilarity: aiAnalysis?.raw.ragTopSimilarity ?? null,
         knowledgeTopSimilarity: aiAnalysis?.raw.knowledgeTopSimilarity ?? null,
-        quantityKnown: unitQuantity !== null,
+        quantityKnown: unitQuantity !== null || unitMeasure !== null,
       });
 
       const smart = buildSmartVariants(cat.slug, cat.name, description, null, {
         quantity: unitQuantity,
+        measure: unitMeasure,
         confidence,
       });
 
@@ -1791,7 +1867,7 @@ export class InstantOrderService {
             matchedCatalog: false,
             ragTopSimilarity: aiAnalysis?.raw.ragTopSimilarity ?? null,
             knowledgeTopSimilarity: aiAnalysis?.raw.knowledgeTopSimilarity ?? null,
-            quantityKnown: unitQuantity !== null,
+            quantityKnown: unitQuantity !== null || unitMeasure !== null,
           }),
         });
         bundles.push({ category: cat, taskIds: fb.taskIds, variants: fb.variants });

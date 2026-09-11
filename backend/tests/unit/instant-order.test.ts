@@ -54,6 +54,7 @@ import {
   decideEscalation,
   priceSpreadRatio,
   resolveUnitQuantity,
+  extractMeasure,
 } from '../../src/modules/instant-order/instant-order.service.js';
 import { buildAiContext } from '../../src/modules/instant-order/vision-pipeline.js';
 
@@ -403,5 +404,35 @@ describe('кухня по модулям — количество', () => {
 
   it('без текста и анализа количества нет', () => {
     expect(resolveUnitQuantity('', null)).toBeNull();
+  });
+});
+
+describe('extractMeasure — площадь и метраж из слов клиента', () => {
+  it.each([
+    ['покрасить 20 м²', 20, 'м²'],
+    ['поклеить обои, 18 кв.м', 18, 'м²'],
+    ['уборка квартиры 65 квадратов', 65, 'м²'],
+    ['комната 4 на 5 м', 20, 'м²'],
+    ['покос 6 соток', 600, 'м²'],
+    ['забор 12 метров', 12, 'м.п.'],
+    ['плинтус 7,5 м.п.', 7.5, 'м.п.'],
+  ])('«%s» → %s %s', (text, value, unit) => {
+    expect(extractMeasure(text)).toMatchObject({ value, unit });
+  });
+
+  it('не принимает за метраж миллиметры, минуты, мешки и «кв.» квартиры', () => {
+    expect(extractMeasure('саморезы 5 мм')).toBeNull();
+    expect(extractMeasure('приехать через 30 мин')).toBeNull();
+    expect(extractMeasure('3 мешка смеси')).toBeNull();
+    expect(extractMeasure('3 кв. мне нужно отремонтировать')).toBeNull();
+    expect(extractMeasure('поменять розетку')).toBeNull();
+  });
+
+  it('площадь комнаты — это пол, площадь стены — сама поверхность', () => {
+    expect(extractMeasure('поклеить обои в спальне 16 квадратов')?.basis).toBe('room');
+    expect(extractMeasure('комната 16 м², покрасить стены')?.basis).toBe('room');
+    expect(extractMeasure('покрасить стену 12 м²')?.basis).toBe('surface');
+    expect(extractMeasure('стена 3 на 4 м')?.basis).toBe('surface');
+    expect(extractMeasure('покрасить 3 на 4 м')?.basis).toBe('room');
   });
 });

@@ -23,6 +23,7 @@ import {
   dropVisitFeeOnCheapVariant,
   TIER_LABELS,
   roundUnitPrice,
+  type VolumeMeasure,
   type EstimateVariant,
   type PricedLine,
 } from './pricing-catalog.js';
@@ -236,6 +237,8 @@ export interface PriceBookQuery {
   description: string;
   /** Количество единиц штучной работы из описания клиента. */
   quantity?: number | null;
+  /** Площадь или метраж из описания клиента — для работ за м² и погонный метр. */
+  measure?: VolumeMeasure | null;
   /** Уверенность в смете, посчитанная из сигналов. */
   confidence?: number;
   urgency?: 'emergency' | 'urgent' | 'normal' | 'flexible';
@@ -339,7 +342,7 @@ export async function buildVariantsFromPriceBook(
 
   // Те же правила, что и у каталожного пути — расчёт обязан совпадать
   // независимо от источника позиций.
-  variants = applyQuantity(variants, query.quantity);
+  variants = applyQuantity(variants, query.quantity, query.measure);
   variants = scaleVariantsToPriceHint(variants, query.aiPriceHint);
   variants = dropVisitFeeOnCheapVariant(variants);
 
