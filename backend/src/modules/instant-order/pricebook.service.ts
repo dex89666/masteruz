@@ -187,8 +187,13 @@ export function scoreProblemMatch(keywords: string[], description: string): numb
 
     // Совпасть должны ВСЕ значимые слова ключа, иначе «замена трубы»
     // сработала бы на любом упоминании замены.
+    // Слово клиента может быть длиннее ключа (ключ — корень), а короче — лишь
+    // на окончание: «шкаф» не совпадает с «шкаф-купе». Правило общее с
+    // каталогом в коде, иначе два подборщика расходились бы в выборе.
     const allMatch = kwStems.every((ks) =>
-      descStems.some((ds) => ds.length >= 3 && (ds.startsWith(ks) || ks.startsWith(ds))),
+      descStems.some(
+        (ds) => ds.length >= 3 && (ds.startsWith(ks) || (ks.startsWith(ds) && ds.length >= ks.length - 2)),
+      ),
     );
     if (allMatch) score += weight * 0.8;
   }

@@ -374,3 +374,66 @@ describe('сборка мебели — уровни одного объёма',
     expect(applyQuantity([wardrobe], 1)[0].estimatedPrice).toBe(480_000);
   });
 });
+
+describe('разборка мебели — уровни одного объёма', () => {
+  const FURNITURE = ['furniture', 'Сборка и ремонт мебели'] as const;
+
+  it('разборка комода — небольшая мебель, а не шкаф-купе', () => {
+    const res = buildSmartVariants(...FURNITURE, 'разобрать комод')!;
+    expect(res.problemName).toBe('Разборка небольшой мебели');
+  });
+
+  it('разборка дешевле сборки того же предмета', () => {
+    // Раньше разборка комода стоила 280 000 — дороже его сборки (180 000):
+    // правило «разборка ≈ 70% сборки» применили к цене шкафа, а не комода.
+    const assemble = buildSmartVariants(...FURNITURE, 'собрать комод')!;
+    const disassemble = buildSmartVariants(...FURNITURE, 'разобрать комод')!;
+    const tier = (r: typeof assemble, t: string) => r!.variants.find((v) => v.tier === t)!.estimatedPrice;
+    expect(tier(disassemble, 'GOOD')).toBeLessThan(tier(assemble, 'GOOD'));
+  });
+
+  it('шкаф-купе и кухонный модуль разбираются по своим проблемам', () => {
+    expect(buildSmartVariants(...FURNITURE, 'разобрать шкаф-купе')!.problemName).toBe('Разборка шкафа / шкафа-купе');
+    expect(buildSmartVariants(...FURNITURE, 'разобрать кухонный модуль')!.problemName).toBe('Разборка кухни (по модулям)');
+    expect(buildSmartVariants(...FURNITURE, 'демонтаж кухонного гарнитура')!.problemName).toBe('Разборка кухни (по модулям)');
+  });
+
+  it('без глагола — сборка, а не разборка', () => {
+    // «Навесной шкаф на кухню» почти всегда означает установку: слова про
+    // предмет у сборки и разборки одинаковые, а сборка стоит раньше.
+    expect(buildSmartVariants(...FURNITURE, 'навесной шкаф на кухню')!.problemName).toBe('Сборка кухни (по модулям)');
+  });
+
+  it('навесной шкаф — кухня, а не шкаф-купе', () => {
+    expect(buildSmartVariants(...FURNITURE, 'собрать навесной шкаф')!.problemName).toBe('Сборка кухни (по модулям)');
+  });
+
+  it('разные глаголы разборки понимаются одинаково', () => {
+    expect(buildSmartVariants(...FURNITURE, 'убрать комод')!.problemName).toBe('Разборка небольшой мебели');
+    expect(buildSmartVariants(...FURNITURE, 'снять навесной шкаф')!.problemName).toBe('Разборка кухни (по модулям)');
+    expect(buildSmartVariants(...FURNITURE, 'разобрать навесной шкаф')!.problemName).toBe('Разборка кухни (по модулям)');
+    expect(buildSmartVariants(...FURNITURE, 'разбираю шкаф-купе')!.problemName).toBe('Разборка шкафа / шкафа-купе');
+  });
+
+  it('«собрать» и «разобрать» не путаются', () => {
+    expect(buildSmartVariants(...FURNITURE, 'собрать кухонный модуль')!.problemName).toBe('Сборка кухни (по модулям)');
+    expect(buildSmartVariants(...FURNITURE, 'разобрать кухонный модуль')!.problemName).toBe('Разборка кухни (по модулям)');
+  });
+
+  it('гарнитур разбирается по числу модулей', () => {
+    const one = buildSmartVariants(...FURNITURE, 'разобрать кухонный модуль', null, { quantity: 1 })!;
+    const eight = buildSmartVariants(...FURNITURE, 'разобрать кухонный гарнитур', null, { quantity: 8 })!;
+    const better = (r: typeof one) => r!.variants.find((v) => v.tier === 'BETTER')!.estimatedPrice;
+    expect(better(eight)).toBeGreaterThan(better(one) * 5);
+  });
+
+  it('в каждой проблеме разборки уровни рассчитаны на один объём и идут по возрастанию цены', () => {
+    for (const text of ['разобрать комод', 'разобрать шкаф-купе', 'разобрать кухонный модуль']) {
+      const variants = buildSmartVariants(...FURNITURE, text)!.variants;
+      expect(new Set(variants.map((v) => solutionBaseQuantity(v))).size).toBe(1);
+      const [good, better, best] = variants;
+      expect(better.estimatedPrice).toBeGreaterThan(good.estimatedPrice);
+      expect(best.estimatedPrice).toBeGreaterThan(better.estimatedPrice);
+    }
+  });
+});
