@@ -765,6 +765,10 @@ export interface AiOrderTemplate {
   estimatedDays: number;
   confidence: number;
   description: string | null;
+  /** Диапазон цены по реальным сделкам — когда смета считается по прайс-реестру. */
+  priceRange?: { min: number; max: number };
+  /** false — разброс сделок широкий, честнее показать диапазон, а не одну сумму. */
+  priceIsFixed?: boolean;
 }
 
 export interface AiMaterialItem {

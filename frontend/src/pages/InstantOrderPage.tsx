@@ -1535,8 +1535,17 @@ export function InstantOrderPage() {
                       <p className="text-2xl font-extrabold text-gray-900 dark:text-white break-words">
                         {formatPrice(variant.estimatedPrice)}
                       </p>
-                      <p className="text-xs text-gray-400 shrink-0">фиксированная цена</p>
+                      <p className="text-xs text-gray-400 shrink-0">
+                        {variant.priceIsFixed === false ? 'ориентировочная цена' : 'фиксированная цена'}
+                      </p>
                     </div>
+                    {/* Широкий разброс реальных сделок: одна сумма была бы обещанием,
+                        которое мастер может не сдержать, — показываем честный диапазон. */}
+                    {variant.priceIsFixed === false && variant.priceRange && (
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        По сделкам на платформе: {formatPrice(variant.priceRange.min)} — {formatPrice(variant.priceRange.max)}
+                      </p>
+                    )}
 
                     {/* Описание — на всю ширину карточки */}
                     <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{variant.description}</p>
@@ -1697,7 +1706,7 @@ export function InstantOrderPage() {
                 </span>
               </div>
               <p className="text-sm text-gray-600 dark:text-gray-300">
-                {selectedVariant.taskIds.length} работ • {selectedVariant.estimatedDays} дн. • фиксированная цена
+                {selectedVariant.taskIds.length} работ • {selectedVariant.estimatedDays} дн. • {selectedVariant.priceIsFixed === false ? 'ориентировочная цена' : 'фиксированная цена'}
               </p>
               <button onClick={() => setStep('variants')} className="text-sm text-orange-500 mt-2 hover:underline min-h-[44px] flex items-center">
                 ← Изменить вариант
