@@ -6,13 +6,15 @@
 // токенам, и провоцирует выдумывать несуществующие коды. Вместо этого мы
 // заранее находим два десятка кандидатов и просим выбрать из них.
 //
-// Поиск двухступенчатый:
-//   1. Векторный по эмбеддингам проблем (pgvector, HNSW) — понимает смысл,
-//      а не совпадение букв: «не держит воду» находит протечку.
-//   2. Если эмбеддингов ещё нет или вектор не получен — ключевые слова.
+// Поиск объединяет два источника:
+//   • ключевые слова — точные совпадения; работают всегда, даже без OpenAI;
+//   • векторный поиск по эмбеддингам (pgvector, HNSW) — понимает смысл,
+//     а не совпадение букв: «не держит воду» находит протечку.
 //
-// Второй шаг обязателен: эмбеддинги заполняются отдельным скриптом, и до
-// его прогона подбор обязан продолжать работать.
+// Именно объединение, а не «вектор, а если пусто — слова»: вектор видит
+// только проблемы с посчитанным эмбеддингом. Новая проблема каталога
+// получает его лишь после прогона pricebook:embed, и до этого она была бы
+// невидима, пока у соседей векторы есть.
 // ============================================
 
 import { prisma } from '../../config/database.js';
@@ -101,6 +103,27 @@ async function findProblemsByKeywords(
     .slice(0, limit);
 }
 
+type ProblemHit = { id: string; slug: string; name: string; similarity: number };
+
+/**
+ * Объединить ключевые и векторные совпадения без повторов.
+ *
+ * Ключевые идут первыми: это те же точные совпадения, по которым прайс-движок
+ * выбирает проблему для сметы, — значит, выбранная им проблема гарантированно
+ * окажется среди кандидатов для модели. Вектор добавляет перефразировки.
+ */
+export function mergeProblemHits(byKeywords: ProblemHit[], byVector: ProblemHit[], limit: number): ProblemHit[] {
+  const seen = new Set<string>();
+  const merged: ProblemHit[] = [];
+  for (const hit of [...byKeywords, ...byVector]) {
+    if (seen.has(hit.id)) continue;
+    seen.add(hit.id);
+    merged.push(hit);
+    if (merged.length >= limit) break;
+  }
+  return merged;
+}
+
 /**
  * Собрать список позиций прайса, из которых модель выбирает работы.
  *
@@ -119,10 +142,11 @@ export async function findCandidateWorkItems(input: {
 
   if (!text) return [];
 
-  let problems = await findProblemsByVector(text, categorySlugs, PROBLEM_TOP_K);
-  if (problems.length === 0) {
-    problems = await findProblemsByKeywords(text, categorySlugs, PROBLEM_TOP_K);
-  }
+  const [byKeywords, byVector] = await Promise.all([
+    findProblemsByKeywords(text, categorySlugs, PROBLEM_TOP_K),
+    findProblemsByVector(text, categorySlugs, PROBLEM_TOP_K),
+  ]);
+  const problems = mergeProblemHits(byKeywords, byVector, PROBLEM_TOP_K);
 
   const candidates: WorkCandidate[] = [];
   const seen = new Set<string>();
