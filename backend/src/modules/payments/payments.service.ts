@@ -339,9 +339,14 @@ export class PaymentsService {
       .update(signSource)
       .digest('hex');
 
-    if (sign_string !== expectedSign) {
+    // Сравнение за постоянное время: обычное !== по времени ответа выдаёт,
+    // сколько первых символов подписи совпало. Ожидаемая подпись в лог не
+    // пишется — по ней из логов можно было бы собрать поддельный запрос.
+    const received = Buffer.from(String(sign_string));
+    const expected = Buffer.from(expectedSign);
+    if (received.length !== expected.length || !crypto.timingSafeEqual(received, expected)) {
       logger.warn(
-        { click_trans_id, merchant_trans_id, amount, receivedSign: sign_string, expectedSign },
+        { click_trans_id, merchant_trans_id, amount },
         '🚨 SECURITY: Click webhook invalid signature — possible forgery attempt'
       );
       throw ApiError.badRequest('Invalid signature');

@@ -3,12 +3,45 @@
 // ============================================
 
 import { Router } from 'express';
+import { z } from 'zod';
 import { prisma } from '../../config/database.js';
 import { authenticate, authorize } from '../../middleware/auth.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { logger } from '../../utils/logger.js';
 
 const router = Router();
+
+const optionalText = (max: number) => z.string().trim().max(max).nullable().optional();
+const optionalNumber = (min: number, max: number) => z.coerce.number().min(min).max(max).nullable().optional();
+
+/**
+ * Поля заявки, которые клиент меняет сам. Статус, цена, сроки и владелец
+ * сюда не входят — их меняют админские маршруты. Лишнее поле — ошибка 400,
+ * а не молчаливый пропуск: так попытка видна в ответе и в логах.
+ */
+const clientUpdateSchema = z
+  .object({
+    title: z.string().trim().min(1).max(200).optional(),
+    description: optionalText(5000),
+    propertyType: z.string().trim().min(1).max(50).optional(),
+    area: optionalNumber(1, 100_000),
+    rooms: z.coerce.number().int().min(0).max(100).nullable().optional(),
+    budgetMin: optionalNumber(0, 1e12),
+    budgetMax: optionalNumber(0, 1e12),
+    address: optionalText(500),
+    city: optionalText(100),
+    district: optionalText(100),
+    latitude: optionalNumber(-90, 90),
+    longitude: optionalNumber(-180, 180),
+    designIncluded: z.boolean().optional(),
+    furnitureIncluded: z.boolean().optional(),
+    images: z.array(z.string().max(1000)).max(30).optional(),
+    floorPlanUrl: optionalText(1000),
+  })
+  .strict();
+
+/** До начала работ клиент может уточнять заявку; дальше — через менеджера. */
+const CLIENT_EDITABLE_STATUSES = new Set<string>(['INQUIRY', 'CONSULTATION']);
 
 // ─── POST /turnkey — Создать заявку на ремонт под ключ ─────
 router.post('/', authenticate, async (req, res, next) => {
@@ -117,9 +150,16 @@ router.put('/:id', authenticate, async (req, res, next) => {
       throw new ApiError(403, 'Нет доступа');
     }
 
+    // Раньше сюда уходило тело запроса целиком: владелец мог сам «утвердить»
+    // проект, назначить totalPrice или переписать проект на другого человека.
+    if (req.user!.role !== 'ADMIN' && !CLIENT_EDITABLE_STATUSES.has(project.status)) {
+      throw new ApiError(409, 'Проект уже в работе — изменения согласуйте с менеджером');
+    }
+    const data = clientUpdateSchema.parse(req.body);
+
     const updated = await prisma.turnkeyProject.update({
       where: { id: req.params.id },
-      data: req.body,
+      data,
       include: { stages: { orderBy: { sortOrder: 'asc' } } },
     });
 
