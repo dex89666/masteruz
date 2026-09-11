@@ -9,16 +9,37 @@ import { v4 as uuidv4 } from 'uuid';
 import { config } from '../config/index.js';
 import { ApiError } from '../utils/ApiError.js';
 import fs from 'fs';
+import os from 'os';
+import { logger } from '../utils/logger.js';
 
-// Создаём директорию для загрузок
-const uploadDir = path.resolve(config.upload.dir);
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
+// ─── Куда multer кладёт файл сразу после приёма ─────────────
+//
+// В режиме s3 это лишь промежуточная копия: saveUploadedFile заливает её в
+// облако и тут же удаляет. Раньше она писалась в config.upload.dir, а в
+// продакшене это том Railway (/app/uploads), смонтированный от root, тогда как
+// процесс работает от непривилегированного пользователя masteruz. Итог — EACCES
+// на каждой загрузке: не публиковались картинки на форуме, сертификаты мастеров,
+// фото «до/после» и медиа в сметах. Временный каталог ОС доступен всегда.
+const STORAGE_DRIVER = (process.env.STORAGE_DRIVER ?? 'local').toLowerCase();
+
+export function resolveReceiveDir(driver: string = STORAGE_DRIVER): string {
+  return driver === 's3'
+    ? path.join(os.tmpdir(), 'masteruz-uploads')
+    : path.resolve(config.upload.dir);
+}
+
+const receiveDir = resolveReceiveDir();
+try {
+  fs.mkdirSync(receiveDir, { recursive: true });
+} catch (err) {
+  // Старт сервера не роняем: без каталога упадёт лишь приём файла, и эта
+  // ошибка будет видна в логе конкретного запроса.
+  logger.error({ err, dir: receiveDir }, '[upload] каталог приёма файлов недоступен');
 }
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => {
-    cb(null, path.resolve(config.upload.dir));
+    cb(null, receiveDir);
   },
   filename: (_req, file, cb) => {
     const ext = path.extname(file.originalname);

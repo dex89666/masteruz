@@ -9,6 +9,9 @@ import { useTranslation } from '../i18n';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { ArrowLeft, Calendar, MapPin, Ruler, DoorOpen, Paintbrush, Sofa, CheckCircle2, Circle, Clock, Building2, Home as HomeIcon, Building, Store, Ban, Paperclip, RulerIcon, Palette, Camera } from 'lucide-react';
 
+// Бэкенд отдаёт загруженные файлы относительным путём /uploads/…, а фронтенд
+// на Railway его не проксирует — без адреса бэкенда картинка была бы битой.
+import { resolveImageUrl } from '../lib/imageUrl';
 const statusColors: Record<string, string> = {
   INQUIRY: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
   CONSULTATION: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400',
@@ -267,7 +270,7 @@ export function TurnkeyProjectDetailPage() {
             <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4"><Camera size={18} className="inline" /> Фотографии</h2>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {project.images.map((url: string, i: number) => (
-                <img key={i} src={url} alt={`Фото ${i + 1}`}
+                <img key={i} src={resolveImageUrl(url) ?? undefined} alt={`Фото ${i + 1}`}
                   className="w-full h-40 object-cover rounded-xl" />
               ))}
             </div>

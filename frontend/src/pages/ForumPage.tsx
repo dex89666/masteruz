@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { forumApi } from '../api/client';
+import { resolveImageUrl } from '../lib/imageUrl';
 import { useAuthStore } from '../store';
 import { useTranslation } from '../i18n';
 import { LoadingSpinner } from '../components/LoadingSpinner';
@@ -80,7 +81,9 @@ function ForumImages({ images }: { images?: string[] }) {
         {images.map((url, idx) => (
           <img
             key={idx}
-            src={url}
+            // Бэкенд отдаёт относительный путь /uploads/…, а фронтенд на Railway
+            // его не проксирует — без адреса бэкенда картинка была бы битой.
+            src={resolveImageUrl(url) ?? undefined}
             alt={`Фото ${idx + 1}`}
             className="w-full h-24 object-cover rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer hover:opacity-90 transition-opacity"
             onClick={() => setLightbox(url)}
@@ -89,7 +92,7 @@ function ForumImages({ images }: { images?: string[] }) {
       </div>
       {lightbox && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4" onClick={() => setLightbox(null)}>
-          <img src={lightbox} alt="" className="max-w-full max-h-[90vh] rounded-xl" />
+          <img src={resolveImageUrl(lightbox) ?? undefined} alt="" className="max-w-full max-h-[90vh] rounded-xl" />
         </div>
       )}
     </>

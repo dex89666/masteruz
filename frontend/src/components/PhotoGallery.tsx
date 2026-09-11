@@ -8,6 +8,9 @@ import { useTranslation } from '../i18n';
 import { useTelegramBackButton } from '../hooks/useTelegramBackButton';
 import type { OrderPhoto } from '../types';
 
+// Бэкенд отдаёт загруженные файлы относительным путём /uploads/…, а фронтенд
+// на Railway его не проксирует — без адреса бэкенда картинка была бы битой.
+import { resolveImageUrl } from '../lib/imageUrl';
 interface PhotoGalleryProps {
   photos: OrderPhoto[];
   orderId?: string;
@@ -58,7 +61,7 @@ export function PhotoGallery({ photos, canAdd, onAdd }: PhotoGalleryProps) {
             {beforePhotos.map((photo) => (
               <div key={photo.id} className="relative shrink-0 group cursor-pointer" onClick={() => openLightbox(photo.url)}>
                 <img
-                  src={photo.url}
+                  src={resolveImageUrl(photo.url) ?? undefined}
                   alt={photo.caption || ''}
                   className="w-20 h-20 rounded-xl object-cover ring-1 ring-gray-200 group-hover:ring-primary-300 transition-all"
                 />
@@ -88,7 +91,7 @@ export function PhotoGallery({ photos, canAdd, onAdd }: PhotoGalleryProps) {
             {afterPhotos.map((photo) => (
               <div key={photo.id} className="relative shrink-0 group cursor-pointer" onClick={() => openLightbox(photo.url)}>
                 <img
-                  src={photo.url}
+                  src={resolveImageUrl(photo.url) ?? undefined}
                   alt={photo.caption || ''}
                   className="w-20 h-20 rounded-xl object-cover ring-2 ring-green-200 group-hover:ring-green-400 transition-all"
                 />
@@ -117,11 +120,11 @@ export function PhotoGallery({ photos, canAdd, onAdd }: PhotoGalleryProps) {
           <div className="grid grid-cols-2 gap-2">
             <div>
               <p className="text-[10px] text-gray-400 mb-1 text-center">{t('photos.before')}</p>
-              <img src={beforePhotos[0].url} alt="" className="w-full h-32 rounded-xl object-cover ring-1 ring-gray-200" />
+              <img src={resolveImageUrl(beforePhotos[0].url) ?? undefined} alt="" className="w-full h-32 rounded-xl object-cover ring-1 ring-gray-200" />
             </div>
             <div>
               <p className="text-[10px] text-green-500 mb-1 text-center">{t('photos.after')}</p>
-              <img src={afterPhotos[0].url} alt="" className="w-full h-32 rounded-xl object-cover ring-2 ring-green-200" />
+              <img src={resolveImageUrl(afterPhotos[0].url) ?? undefined} alt="" className="w-full h-32 rounded-xl object-cover ring-2 ring-green-200" />
             </div>
           </div>
         </div>
@@ -156,7 +159,7 @@ export function PhotoGallery({ photos, canAdd, onAdd }: PhotoGalleryProps) {
             </>
           )}
           <img
-            src={viewPhoto}
+            src={resolveImageUrl(viewPhoto) ?? undefined}
             alt=""
             className="max-h-[85vh] max-w-full rounded-xl object-contain"
             onClick={(e) => e.stopPropagation()}

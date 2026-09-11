@@ -17,6 +17,9 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
+// Бэкенд отдаёт загруженные файлы относительным путём /uploads/…, а фронтенд
+// на Railway его не проксирует — без адреса бэкенда картинка была бы битой.
+import { resolveImageUrl } from '../lib/imageUrl';
 const UNITS = ['шт', 'м', 'м²', 'м³', 'п.м.', 'кг', 'л', 'комплект', 'услуга'];
 const PLATFORM_COMMISSION_RATE = 20; // % с работ (по умолчанию; реальный берём из order.commissionRate)
 
@@ -517,7 +520,7 @@ export function EstimateFormPage() {
           <div className="flex flex-wrap gap-2">
             {photos.map((p, idx) => (
               <div key={idx} className="relative w-20 h-20 rounded-lg overflow-hidden">
-                <img src={p} alt="" className="w-full h-full object-cover" />
+                <img src={resolveImageUrl(p) ?? undefined} alt="" className="w-full h-full object-cover" />
                 <button
                   onClick={() => setPhotos(prev => prev.filter((_, i) => i !== idx))}
                   className="absolute top-0.5 right-0.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center"
@@ -540,7 +543,7 @@ export function EstimateFormPage() {
           <div className="flex flex-wrap gap-2">
             {videos.map((v, idx) => (
               <div key={idx} className="relative w-20 h-20 rounded-lg overflow-hidden bg-black">
-                <video src={v} className="w-full h-full object-cover" muted />
+                <video src={resolveImageUrl(v) ?? undefined} className="w-full h-full object-cover" muted />
                 <button
                   onClick={() => setVideos(prev => prev.filter((_, i) => i !== idx))}
                   className="absolute top-0.5 right-0.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center"

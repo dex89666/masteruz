@@ -33,6 +33,9 @@ import type { Task } from '../types';
 import { UZBEKISTAN_REGIONS, getDistrictsForCity, getRegionByCity, getLocalizedRegionName } from '../data/regions';
 import { CameraCapture } from '../components/CameraCapture';
 
+// Бэкенд отдаёт загруженные файлы относительным путём /uploads/…, а фронтенд
+// на Railway его не проксирует — без адреса бэкенда картинка была бы битой.
+import { resolveImageUrl } from '../lib/imageUrl';
 type WizardStep = 1 | 2 | 3 | 4;
 
 /** Возвращает локализованное имя объекта */
@@ -902,7 +905,7 @@ export function CreateOrderPage() {
               <div className="flex flex-wrap gap-3">
                 {previews.map((src, i) => (
                   <div key={i} className="relative w-20 h-20 rounded-lg overflow-hidden">
-                    <img src={src} alt="" className="w-full h-full object-cover" />
+                    <img src={resolveImageUrl(src) ?? undefined} alt="" className="w-full h-full object-cover" />
                     <button
                       type="button"
                       onClick={() => removeImage(i)}

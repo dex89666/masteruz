@@ -15,6 +15,9 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
+// Бэкенд отдаёт загруженные файлы относительным путём /uploads/…, а фронтенд
+// на Railway его не проксирует — без адреса бэкенда картинка была бы битой.
+import { resolveImageUrl } from '../lib/imageUrl';
 export function EstimateViewPage() {
   const { orderId } = useParams<{ orderId: string }>();
   const navigate = useNavigate();
@@ -242,7 +245,7 @@ export function EstimateViewPage() {
                 onClick={() => setPhotoView(photo)}
                 className="w-24 h-24 rounded-xl overflow-hidden border dark:border-gray-700"
               >
-                <img src={photo} alt="" className="w-full h-full object-cover" />
+                <img src={resolveImageUrl(photo) ?? undefined} alt="" className="w-full h-full object-cover" />
               </button>
             ))}
           </div>
@@ -407,7 +410,7 @@ export function EstimateViewPage() {
           >
             <X size={24} />
           </button>
-          <img src={photoView} alt="" className="max-w-full max-h-full object-contain" />
+          <img src={resolveImageUrl(photoView) ?? undefined} alt="" className="max-w-full max-h-full object-contain" />
         </div>
       )}
     </div>

@@ -11,6 +11,9 @@ import { useTranslation } from '../i18n';
 import { X, Camera, Loader2, AlertTriangle, ShieldCheck, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
+// Бэкенд отдаёт загруженные файлы относительным путём /uploads/…, а фронтенд
+// на Railway его не проксирует — без адреса бэкенда картинка была бы битой.
+import { resolveImageUrl } from '../lib/imageUrl';
 export type PriceChangeMode = 'price' | 'settlement';
 
 interface PriceChangeModalProps {
@@ -203,7 +206,7 @@ export function PriceChangeModal({
             <div className="flex flex-wrap gap-2">
               {photos.map((p, i) => (
                 <div key={i} className="relative w-20 h-20">
-                  <img src={p} alt="" className="w-full h-full object-cover rounded-lg" />
+                  <img src={resolveImageUrl(p) ?? undefined} alt="" className="w-full h-full object-cover rounded-lg" />
                   <button
                     onClick={() => setPhotos((prev) => prev.filter((_, idx) => idx !== i))}
                     className="absolute -top-1 -right-1 p-1 bg-red-500 text-white rounded-full"

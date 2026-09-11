@@ -10,6 +10,9 @@ import { useAuthStore } from '../store';
 import { useTranslation } from '../i18n';
 import type { ChatMessage } from '../types';
 
+// Бэкенд отдаёт загруженные файлы относительным путём /uploads/…, а фронтенд
+// на Railway его не проксирует — без адреса бэкенда картинка была бы битой.
+import { resolveImageUrl } from '../lib/imageUrl';
 interface OrderChatProps {
   orderId: string;
   isParticipant: boolean;
@@ -166,7 +169,7 @@ export function OrderChat({ orderId, isParticipant }: OrderChatProps) {
                         <p className="text-[10px] font-medium text-primary-600 mb-0.5">{senderName}</p>
                       )}
                       {msg.imageUrl && (
-                        <img src={msg.imageUrl} alt="" className="rounded-lg max-h-40 mb-1" />
+                        <img src={resolveImageUrl(msg.imageUrl) ?? undefined} alt="" className="rounded-lg max-h-40 mb-1" />
                       )}
                       {msg.text && <p className="whitespace-pre-wrap break-words">{msg.text}</p>}
                       <p className={`text-[10px] mt-1 ${isMine ? 'text-primary-200' : 'text-gray-400'}`}>
