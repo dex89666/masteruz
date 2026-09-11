@@ -21,7 +21,7 @@ import { auditService } from '../../services/auditService.js';
 import { clampPagination } from '../../utils/helpers.js';
 import { invalidatePriceBookCache, embedProblems, getEmbeddingCoverage } from './pricebook.service.js';
 import { roundUnitPrice } from './pricing-catalog.js';
-import { buildPriceBookSeed, findPriceConflicts } from './pricebook.mapping.js';
+import { buildPriceBookSeed, findPriceConflicts, modifierFactorViolation } from './pricebook.mapping.js';
 import { getAccuracyReport } from '../../services/priceAccuracyService.js';
 import { calibratePrices, collectObservations } from '../../services/priceCalibrationService.js';
 
@@ -180,7 +180,9 @@ router.patch('/items/:id', validateBody(updateItemSchema), async (req: Request, 
   }
 });
 
-router.post('/items/bulk-price', validateBody(bulkPriceSchema), async (req: Request, res: Response, next: NextFunction) => {
+// Массовая правка двигает цены целой категории до ×2 одним запросом —
+// это решение уровня владельца, а не менеджера.
+router.post('/items/bulk-price', authorize('ADMIN'), validateBody(bulkPriceSchema), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { categorySlug, kind, factor, reason } = req.body as z.infer<typeof bulkPriceSchema>;
 
@@ -264,11 +266,15 @@ router.get('/modifiers', async (_req: Request, res: Response, next: NextFunction
   }
 });
 
-router.patch('/modifiers/:id', validateBody(updateModifierSchema), async (req: Request, res: Response, next: NextFunction) => {
+// Множитель действует на все сметы разом — правка только администратором.
+router.patch('/modifiers/:id', authorize('ADMIN'), validateBody(updateModifierSchema), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const body = req.body as z.infer<typeof updateModifierSchema>;
     const modifier = await prisma.priceModifier.findUnique({ where: { id: req.params.id } });
     if (!modifier) throw ApiError.notFound('Множитель не найден');
+
+    const violation = modifierFactorViolation(modifier.type, body.factor);
+    if (violation) throw ApiError.badRequest(violation);
 
     const changes: PriceChange[] = [];
     if (Number(modifier.factor) !== body.factor) {
@@ -290,6 +296,19 @@ router.patch('/modifiers/:id', validateBody(updateModifierSchema), async (req: R
     });
 
     if (changes.length > 0) await recordVersion('Правка множителя', req.user?.userId, changes);
+    await auditService.log({
+      actorId: req.user!.userId,
+      action: 'PRICEBOOK_MODIFIER_UPDATE',
+      entityType: 'PriceModifier',
+      entityId: modifier.id,
+      details: {
+        type: modifier.type,
+        key: modifier.key,
+        from: Number(modifier.factor),
+        to: body.factor,
+        isActive: body.isActive,
+      } as any,
+    });
     invalidatePriceBookCache();
 
     res.json({ success: true, data: updated });

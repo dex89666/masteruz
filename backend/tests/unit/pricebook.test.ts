@@ -18,6 +18,7 @@ import {
   slugifyRu,
   parseEstimatedMinutes,
   DEFAULT_MODIFIERS,
+  modifierFactorViolation,
 } from '../../src/modules/instant-order/pricebook.mapping.js';
 import { scoreProblemMatch } from '../../src/modules/instant-order/pricebook.service.js';
 
@@ -203,8 +204,27 @@ describe('подбор проблемы по описанию', () => {
     expect(scoreProblemMatch(['течёт'], '   ')).toBe(0);
   });
 
+  it('короткое слово клиента не совпадает с длинным ключом', () => {
+    // «Шкаф» совпадал с «шкаф-купе», и любой шкаф тянуло к купе.
+    expect(scoreProblemMatch(['шкаф-купе'], 'навесной шкаф')).toBe(0);
+    // А ключ-корень по-прежнему ловит длинные слова клиента
+    expect(scoreProblemMatch(['свет'], 'не работает светильник')).toBeGreaterThan(0);
+  });
+
   it('учитывает словоформы', () => {
     expect(scoreProblemMatch(['розетка'], 'не работают розетки в спальне')).toBeGreaterThan(0);
     expect(scoreProblemMatch(['протечка'], 'протечки по всей трубе')).toBeGreaterThan(0);
+  });
+});
+
+describe('правка множителей', () => {
+  it('запрещает ненейтральную срочность — иначе двойная наценка', () => {
+    expect(modifierFactorViolation('URGENCY', 1.3)).toMatch(/двойной наценке/);
+    expect(modifierFactorViolation('URGENCY', 1)).toBeNull();
+  });
+
+  it('остальные множители админ настраивает свободно', () => {
+    expect(modifierFactorViolation('REGION', 1.2)).toBeNull();
+    expect(modifierFactorViolation('FLOOR', 1.1)).toBeNull();
   });
 });

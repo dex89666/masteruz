@@ -123,6 +123,22 @@ export function weightedMedian(samples: { value: number; weight: number }[]): nu
   return median(expanded);
 }
 
+/** Минимум ставок по заказу, чтобы считать их сигналом рынка. */
+export const MIN_OFFERS_PER_ORDER = 2;
+
+/**
+ * Рыночная ставка по заказу — медиана предложений мастеров.
+ *
+ * Одна ставка — это мнение одного мастера, а не рынок. Если бы она
+ * засчитывалась, мастер, первым откликающийся на заказы, сам назначал бы
+ * цену позиции: его ставки тянули бы медиану туда, куда ему выгодно.
+ */
+export function marketOfferPrice(offers: number[]): number | null {
+  const valid = offers.filter((n) => Number.isFinite(n) && n > 0);
+  if (valid.length < MIN_OFFERS_PER_ORDER) return null;
+  return median(valid);
+}
+
 // ─── Шаг 1: сбор наблюдений ──────────────────────────────────────
 
 export interface CollectResult {
@@ -183,11 +199,9 @@ export async function collectObservations(windowDays = CALIBRATION_WINDOW_DAYS):
     // ─── Ставки мастеров ───
     // Заказ даёт одно наблюдение на позицию: берём медиану предложений,
     // иначе один демпингующий мастер перевесил бы всех остальных.
-    const offers = order.responses
-      .map((r) => Number(r.priceOffer))
-      .filter((n) => Number.isFinite(n) && n > 0);
-    if (offers.length > 0) {
-      const allocated = allocateToLines(lines, median(offers));
+    const offerPrice = marketOfferPrice(order.responses.map((r) => Number(r.priceOffer)));
+    if (offerPrice !== null) {
+      const allocated = allocateToLines(lines, offerPrice);
       for (const a of allocated) {
         writes.push({ ...a, source: 'MASTER_OFFER', at: order.createdAt });
       }

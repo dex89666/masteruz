@@ -20,6 +20,7 @@ import {
   median,
   quantile,
   weightedMedian,
+  marketOfferPrice,
   MIN_SAMPLE_SIZE,
   MAX_STEP_RATIO,
 } from '../../src/services/priceCalibrationService.js';
@@ -170,5 +171,22 @@ describe('метрики точности', () => {
 
   it('на пустой выборке метрик нет', () => {
     expect(computeStats([])).toBeNull();
+  });
+});
+
+describe('ставки мастеров как сигнал рынка', () => {
+  it('одна ставка — не рынок', () => {
+    // Иначе мастер, первым откликающийся на заказы, сам назначал бы цену позиции.
+    expect(marketOfferPrice([500_000])).toBeNull();
+  });
+
+  it('несколько ставок дают медиану', () => {
+    expect(marketOfferPrice([100_000, 150_000])).toBe(125_000);
+    expect(marketOfferPrice([100_000, 900_000, 120_000])).toBe(120_000);
+  });
+
+  it('пустые и битые ставки не считаются', () => {
+    expect(marketOfferPrice([0, NaN, 150_000])).toBeNull();
+    expect(marketOfferPrice([])).toBeNull();
   });
 });

@@ -129,7 +129,7 @@ export const uploadAudio = multer({
  * Проверка магических байтов (защита от подмены типа: переименованный .php в .jpg).
  * Возвращает true, если первые байты соответствуют заявленному mime.
  */
-function isMagicBytesValid(buffer: Buffer, mime: string): boolean {
+export function isMagicBytesValid(buffer: Buffer, mime: string): boolean {
   if (buffer.length < 4) return false;
   const sig = buffer.subarray(0, 12);
   if (mime === 'image/jpeg') return sig[0] === 0xff && sig[1] === 0xd8 && sig[2] === 0xff;
@@ -138,6 +138,12 @@ function isMagicBytesValid(buffer: Buffer, mime: string): boolean {
     return sig[0] === 0x52 && sig[1] === 0x49 && sig[2] === 0x46 && sig[3] === 0x46
       && sig[8] === 0x57 && sig[9] === 0x45 && sig[10] === 0x42 && sig[11] === 0x50;
   if (mime === 'application/pdf') return sig[0] === 0x25 && sig[1] === 0x50 && sig[2] === 0x44 && sig[3] === 0x46;
+  // Видео для смет: раньше медиа-маршрут не проверялся вовсе, и под видом
+  // .mp4 можно было залить любой файл. MP4 и MOV (ISO BMFF) — «ftyp» в байтах 4-7.
+  if (mime === 'video/mp4' || mime === 'video/quicktime')
+    return sig.length >= 8 && sig[4] === 0x66 && sig[5] === 0x74 && sig[6] === 0x79 && sig[7] === 0x70;
+  // WebM — контейнер Matroska, сигнатура EBML
+  if (mime === 'video/webm') return sig[0] === 0x1a && sig[1] === 0x45 && sig[2] === 0xdf && sig[3] === 0xa3;
   return false;
 }
 
@@ -190,3 +196,35 @@ export async function saveUploadedFile(file: Express.Multer.File): Promise<strin
   try { await fs.promises.unlink(file.path); } catch { /* ignore */ }
   return url;
 }
+
+/**
+ * Удалить за запросом временные файлы, которые multer успел принять.
+ *
+ * В режиме s3 файл на диске — лишь промежуточная копия: при успехе её удаляет
+ * saveUploadedFile. Но если запрос падал раньше — валидация, модерация текста,
+ * проверка сигнатуры, — копия оставалась во временном каталоге навсегда, и
+ * поток таких запросов забил бы диск контейнера. В локальном режиме файл и
+ * есть хранилище, поэтому там он удаляется только при ошибке: на него никто
+ * не сослался.
+ */
+export function createUploadCleanup(driver: string = STORAGE_DRIVER) {
+  return function cleanupUploadedFiles(req: any, res: any, next: any) {
+    res.on('finish', () => {
+      const files = [
+        ...(req.file ? [req.file] : []),
+        ...(Array.isArray(req.files) ? req.files : Object.values(req.files ?? {}).flat()),
+      ] as Express.Multer.File[];
+      if (files.length === 0) return;
+      if (driver !== 's3' && res.statusCode < 400) return;
+      for (const f of files) {
+        if (!f?.path) continue;
+        fs.promises.unlink(f.path).catch(() => {
+          /* уже удалён после заливки в облако */
+        });
+      }
+    });
+    next();
+  };
+}
+
+export const cleanupUploadedFiles = createUploadCleanup();

@@ -37,7 +37,7 @@ router.post('/upload', authenticate, upload.single('photo'), verifyFileMagic, as
  * Поле формы: 'file'. Возвращает { url, type: 'image'|'video' }.
  * Используется в смете мастером.
  */
-router.post('/upload-media', authenticate, uploadMedia.single('file'), async (req: Request, res: Response, next: NextFunction) => {
+router.post('/upload-media', authenticate, uploadMedia.single('file'), verifyFileMagic, async (req: Request, res: Response, next: NextFunction) => {
   try {
     if (!req.file) {
       throw ApiError.badRequest('Файл не найден. Используйте поле "file"');
