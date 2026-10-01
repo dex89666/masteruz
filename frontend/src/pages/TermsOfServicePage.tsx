@@ -31,7 +31,7 @@ export function TermsOfServicePage() {
             <h2 className="text-lg font-semibold dark:text-white mb-2">1. Общие положения</h2>
             <p>
               Настоящие Правила пользования (далее — «Правила») регулируют использование платформы
-              MasterUz, оператором которой является ООО «Vladlab» (ИНН 313020180, далее — «Оператор»).
+              MasterUz (сайт www.mestro.uz, Telegram-бот @Handymanuzbot и мобильные приложения), оператором которой является ООО «Vladlab» (ИНН 313020180, далее — «Оператор»).
               Правила являются неотъемлемой частью Публичной оферты и Политики конфиденциальности.
             </p>
             <p>
@@ -100,7 +100,7 @@ export function TermsOfServicePage() {
               <li>Загрузка контента, нарушающего закон РУз: материалов экстремистского, террористического, порнографического характера, призывов к насилию, дискриминации, разжиганию вражды.</li>
               <li>Загрузка контента, нарушающего права третьих лиц: чужих фотографий, текстов, торговых марок без согласия правообладателя.</li>
               <li>Использование автоматизированных средств (ботов, скрейперов, краулеров) для взаимодействия с Платформой без письменного разрешения Оператора.</li>
-              <li>Реверс-инжиниринг, декомпиляция, попытки выявления уязвимостей без согласования с Оператором (responsible disclosure: <a href="mailto:security@masteruz.uz" className="text-primary-600 dark:text-primary-400 hover:underline">security@masteruz.uz</a>).</li>
+              <li>Реверс-инжиниринг, декомпиляция, попытки выявления уязвимостей без согласования с Оператором (responsible disclosure: <a href="mailto:vladlabcorp@gmail.com" className="text-primary-600 dark:text-primary-400 hover:underline">vladlabcorp@gmail.com</a>).</li>
               <li>Любые действия, создающие чрезмерную нагрузку на инфраструктуру Платформы.</li>
             </ul>
           </section>
@@ -179,8 +179,8 @@ export function TermsOfServicePage() {
             <p>
               Если правообладатель полагает, что размещённый на Платформе контент нарушает его
               исключительные права, он вправе направить уведомление по адресу{' '}
-              <a href="mailto:dmca@masteruz.uz" className="text-primary-600 dark:text-primary-400 hover:underline">
-                dmca@masteruz.uz
+              <a href="mailto:vladlabcorp@gmail.com" className="text-primary-600 dark:text-primary-400 hover:underline">
+                vladlabcorp@gmail.com
               </a>{' '}
               со следующими сведениями:
             </p>
@@ -257,8 +257,8 @@ export function TermsOfServicePage() {
               Все споры, возникающие между Пользователем и Оператором, подлежат урегулированию
               в претензионном порядке. Срок ответа на претензию — <strong>30 календарных дней</strong>
               с даты получения. Претензии направлять на{' '}
-              <a href="mailto:legal@masteruz.uz" className="text-primary-600 dark:text-primary-400 hover:underline">
-                legal@masteruz.uz
+              <a href="mailto:vladlabcorp@gmail.com" className="text-primary-600 dark:text-primary-400 hover:underline">
+                vladlabcorp@gmail.com
               </a>.
             </p>
             <p>
@@ -292,10 +292,10 @@ export function TermsOfServicePage() {
             <h2 className="text-lg font-semibold dark:text-white mb-2">15. Контакты</h2>
             <ul className="list-none space-y-1">
               <li>Общие вопросы: <a href="mailto:vladlabcorp@gmail.com" className="text-primary-600 dark:text-primary-400 hover:underline">vladlabcorp@gmail.com</a></li>
-              <li>Юридические вопросы: <a href="mailto:legal@masteruz.uz" className="text-primary-600 dark:text-primary-400 hover:underline">legal@masteruz.uz</a></li>
-              <li>Конфиденциальность: <a href="mailto:privacy@masteruz.uz" className="text-primary-600 dark:text-primary-400 hover:underline">privacy@masteruz.uz</a></li>
-              <li>Уведомления о нарушении прав: <a href="mailto:dmca@masteruz.uz" className="text-primary-600 dark:text-primary-400 hover:underline">dmca@masteruz.uz</a></li>
-              <li>Безопасность: <a href="mailto:security@masteruz.uz" className="text-primary-600 dark:text-primary-400 hover:underline">security@masteruz.uz</a></li>
+              <li>Юридические вопросы: <a href="mailto:vladlabcorp@gmail.com" className="text-primary-600 dark:text-primary-400 hover:underline">vladlabcorp@gmail.com</a></li>
+              <li>Конфиденциальность: <a href="mailto:vladlabcorp@gmail.com" className="text-primary-600 dark:text-primary-400 hover:underline">vladlabcorp@gmail.com</a></li>
+              <li>Уведомления о нарушении прав: <a href="mailto:vladlabcorp@gmail.com" className="text-primary-600 dark:text-primary-400 hover:underline">vladlabcorp@gmail.com</a></li>
+              <li>Безопасность: <a href="mailto:vladlabcorp@gmail.com" className="text-primary-600 dark:text-primary-400 hover:underline">vladlabcorp@gmail.com</a></li>
               <li>Поддержка: <a href="https://t.me/masteruz_support" className="text-primary-600 dark:text-primary-400 hover:underline">@masteruz_support</a></li>
               <li>Телефон: <a href="tel:+998957005040" className="text-primary-600 dark:text-primary-400 hover:underline">+998 95 700-50-40</a></li>
             </ul>

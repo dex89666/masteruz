@@ -62,25 +62,25 @@ export function HelpSupportPage() {
         </a>
 
         <a
-          href="tel:+998901234567"
+          href="tel:+998957005040"
           className="card dark:bg-gray-800 dark:ring-gray-700 text-center hover:shadow-md transition-all group"
         >
           <div className="w-12 h-12 rounded-xl bg-green-50 dark:bg-green-900/30 flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
             <Phone size={24} className="text-green-600 dark:text-green-400" />
           </div>
           <h3 className="font-semibold text-gray-900 dark:text-white text-sm mb-1">{t('support.phone')}</h3>
-          <p className="text-xs text-gray-500 dark:text-gray-400">+998 90 123-45-67</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">+998 95 700-50-40</p>
         </a>
 
         <a
-          href="mailto:info@masteruz.uz"
+          href="mailto:vladlabcorp@gmail.com"
           className="card dark:bg-gray-800 dark:ring-gray-700 text-center hover:shadow-md transition-all group"
         >
           <div className="w-12 h-12 rounded-xl bg-purple-50 dark:bg-purple-900/30 flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
             <Mail size={24} className="text-purple-600 dark:text-purple-400" />
           </div>
           <h3 className="font-semibold text-gray-900 dark:text-white text-sm mb-1">Email</h3>
-          <p className="text-xs text-gray-500 dark:text-gray-400">info@masteruz.uz</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">vladlabcorp@gmail.com</p>
         </a>
       </div>
 

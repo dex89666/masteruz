@@ -58,3 +58,7 @@ scripts/railway-set-env.sh
 backend/scripts/eval/samples/
 backend/scripts/eval/dataset.json
 backend/scripts/eval/dataset.draft.json
+
+# Playwright
+frontend/test-results/
+frontend/playwright-report/

@@ -1020,7 +1020,7 @@ const en = {
     faq5q: 'In which cities does the service work?',
     faq5a: 'MasterUz operates in 8 cities of Uzbekistan: Tashkent, Samarkand, Bukhara, Namangan, Andijan, Fergana, Nukus and Karshi.',
     faq6q: 'How to contact support?',
-    faq6a: 'Write to us on Telegram @masteruz_support, call +998 90 123-45-67 or email info@masteruz.uz.',
+    faq6a: 'Write to us on Telegram @masteruz_support, call +998 95 700-50-40 or email vladlabcorp@gmail.com.',
     faq7q: 'What payment methods are accepted?',
     faq7a: 'We support Click, Payme and Telegram Stars. Cash payment directly to the master is also possible.',
     faq8q: 'Can I cancel an order?',

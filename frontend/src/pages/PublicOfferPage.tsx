@@ -68,6 +68,7 @@ export function PublicOfferPage() {
             <ul className="list-disc list-inside space-y-1">
               <li><strong>Клиент</strong> — физическое лицо не моложе 18 лет, размещающее заказ на бытовые услуги;</li>
               <li><strong>Мастер</strong> — физическое лицо или ИП, прошедший верификацию и оказывающий бытовые услуги через Платформу;</li>
+              <li><strong>Платформа</strong> — сервис MasterUz: сайт www.mestro.uz, Telegram-бот @Handymanuzbot и мобильные приложения MasterUz;</li>
               <li><strong>Оператор (MasterUz)</strong> — ООО «Vladlab», информационный посредник, обеспечивающий функционирование Платформы.</li>
             </ul>
           </section>
@@ -211,7 +212,7 @@ export function PublicOfferPage() {
               <strong>12.1.</strong> До обращения в суд стороны обязаны соблюсти претензионный
               порядок. Срок ответа на претензию — 30 календарных дней с даты получения.
               Претензии направляются на{' '}
-              <a href="mailto:legal@masteruz.uz" className="text-primary-600 dark:text-primary-400 hover:underline">legal@masteruz.uz</a>.
+              <a href="mailto:vladlabcorp@gmail.com" className="text-primary-600 dark:text-primary-400 hover:underline">vladlabcorp@gmail.com</a>.
             </p>
             <p>
               <strong>12.2.</strong> Применимое право — материальное право Республики Узбекистан.
@@ -260,7 +261,7 @@ export function PublicOfferPage() {
             <h2 className="text-lg font-semibold dark:text-white mb-2">14. Контакты</h2>
             <ul className="list-none space-y-1">
               <li>Общие вопросы: <a href="mailto:vladlabcorp@gmail.com" className="text-primary-600 dark:text-primary-400 hover:underline">vladlabcorp@gmail.com</a></li>
-              <li>Юридический отдел: <a href="mailto:legal@masteruz.uz" className="text-primary-600 dark:text-primary-400 hover:underline">legal@masteruz.uz</a></li>
+              <li>Юридический отдел: <a href="mailto:vladlabcorp@gmail.com" className="text-primary-600 dark:text-primary-400 hover:underline">vladlabcorp@gmail.com</a></li>
               <li>Поддержка: <a href="https://t.me/masteruz_support" className="text-primary-600 dark:text-primary-400 hover:underline">@masteruz_support</a></li>
               <li>Телефон: <a href="tel:+998957005040" className="text-primary-600 dark:text-primary-400 hover:underline">+998 95 700-50-40</a></li>
             </ul>

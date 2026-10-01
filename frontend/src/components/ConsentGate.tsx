@@ -1,7 +1,7 @@
 // ============================================
 // MasterUz — Consent Gate
 // Полноэкранный модал согласия (оферта + политика + персональные данные).
-// Показывается ОДИН РАЗ при первом входе. Без согласия приложение не работает.
+// Показывается ОДИН РАЗ перед входом через Telegram (и в Mini App). Витрину гость смотрит без него.
 // Версия документов синхронизирована с backend (DOCUMENTS_VERSION).
 // ============================================
 
@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { ShieldCheck, FileText, Lock, ChevronDown } from 'lucide-react';
 import { api } from '../api/client';
+import { useAuthStore } from '../store';
 
 const STORAGE_KEY = 'masteruz-consent-v5';
 const DOCUMENTS_VERSION = '2026-05-08-legal'; // должна совпадать с backend DOCUMENTS_VERSION
@@ -69,11 +70,24 @@ function saveLocalConsent() {
 // /calculator — публичный AI-калькулятор (viral landing), своя короткая оговорка на странице.
 const PUBLIC_LEGAL_ROUTES = ['/privacy', '/terms', '/public-offer', '/calculator'];
 
+/**
+ * Согласие нужно тогда, когда начинается обработка персональных данных: перед входом
+ * через Telegram (/login), у вошедшего пользователя и в Mini App (Telegram сразу передаёт
+ * данные пользователя). Гость, который просто смотрит витрину сайта, ПДн не передаёт —
+ * для cookie у него свой баннер, модал ему не показываем.
+ */
+function processesPersonalData(pathname: string, isAuthenticated: boolean): boolean {
+  if (isAuthenticated) return true;
+  if ((window as any).Telegram?.WebApp?.initData) return true;
+  return pathname.replace(/\/$/, '') === '/login';
+}
+
 export function ConsentGate({ children }: { children: React.ReactNode }) {
   const location = useLocation();
-  const isPublicLegalRoute = PUBLIC_LEGAL_ROUTES.includes(
-    location.pathname.replace(/\/$/, ''),
-  );
+  const { isAuthenticated } = useAuthStore();
+  const gateNotNeeded =
+    PUBLIC_LEGAL_ROUTES.includes(location.pathname.replace(/\/$/, '')) ||
+    !processesPersonalData(location.pathname, isAuthenticated);
   const [accepted, setAccepted] = useState<boolean>(() => !!loadLocalConsent());
   const [scrolledToEnd, setScrolledToEnd] = useState(false);
   const [offerOk, setOfferOk] = useState(false);
@@ -85,7 +99,7 @@ export function ConsentGate({ children }: { children: React.ReactNode }) {
 
   // Сверка с сервером — если он сказал «согласие записано», доверяем серверу
   useEffect(() => {
-    if (accepted) return;
+    if (accepted || gateNotNeeded) return;
     const tg = getTelegramUserId();
     api
       .get('/local-registry/consent/status', { params: tg ? { tg } : undefined })
@@ -96,18 +110,18 @@ export function ConsentGate({ children }: { children: React.ReactNode }) {
         }
       })
       .catch(() => {/* network ok — модал останется */});
-  }, [accepted]);
+  }, [accepted, gateNotNeeded]);
 
   // Блокируем скролл body, пока модал открыт.
   // НЕ блокируем на юридических страницах — там модала нет, иначе пользователь не сможет читать документ.
   useEffect(() => {
-    if (accepted || isPublicLegalRoute) return;
+    if (accepted || gateNotNeeded) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
       document.body.style.overflow = prev;
     };
-  }, [accepted, isPublicLegalRoute]);
+  }, [accepted, gateNotNeeded]);
 
   function handleScroll() {
     const el = scrollRef.current;
@@ -152,8 +166,8 @@ export function ConsentGate({ children }: { children: React.ReactNode }) {
   }
 
   if (accepted) return <>{children}</>;
-  // На юридических страницах пропускаем — пользователь должен иметь возможность прочесть документы до согласия.
-  if (isPublicLegalRoute) return <>{children}</>;
+  // Пропускаем на юридических страницах (документы читают до согласия) и на витрине для гостя.
+  if (gateNotNeeded) return <>{children}</>;
 
   const allChecked = offerOk && privacyOk && dataOk;
   const canSubmit = scrolledToEnd && allChecked && !submitting;
@@ -224,7 +238,7 @@ export function ConsentGate({ children }: { children: React.ReactNode }) {
               </h3>
               <p>
                 Вы можете запросить копию данных, исправление, удаление, отозвать согласие или
-                подать жалобу. Срок ответа — 30 дней. Контакты: <b>privacy@masteruz.uz</b>,
+                подать жалобу. Срок ответа — 30 дней. Контакты: <b>vladlabcorp@gmail.com</b>,
                 Telegram <b>@masteruz_support</b>.
               </p>
             </section>

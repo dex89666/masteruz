@@ -1020,7 +1020,7 @@ const uz = {
     faq5q: 'Xizmat qaysi shaharlarda ishlaydi?',
     faq5a: "MasterUz O'zbekistonning 8 shahrida ishlaydi: Toshkent, Samarqand, Buxoro, Namangan, Andijon, Farg'ona, Nukus va Qarshi.",
     faq6q: "Qo'llab-quvvatlash bilan qanday bog'lanish mumkin?",
-    faq6a: 'Telegramda @masteruz_support ga yozing yoki +998 90 123-45-67 ga qo\'ng\'iroq qiling.',
+    faq6a: 'Telegramda @masteruz_support ga yozing yoki +998 95 700-50-40 ga qo\'ng\'iroq qiling.',
     faq7q: "Qanday to'lov turlari qabul qilinadi?",
     faq7a: "Click, Payme va Telegram Stars qo'llab-quvvatlanadi. Naqd pul bilan ham to'lash mumkin.",
     faq8q: 'Buyurtmani bekor qilsam boladimi?',

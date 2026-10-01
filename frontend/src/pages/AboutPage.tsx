@@ -203,8 +203,8 @@ export function AboutPage() {
             <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 text-center">
               <Phone size={28} className="text-primary-600 dark:text-primary-400 mx-auto mb-3" />
               <h3 className="font-semibold mb-1 dark:text-white">{t('about.contactPhone')}</h3>
-              <a href="tel:+998901234567" className="text-primary-600 dark:text-primary-400 hover:underline text-sm">
-                +998 90 123-45-67
+              <a href="tel:+998957005040" className="text-primary-600 dark:text-primary-400 hover:underline text-sm">
+                +998 95 700-50-40
               </a>
             </div>
             <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 text-center">
@@ -217,8 +217,8 @@ export function AboutPage() {
             <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 text-center">
               <Mail size={28} className="text-primary-600 dark:text-primary-400 mx-auto mb-3" />
               <h3 className="font-semibold mb-1 dark:text-white">Email</h3>
-              <a href="mailto:info@masteruz.uz" className="text-primary-600 dark:text-primary-400 hover:underline text-sm">
-                info@masteruz.uz
+              <a href="mailto:vladlabcorp@gmail.com" className="text-primary-600 dark:text-primary-400 hover:underline text-sm">
+                vladlabcorp@gmail.com
               </a>
             </div>
           </div>

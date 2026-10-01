@@ -11,20 +11,25 @@ test.describe('Consent Gate', () => {
     await page.addInitScript(() => localStorage.clear());
   });
 
-  test('блокирует доступ пока пользователь не согласился', async ({ page }) => {
+  test('гость на витрине модал не видит — ПДн ещё не обрабатываются', async ({ page }) => {
     await page.goto('/');
+    await expect(page.getByRole('heading', { name: /Согласие на использование платформы/i })).toHaveCount(0);
+  });
+
+  test('блокирует доступ пока пользователь не согласился', async ({ page }) => {
+    await page.goto('/login');
 
     // Модал виден
     const modal = page.getByRole('heading', { name: /Согласие на использование платформы/i });
     await expect(modal).toBeVisible();
 
     // Реквизиты ООО Vladlab отображаются
-    await expect(page.getByText(/Vladlab/)).toBeVisible();
-    await expect(page.getByText(/313020180/)).toBeVisible();
+    await expect(page.getByText(/Vladlab/).first()).toBeVisible();
+    await expect(page.getByText(/313020180/).first()).toBeVisible();
   });
 
   test('кнопка «Согласен» выключена до прокрутки и проставленных чекбоксов', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/login');
 
     const submit = page.getByRole('button', { name: /Согласен.*продолжить/i });
     await expect(submit).toBeDisabled();
@@ -35,7 +40,7 @@ test.describe('Consent Gate', () => {
   });
 
   test('после прокрутки и трёх галочек согласие сохраняется', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/login');
 
     // Прокручиваем модал-контент до конца — кнопка «Прокрутите до конца» удобно для теста
     const scrollHelper = page.getByRole('button', { name: /Прокрутите до конца/i });
@@ -44,6 +49,16 @@ test.describe('Consent Gate', () => {
       // Дожидаемся завершения smooth-scroll
       await page.waitForTimeout(800);
     }
+
+    // Прокручиваем текст модала до конца — так же, как это делает человек
+    await page.evaluate(() => {
+      document.querySelectorAll<HTMLElement>('*').forEach((el) => {
+        if (el.scrollHeight > el.clientHeight + 8 && getComputedStyle(el).overflowY !== 'visible') {
+          el.scrollTop = el.scrollHeight;
+          el.dispatchEvent(new Event('scroll'));
+        }
+      });
+    });
 
     const checkboxes = page.getByRole('checkbox');
     const count = await checkboxes.count();
@@ -54,11 +69,11 @@ test.describe('Consent Gate', () => {
     await expect(submit).toBeEnabled();
     await submit.click();
 
-    // Модал ушёл, главная страница доступна
+    // Модал ушёл, страница входа доступна
     await expect(page.getByRole('heading', { name: /Согласие на использование платформы/i })).toHaveCount(0);
 
     // localStorage обновлён
-    const stored = await page.evaluate(() => localStorage.getItem('masteruz-consent-v1'));
+    const stored = await page.evaluate(() => localStorage.getItem('masteruz-consent-v5'));
     expect(stored).toBeTruthy();
   });
 });

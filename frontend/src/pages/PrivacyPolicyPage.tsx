@@ -34,7 +34,7 @@ export function PrivacyPolicyPage() {
               Законом Республики Узбекистан «О персональных данных» №ЗРУ-547 от 02.07.2019 г. (с последующими
               изменениями), Законом «Об информатизации» №560-II, Положением «О реестре баз персональных
               данных» (Постановление КабМин №570) и регулирует обработку персональных данных в рамках
-              сервиса MasterUz (далее — «Платформа»).
+              сервиса MasterUz — сайта www.mestro.uz, Telegram-бота @Handymanuzbot и мобильных приложений (далее — «Платформа»).
             </p>
             <p>
               <strong>Оператор:</strong> ООО «Vladlab», ИНН 313020180, Республика Узбекистан.
@@ -116,7 +116,7 @@ export function PrivacyPolicyPage() {
               <li>Алгоритмические решения, существенно затрагивающие права субъекта (например, отказ в регистрации),
                   принимаются <strong>с участием человека</strong> по запросу пользователя в течение 30 дней (ст. 24 ЗРУ-547).</li>
               <li>Пользователь вправе оспорить любое автоматическое решение через поддержку
-                  (<a href="mailto:privacy@masteruz.uz" className="text-primary-600 dark:text-primary-400 hover:underline">privacy@masteruz.uz</a>).</li>
+                  (<a href="mailto:vladlabcorp@gmail.com" className="text-primary-600 dark:text-primary-400 hover:underline">vladlabcorp@gmail.com</a>).</li>
             </ul>
           </section>
 
@@ -195,8 +195,8 @@ export function PrivacyPolicyPage() {
             </ul>
             <p className="mt-3">
               <strong>Срок ответа на запрос — 30 календарных дней.</strong> Запросы направлять на{' '}
-              <a href="mailto:privacy@masteruz.uz" className="text-primary-600 dark:text-primary-400 hover:underline">
-                privacy@masteruz.uz
+              <a href="mailto:vladlabcorp@gmail.com" className="text-primary-600 dark:text-primary-400 hover:underline">
+                vladlabcorp@gmail.com
               </a>{' '}
               с указанием Telegram username и описания требования.
             </p>
@@ -209,8 +209,8 @@ export function PrivacyPolicyPage() {
               сбор ПДн несовершеннолетних. При обнаружении факта регистрации лица младше 18 лет аккаунт
               немедленно блокируется, а ПДн удаляются. Если законный представитель полагает, что
               его несовершеннолетний ребёнок предоставил данные без согласия, — обратитесь по адресу{' '}
-              <a href="mailto:privacy@masteruz.uz" className="text-primary-600 dark:text-primary-400 hover:underline">
-                privacy@masteruz.uz
+              <a href="mailto:vladlabcorp@gmail.com" className="text-primary-600 dark:text-primary-400 hover:underline">
+                vladlabcorp@gmail.com
               </a>.
             </p>
           </section>
@@ -253,7 +253,7 @@ export function PrivacyPolicyPage() {
             <h2 className="text-lg font-semibold dark:text-white mb-2">14. Контакты</h2>
             <ul className="list-none space-y-1">
               <li><strong>Ответственный за обработку ПДн:</strong> Vladlab Privacy Officer</li>
-              <li>E-mail: <a href="mailto:privacy@masteruz.uz" className="text-primary-600 dark:text-primary-400 hover:underline">privacy@masteruz.uz</a></li>
+              <li>E-mail: <a href="mailto:vladlabcorp@gmail.com" className="text-primary-600 dark:text-primary-400 hover:underline">vladlabcorp@gmail.com</a></li>
               <li>Поддержка: <a href="https://t.me/masteruz_support" className="text-primary-600 dark:text-primary-400 hover:underline">@masteruz_support</a></li>
               <li>Телефон: <a href="tel:+998957005040" className="text-primary-600 dark:text-primary-400 hover:underline">+998 95 700-50-40</a></li>
               <li><strong>Госинспекция «Узкомназорат»:</strong> <a href="https://uzcert.uz" target="_blank" rel="noopener noreferrer" className="text-primary-600 dark:text-primary-400 hover:underline">uzcert.uz</a></li>
