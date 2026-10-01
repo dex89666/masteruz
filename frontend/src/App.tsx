@@ -126,6 +126,9 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 // чтобы пользователь мог прочесть, с чем соглашается, ДО входа.
 const PUBLIC_ROUTES = ['/login', '/privacy', '/terms', '/public-offer', '/download', '/calculator'];
 
+// Официальный адрес сайта (корень mestro.uz перенаправляется на www у регистратора)
+const SITE_URL = 'https://www.mestro.uz';
+
 function AuthGate({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuthStore();
   const location = useLocation();
@@ -168,6 +171,13 @@ function AppContent() {
   useEffect(() => {
     trackPageView(location.pathname + location.search);
   }, [location.pathname, location.search]);
+
+  // canonical на основной домен (www.mestro.uz) для текущего пути — без query,
+  // чтобы railway-домен и зеркала не конкурировали с официальным сайтом в поиске.
+  useEffect(() => {
+    const link = document.querySelector<HTMLLinkElement>('link[rel="canonical"]');
+    if (link) link.href = SITE_URL + location.pathname;
+  }, [location.pathname]);
 
   return (
     <ConsentGate>

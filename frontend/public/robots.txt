@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://masteruz.uz/sitemap.xml
+Sitemap: https://www.mestro.uz/sitemap.xml
