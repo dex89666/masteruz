@@ -167,7 +167,11 @@ export const config = {
   // CORS
   corsOrigin: env('CORS_ORIGIN', 'http://localhost:5173'),
 
-  // Суперадмины (через env, без hardcode в коде)
+  // Суперадмины: числовые Telegram ID (надёжно); username — запасной вариант, пока ID не заданы
+  superAdminTelegramIds: env('SUPER_ADMIN_TELEGRAM_IDS')
+    .split(',')
+    .map(s => s.trim())
+    .filter(s => /^\d+$/.test(s)),
   superAdminUsernames: env('SUPER_ADMIN_USERNAMES')
     .split(',')
     .map(s => s.trim())

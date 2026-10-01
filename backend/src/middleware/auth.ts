@@ -27,6 +27,20 @@ declare global {
   }
 }
 
+/** Есть ли в запросе действительный (подписанный нами и не истёкший) access-токен. */
+export function hasValidAccessToken(req: Request): boolean {
+  const cookieToken = (req as any).cookies?.mu_at as string | undefined;
+  const authHeader = req.headers.authorization;
+  const token = cookieToken || (authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : undefined);
+  if (!token) return false;
+  try {
+    jwt.verify(token, config.jwt.secret);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Middleware для проверки JWT-токена.
  * Поддерживаем 2 источника:
@@ -80,9 +94,9 @@ export function authorize(...roles: UserRole[]) {
       try {
         const currentUser = await prisma.user.findUnique({
           where: { id: req.user.userId },
-          select: { username: true },
+          select: { username: true, telegramId: true },
         });
-        if (isSuperAdmin(currentUser?.username)) {
+        if (isSuperAdmin(currentUser)) {
           return next();
         }
 

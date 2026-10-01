@@ -164,7 +164,7 @@ export class AuthService {
     }
 
     // Проверяем, является ли пользователь админом (по PlatformConfig.admin_user_ids или superAdmin)
-    let isAdminUser = user.role === 'ADMIN' || user.role === 'MANAGER' || isSuperAdmin(user.username);
+    let isAdminUser = user.role === 'ADMIN' || user.role === 'MANAGER' || isSuperAdmin(user);
     if (!isAdminUser) {
       try {
         const adminConfig = await prisma.platformConfig.findUnique({ where: { key: 'admin_user_ids' } });
@@ -176,7 +176,7 @@ export class AuthService {
     }
 
     // Для суперадминов — автоматически добавляем в admin_user_ids и создаём masterProfile
-    if (isSuperAdmin(user.username)) {
+    if (isSuperAdmin(user)) {
       try {
         const adminConfig = await prisma.platformConfig.findUnique({ where: { key: 'admin_user_ids' } });
         const adminIds = adminConfig ? adminConfig.value.split(',').map((s: string) => s.trim()).filter(Boolean) : [];
@@ -291,7 +291,7 @@ export class AuthService {
     }
 
     // === Автоматическая настройка суперадмина ===
-    if (isSuperAdmin(data.username)) {
+    if (isSuperAdmin({ username: data.username, telegramId: data.telegramId })) {
       // Если роль ещё не ADMIN — ставим ADMIN
       if (user.role !== 'ADMIN') {
         user = await prisma.user.update({

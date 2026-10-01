@@ -23,7 +23,7 @@ import { config } from './config/index.js';
 import { prisma } from './config/database.js';
 import { logger } from './utils/logger.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
-import { checkUserActive } from './middleware/auth.js';
+import { checkUserActive, hasValidAccessToken } from './middleware/auth.js';
 import { betaGate } from './middleware/betaGate.js';
 import { startAutoCancellationJob, stopAutoCancellationJob } from './services/orderAutoCancellation.js';
 import { startCleanupJob, stopCleanupJob } from './services/cleanupJob.js';
@@ -273,6 +273,19 @@ if (process.env.NODE_ENV !== 'test') {
     },
   });
   app.use('/api/stores/partner-request', partnerRequestLimiter);
+
+  // Rate Limiting — гости на публичных списках (защита от выкачивания базы мастеров и заказов).
+  // Человек, листающий витрину, делает десятки запросов; скрипт — тысячи. Вошедших не трогаем.
+  const guestCatalogLimiter = makeLimiter('guest-catalog', {
+    windowMs: 15 * 60 * 1000,
+    max: 150,
+    message: {
+      success: false,
+      error: { message: 'Слишком много запросов. Войдите через Telegram, чтобы продолжить', statusCode: 429 },
+    },
+    skip: (req) => hasValidAccessToken(req), // поддельный заголовок лимит не обходит
+  });
+  app.use(['/api/users/masters', '/api/users/master', '/api/orders', '/api/stores', '/api/portfolio'], guestCatalogLimiter);
 
   // Rate Limiting — AI-калькулятор (только после входа, дёргает OpenAI = стоит денег).
   // Строгий IP-лимит: защита от абьюза и слива бюджета на токены.

@@ -1,4 +1,25 @@
 User-agent: *
 Allow: /
+Disallow: /admin
+Disallow: /profile
+Disallow: /orders
+Disallow: /cart
+Disallow: /chat
+Disallow: /support-chat
+Disallow: /api/
+
+# Сбор контента для обучения ИИ — запрещён
+User-agent: GPTBot
+User-agent: ChatGPT-User
+User-agent: CCBot
+User-agent: ClaudeBot
+User-agent: anthropic-ai
+User-agent: Google-Extended
+User-agent: PerplexityBot
+User-agent: Bytespider
+User-agent: Amazonbot
+User-agent: Applebot-Extended
+User-agent: meta-externalagent
+Disallow: /
 
 Sitemap: https://www.mestro.uz/sitemap.xml

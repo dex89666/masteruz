@@ -73,7 +73,7 @@ router.post('/switch-role', authenticate, validateBody(switchRoleSchema), async 
     }
 
     const isCurrentAdmin = user.role === 'ADMIN';
-    const isSuper = isSuperAdmin(user.username);
+    const isSuper = isSuperAdmin(user);
 
     // Проверяем PlatformConfig — admin_user_ids
     const adminConfig = await prisma.platformConfig.findUnique({ where: { key: 'admin_user_ids' } });

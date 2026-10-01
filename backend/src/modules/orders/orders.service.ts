@@ -420,8 +420,8 @@ export class OrdersService {
 
     let isAdminRequester = false;
     if (userId) {
-      const reqUser = await prisma.user.findUnique({ where: { id: userId }, select: { role: true, username: true } });
-      isAdminRequester = reqUser?.role === 'ADMIN' || reqUser?.role === 'MANAGER' || isSuperAdmin(reqUser?.username);
+      const reqUser = await prisma.user.findUnique({ where: { id: userId }, select: { role: true, username: true, telegramId: true } });
+      isAdminRequester = reqUser?.role === 'ADMIN' || reqUser?.role === 'MANAGER' || isSuperAdmin(reqUser);
     }
 
     const canSeeContacts = isOwner

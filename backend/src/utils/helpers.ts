@@ -7,17 +7,32 @@ import crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import Decimal from 'decimal.js';
 import { config } from '../config/index.js';
+import { logger } from './logger.js';
 
 // Конфигурация Decimal.js: 20 знаков, округление к ближайшему чётному (банковское)
 Decimal.set({ precision: 20, rounding: Decimal.ROUND_HALF_EVEN });
 
+let warnedUsernameFallback = false;
+
 /**
- * Проверка суперадмина по username (из env SUPER_ADMIN_USERNAMES).
- * Telegram usernames регистронезависимые — сравниваем lowercase.
+ * Проверка суперадмина.
+ * Основной способ — числовой Telegram ID (env SUPER_ADMIN_TELEGRAM_IDS): его нельзя
+ * сменить или перехватить. Username — только запасной вариант, пока ID не заданы:
+ * освободившийся ник может занять любой, и он стал бы суперадмином.
  */
-export function isSuperAdmin(username: string | null | undefined): boolean {
-  if (!username) return false;
-  const normalized = username.replace(/^@/, '').toLowerCase();
+export function isSuperAdmin(
+  user: { username?: string | null; telegramId?: bigint | number | string | null } | null | undefined,
+): boolean {
+  if (!user) return false;
+  if (config.superAdminTelegramIds.length > 0) {
+    return user.telegramId != null && config.superAdminTelegramIds.includes(String(user.telegramId));
+  }
+  if (!warnedUsernameFallback) {
+    warnedUsernameFallback = true;
+    logger.warn('SUPER_ADMIN_TELEGRAM_IDS не задан — суперадмины определяются по username (небезопасно)');
+  }
+  if (!user.username) return false;
+  const normalized = user.username.replace(/^@/, '').toLowerCase();
   return config.superAdminUsernames.some(u => u.replace(/^@/, '').toLowerCase() === normalized);
 }
 
@@ -35,13 +50,13 @@ export async function isAdminUser(userId: string): Promise<boolean> {
   const [user, adminConfig] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
-      select: { role: true, username: true },
+      select: { role: true, username: true, telegramId: true },
     }),
     prisma.platformConfig.findUnique({ where: { key: 'admin_user_ids' } }),
   ]);
   if (!user) return false;
   if (user.role === 'ADMIN' || user.role === 'MANAGER') return true;
-  if (isSuperAdmin(user.username)) return true;
+  if (isSuperAdmin(user)) return true;
   if (adminConfig) {
     const ids = adminConfig.value.split(',').map(s => s.trim()).filter(Boolean);
     if (ids.includes(userId)) return true;

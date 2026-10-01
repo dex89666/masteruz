@@ -17,7 +17,7 @@ export class UsersController {
       const user = await usersService.getMasterProfile(req.user!.userId);
 
       // Добавляем isAdminUser для корректной работы переключения ролей на фронтенде
-      let isAdminUser = user.role === 'ADMIN' || user.role === 'MANAGER' || isSuperAdmin(user.username);
+      let isAdminUser = user.role === 'ADMIN' || user.role === 'MANAGER' || isSuperAdmin(user);
       if (!isAdminUser) {
         try {
           const { prisma } = await import('../../config/database.js');

@@ -64,11 +64,11 @@ export async function betaGate(req: Request, _res: Response, next: NextFunction)
     // 2) админы и менеджеры — всегда
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { username: true, role: true, phone: true, profile: { select: { city: true } } },
+      select: { username: true, telegramId: true, role: true, phone: true, profile: { select: { city: true } } },
     });
     if (!user) return next(ApiError.forbidden('Пользователь не найден'));
     if (user.role === 'ADMIN' || user.role === 'MANAGER') return next();
-    if (isSuperAdmin(user.username)) return next();
+    if (isSuperAdmin(user)) return next();
 
     // 3) whitelist по телефону
     if (user.phone && cfg.allowedPhones.includes(user.phone)) return next();

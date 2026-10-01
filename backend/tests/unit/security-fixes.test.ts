@@ -12,6 +12,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('../../src/config/index.js', () => ({
   config: {
     superAdminUsernames: ['admin1', 'admin2'],
+    superAdminTelegramIds: [] as string[],
     platform: {
       defaultCommissionRate: 15,
       masterRegistrationFee: 400000,
@@ -22,22 +23,39 @@ vi.mock('../../src/config/index.js', () => ({
 }));
 
 import { isSuperAdmin, clampPagination } from '../../src/utils/helpers.js';
+import { config } from '../../src/config/index.js';
 
-describe('P0: isSuperAdmin — замена хардкода', () => {
+describe('P0: isSuperAdmin — без Telegram ID (запасной режим по username)', () => {
+  beforeEach(() => { (config as any).superAdminTelegramIds = []; });
+
   it('возвращает true для пользователя из env', () => {
-    expect(isSuperAdmin('admin1')).toBe(true);
-    expect(isSuperAdmin('admin2')).toBe(true);
+    expect(isSuperAdmin({ username: 'admin1' })).toBe(true);
+    expect(isSuperAdmin({ username: '@Admin2' })).toBe(true);
   });
 
   it('возвращает false для неизвестного пользователя', () => {
-    expect(isSuperAdmin('hacker')).toBe(false);
-    expect(isSuperAdmin('sustanon250')).toBe(false);
+    expect(isSuperAdmin({ username: 'hacker' })).toBe(false);
+    expect(isSuperAdmin({ username: 'sustanon250' })).toBe(false);
   });
 
-  it('возвращает false для null/undefined/пустой строки', () => {
+  it('возвращает false для null/undefined/пустого ника', () => {
     expect(isSuperAdmin(null)).toBe(false);
     expect(isSuperAdmin(undefined)).toBe(false);
-    expect(isSuperAdmin('')).toBe(false);
+    expect(isSuperAdmin({ username: '' })).toBe(false);
+  });
+});
+
+describe('P0: isSuperAdmin — по Telegram ID', () => {
+  beforeEach(() => { (config as any).superAdminTelegramIds = ['111', '222']; });
+
+  it('суперадмин — только по ID', () => {
+    expect(isSuperAdmin({ telegramId: 111n })).toBe(true);
+    expect(isSuperAdmin({ telegramId: 222 })).toBe(true);
+  });
+
+  it('занятый чужим ником аккаунт суперадмином не становится', () => {
+    expect(isSuperAdmin({ username: 'admin1', telegramId: 999n })).toBe(false);
+    expect(isSuperAdmin({ username: 'admin1' })).toBe(false);
   });
 });
 
