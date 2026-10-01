@@ -4,6 +4,8 @@
 
 import { Request, Response, NextFunction } from 'express';
 import { ordersService } from './orders.service.js';
+import { stripOrderAccounts, toAnonymousOrder } from './publicOrder.js';
+import { ApiError } from '../../utils/ApiError.js';
 
 export class OrdersController {
   /** POST /api/orders */
@@ -19,8 +21,11 @@ export class OrdersController {
   /** GET /api/orders */
   async list(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const result = await ordersService.listOrders(req.query as any, req.user?.userId);
-      res.json({ success: true, ...result });
+      // Гость видит только опубликованные заказы (status из query игнорируем)
+      const query = req.user ? req.query : { ...req.query, status: undefined };
+      const result = await ordersService.listOrders(query as any, req.user?.userId);
+      const toOutput = req.user ? stripOrderAccounts : toAnonymousOrder;
+      res.json({ success: true, ...result, data: result.data.map((o: any) => toOutput(o)) });
     } catch (error) {
       next(error);
     }
@@ -30,7 +35,12 @@ export class OrdersController {
   async getById(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const order = await ordersService.getOrder(req.params.id, req.user?.userId);
-      res.json({ success: true, data: order });
+      if (!req.user) {
+        if (order.status !== 'PUBLISHED') throw ApiError.notFound('Заказ не найден');
+        res.json({ success: true, data: toAnonymousOrder(order) });
+        return;
+      }
+      res.json({ success: true, data: stripOrderAccounts(order) });
     } catch (error) {
       next(error);
     }

@@ -121,10 +121,20 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-// Глобальный guard: вся аппа требует логин.
-// Разрешены без авторизации: страница логина и юридические документы (privacy/terms/offer),
-// чтобы пользователь мог прочесть, с чем соглашается, ДО входа.
-const PUBLIC_ROUTES = ['/login', '/privacy', '/terms', '/public-offer', '/download', '/calculator'];
+// Глобальный guard: без входа открыта витрина сайта — главная, каталог, мастера,
+// магазины и информационные страницы (их индексируют поисковики), а также логин
+// и юридические документы. Всё остальное (заказ, чат, профиль) — после входа через Telegram.
+const PUBLIC_ROUTES = [
+  '', '/login', '/privacy', '/terms', '/public-offer', '/download', '/calculator',
+  '/masters', '/stores', '/about', '/support', '/careers', '/complaint',
+];
+// Публичные разделы с вложенными страницами: /catalog/:slug, /masters/:id и т. п.
+const PUBLIC_PREFIXES = ['/catalog/', '/services/', '/masters/', '/stores/'];
+
+function isPublicPath(pathname: string): boolean {
+  const path = pathname.replace(/\/$/, '');
+  return PUBLIC_ROUTES.includes(path) || PUBLIC_PREFIXES.some(p => path.startsWith(p));
+}
 
 // Официальный адрес сайта (корень mestro.uz перенаправляется на www у регистратора)
 const SITE_URL = 'https://www.mestro.uz';
@@ -132,7 +142,7 @@ const SITE_URL = 'https://www.mestro.uz';
 function AuthGate({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuthStore();
   const location = useLocation();
-  const isPublic = PUBLIC_ROUTES.includes(location.pathname.replace(/\/$/, ''));
+  const isPublic = isPublicPath(location.pathname);
 
   if (isLoading) {
     return <div className="flex items-center justify-center min-h-screen"><LoadingSpinner /></div>;

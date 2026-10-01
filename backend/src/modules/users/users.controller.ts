@@ -6,6 +6,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { usersService } from './users.service.js';
 import { isSuperAdmin } from '../../utils/helpers.js';
+import { toPublicMaster } from './publicMaster.js';
 
 export class UsersController {
   /**
@@ -99,7 +100,7 @@ export class UsersController {
   async getMasterById(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const master = await usersService.getMasterProfile(req.params.id);
-      res.json({ success: true, data: master });
+      res.json({ success: true, data: toPublicMaster(master) });
     } catch (error) {
       next(error);
     }
@@ -122,7 +123,7 @@ export class UsersController {
         sortOrder: req.query.sortOrder as any,
         verifiedOnly: req.query.verifiedOnly === 'true',
       });
-      res.json({ success: true, ...result });
+      res.json({ success: true, ...result, data: result.data.map(toPublicMaster) });
     } catch (error) {
       next(error);
     }
