@@ -27,7 +27,12 @@ router.get('/consent/status', async (req: Request, res: Response, next: NextFunc
     const ip = getClientIp(req);
     const ua = (req.headers['user-agent'] || '').toString();
     const telegramId = typeof req.query.tg === 'string' ? req.query.tg.slice(0, 32) : undefined;
-    const accepted = await localRegistry.hasConsent(ip, ua, DOCUMENTS_VERSION, telegramId);
+    // Без Telegram ID человека не опознать: за одним IP мобильного оператора и одинаковым
+    // браузером — тысячи людей, и согласие одного засчитывалось бы всем. На сайте согласие
+    // подтверждает только отметка в браузере самого посетителя.
+    const accepted = telegramId
+      ? await localRegistry.hasConsent(ip, ua, DOCUMENTS_VERSION, telegramId)
+      : false;
     res.json({ success: true, data: { accepted, documentsVersion: DOCUMENTS_VERSION } });
   } catch (err) {
     next(err);

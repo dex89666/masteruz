@@ -100,9 +100,11 @@ export function ConsentGate({ children }: { children: React.ReactNode }) {
   // Сверка с сервером — если он сказал «согласие записано», доверяем серверу
   useEffect(() => {
     if (accepted || gateNotNeeded) return;
+    // Сервер опознаёт только по Telegram ID (Mini App); на сайте — отметка в браузере
     const tg = getTelegramUserId();
+    if (!tg) return;
     api
-      .get('/local-registry/consent/status', { params: tg ? { tg } : undefined })
+      .get('/local-registry/consent/status', { params: { tg } })
       .then((res) => {
         if (res.data?.data?.accepted) {
           saveLocalConsent();
