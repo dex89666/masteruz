@@ -54,15 +54,16 @@ const publicEstimateSchema = z.object({
 });
 
 // ═══════════════════════════════════════════
-// ПУБЛИЧНЫЙ КАЛЬКУЛЯТОР (БЕЗ АВТОРИЗАЦИИ)
+// КАЛЬКУЛЯТОР ЦЕНЫ (ТОЛЬКО ПОСЛЕ ВХОДА)
 // ═══════════════════════════════════════════
 
 /**
- * POST /instant-order/public-estimate — экспресс-оценка цены без регистрации
- * Lead-magnet: аноним загружает фото / описывает задачу → примерный диапазон.
- * Ничего не сохраняет в БД. Защищён отдельным rate-limit (см. app.ts).
+ * POST /instant-order/public-estimate — экспресс-оценка цены по фото / описанию.
+ * Каждый вызов — платный запрос к AI, поэтому только для вошедших: без входа
+ * калькулятором пользовались бы как бесплатной сметой. Плюс IP-лимит (см. app.ts).
+ * Ничего не сохраняет в БД.
  */
-router.post('/public-estimate', async (req: Request, res: Response, next: NextFunction) => {
+router.post('/public-estimate', authenticate, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const data = publicEstimateSchema.parse(req.body);
     const result = await instantOrderService.publicEstimate(data);

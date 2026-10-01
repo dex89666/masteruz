@@ -123,9 +123,9 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 // Глобальный guard: без входа открыта витрина сайта — главная, каталог, мастера,
 // магазины и информационные страницы (их индексируют поисковики), а также логин
-// и юридические документы. Всё остальное (заказ, чат, профиль) — после входа через Telegram.
+// и юридические документы. Всё остальное (заказ, AI-калькулятор, чат, профиль) — после входа через Telegram.
 const PUBLIC_ROUTES = [
-  '', '/login', '/privacy', '/terms', '/public-offer', '/download', '/calculator',
+  '', '/login', '/privacy', '/terms', '/public-offer', '/download',
   '/masters', '/stores', '/about', '/support', '/careers', '/complaint',
 ];
 // Публичные разделы с вложенными страницами: /catalog/:slug, /masters/:id и т. п.
@@ -194,7 +194,7 @@ function AppContent() {
     <AuthGate>
     <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><LoadingSpinner /></div>}>
       <Routes>
-      {/* Публичный AI-калькулятор — полноэкранный, вне Layout, без авторизации (viral landing) */}
+      {/* AI-калькулятор — полноэкранный, вне Layout; без входа AuthGate отправит на /login */}
       <Route path="/calculator" element={<PublicCalculatorPage />} />
 
       {/* Public routes */}

@@ -8,7 +8,7 @@ import crypto from 'crypto';
 import { authService } from './auth.service.js';
 import { botAuthService } from './bot-auth.service.js';
 import { config } from '../../config/index.js';
-import { sendTelegramMessage } from '../../utils/telegramBot.js';
+import { sendTelegramMessage, answerTelegramCallback, editTelegramMessage } from '../../utils/telegramBot.js';
 import { logger } from '../../utils/logger.js';
 import { setAuthCookies, clearAuthCookies } from '../../utils/authCookies.js';
 
@@ -280,6 +280,21 @@ export class AuthController {
         return;
       }
 
+      // Нажатие кнопки «Подтвердить вход» / «Отмена»
+      const cb = req.body?.callback_query as
+        | {
+            id: string;
+            data?: string;
+            from: { id: number; first_name: string; last_name?: string; username?: string };
+            message?: { message_id: number; chat: { id: number } };
+          }
+        | undefined;
+      if (cb) {
+        await this.handleBotAuthCallback(cb);
+        res.sendStatus(200);
+        return;
+      }
+
       const msg = (req.body?.message ?? req.body?.edited_message) as
         | {
             text?: string;
@@ -302,32 +317,29 @@ export class AuthController {
         return;
       }
 
+      // Вход НЕ выполняется по одному Start: ссылку на вход мог прислать злоумышленник,
+      // и тогда сессия жертвы досталась бы ему. Сначала — явное подтверждение с предупреждением.
       const token = match[1];
-      const tokens = await botAuthService.complete(token, {
-        id: tgUser.id,
-        first_name: tgUser.first_name,
-        last_name: tgUser.last_name,
-        username: tgUser.username,
-      });
-
-      if (tokens) {
-        const publicUrl = (
-          process.env.BACKEND_PUBLIC_URL ||
-          'https://masteruz-backend-production.up.railway.app'
-        ).replace(/\/$/, '');
+      if (await botAuthService.isPending(token)) {
         await sendTelegramMessage({
           chatId,
-          text: '✅ <b>Вы вошли в MasterUz!</b>\n\nНажмите кнопку ниже, чтобы вернуться в приложение.',
+          text:
+            '🔐 <b>Вход в MasterUz</b>\n\n' +
+            'Подтвердите, только если <b>вы сами</b> только что нажали «Войти через Telegram» ' +
+            'на сайте или в приложении MasterUz.\n\n' +
+            '⚠️ Если эту ссылку вам прислал другой человек — нажмите «Отмена». ' +
+            'Иначе он получит доступ к вашему аккаунту.',
           replyMarkup: {
-            inline_keyboard: [
-              [{ text: '🔧 Открыть MasterUz', url: `${publicUrl}/api/auth/open-app` }],
-            ],
+            inline_keyboard: [[
+              { text: '✅ Да, это я', callback_data: `auth_ok:${token}` },
+              { text: '✖️ Отмена', callback_data: `auth_no:${token}` },
+            ]],
           },
         });
       } else {
         await sendTelegramMessage({
           chatId,
-          text: '⏱ Сессия авторизации истекла. Откройте приложение и нажмите «Войти через Telegram» ещё раз.',
+          text: '⏱ Сессия авторизации истекла. Нажмите «Войти через Telegram» на сайте или в приложении ещё раз.',
         });
       }
 
@@ -336,6 +348,62 @@ export class AuthController {
       logger.error({ err: error }, 'bot webhook: ошибка обработки');
       res.sendStatus(200);
     }
+  }
+
+  /** Подтверждение или отмена входа через бота (inline-кнопки). */
+  private async handleBotAuthCallback(cb: {
+    id: string;
+    data?: string;
+    from: { id: number; first_name: string; last_name?: string; username?: string };
+    message?: { message_id: number; chat: { id: number } };
+  }): Promise<void> {
+    const m = cb.data?.match(/^auth_(ok|no):([A-Za-z0-9_-]{8,})$/);
+    if (!m || !cb.message) {
+      await answerTelegramCallback(cb.id);
+      return;
+    }
+    const [, action, token] = m;
+    const chatId = cb.message.chat.id;
+    const messageId = cb.message.message_id;
+
+    if (action === 'no') {
+      await botAuthService.cancel(token);
+      await answerTelegramCallback(cb.id, 'Вход отменён');
+      await editTelegramMessage({
+        chatId,
+        messageId,
+        text: '✖️ <b>Вход отменён.</b>\n\nНикто не получил доступ к вашему аккаунту.',
+      });
+      return;
+    }
+
+    const tokens = await botAuthService.complete(token, {
+      id: cb.from.id,
+      first_name: cb.from.first_name,
+      last_name: cb.from.last_name,
+      username: cb.from.username,
+    });
+    await answerTelegramCallback(cb.id, tokens ? 'Вход подтверждён' : 'Сессия истекла');
+    if (!tokens) {
+      await editTelegramMessage({
+        chatId,
+        messageId,
+        text: '⏱ Сессия авторизации истекла. Нажмите «Войти через Telegram» ещё раз.',
+      });
+      return;
+    }
+    const publicUrl = (
+      process.env.BACKEND_PUBLIC_URL ||
+      'https://masteruz-backend-production.up.railway.app'
+    ).replace(/\/$/, '');
+    await editTelegramMessage({
+      chatId,
+      messageId,
+      text: '✅ <b>Вы вошли в MasterUz!</b>\n\nВернитесь на сайт или в приложение — вход уже выполнен.',
+      replyMarkup: {
+        inline_keyboard: [[{ text: '📱 Открыть приложение', url: `${publicUrl}/api/auth/open-app` }]],
+      },
+    });
   }
 }
 

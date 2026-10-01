@@ -91,6 +91,45 @@ export async function sendTelegramMessage(options: SendMessageOptions): Promise<
 /**
  * Отправка геолокации в Telegram
  */
+/** Ответ на нажатие inline-кнопки (убирает «часики» у кнопки). */
+export async function answerTelegramCallback(callbackQueryId: string, text?: string): Promise<void> {
+  if (!config.telegram.botToken) return;
+  try {
+    await _fetch(`${botApi()}/answerCallbackQuery`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ callback_query_id: callbackQueryId, text }),
+    });
+  } catch (error) {
+    logger.error({ err: error }, 'answerCallbackQuery: ошибка');
+  }
+}
+
+/** Заменяет текст и кнопки уже отправленного сообщения. */
+export async function editTelegramMessage(options: {
+  chatId: number | string;
+  messageId: number;
+  text: string;
+  replyMarkup?: unknown;
+}): Promise<void> {
+  if (!config.telegram.botToken) return;
+  try {
+    await _fetch(`${botApi()}/editMessageText`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: options.chatId,
+        message_id: options.messageId,
+        text: options.text,
+        parse_mode: 'HTML',
+        ...(options.replyMarkup ? { reply_markup: options.replyMarkup } : {}),
+      }),
+    });
+  } catch (error) {
+    logger.error({ err: error }, 'editMessageText: ошибка');
+  }
+}
+
 export async function sendTelegramLocation(options: SendLocationOptions): Promise<boolean> {
   try {
     if (!config.telegram.botToken) return false;

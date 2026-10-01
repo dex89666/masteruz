@@ -663,7 +663,7 @@ export const instantOrderApi = {
     longitude?: number;
   }) => api.post<ApiResponse<any>>('/instant-order/analyze', data),
 
-  // Публичная экспресс-оценка без регистрации (lead-magnet)
+  // Экспресс-оценка цены по фото / описанию (только после входа)
   publicEstimate: (data: {
     images?: string[];
     description?: string;

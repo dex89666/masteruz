@@ -14,6 +14,10 @@ import { LoadingSpinner } from '../components/LoadingSpinner';
 import { Wrench, Zap, Shield, Wallet, Send } from 'lucide-react';
 import toast from 'react-hot-toast';
 
+// Виджет Telegram работает только на домене, привязанном к боту в BotFather (/setdomain).
+// На остальных адресах он пишет «Bot domain invalid» — там входим только через бота.
+const LOGIN_WIDGET_HOST = 'www.mestro.uz';
+
 export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -56,11 +60,12 @@ export function LoginPage() {
     }
   }
 
-  // Telegram Login Widget для веба. В нативном APK не грузим — используем бот-flow.
+  // Telegram Login Widget — дополнительно к входу через бота, только на домене из BotFather.
   const isNative = Capacitor.isNativePlatform();
+  const widgetSupported = !isNative && window.location.hostname === LOGIN_WIDGET_HOST;
 
   useEffect(() => {
-    if (isNative) return;
+    if (!widgetSupported) return;
     (window as any).onTelegramAuth = async (user: any) => {
       setLoading(true);
       try {
@@ -95,7 +100,7 @@ export function LoginPage() {
     return () => {
       delete (window as any).onTelegramAuth;
     };
-  }, [setAuth, navigate, isNative, t, redirectTo]);
+  }, [setAuth, navigate, widgetSupported, t, redirectTo]);
 
   // ─── One-tap логин через бота (native) ──────────────
   // Идея: создаём токен на бэке → открываем чат с ботом по deep-link →
@@ -143,10 +148,15 @@ export function LoginPage() {
     return false;
   }
 
-  async function handleNativeTelegramLogin() {
+  // Ссылка на бота — показываем и в ожидании: если браузер заблокировал новую вкладку
+  const [botLink, setBotLink] = useState<string | null>(null);
+
+  async function handleBotLogin() {
     // Защита от двойного клика
     if (waitingForBot) return;
     setWaitingForBot(true);
+    // В браузере вкладку открываем сразу по клику: после await браузер счёл бы её всплывающим окном
+    const webTab = isNative ? null : window.open('', '_blank');
     try {
       const startRes = await authApi.botAuthStart();
       const data = startRes.data?.data;
@@ -154,16 +164,22 @@ export function LoginPage() {
         throw new Error('Не удалось начать авторизацию');
       }
       lastTokenRef.current = data.token;
+      setBotLink(data.webLink);
 
-      // Открываем Telegram. tg:// откроет нативное приложение мгновенно,
-      // если оно установлено. Если нет — браузер автоматически уйдёт на webLink.
-      window.open(data.deepLink, '_system', 'noopener,noreferrer');
-      // Подстраховка для устройств без Telegram-app: чуть позже открываем web.
-      setTimeout(() => {
-        if (waitingForBot) {
-          window.open(data.webLink, '_system', 'noopener,noreferrer');
-        }
-      }, 800);
+      if (isNative) {
+        // Открываем Telegram. tg:// откроет нативное приложение мгновенно,
+        // если оно установлено. Если нет — браузер автоматически уйдёт на webLink.
+        window.open(data.deepLink, '_system', 'noopener,noreferrer');
+        // Подстраховка для устройств без Telegram-app: чуть позже открываем web.
+        setTimeout(() => {
+          if (waitingForBot) {
+            window.open(data.webLink, '_system', 'noopener,noreferrer');
+          }
+        }, 800);
+      } else if (webTab) {
+        // t.me сам предложит открыть Telegram (приложение или web.telegram.org)
+        webTab.location.href = data.webLink;
+      }
 
       // Поллим до 2 минут с интервалом 1.5 сек.
       const startedAt = Date.now();
@@ -190,6 +206,7 @@ export function LoginPage() {
         toast.error('Время ожидания истекло. Попробуйте ещё раз.');
       }
     } catch (err: any) {
+      webTab?.close();
       setWaitingForBot(false);
       toast.error(err?.response?.data?.error?.message || err?.message || 'Ошибка авторизации');
     }
@@ -248,61 +265,64 @@ export function LoginPage() {
           </div>
         </div>
 
-        {/* Telegram Login Widget */}
-        <div id="telegram-login-widget" className="flex justify-center mb-6">
-          {isNative ? (
-            waitingForBot ? (
-              <div className="flex flex-col items-center gap-3 w-full">
-                <div className="flex items-center gap-3 rounded-2xl bg-blue-50 dark:bg-blue-900/20 px-5 py-4 w-full justify-center">
-                  <LoadingSpinner size="sm" />
-                  <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
-                    Откройте бота и нажмите Start
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={cancelBotAuth}
-                  className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
-                >
-                  Отменить
-                </button>
+        {/* Вход через бота — работает на любом адресе сайта и в приложении */}
+        <div className="flex justify-center mb-4">
+          {waitingForBot ? (
+            <div className="flex flex-col items-center gap-3 w-full">
+              <div className="flex items-center gap-3 rounded-2xl bg-blue-50 dark:bg-blue-900/20 px-5 py-4 w-full justify-center">
+                <LoadingSpinner size="sm" />
+                <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                  Откройте бота, нажмите Start и подтвердите вход
+                </span>
               </div>
-            ) : (
+              {botLink && (
+                <a
+                  href={botLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm font-medium text-[#229ED9] hover:underline"
+                >
+                  Открыть Telegram
+                </a>
+              )}
               <button
                 type="button"
-                onClick={handleNativeTelegramLogin}
-                className="inline-flex items-center gap-3 rounded-2xl bg-[#229ED9] px-6 py-3.5 text-base font-semibold text-white shadow-lg shadow-[#229ED9]/30 transition active:scale-[0.98] hover:bg-[#1c8bc0]"
+                onClick={cancelBotAuth}
+                className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
               >
-                <Send size={20} />
-                Войти через Telegram
+                Отменить
               </button>
-            )
+            </div>
           ) : (
-            <div className="text-sm text-gray-400 dark:text-gray-500">{t('auth.telegramLoading')}</div>
+            <button
+              type="button"
+              onClick={handleBotLogin}
+              className="inline-flex items-center gap-3 rounded-2xl bg-[#229ED9] px-6 py-3.5 text-base font-semibold text-white shadow-lg shadow-[#229ED9]/30 transition active:scale-[0.98] hover:bg-[#1c8bc0]"
+            >
+              <Send size={20} />
+              Войти через Telegram
+            </button>
           )}
         </div>
+
+        {/* Telegram Login Widget — сюда скрипт вставляет свою кнопку */}
+        {widgetSupported && (
+          <div id="telegram-login-widget" className={waitingForBot ? 'hidden' : 'flex justify-center mb-6'} />
+        )}
 
         <div className="border-t border-gray-100 dark:border-gray-700 pt-4">
           <p className="text-xs text-gray-400 dark:text-gray-500">
             {t('auth.legalConsent')}{' '}
-            <a href="/legal/offer" className="text-primary-600 dark:text-primary-400 hover:underline">
+            <a href="/public-offer" className="text-primary-600 dark:text-primary-400 hover:underline">
               {t('auth.publicOffer')}
             </a>{' '}
             {t('auth.and')}{' '}
-            <a href="/legal/privacy" className="text-primary-600 dark:text-primary-400 hover:underline">
+            <a href="/privacy" className="text-primary-600 dark:text-primary-400 hover:underline">
               {t('auth.privacyPolicy')}
             </a>
           </p>
         </div>
 
-        {/* Не хотите регистрироваться? → публичный AI-калькулятор (lead-magnet) */}
-        <button
-          type="button"
-          onClick={() => navigate('/calculator')}
-          className="mt-4 w-full text-sm font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700 hover:underline"
-        >
-          Узнать цену ремонта за 30 секунд — без регистрации →
-        </button>
       </div>
     </div>
   );

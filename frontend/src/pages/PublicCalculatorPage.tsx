@@ -1,7 +1,7 @@
 // ============================================
 // MasterUz — Публичный AI-калькулятор цены
-// Lead-magnet: аноним фоткает проблему → узнаёт цену → регистрируется
-// Доступен БЕЗ авторизации и без consent-модала (viral landing)
+// Вошедший пользователь фоткает проблему → узнаёт цену → оформляет заказ
+// Только после входа: каждый расчёт — платный запрос к AI
 // ============================================
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -201,10 +201,10 @@ export function PublicCalculatorPage() {
           </h1>
           <p className="mt-3 text-gray-500 dark:text-gray-400 max-w-xl mx-auto">
             Сфотографируйте проблему или опишите словами — искусственный интеллект назовёт
-            примерную цену работы в Ташкенте. Бесплатно и без регистрации.
+            примерную цену работы в Ташкенте. Бесплатно.
           </p>
           <div className="mt-4 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-gray-500 dark:text-gray-400">
-            <span className="flex items-center gap-1"><ShieldCheck size={14} className="text-green-500" /> Без регистрации</span>
+            <span className="flex items-center gap-1"><ShieldCheck size={14} className="text-green-500" /> Бесплатно</span>
             <span className="flex items-center gap-1"><Clock size={14} className="text-primary-500" /> Результат за 30 сек</span>
             <span className="flex items-center gap-1"><MapPin size={14} className="text-amber-500" /> Цены Ташкента 2026</span>
           </div>

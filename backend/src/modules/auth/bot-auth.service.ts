@@ -55,6 +55,18 @@ class BotAuthService {
     return record;
   }
 
+  /** Токен существует и ещё ждёт подтверждения. */
+  async isPending(token: string): Promise<boolean> {
+    const raw = await getRedis().get(KEY(token));
+    return !!raw && (JSON.parse(raw) as BotAuthRecord).status === 'pending';
+  }
+
+  /** Пользователь нажал «Отмена» — сессию по этому токену не выдаём никому. */
+  async cancel(token: string): Promise<void> {
+    const record: BotAuthRecord = { status: 'expired' };
+    await getRedis().set(KEY(token), JSON.stringify(record), 'EX', TTL_SECONDS);
+  }
+
   /**
    * Вызывается webhook'ом бота при получении `/start auth_<token>`.
    * Логинит/регистрирует пользователя по telegramId и кладёт токены в Redis.
@@ -69,9 +81,11 @@ class BotAuthService {
     const redis = getRedis();
     const raw = await redis.get(KEY(token));
     if (!raw) {
-      logger.warn({ token }, 'bot-auth: токен не найден или истёк');
+      logger.warn('bot-auth: токен не найден или истёк');
       return null;
     }
+    // Одноразовость: уже выданную сессию повторный Start не перезаписывает
+    if ((JSON.parse(raw) as BotAuthRecord).status !== 'pending') return null;
     const result = await authService.loginWithTelegramByUserId(tgUser);
     const record: BotAuthRecord = {
       status: 'ready',

@@ -274,14 +274,14 @@ if (process.env.NODE_ENV !== 'test') {
   });
   app.use('/api/stores/partner-request', partnerRequestLimiter);
 
-  // Rate Limiting — публичный AI-калькулятор (аноним, дёргает OpenAI = стоит денег).
+  // Rate Limiting — AI-калькулятор (только после входа, дёргает OpenAI = стоит денег).
   // Строгий IP-лимит: защита от абьюза и слива бюджета на токены.
   const publicEstimateLimiter = makeLimiter('public-estimate', {
     windowMs: 60 * 60 * 1000, // 1 час
     max: 15, // Максимум 15 бесплатных оценок в час с одного IP
     message: {
       success: false,
-      error: { message: 'Слишком много оценок. Зарегистрируйтесь, чтобы продолжить без ограничений', statusCode: 429 },
+      error: { message: 'Слишком много оценок за час. Попробуйте позже', statusCode: 429 },
     },
     skip: (req) => !(req.method === 'POST' && req.path === '/public-estimate'),
   });
@@ -484,7 +484,11 @@ async function setupTelegramBotWebhook(): Promise<void> {
     const info = await _fetch(`https://api.telegram.org/bot${token}/getWebhookInfo`).then(r =>
       r.json(),
     );
-    if (info?.result?.url === webhookUrl) {
+    const allowedUpdates = ['message', 'callback_query'];
+    const sameUpdates =
+      JSON.stringify([...(info?.result?.allowed_updates ?? ['message'])].sort()) ===
+      JSON.stringify([...allowedUpdates].sort());
+    if (info?.result?.url === webhookUrl && sameUpdates) {
       logger.info({ webhookUrl }, '✅ Telegram webhook уже настроен');
       return;
     }
@@ -494,7 +498,7 @@ async function setupTelegramBotWebhook(): Promise<void> {
       body: JSON.stringify({
         url: webhookUrl,
         secret_token: secretToken,
-        allowed_updates: ['message'],
+        allowed_updates: allowedUpdates,
         drop_pending_updates: true,
       }),
     }).then(r => r.json());
