@@ -117,6 +117,24 @@ export const config = {
     calibrationEnabled: env('PRICEBOOK_CALIBRATION_ENABLED', 'false') === 'true',
   },
 
+  // Hamkorbank — интернет-эквайринг, динамические QR (UzQR)
+  hamkor: {
+    // Пока нет договора и документации банка — только mock (в банк ничего не уходит)
+    mock: env('HAMKOR_MOCK', 'true') !== 'false',
+    apiUrl: env('HAMKOR_API_URL'),
+    apiKey: env('HAMKOR_API_KEY'),
+    merchantId: env('HAMKOR_MERCHANT_ID'),
+    terminalId: env('HAMKOR_TERMINAL_ID'),
+    qrTtlSeconds: parseInt(env('HAMKOR_QR_TTL_SECONDS', '900'), 10),
+    // Вебхук: секрет подписи, IP банка, заголовок с подписью
+    webhookSecret: env('HAMKOR_WEBHOOK_SECRET'),
+    webhookIps: env('HAMKOR_WEBHOOK_IPS')
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean),
+    signatureHeader: env('HAMKOR_SIGNATURE_HEADER', 'X-Signature'),
+  },
+
   // Click (платежи)
   click: {
     merchantId: env('CLICK_MERCHANT_ID'),

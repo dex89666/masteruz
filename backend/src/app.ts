@@ -37,6 +37,7 @@ import { botWebhookSecret } from './modules/auth/auth.controller.js';
 import usersRoutes from './modules/users/users.routes.js';
 import ordersRoutes from './modules/orders/orders.routes.js';
 import paymentsRoutes from './modules/payments/payments.routes.js';
+import hamkorRoutes from './modules/payments/hamkor/hamkor.routes.js';
 import referralsRoutes from './modules/referrals/referrals.routes.js';
 import ratingsRoutes from './modules/ratings/ratings.routes.js';
 import riskRoutes from './modules/risk/risk.routes.js';
@@ -137,6 +138,9 @@ app.use(cors({
 }));
 
 // Парсинг тела запроса
+// Вебхук Hamkorbank — «сырое» тело: подпись считается от точных байтов запроса.
+// Должен стоять до express.json (тот пропускает уже прочитанное тело).
+app.use('/api/v1/payments/hamkor-webhook', express.raw({ type: () => true, limit: '1mb' }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 // Временные копии загруженных файлов удаляются, даже если запрос провалился.
@@ -369,6 +373,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/orders', betaGate, ordersRoutes);
 app.use('/api/payments', betaGate, paymentsRoutes);
+app.use('/api/v1/payments', hamkorRoutes);
 app.use('/api/referrals', referralsRoutes);
 app.use('/api/reviews', ratingsRoutes);
 app.use('/api/geo', geoRoutes);
