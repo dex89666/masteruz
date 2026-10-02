@@ -1,12 +1,19 @@
 import { z } from 'zod';
 
+// Булевы query-параметры приходят строками. z.coerce.boolean() превращает
+// "false" в true (непустая строка), поэтому разбираем явно.
+const queryBool = z.preprocess(
+  (v) => (v === 'true' || v === true ? true : v === 'false' || v === false ? false : undefined),
+  z.boolean().optional(),
+);
+
 export const adminUsersQuerySchema = z.object({
   page: z.coerce.number().positive().default(1),
   limit: z.coerce.number().positive().max(100).default(20),
   role: z.enum(['CLIENT', 'MASTER', 'ADMIN', 'MANAGER']).optional(),
   search: z.string().max(100).optional(),
-  isActive: z.coerce.boolean().optional(),
-  isVerified: z.coerce.boolean().optional(),
+  isActive: queryBool,
+  isVerified: queryBool,
 });
 
 export const blockUserSchema = z.object({

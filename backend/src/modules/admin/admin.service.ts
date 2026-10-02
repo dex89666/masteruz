@@ -9,6 +9,7 @@ import { getPagination, paginatedResponse, toNum, moneyAdd } from '../../utils/h
 import { OrderStatus, PaymentStatus } from '@prisma/client';
 import { logger } from '../../utils/logger.js';
 import { auditService } from '../../services/auditService.js';
+import { searchVariants } from '../../utils/translit.js';
 
 export class AdminService {
   /**
@@ -167,12 +168,27 @@ export class AdminService {
     if (filters.role) where.role = filters.role;
     if (filters.isActive !== undefined) where.isActive = filters.isActive;
     if (filters.isVerified !== undefined) where.isVerified = filters.isVerified;
-    if (filters.search) {
-      where.OR = [
-        { username: { contains: filters.search, mode: 'insensitive' } },
-        { phone: { contains: filters.search } },
-        { profile: { firstName: { contains: filters.search, mode: 'insensitive' } } },
-      ];
+    // Поиск по словам: каждое слово должно найтись хотя бы в одном поле —
+    // так находится и «Марина», и «Марина Иванова», и «@marina», и «90 123».
+    // Имена ищем во всех написаниях: «Марина» найдёт и «Marina», и наоборот.
+    const words = (filters.search ?? '').trim().replace(/^@/, '').split(/\s+/).filter(Boolean).slice(0, 5);
+    if (words.length > 0) {
+      where.AND = words.map((w) => {
+        const digits = w.replace(/\D/g, '');
+        const spellings = searchVariants(w);
+        return {
+          OR: [
+            ...spellings.flatMap((v) => [
+              { username: { contains: v, mode: 'insensitive' } },
+              { email: { contains: v, mode: 'insensitive' } },
+              { profile: { firstName: { contains: v, mode: 'insensitive' } } },
+              { profile: { lastName: { contains: v, mode: 'insensitive' } } },
+            ]),
+            { phone: { contains: digits.length >= 3 ? digits : w } },
+            ...(/^[0-9a-f-]{8,36}$/i.test(w) ? [{ id: { startsWith: w.toLowerCase() } }] : []),
+          ],
+        };
+      });
     }
 
     const [users, total] = await Promise.all([
