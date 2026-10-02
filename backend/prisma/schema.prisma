@@ -92,10 +92,11 @@ enum PaymentType {
 
 // ─── Провайдеры платежей ──────────────────────
 enum PaymentProvider {
-  CLICK
-  PAYME
-  TELEGRAM_STARS
+  CLICK          // отключён — только история
+  PAYME          // отключён — только история
+  TELEGRAM_STARS // отключён — только история
   INTERNAL
+  HAMKOR         // Hamkorbank, UzQR (динамические QR)
 }
 
 // ─── Статусы рефералов ────────────────────────

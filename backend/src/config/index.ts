@@ -119,7 +119,9 @@ export const config = {
 
   // Hamkorbank — интернет-эквайринг, динамические QR (UzQR)
   hamkor: {
-    // Пока нет договора и документации банка — только mock (в банк ничего не уходит)
+    // Оплата по QR видна пользователям только при HAMKOR_ENABLED=true
+    enabled: env('HAMKOR_ENABLED', 'false') === 'true',
+    // Пока нет документации банка — только mock (в банк ничего не уходит)
     mock: env('HAMKOR_MOCK', 'true') !== 'false',
     apiUrl: env('HAMKOR_API_URL'),
     apiKey: env('HAMKOR_API_KEY'),

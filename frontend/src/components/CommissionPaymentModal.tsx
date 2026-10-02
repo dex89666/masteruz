@@ -4,10 +4,12 @@
 // Онлайн-оплата — только UzQR (Hamkorbank), пока в подключении
 // ============================================
 
+import { useState } from 'react';
 import { OnlinePaymentSoon } from './OnlinePaymentSoon';
+import { UzQrPaymentModal, UZQR_ENABLED } from './UzQrPaymentModal';
 import { useTranslation } from '../i18n';
 import { useFormatPrice } from '../hooks';
-import { X, CreditCard, Zap } from 'lucide-react';
+import { X, CreditCard, Zap, QrCode } from 'lucide-react';
 
 interface CommissionPaymentModalProps {
   isOpen: boolean;
@@ -19,16 +21,19 @@ interface CommissionPaymentModalProps {
   isUrgent?: boolean;
 }
 
-// onSuccess и orderId оставлены в пропсах — понадобятся, когда подключим оплату через UzQR
 export function CommissionPaymentModal({
   isOpen,
   onClose,
+  onSuccess,
+  orderId,
   orderTitle,
   commissionAmount,
   isUrgent,
 }: CommissionPaymentModalProps) {
   const { t } = useTranslation();
   const formatPrice = useFormatPrice();
+  const [showQr, setShowQr] = useState(false);
+
   if (!isOpen) return null;
 
   return (
@@ -95,7 +100,16 @@ export function CommissionPaymentModal({
             )}
           </div>
 
-          <OnlinePaymentSoon className="mb-5" />
+          {UZQR_ENABLED ? (
+            <button
+              onClick={() => setShowQr(true)}
+              className="w-full mb-5 py-3.5 rounded-xl font-semibold text-white bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 flex items-center justify-center gap-2"
+            >
+              <QrCode size={18} /> Оплатить {formatPrice(commissionAmount)} по QR-коду
+            </button>
+          ) : (
+            <OnlinePaymentSoon className="mb-5" />
+          )}
 
           {/* What happens after */}
           <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-3 mb-5">
@@ -112,6 +126,13 @@ export function CommissionPaymentModal({
 
         </div>
       </div>
+      <UzQrPaymentModal
+        isOpen={showQr}
+        purpose={{ type: 'ORDER_COMMISSION', orderId }}
+        title={`Комиссия — ${orderTitle}`}
+        onClose={() => setShowQr(false)}
+        onPaid={onSuccess}
+      />
     </div>
   );
 }

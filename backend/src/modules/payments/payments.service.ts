@@ -106,7 +106,7 @@ export class PaymentsService {
   /**
    * Вызов обработчика по типу платежа после успешной оплаты
    */
-  private async onPaymentCompleted(paymentId: string) {
+  async onPaymentCompleted(paymentId: string) {
     const payment = await prisma.payment.findUnique({
       where: { id: paymentId },
       select: { type: true },

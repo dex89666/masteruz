@@ -246,6 +246,8 @@ if (process.env.NODE_ENV !== 'test') {
     },
   });
   app.use('/api/payments', financeLimiter);
+  // Лимит — на создание QR; опрос статуса (GET) окном оплаты не ограничиваем этим лимитом
+  app.use('/api/v1/payments/uzqr', (req, res, next) => (req.method === 'POST' ? financeLimiter(req, res, next) : next()));
   app.use('/api/balance', financeLimiter);
 
   // Rate Limiting — лимит загрузки файлов (тяжёлые операции)

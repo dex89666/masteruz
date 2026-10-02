@@ -4,6 +4,8 @@ interface ImportMetaEnv {
   readonly VITE_API_URL: string;
   readonly VITE_TELEGRAM_BOT_NAME: string;
   readonly VITE_YANDEX_MAPS_KEY: string;
+  /** "true" — показывать оплату по QR (UzQR, Hamkorbank) */
+  readonly VITE_UZQR_ENABLED?: string;
 }
 
 interface ImportMeta {

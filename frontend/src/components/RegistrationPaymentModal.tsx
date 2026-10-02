@@ -4,9 +4,11 @@
 // Онлайн-оплата — только UzQR (Hamkorbank), пока в подключении
 // ============================================
 
+import { useState } from 'react';
 import { OnlinePaymentSoon } from './OnlinePaymentSoon';
+import { UzQrPaymentModal, UZQR_ENABLED } from './UzQrPaymentModal';
 import { useTranslation } from '../i18n';
-import { X, Shield, UserCheck, ShieldCheck, TrendingUp, Zap } from 'lucide-react';
+import { X, Shield, UserCheck, ShieldCheck, TrendingUp, Zap, QrCode } from 'lucide-react';
 
 interface RegistrationPaymentModalProps {
   isOpen: boolean;
@@ -21,12 +23,14 @@ const reasons = [
   { icon: Zap, key: 'regFeeReason4' as const },
 ];
 
-// onSuccess оставлен в пропсах — понадобится, когда подключим оплату через UzQR
 export function RegistrationPaymentModal({
   isOpen,
   onClose,
+  onSuccess,
 }: RegistrationPaymentModalProps) {
   const { t } = useTranslation();
+  const [showQr, setShowQr] = useState(false);
+
   if (!isOpen) return null;
 
   return (
@@ -93,9 +97,25 @@ export function RegistrationPaymentModal({
             </div>
           </div>
 
-          <OnlinePaymentSoon />
+          {UZQR_ENABLED ? (
+            <button
+              onClick={() => setShowQr(true)}
+              className="w-full py-3.5 rounded-xl font-semibold text-white bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 flex items-center justify-center gap-2"
+            >
+              <QrCode size={18} /> Оплатить по QR-коду
+            </button>
+          ) : (
+            <OnlinePaymentSoon />
+          )}
         </div>
       </div>
+      <UzQrPaymentModal
+        isOpen={showQr}
+        purpose={{ type: 'REGISTRATION_FEE' }}
+        title="Регистрационный взнос мастера"
+        onClose={() => setShowQr(false)}
+        onPaid={onSuccess}
+      />
     </div>
   );
 }

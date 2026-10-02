@@ -13,7 +13,7 @@ import { ApiError } from '../../../utils/ApiError.js';
 import { logger } from '../../../utils/logger.js';
 
 export interface CreateDynamicQrParams {
-  /** Сумма в сумах (целое, > 0). */
+  /** Сумма в сумах (> 0, не больше двух знаков после запятой). */
   amount: number;
   /** ID заказа в MasterUz — вернётся в вебхуке банка. */
   orderId: string;
@@ -46,8 +46,9 @@ const MAX_AMOUNT_SUM = 100_000_000; // 100 млн сум — защита от �
 
 export function buildCreateQrRequest(params: CreateDynamicQrParams): HamkorCreateQrRequest {
   const { amount, orderId } = params;
-  if (!Number.isInteger(amount) || amount <= 0 || amount > MAX_AMOUNT_SUM) {
-    throw ApiError.badRequest('Сумма должна быть целым числом сумов больше нуля');
+  const tiyin = Math.round(amount * 100);
+  if (!Number.isFinite(amount) || amount <= 0 || amount > MAX_AMOUNT_SUM || Math.abs(tiyin - amount * 100) > 1e-6) {
+    throw ApiError.badRequest('Сумма должна быть больше нуля, не больше двух знаков после запятой');
   }
   if (!/^[A-Za-z0-9-]{1,64}$/.test(orderId)) {
     throw ApiError.badRequest('Некорректный order_id');
@@ -56,7 +57,7 @@ export function buildCreateQrRequest(params: CreateDynamicQrParams): HamkorCreat
     merchant_id: config.hamkor.merchantId,
     terminal_id: config.hamkor.terminalId,
     order_id: orderId,
-    amount: amount * 100,
+    amount: tiyin,
     currency: 'UZS',
     ttl: config.hamkor.qrTtlSeconds,
     description: `MasterUz, заказ ${orderId}`,
@@ -75,7 +76,8 @@ export async function createDynamicQr(params: CreateDynamicQrParams): Promise<Dy
     logger.info({ orderId: request.order_id, amount: params.amount, qrId }, 'hamkor: mock — динамический QR');
     return {
       qrId,
-      qrPayload: `UZQR-MOCK|${request.merchant_id || 'MERCHANT'}|${request.order_id}|${request.amount}`,
+      // Похоже на ссылку банка, но ведёт в никуда — только для разработки и тестов
+      qrPayload: `https://mock.uzqr.invalid/pay/${encodeURIComponent(request.order_id)}?amount=${request.amount}`,
       expiresAt: new Date(Date.now() + request.ttl * 1000).toISOString(),
       mock: true,
     };

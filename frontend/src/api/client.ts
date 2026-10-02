@@ -417,6 +417,30 @@ export const paymentsApi = {
     api.get<PaginatedResponse<any>>('/payments/history', { params: { page, limit } }),
 };
 
+// ─── Оплата по QR (UzQR, Hamkorbank) ───────
+export type UzQrPurpose =
+  | { type: 'BALANCE_TOPUP'; amount: number }
+  | { type: 'ORDER_COMMISSION'; orderId: string }
+  | { type: 'REGISTRATION_FEE' };
+
+export interface UzQrOrder {
+  paymentId: string;
+  amount: number;
+  qrUrl: string;
+  expiresAt: string;
+  mock: boolean;
+}
+
+export type UzQrStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'REFUNDED';
+
+export const uzqrApi = {
+  create: (purpose: UzQrPurpose) => api.post<ApiResponse<UzQrOrder>>('/v1/payments/uzqr', purpose),
+  status: (paymentId: string) =>
+    api.get<ApiResponse<{ status: UzQrStatus; amount: number; expiresAt: string | null }>>(
+      `/v1/payments/uzqr/${paymentId}/status`,
+    ),
+};
+
 // ─── Subscriptions API (PRO) ───────────────
 export interface SubscriptionPlan {
   plan: 'MONTH' | 'QUARTER' | 'FIVE_MONTH' | 'YEAR' | 'FOUNDER';

@@ -2,7 +2,11 @@
 // MasterUz — Unit Tests: Hamkorbank (UzQR) — mock QR и защита вебхука
 // ============================================
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+vi.mock('../../src/modules/payments/hamkor/uzqr.service.js', () => ({
+  uzQrService: { handleNotification: vi.fn().mockResolvedValue({ result: 'completed' }) },
+}));
 import express from 'express';
 import request from 'supertest';
 import { config } from '../../src/config/index.js';
@@ -22,7 +26,7 @@ function makeApp() {
   return app;
 }
 
-const body = JSON.stringify({ order_id: 'order-1', qr_id: 'qr-1', status: 'PAID', amount: 15000000 });
+const body = JSON.stringify({ order_id: 'order-1', transaction_id: 'tx-1', status: 'PAID', amount: 15000000 });
 
 describe('Hamkorbank webhook', () => {
   beforeEach(() => {
@@ -38,7 +42,17 @@ describe('Hamkorbank webhook', () => {
       .set('X-Signature', signHamkorPayload(Buffer.from(body), SECRET))
       .send(body);
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ success: true, received: true });
+    expect(res.body).toEqual({ success: true, received: true, result: 'completed' });
+  });
+
+  it('подписанное, но неполное уведомление → 400', async () => {
+    const partial = JSON.stringify({ order_id: 'order-1', status: 'PAID' });
+    const res = await request(makeApp())
+      .post(PATH)
+      .set('Content-Type', 'application/json')
+      .set('X-Signature', signHamkorPayload(Buffer.from(partial), SECRET))
+      .send(partial);
+    expect(res.status).toBe(400);
   });
 
   it('отклоняет без подписи и с чужой подписью', async () => {
@@ -91,8 +105,8 @@ describe('Hamkorbank динамический QR (mock)', () => {
     expect(req).toMatchObject({ order_id: 'order-1', amount: 15000000, currency: 'UZS' });
   });
 
-  it('отклоняет нецелую, нулевую и отрицательную сумму и мусорный order_id', () => {
-    for (const amount of [0, -5, 10.5, NaN]) {
+  it('отклоняет нулевую, отрицательную сумму, больше 2 знаков после запятой и мусорный order_id', () => {
+    for (const amount of [0, -5, 10.555, NaN]) {
       expect(() => buildCreateQrRequest({ amount, orderId: 'order-1' })).toThrow();
     }
     expect(() => buildCreateQrRequest({ amount: 1000, orderId: "1'; DROP" })).toThrow();

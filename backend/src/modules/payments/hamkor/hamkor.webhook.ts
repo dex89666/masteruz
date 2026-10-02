@@ -13,6 +13,7 @@ import crypto from 'crypto';
 import { Request, Response, NextFunction } from 'express';
 import { config } from '../../../config/index.js';
 import { logger } from '../../../utils/logger.js';
+import { uzQrService, type HamkorNotification } from './uzqr.service.js';
 
 function normalizeIp(ip: string): string {
   const trimmed = (ip || '').trim();
@@ -68,16 +69,36 @@ export function verifyHamkorWebhook(req: Request, res: Response, next: NextFunct
 }
 
 /**
- * POST /api/v1/payments/hamkor-webhook — подтверждение транзакции от банка.
- * Пока пустой: только принимает и логирует.
- * TODO: найти платёж по order_id/qrId, проверить сумму и статус, идемпотентно
- * провести оплату (повторный вебхук не должен зачислять деньги дважды).
+ * Приводит уведомление банка к нашим полям.
+ * СПЕЦИФИКАЦИЯ: имена полей и значения статуса — предположение, сверить с документацией
+ * Hamkorbank (order_id — наш paymentId, который мы передали при создании QR).
+ */
+export function parseHamkorNotification(body: Record<string, unknown>): HamkorNotification | null {
+  const paymentId = typeof body.order_id === 'string' ? body.order_id : null;
+  const bankTxId = body.transaction_id != null ? String(body.transaction_id) : null;
+  const amountTiyin = Number(body.amount);
+  if (!paymentId || !bankTxId || !Number.isInteger(amountTiyin)) return null;
+  const raw = String(body.status ?? '').toUpperCase();
+  const status = ['PAID', 'SUCCESS', 'COMPLETED'].includes(raw)
+    ? 'PAID'
+    : ['FAILED', 'CANCELLED', 'DECLINED', 'EXPIRED'].includes(raw)
+      ? 'FAILED'
+      : 'OTHER';
+  return { paymentId, bankTxId, status, amountTiyin };
+}
+
+/**
+ * POST /api/v1/payments/hamkor-webhook — уведомление банка об оплате.
+ * Подпись уже проверена в verifyHamkorWebhook. Ответ 200 — банк не будет повторять.
  */
 export async function handleHamkorWebhook(req: Request, res: Response): Promise<void> {
-  const body = (req.body ?? {}) as Record<string, unknown>;
-  logger.info(
-    { orderId: body.order_id, qrId: body.qr_id, status: body.status },
-    'hamkor webhook: получен (обработка ещё не реализована)',
-  );
-  res.status(200).json({ success: true, received: true });
+  const notification = parseHamkorNotification((req.body ?? {}) as Record<string, unknown>);
+  if (!notification) {
+    logger.warn('hamkor webhook: не удалось разобрать уведомление');
+    res.status(400).json({ success: false, error: { message: 'Invalid notification' } });
+    return;
+  }
+  const { result } = await uzQrService.handleNotification(notification);
+  logger.info({ paymentId: notification.paymentId, status: notification.status, result }, 'hamkor webhook: обработан');
+  res.status(200).json({ success: true, received: true, result });
 }

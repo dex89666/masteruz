@@ -9,17 +9,20 @@ import { balanceApi } from '../api/client';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { Breadcrumbs } from '../components/Breadcrumbs';
 import { OnlinePaymentSoon } from '../components/OnlinePaymentSoon';
+import { UzQrPaymentModal, UZQR_ENABLED } from '../components/UzQrPaymentModal';
 import { useAuthStore } from '../store';
 import { useFormatPrice } from '../hooks';
 import { useTranslation } from '../i18n';
 import {
   Wallet, Plus, ArrowUpCircle, ArrowDownCircle, Lock,
   RefreshCw, AlertTriangle, CreditCard, ChevronDown,
-  TrendingDown, Receipt, Gift
+  TrendingDown, Receipt, Gift, QrCode
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { BalanceTransaction, BalanceTransactionType } from '../types';
 
+
+const QUICK_AMOUNTS = [50000, 100000, 200000, 500000, 1000000];
 
 const typeIcons: Record<BalanceTransactionType, typeof Wallet> = {
   TOPUP: ArrowUpCircle,
@@ -80,6 +83,8 @@ export function BalancePage() {
 
   // Top-up state
   const [showTopUp, setShowTopUp] = useState(false);
+  const [topUpAmount, setTopUpAmount] = useState('');
+  const [qrAmount, setQrAmount] = useState<number | null>(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -171,7 +176,47 @@ export function BalancePage() {
             {t('balance.topUpTitle')}
           </h3>
 
-          <OnlinePaymentSoon />
+          {UZQR_ENABLED ? (
+            <>
+              {/* Быстрые суммы */}
+              <div className="flex flex-wrap gap-2 mb-4">
+                {QUICK_AMOUNTS.map((amt) => (
+                  <button
+                    key={amt}
+                    onClick={() => setTopUpAmount(String(amt))}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                      topUpAmount === String(amt)
+                        ? 'bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-400 ring-2 ring-primary-300 dark:ring-primary-600'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    }`}
+                  >
+                    {formatPrice(amt, '')}
+                  </button>
+                ))}
+              </div>
+              <div className="mb-4">
+                <label className="text-sm text-gray-600 dark:text-gray-400 mb-1 block">{t('balance.amount')}</label>
+                <input
+                  type="number"
+                  className="input text-lg font-semibold"
+                  placeholder={t('balance.amountPlaceholder')}
+                  value={topUpAmount}
+                  onChange={(e) => setTopUpAmount(e.target.value)}
+                  min={10000}
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t('balance.minAmount')}</p>
+              </div>
+              <button
+                onClick={() => setQrAmount(Number(topUpAmount))}
+                disabled={!Number.isInteger(Number(topUpAmount)) || Number(topUpAmount) < 10000 || Number(topUpAmount) > 100_000_000}
+                className="w-full py-3.5 rounded-xl font-semibold text-white bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+              >
+                <QrCode size={18} /> Оплатить по QR-коду
+              </button>
+            </>
+          ) : (
+            <OnlinePaymentSoon />
+          )}
         </div>
       )}
 
@@ -244,6 +289,20 @@ export function BalancePage() {
           </button>
         )}
       </div>
+
+      {qrAmount !== null && (
+        <UzQrPaymentModal
+          isOpen
+          purpose={{ type: 'BALANCE_TOPUP', amount: qrAmount }}
+          title="Пополнение баланса"
+          onClose={() => setQrAmount(null)}
+          onPaid={() => {
+            setShowTopUp(false);
+            setTopUpAmount('');
+            loadData();
+          }}
+        />
+      )}
     </div>
   );
 }
