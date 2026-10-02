@@ -15,6 +15,20 @@ import subscribeRoutes from '../subscribe/subscribe.routes.js';
 
 const router = Router();
 
+// ─── Click, Payme, Telegram Stars отключены — онлайн-оплата только через Hamkorbank (UzQR) ───
+// Новые платежи и привязку карт Payme не создаём. Вебхуки Click/Payme оставлены, чтобы
+// провайдеры могли подтвердить или отменить уже начатые транзакции — новых через них не будет.
+// TODO: убрать вебхуки после отключения магазинов в кабинетах Click и Payme.
+router.use(['/create', '/balance-topup', '/registration-fee', '/telegram-stars', '/subscribe'], (_req: Request, res: Response) => {
+  res.status(410).json({
+    success: false,
+    error: {
+      message: 'Онлайн-оплата временно недоступна: переходим на UzQR (Hamkorbank)',
+      statusCode: 410,
+    },
+  });
+});
+
 // Создание платежа за комиссию
 router.post('/create', authenticate, validateBody(commissionPaymentSchema), async (req: Request, res: Response, next: NextFunction) => {
   try {

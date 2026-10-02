@@ -15,7 +15,7 @@ page.on('pageerror', e => errors.push(e.message));
 
 // Согласие уже дано (окно согласия проверяет consent-gate.spec.ts) — версия из ConsentGate.tsx
 await page.addInitScript(() => localStorage.setItem('masteruz-consent-v5',
-  JSON.stringify({ version: '2026-05-08-legal', acceptedAt: new Date().toISOString() })));
+  JSON.stringify({ version: '2026-10-02-legal', acceptedAt: new Date().toISOString() })));
 
 // Первый мастер — для проверки карточки мастера
 let masterPath = null;

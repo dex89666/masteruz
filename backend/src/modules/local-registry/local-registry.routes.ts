@@ -12,7 +12,7 @@ const router = Router();
 
 // Текущая версия принятой редакции документов (оферта + политика).
 // При изменении — Consent Gate сработает заново у всех пользователей.
-export const DOCUMENTS_VERSION = '2026-05-08-legal';
+export const DOCUMENTS_VERSION = '2026-10-02-legal';
 
 function getClientIp(req: Request): string {
   const fwd = req.headers['x-forwarded-for'];

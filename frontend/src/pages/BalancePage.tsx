@@ -8,6 +8,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { balanceApi } from '../api/client';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { Breadcrumbs } from '../components/Breadcrumbs';
+import { OnlinePaymentSoon } from '../components/OnlinePaymentSoon';
 import { useAuthStore } from '../store';
 import { useFormatPrice } from '../hooks';
 import { useTranslation } from '../i18n';
@@ -19,8 +20,6 @@ import {
 import toast from 'react-hot-toast';
 import type { BalanceTransaction, BalanceTransactionType } from '../types';
 
-const PROVIDERS = ['CLICK', 'PAYME', 'TELEGRAM_STARS'] as const;
-const QUICK_AMOUNTS = [50000, 100000, 200000, 500000, 1000000];
 
 const typeIcons: Record<BalanceTransactionType, typeof Wallet> = {
   TOPUP: ArrowUpCircle,
@@ -81,9 +80,6 @@ export function BalancePage() {
 
   // Top-up state
   const [showTopUp, setShowTopUp] = useState(false);
-  const [topUpAmount, setTopUpAmount] = useState('');
-  const [provider, setProvider] = useState<string>('CLICK');
-  const [topUpLoading, setTopUpLoading] = useState(false);
 
   const loadData = useCallback(async () => {
     try {
@@ -117,39 +113,6 @@ export function BalancePage() {
       toast.error(t('common.error'));
     } finally {
       setLoadingMore(false);
-    }
-  }
-
-  async function handleTopUp() {
-    const amount = Number(topUpAmount);
-    if (!amount || amount < 10000) {
-      toast.error(t('balance.minAmount'));
-      return;
-    }
-    setTopUpLoading(true);
-    try {
-      const res = await balanceApi.topUp(amount, provider);
-      const paymentData = res.data.data?.paymentData;
-
-      if (provider === 'TELEGRAM_STARS' && paymentData?.starsAmount) {
-        toast.success(`Оплатите ${paymentData.starsAmount} Stars через Telegram бот`);
-        setShowTopUp(false);
-        setTopUpAmount('');
-      } else if (paymentData?.url) {
-        window.open(paymentData.url, '_blank');
-        toast.success('Перенаправляем на страницу оплаты...');
-        setShowTopUp(false);
-        setTopUpAmount('');
-      } else {
-        toast.success(t('balance.topUpSuccess'));
-        setShowTopUp(false);
-        setTopUpAmount('');
-        loadData();
-      }
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || t('common.error'));
-    } finally {
-      setTopUpLoading(false);
     }
   }
 
@@ -208,66 +171,7 @@ export function BalancePage() {
             {t('balance.topUpTitle')}
           </h3>
 
-          {/* Быстрые суммы */}
-          <div className="flex flex-wrap gap-2 mb-4">
-            {QUICK_AMOUNTS.map((amt) => (
-              <button
-                key={amt}
-                onClick={() => setTopUpAmount(String(amt))}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                  topUpAmount === String(amt)
-                    ? 'bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-400 ring-2 ring-primary-300 dark:ring-primary-600'
-                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                }`}
-              >
-                {formatPrice(amt, '')}
-              </button>
-            ))}
-          </div>
-
-          {/* Ввод суммы */}
-          <div className="mb-4">
-            <label className="text-sm text-gray-600 dark:text-gray-400 mb-1 block">{t('balance.amount')}</label>
-            <input
-              type="number"
-              className="input text-lg font-semibold"
-              placeholder={t('balance.amountPlaceholder')}
-              value={topUpAmount}
-              onChange={(e) => setTopUpAmount(e.target.value)}
-              min={10000}
-            />
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t('balance.minAmount')}</p>
-          </div>
-
-          {/* Провайдер */}
-          <div className="mb-4">
-            <label className="text-sm text-gray-600 dark:text-gray-400 mb-2 block">{t('balance.selectProvider')}</label>
-            <div className="grid grid-cols-3 gap-2">
-              {PROVIDERS.map((p) => (
-                <button
-                  key={p}
-                  onClick={() => setProvider(p)}
-                  className={`py-3 rounded-xl text-sm font-semibold transition-all ${
-                    provider === p
-                      ? 'bg-primary-500 text-white shadow-md'
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                  }`}
-                >
-                  {p === 'CLICK' ? 'Click' : p === 'PAYME' ? 'Payme' : 'Stars'}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Кнопка */}
-          <button
-            onClick={handleTopUp}
-            disabled={topUpLoading || !topUpAmount || Number(topUpAmount) < 10000}
-            className="w-full py-3 rounded-xl font-semibold text-white bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
-          >
-            {topUpLoading ? <LoadingSpinner size="sm" /> : <Plus size={18} />}
-            {t('balance.topUpBtn')}
-          </button>
+          <OnlinePaymentSoon />
         </div>
       )}
 

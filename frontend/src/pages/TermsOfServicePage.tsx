@@ -22,7 +22,7 @@ export function TermsOfServicePage() {
         </div>
 
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-          Дата вступления в силу: 8 мая 2026 г. · Версия: 2026-05-08-legal
+          Дата вступления в силу: 2 октября 2026 г. · Версия: 2026-10-02-legal
         </p>
 
         <div className="prose dark:prose-invert max-w-none space-y-6 text-gray-700 dark:text-gray-300 text-sm md:text-base leading-relaxed">
