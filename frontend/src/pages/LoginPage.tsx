@@ -28,6 +28,7 @@ export function LoginPage() {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [waitingForBot, setWaitingForBot] = useState(false);
+  const [showWidget, setShowWidget] = useState(false);
 
   // Если уже авторизован — редирект
   useEffect(() => {
@@ -305,9 +306,23 @@ export function LoginPage() {
           )}
         </div>
 
-        {/* Telegram Login Widget — сюда скрипт вставляет свою кнопку */}
+        {/* Запасной способ — виджет Telegram (подтверждение по номеру телефона).
+            Скрыт под ссылкой: две кнопки «Войти через Telegram» подряд сбивают с толку.
+            Контейнер всегда в DOM — в него скрипт виджета вставляет свою кнопку. */}
+        {widgetSupported && !waitingForBot && !showWidget && (
+          <button
+            type="button"
+            onClick={() => setShowWidget(true)}
+            className="mb-6 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:underline"
+          >
+            Telegram не открывается? Войти по номеру телефона
+          </button>
+        )}
         {widgetSupported && (
-          <div id="telegram-login-widget" className={waitingForBot ? 'hidden' : 'flex justify-center mb-6'} />
+          <div
+            id="telegram-login-widget"
+            className={showWidget && !waitingForBot ? 'flex justify-center mb-6' : 'hidden'}
+          />
         )}
 
         <div className="border-t border-gray-100 dark:border-gray-700 pt-4">
