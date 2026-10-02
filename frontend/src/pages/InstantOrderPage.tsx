@@ -17,7 +17,7 @@ import toast from 'react-hot-toast';
 import { Capacitor } from '@capacitor/core';
 import { reverseGeocode as reverseGeocodeClient } from '../lib/reverseGeocode';
 import { getCurrentPosition, GeoError } from '../lib/geolocation';
-import { useTranslation } from '../i18n';
+import { useTranslation, useLocalizedName } from '../i18n';
 import { useFormatPrice } from '../hooks';
 import { instantOrderApi, catalogApi, photosApi, geoApi } from '../api/client';
 import type { AiAnalysisResult, AiOrderTemplate, Category } from '../types';
@@ -32,7 +32,7 @@ const TIER_CONFIG = {
     bg: 'bg-green-50 dark:bg-green-900/20',
     border: 'border-green-300 dark:border-green-700',
     badge: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
-    label: 'Хороший',
+    labelKey: 'instant.tierGood',
   },
   BETTER: {
     icon: Zap,
@@ -40,7 +40,7 @@ const TIER_CONFIG = {
     bg: 'bg-blue-50 dark:bg-blue-900/20',
     border: 'border-blue-300 dark:border-blue-700',
     badge: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
-    label: 'Отличный',
+    labelKey: 'instant.tierBetter',
   },
   BEST: {
     icon: Crown,
@@ -48,7 +48,7 @@ const TIER_CONFIG = {
     bg: 'bg-amber-50 dark:bg-amber-900/20',
     border: 'border-amber-300 dark:border-amber-700',
     badge: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200',
-    label: 'Премиум',
+    labelKey: 'instant.tierBest',
   },
 };
 
@@ -57,10 +57,11 @@ const STEPS: Step[] = ['upload', 'analyzing', 'variants', 'confirm'];
 // Столько фото уходит в AI. Совпадает с backend OPENAI_VISION_MAX_IMAGES:
 // 3-4 осмысленных кадра точнее 10 случайных и дешевле по токенам.
 const MAX_PHOTOS = 4;
-const STEP_LABELS = ['Фото и описание', 'AI-анализ', 'Выбор варианта', 'Подтверждение'];
+const STEP_LABEL_KEYS = ['instant.stepPhoto', 'instant.stepAnalysis', 'instant.stepVariant', 'instant.stepConfirm'];
 
 export function InstantOrderPage() {
   const { t: _t } = useTranslation();
+  const ln = useLocalizedName();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const formatPrice = useFormatPrice();
@@ -249,14 +250,14 @@ export function InstantOrderPage() {
   // ─── Photo upload ────────────────────
   const addFiles = useCallback(async (files: File[]) => {
     if (images.length + files.length > MAX_PHOTOS) {
-      toast.error(`Максимум ${MAX_PHOTOS} фотографии`);
+      toast.error(_t('instant.maxPhotos', { n: MAX_PHOTOS }));
       return;
     }
     const newPreviews: string[] = [];
     const newFiles: File[] = [];
     for (let file of files) {
       if (file.size > 10 * 1024 * 1024) {
-        toast.error(`Файл ${file.name} слишком большой (макс. 10 МБ)`);
+        toast.error(_t('instant.fileTooLarge', { name: file.name }));
         continue;
       }
       if (!file.type.startsWith('image/')) continue;
@@ -304,18 +305,18 @@ export function InstantOrderPage() {
   // через MediaRecorder и отправляем на сервер (Whisper).
   const transcribeWithWhisper = useCallback(async (blob: Blob) => {
     try {
-      toast('Распознаём речь...', { icon: '🎙️', duration: 2000 });
+      toast(_t('instant.recognizing'), { icon: '🎙️', duration: 2000 });
       const res = await instantOrderApi.transcribe(blob);
       const text = res.data.data?.text?.trim() || '';
       if (!text) {
-        toast.error('Речь не распознана. Попробуйте ещё раз или введите текст.');
+        toast.error(_t('instant.speechNotRecognized'));
         return;
       }
       setVoiceText(text);
       setDescription((prev) => (prev?.trim() ? `${prev}. ${text}` : text));
-      toast.success('Голос распознан! Отредактируйте текст при необходимости.');
+      toast.success(_t('instant.voiceRecognized'));
     } catch (err: any) {
-      const msg = err.response?.data?.error?.message || err.message || 'Ошибка распознавания';
+      const msg = err.response?.data?.error?.message || err.message || _t('instant.recognitionError');
       toast.error(msg);
     }
   }, []);
@@ -343,7 +344,7 @@ export function InstantOrderPage() {
         setIsRecording(false);
         chunksRef.current = [];
         if (blob.size < 1024) {
-          toast.error('Запись слишком короткая.');
+          toast.error(_t('instant.recordingTooShort'));
           return;
         }
         await transcribeWithWhisper(blob);
@@ -352,15 +353,15 @@ export function InstantOrderPage() {
       mediaRecorderRef.current = recorder;
       recorder.start();
       setIsRecording(true);
-      toast('Говорите... Нажмите кнопку ещё раз для завершения', { icon: '🎙️', duration: 2500 });
+      toast(_t('instant.speakNow'), { icon: '🎙️', duration: 2500 });
     } catch (err: any) {
       const name = err?.name || '';
       if (name === 'NotAllowedError') {
-        toast.error('Доступ к микрофону запрещён. Разрешите его в настройках браузера.');
+        toast.error(_t('instant.micDeniedSettings'));
       } else if (name === 'NotFoundError') {
-        toast.error('Микрофон не найден.');
+        toast.error(_t('instant.micNotFound'));
       } else {
-        toast.error('Не удалось получить доступ к микрофону.');
+        toast.error(_t('instant.micAccessFailed'));
       }
       setIsRecording(false);
     }
@@ -441,8 +442,8 @@ export function InstantOrderPage() {
           }
           return;
         }
-        if (event.error === 'no-speech') toast.error('Речь не обнаружена.');
-        else if (event.error === 'not-allowed') toast.error('Доступ к микрофону запрещён.');
+        if (event.error === 'no-speech') toast.error(_t('instant.noSpeech'));
+        else if (event.error === 'not-allowed') toast.error(_t('instant.micDenied'));
       };
 
       recognition.onend = () => {
@@ -453,9 +454,9 @@ export function InstantOrderPage() {
         if (result) {
           setVoiceText(result);
           setDescription(result);
-          toast.success('Голос распознан! Отредактируйте текст при необходимости.');
+          toast.success(_t('instant.voiceRecognized'));
         } else {
-          toast.error('Не удалось распознать речь.');
+          toast.error(_t('instant.speechFailed'));
         }
         interimRef.current = '';
         stream.getTracks().forEach((t) => t.stop());
@@ -466,7 +467,7 @@ export function InstantOrderPage() {
       recognitionRef.current = recognition;
       recognition.start();
       setIsRecording(true);
-      toast('Говорите — текст появляется в реальном времени', { duration: 2000 });
+      toast(_t('instant.speakLive'), { duration: 2000 });
     } catch {
       // Если getUserMedia упал — пробуем альтернативный путь
       await startRecordingViaMediaRecorder();
@@ -508,7 +509,7 @@ export function InstantOrderPage() {
   const handleSubmitClarification = async () => {
     const extra = buildClarificationText();
     if (!extra.trim()) {
-      toast.error('Заполните хотя бы один вопрос');
+      toast.error(_t('instant.answerOneQuestion'));
       return;
     }
     // Объединяем ответы с исходным описанием и снова запускаем анализ
@@ -530,7 +531,7 @@ export function InstantOrderPage() {
       voiceText.trim().length > 0 ||
       selectedCategoryIds.length > 0;
     if (!hasContext) {
-      toast.error('Загрузите фото, опишите задачу или выберите категорию');
+      toast.error(_t('instant.needInput'));
       return;
     }
 
@@ -574,7 +575,7 @@ export function InstantOrderPage() {
       // Если файлы были, но ни один не загрузился — это реальная ошибка сети.
       // Если файлов изначально не было — это нормально, идём анализировать без фото.
       if (uploadedUrls.length === 0 && imageFiles.length > 0) {
-        toast.error('Не удалось загрузить фотографии. Проверьте соединение.');
+        toast.error(_t('instant.photoUploadFailed'));
         setStep('upload');
         setLoading(false);
         return;
@@ -594,7 +595,7 @@ export function InstantOrderPage() {
         setAnalysisResult(data);
         setStep('clarify'); // переиспользуем экран — на нём покажем кнопку «Вызвать мастера на замер»
         toast(
-          data.message || 'Для точного расчёта нужны замеры на месте. Можем вызвать мастера на выездную оценку.',
+          data.message || _t('instant.needMeasureToast'),
           { icon: '📏', duration: 7000 }
         );
         return;
@@ -611,8 +612,8 @@ export function InstantOrderPage() {
         const top = data.suggestedCategories[0];
         toast(
           top?.confidence
-            ? `AI определил: ${top.name} (уверенность ${Math.round(top.confidence)}%). Подтвердите или измените выбор.`
-            : 'AI определил несколько направлений. Подтвердите выбор.',
+            ? _t('instant.aiDetectedOne', { name: top.name, pct: Math.round(top.confidence) })
+            : _t('instant.aiDetectedMany'),
           { icon: '🤖', duration: 6000 }
         );
         requestAnimationFrame(() => {
@@ -631,7 +632,7 @@ export function InstantOrderPage() {
         setClarifyAnswers({});
         setAnalysisResult(data);
         setStep('clarify');
-        toast(data.message || 'Уточните детали, чтобы смета была точной', { icon: '💡', duration: 5000 });
+        toast(data.message || _t('instant.clarifyToast'), { icon: '💡', duration: 5000 });
         return;
       }
 
@@ -642,17 +643,17 @@ export function InstantOrderPage() {
         const dirs = data.detectedCategories && data.detectedCategories.length > 1
           ? data.detectedCategories.map((c: any) => c.name).join(' + ')
           : data.category.name;
-        setTitle(`${dirs} — ФотоЗаказ`);
+        setTitle(`${dirs} — ${_t('instant.photoOrderSuffix')}`);
       }
 
       const direCount = data?.detectedCategories?.length ?? 1;
       if (direCount > 1) {
-        toast.success(`AI определил ${direCount} направлений работ — собрана общая смета`);
+        toast.success(_t('instant.aiMultiDone', { n: direCount }));
       } else {
-        toast.success('AI-анализ завершён! Выберите вариант.');
+        toast.success(_t('instant.aiDone'));
       }
     } catch (err: any) {
-      const msg = err.response?.data?.error?.message || err.response?.data?.message || err.message || 'Ошибка AI-анализа';
+      const msg = err.response?.data?.error?.message || err.response?.data?.message || err.message || _t('instant.aiError');
       console.error('AI analyze error:', err.response?.data || err);
 
       // Если AI не смог определить категорию — подсвечиваем секцию выбора и скроллим к ней
@@ -660,7 +661,7 @@ export function InstantOrderPage() {
       if (lower.includes('категори') && (lower.includes('определ') || lower.includes('вручн'))) {
         setCategoryRequired(true);
         setStep('upload');
-        toast.error('Не удалось определить категорию. Отметьте подходящую галочкой ниже.', { duration: 6000 });
+        toast.error(_t('instant.categoryNotDetected'), { duration: 6000 });
         // Двойной rAF + небольшая задержка — гарантирует, что секция уже отрендерена
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
@@ -680,13 +681,13 @@ export function InstantOrderPage() {
 
   // ─── Create order ────────────────────
   const handleCreateOrder = async () => {
-    if (!selectedVariant) { toast.error('Выберите вариант'); return; }
-    if (!title.trim()) { toast.error('Введите название заказа'); return; }
+    if (!selectedVariant) { toast.error(_t('instant.chooseVariant')); return; }
+    if (!title.trim()) { toast.error(_t('instant.enterTitle')); return; }
     if (!city.trim() || !house.trim()) {
-      toast.error('Укажите город и номер дома');
+      toast.error(_t('instant.enterCityHouse'));
       return;
     }
-    if (!offerAccepted) { toast.error('Необходимо принять условия оферты'); return; }
+    if (!offerAccepted) { toast.error(_t('antiFraud.offerAcceptRequired')); return; }
 
     setCreating(true);
     try {
@@ -743,10 +744,10 @@ export function InstantOrderPage() {
       });
 
       const order = result.data.data;
-      toast.success(additionalWishes ? 'Заказ создан и отправлен на модерацию!' : 'Заказ создан и опубликован!');
+      toast.success(additionalWishes ? _t('instant.createdModeration') : _t('instant.createdPublished'));
       navigate(`/orders/${order.id}`);
     } catch (err: any) {
-      const msg = err.response?.data?.error?.message || err.response?.data?.message || 'Ошибка создания заказа';
+      const msg = err.response?.data?.error?.message || err.response?.data?.message || _t('createOrder.createError');
       if (msg.includes('средств')) {
         setBalanceError(msg);
         setShowBalanceModal(true);
@@ -769,7 +770,7 @@ export function InstantOrderPage() {
       {isUrgent && (
         <div className="bg-red-600 text-white py-3 px-4 text-center font-bold text-sm md:text-base flex items-center justify-center gap-2">
           <AlertTriangle size={20} className="shrink-0" />
-          Срочный вызов — надбавка +40% за срочность
+          {_t('instant.urgentBanner')}
         </div>
       )}
 
@@ -777,13 +778,13 @@ export function InstantOrderPage() {
       <div className={`bg-gradient-to-r ${isUrgent ? 'from-red-600 to-red-700' : 'from-orange-500 to-amber-500'} text-white py-6 md:py-8`}>
         <div className="max-w-4xl mx-auto px-4">
           <button onClick={() => navigate(-1)} className="flex items-center text-white/80 hover:text-white mb-3 text-sm min-h-[44px] min-w-[44px]">
-            <ArrowLeft size={18} className="mr-1" /> Назад
+            <ArrowLeft size={18} className="mr-1" /> {_t('common.back')}
           </button>
           <h1 className="text-2xl md:text-3xl font-extrabold flex items-center gap-2">
-            <Sparkles size={28} /> {isUrgent ? 'Срочный вызов мастера' : 'Создать заказ за 30 секунд'}
+            <Sparkles size={28} /> {isUrgent ? _t('instant.titleUrgent') : _t('instant.title')}
           </h1>
           <p className="text-white/80 mt-1 text-sm md:text-base">
-            Загрузите фото → опишите голосом → AI подберёт варианты
+            {_t('instant.subtitle')}
           </p>
 
           {/* ─── Перекрёстная ссылка на детальный режим ─── */}
@@ -791,7 +792,7 @@ export function InstantOrderPage() {
             to="/orders/create"
             className="inline-flex items-center gap-2 mt-3 px-3 py-2 rounded-lg bg-white/15 hover:bg-white/25 backdrop-blur-sm text-white text-xs md:text-sm font-medium transition-colors min-h-[36px]"
           >
-            <ListChecks size={16} /> Знаю что нужно — оформить детально
+            <ListChecks size={16} /> {_t('instant.toDetailed')}
           </Link>
 
           {/* ─── Step indicator ─── */}
@@ -808,7 +809,7 @@ export function InstantOrderPage() {
                   <span className={`text-[10px] md:text-xs mt-1 text-center leading-tight ${
                     step === s ? 'text-white font-bold' : 'text-white/60'
                   }`}>
-                    {STEP_LABELS[i]}
+                    {_t(STEP_LABEL_KEYS[i])}
                   </span>
                 </div>
                 {i < 3 && (
@@ -831,7 +832,7 @@ export function InstantOrderPage() {
             {/* Step label */}
             <div className="text-center">
               <span className="inline-flex items-center gap-2 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 text-sm font-semibold px-4 py-2 rounded-full">
-                Шаг 1 из 4: Загрузите фото и опишите проблему
+                {_t('instant.step1Hint')}
               </span>
             </div>
 
@@ -839,32 +840,32 @@ export function InstantOrderPage() {
             <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 md:p-6 shadow-sm border border-gray-200 dark:border-gray-700">
               <h2 className="text-lg md:text-xl font-bold mb-3 dark:text-white flex items-center gap-2 flex-wrap">
                 <Camera size={22} className="text-orange-500" />
-                Загрузите фото проблемы
-                <span className="text-sm text-gray-400 font-normal">(до {MAX_PHOTOS} шт., необязательно)</span>
+                {_t('instant.uploadPhotos')}
+                <span className="text-sm text-gray-400 font-normal">{_t('instant.uploadPhotosLimit', { n: MAX_PHOTOS })}</span>
               </h2>
 
               {/* Подсказка по съёмке: качество фото напрямую влияет на точность
                   AI-оценки. Три кадра дают модели контекст, размер и модель узла. */}
               <div className="mb-4 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-900/40 p-3">
                 <p className="text-sm font-semibold text-blue-800 dark:text-blue-300 mb-2">
-                  Как сфотографировать, чтобы оценка была точной:
+                  {_t('instant.photoTipsTitle')}
                 </p>
                 <ul className="space-y-1.5 text-sm text-blue-700 dark:text-blue-300">
                   <li className="flex gap-2">
                     <span className="shrink-0">📷</span>
-                    <span><strong>Общий план</strong> — вся зона работ целиком (комната, стена, мебель)</span>
+                    <span><strong>{_t('instant.tipWideTitle')}</strong> — {_t('instant.tipWide')}</span>
                   </li>
                   <li className="flex gap-2">
                     <span className="shrink-0">🔍</span>
-                    <span><strong>Крупный план</strong> — сама поломка вблизи (кран, замок, розетка)</span>
+                    <span><strong>{_t('instant.tipCloseTitle')}</strong> — {_t('instant.tipClose')}</span>
                   </li>
                   <li className="flex gap-2">
                     <span className="shrink-0">🏷️</span>
-                    <span><strong>Маркировка</strong> — шильдик, модель или бренд, если есть</span>
+                    <span><strong>{_t('instant.tipLabelTitle')}</strong> — {_t('instant.tipLabel')}</span>
                   </li>
                 </ul>
                 <p className="mt-2 text-xs text-blue-600/80 dark:text-blue-400/70">
-                  Снимайте при хорошем свете, держите телефон ровно.
+                  {_t('instant.tipLight')}
                 </p>
               </div>
 
@@ -873,7 +874,7 @@ export function InstantOrderPage() {
                 <div className="grid grid-cols-3 sm:grid-cols-5 gap-3 mb-4">
                   {images.map((url, i) => (
                     <div key={i} className="relative aspect-square rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-700 group">
-                      <img src={url} alt={`Фото ${i + 1}`} className="w-full h-full object-cover" />
+                      <img src={url} alt={_t('instant.photoAlt', { n: i + 1 })} className="w-full h-full object-cover" />
                       <button
                         onClick={() => removeImage(i)}
                         className="absolute top-1.5 right-1.5 w-8 h-8 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors shadow-lg opacity-80 group-hover:opacity-100"
@@ -892,7 +893,7 @@ export function InstantOrderPage() {
                       className="aspect-square rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 flex flex-col items-center justify-center gap-1 hover:border-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/10 transition-colors min-h-[88px]"
                     >
                       <Plus size={24} className="text-gray-400" />
-                      <span className="text-xs text-gray-400">Ещё</span>
+                      <span className="text-xs text-gray-400">{_t('instant.more')}</span>
                     </button>
                   )}
                 </div>
@@ -916,9 +917,9 @@ export function InstantOrderPage() {
                       <Image size={40} className="text-orange-500" />
                     </div>
                     <p className="text-orange-600 dark:text-orange-400 font-bold text-base md:text-lg mb-1">
-                      Нажмите или перетащите фотографии
+                      {_t('instant.dropHint')}
                     </p>
-                    <p className="text-sm text-gray-400">JPG, PNG • до {MAX_PHOTOS} фото</p>
+                    <p className="text-sm text-gray-400">{_t('instant.formats', { n: MAX_PHOTOS })}</p>
                   </div>
                 </div>
               )}
@@ -937,13 +938,13 @@ export function InstantOrderPage() {
                   }}
                   className="flex-1 flex items-center justify-center gap-2 min-h-[48px] rounded-xl border-2 border-orange-200 dark:border-orange-700 text-orange-600 dark:text-orange-400 font-semibold hover:bg-orange-50 dark:hover:bg-orange-900/10 transition-colors text-sm md:text-base"
                 >
-                  <Camera size={20} /> Камера
+                  <Camera size={20} /> {_t('createOrder.camera')}
                 </button>
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   className="flex-1 flex items-center justify-center gap-2 min-h-[48px] rounded-xl border-2 border-orange-200 dark:border-orange-700 text-orange-600 dark:text-orange-400 font-semibold hover:bg-orange-50 dark:hover:bg-orange-900/10 transition-colors text-sm md:text-base"
                 >
-                  <Upload size={20} /> Галерея
+                  <Upload size={20} /> {_t('createOrder.gallery')}
                 </button>
               </div>
 
@@ -970,7 +971,7 @@ export function InstantOrderPage() {
             <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 md:p-6 shadow-sm border border-gray-200 dark:border-gray-700">
               <h2 className="text-lg md:text-xl font-bold mb-4 dark:text-white flex items-center gap-2">
                 <Mic size={22} className="text-orange-500" />
-                Опишите проблему
+                {_t('instant.describeProblem')}
               </h2>
 
               {/* BIG mic button — accessible for older users */}
@@ -988,7 +989,7 @@ export function InstantOrderPage() {
                       <MicOff size={28} />
                       <span className="absolute -top-1 -right-1 w-3 h-3 bg-white rounded-full animate-ping" />
                     </div>
-                    <span>Остановить запись...</span>
+                    <span>{_t('instant.stopRecording')}</span>
                   </>
                 ) : (
                   <>
@@ -997,8 +998,8 @@ export function InstantOrderPage() {
                       <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-400 rounded-full animate-pulse" />
                     </div>
                     <div className="flex flex-col items-start">
-                      <span>Нажмите и говорите</span>
-                      <span className="text-sm font-normal text-white/70">Голос автоматически станет текстом</span>
+                      <span>{_t('instant.pressAndSpeak')}</span>
+                      <span className="text-sm font-normal text-white/70">{_t('instant.voiceToText')}</span>
                     </div>
                   </>
                 )}
@@ -1009,7 +1010,7 @@ export function InstantOrderPage() {
                 <div className="bg-green-50 dark:bg-green-900/20 rounded-xl p-3 mb-4 flex items-center gap-2 border border-green-200 dark:border-green-800">
                   <CheckCircle size={18} className="text-green-500 flex-shrink-0" />
                   <span className="text-sm text-green-700 dark:text-green-300">
-                    <strong>Голос распознан!</strong> Отредактируйте текст ниже.
+                    <strong>{_t('instant.voiceRecognizedShort')}</strong> {_t('instant.editBelow')}
                   </span>
                 </div>
               )}
@@ -1018,7 +1019,7 @@ export function InstantOrderPage() {
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Что нужно сделать? Например: течёт кран на кухне, нужно заменить..."
+                placeholder={_t('instant.descPlaceholder')}
                 className={`w-full min-h-[120px] rounded-xl border-2 ${
                   voiceText && description
                     ? 'border-green-400 ring-2 ring-green-200 dark:ring-green-800'
@@ -1027,7 +1028,7 @@ export function InstantOrderPage() {
                 maxLength={2000}
               />
               {voiceText && (
-                <p className="text-xs text-gray-400 mt-1">Вы можете свободно редактировать распознанный текст</p>
+                <p className="text-xs text-gray-400 mt-1">{_t('instant.editFreely')}</p>
               )}
             </div>
 
@@ -1046,18 +1047,17 @@ export function InstantOrderPage() {
                 <div className="mb-4 flex items-start gap-3 rounded-xl border border-red-300 bg-red-50 dark:bg-red-900/20 dark:border-red-800 p-3">
                   <AlertTriangle size={20} className="text-red-500 shrink-0 mt-0.5" />
                   <div className="text-sm text-red-700 dark:text-red-300">
-                    <strong>ИИ не смог определить категорию.</strong> Отметьте одну или несколько подходящих галочек ниже —
-                    это нужно для составления точной сметы.
+                    <strong>{_t('instant.aiNoCategoryTitle')}</strong> {_t('instant.aiNoCategoryText')}
                   </div>
                 </div>
               )}
               <div className="flex items-start justify-between mb-1 gap-3">
                 <h2 className="text-lg font-bold dark:text-white">
-                  Категория{' '}
+                  {_t('instant.category')}{' '}
                   <span className="text-sm text-gray-400 font-normal">
                     {selectedCategoryIds.length > 0
-                      ? `(выбрано: ${selectedCategoryIds.length})`
-                      : '(AI определит автоматически)'}
+                      ? `(${_t('instant.selectedCount', { n: selectedCategoryIds.length })})`
+                      : `(${_t('instant.aiAuto')})`}
                   </span>
                 </h2>
                 {selectedCategoryIds.length > 0 && (
@@ -1066,16 +1066,16 @@ export function InstantOrderPage() {
                     onClick={() => { setSelectedCategoryIds([]); setCategoryRequired(false); }}
                     className="text-xs text-orange-600 hover:text-orange-700 font-semibold whitespace-nowrap"
                   >
-                    Сбросить
+                    {_t('instant.reset')}
                   </button>
                 )}
               </div>
               <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
-                Можно оставить пусто — ИИ определит сам по фото и описанию. Или отметьте <strong>несколько</strong> направлений для точности сметы.
+                {_t('instant.categoryHint')}
               </p>
 
               {categories.length === 0 ? (
-                <div className="text-sm text-gray-400 py-3 text-center">Загрузка категорий…</div>
+                <div className="text-sm text-gray-400 py-3 text-center">{_t('instant.loadingCategories')}</div>
               ) : (
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                   {categories.map((cat) => {
@@ -1113,7 +1113,7 @@ export function InstantOrderPage() {
                             checked ? 'text-orange-700 dark:text-orange-300' : 'text-gray-700 dark:text-gray-200'
                           }`}
                         >
-                          {cat.name}
+                          {ln(cat)}
                         </span>
                       </button>
                     );
@@ -1127,7 +1127,7 @@ export function InstantOrderPage() {
             <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 md:p-6 shadow-sm border border-gray-200 dark:border-gray-700">
               <h2 className="text-lg font-bold mb-4 dark:text-white flex items-center gap-2">
                 <Calendar size={20} className="text-orange-500" />
-                Когда нужно выполнить?
+                {_t('instant.whenNeeded')}
               </h2>
               <div className="flex gap-3 mb-4">
                 <button
@@ -1138,7 +1138,7 @@ export function InstantOrderPage() {
                       : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                   }`}
                 >
-                  Как можно скорее
+                  {_t('instant.asap')}
                 </button>
                 <button
                   onClick={() => setTiming('date')}
@@ -1148,7 +1148,7 @@ export function InstantOrderPage() {
                       : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                   }`}
                 >
-                  Выбрать дату
+                  {_t('instant.pickDate')}
                 </button>
               </div>
               {timing === 'date' && (
@@ -1182,14 +1182,14 @@ export function InstantOrderPage() {
               className="w-full min-h-[60px] md:min-h-[64px] bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-2xl font-bold text-lg md:text-xl flex items-center justify-center gap-3 hover:from-orange-600 hover:to-amber-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-xl shadow-orange-500/25"
             >
               <Sparkles size={24} />
-              Далее
+              {_t('common.next')}
               <ChevronRight size={22} />
             </button>
 
             {/* ─── Divider ─── */}
             <div className="flex items-center gap-4">
               <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
-              <span className="text-sm text-gray-400">или</span>
+              <span className="text-sm text-gray-400">{_t('instant.or')}</span>
               <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
             </div>
 
@@ -1199,7 +1199,7 @@ export function InstantOrderPage() {
               className="w-full min-h-[60px] md:min-h-[64px] bg-gradient-to-r from-orange-400 to-amber-400 hover:from-orange-500 hover:to-amber-500 text-white rounded-2xl font-bold text-lg flex items-center justify-center gap-3 transition-all shadow-lg shadow-orange-400/25 border-2 border-orange-300"
             >
               <AlertTriangle size={22} />
-              Нужна индивидуальная оценка мастера
+              {_t('instant.needIndividual')}
             </Link>
           </div>
         )}
@@ -1215,10 +1215,9 @@ export function InstantOrderPage() {
                 <Loader2 size={20} className="text-white animate-spin" />
               </div>
             </div>
-            <h2 className="text-xl md:text-2xl font-bold dark:text-white mb-2">AI анализирует фотографии...</h2>
+            <h2 className="text-xl md:text-2xl font-bold dark:text-white mb-2">{_t('instant.analyzingTitle')}</h2>
             <p className="text-gray-500 dark:text-gray-400 max-w-md text-base">
-              Определяем тип работ, подбираем задачи и материалы, считаем стоимость.
-              Обычно это 5–10 секунд.
+              {_t('instant.analyzingText')}
             </p>
           </div>
         )}
@@ -1233,11 +1232,11 @@ export function InstantOrderPage() {
                 </div>
                 <div>
                   <h2 className="font-bold text-lg dark:text-white mb-1">
-                    Нужны замеры на месте
+                    {_t('instant.needMeasureTitle')}
                   </h2>
                   <p className="text-sm text-gray-600 dark:text-gray-300">
                     {analysisResult.message ||
-                      'Без точной площади/объёма смету не построить. Мастер приедет, замерит и составит точную смету. Стоимость выезда указана в тарифах платформы и пойдёт в зачёт работ, если вы согласитесь со сметой.'}
+                      _t('instant.needMeasureText')}
                   </p>
                 </div>
               </div>
@@ -1260,14 +1259,14 @@ export function InstantOrderPage() {
                 }}
                 className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-semibold rounded-xl py-3 hover:opacity-90 transition"
               >
-                Вызвать мастера на замер
+                {_t('instant.callMeasure')}
               </button>
               <button
                 type="button"
                 onClick={() => setStep('upload')}
                 className="w-full text-sm text-gray-500 dark:text-gray-400 mt-3 hover:underline"
               >
-                Назад — уточнить описание самостоятельно
+                {_t('instant.backRefine')}
               </button>
             </div>
           </div>
@@ -1283,11 +1282,11 @@ export function InstantOrderPage() {
                 </div>
                 <div>
                   <h2 className="font-bold text-lg dark:text-white mb-1">
-                    Уточните несколько деталей
+                    {_t('instant.clarifyTitle')}
                   </h2>
                   <p className="text-sm text-gray-600 dark:text-gray-300">
                     {analysisResult?.message ||
-                      'AI не смог точно определить характер работ. Ответьте на пару вопросов — соберём точную смету.'}
+                      _t('instant.clarifyText')}
                   </p>
                 </div>
               </div>
@@ -1382,14 +1381,14 @@ export function InstantOrderPage() {
                 onClick={() => setStep('upload')}
                 className="px-5 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 font-semibold"
               >
-                ← Назад
+                ← {_t('common.back')}
               </button>
               <button
                 onClick={handleSubmitClarification}
                 disabled={loading}
                 className="flex-1 px-5 py-3 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 text-white font-bold shadow-lg hover:shadow-xl hover:scale-[1.01] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {loading ? 'Анализирую…' : 'Пересчитать смету →'}
+                {loading ? _t('instant.analyzing') : `${_t('instant.recalculate')} →`}
               </button>
             </div>
           </div>
@@ -1402,7 +1401,7 @@ export function InstantOrderPage() {
             {/* Step label */}
             <div className="text-center">
               <span className="inline-flex items-center gap-2 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-sm font-semibold px-4 py-2 rounded-full">
-                Шаг 3 из 4: Выберите подходящий вариант
+                {_t('instant.step3Hint')}
               </span>
             </div>
 
@@ -1414,10 +1413,10 @@ export function InstantOrderPage() {
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   {(analysisResult.detectedCategories?.length ?? 1) > 1
-                    ? `Определено направлений: ${analysisResult.detectedCategories!.length}`
-                    : 'Категория определена'}
+                    ? _t('instant.directionsDetected', { n: analysisResult.detectedCategories!.length })
+                    : _t('instant.categoryDetected')}
                 </p>
-                <p className="font-bold dark:text-white text-base">{analysisResult.category.name}</p>
+                <p className="font-bold dark:text-white text-base">{ln(analysisResult.category)}</p>
               </div>
               {typeof analysisResult.aiConfidence === 'number' && (
                 <span
@@ -1428,14 +1427,14 @@ export function InstantOrderPage() {
                       ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
                       : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
                   }`}
-                  title="Уверенность AI в определении категории"
+                  title={_t('instant.aiConfidenceTitle')}
                 >
                   AI {Math.round(analysisResult.aiConfidence)}%
                 </span>
               )}
               {analysisResult.detectedFromPhoto && typeof analysisResult.aiConfidence !== 'number' && (
                 <span className="text-xs bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 px-3 py-1 rounded-full font-medium">
-                  Определено AI
+                  {_t('instant.detectedByAi')}
                 </span>
               )}
             </div>
@@ -1444,7 +1443,7 @@ export function InstantOrderPage() {
             {analysisResult.aiSummary && (
               <div className="bg-gradient-to-br from-purple-50 to-blue-50 dark:from-purple-950/30 dark:to-blue-950/30 rounded-2xl p-4 border border-purple-200 dark:border-purple-800">
                 <p className="text-xs font-semibold text-purple-700 dark:text-purple-300 uppercase tracking-wide mb-1">
-                  🤖 AI разобрал ваш запрос:
+                  🤖 {_t('instant.aiParsed')}
                 </p>
                 <p className="text-sm text-gray-800 dark:text-gray-200 leading-relaxed">
                   {analysisResult.aiSummary}
@@ -1458,9 +1457,9 @@ export function InstantOrderPage() {
                         ? 'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300'
                         : 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'
                     }`}>
-                      {analysisResult.urgency === 'emergency' ? '🚨 АВАРИЯ' :
-                       analysisResult.urgency === 'urgent' ? '⚡ Срочно' :
-                       '🕐 Гибко'}
+                      {analysisResult.urgency === 'emergency' ? `🚨 ${_t('instant.urgencyEmergency')}` :
+                       analysisResult.urgency === 'urgent' ? `⚡ ${_t('instant.urgencyUrgent')}` :
+                       `🕐 ${_t('instant.urgencyFlexible')}`}
                     </span>
                   </div>
                 )}
@@ -1471,7 +1470,7 @@ export function InstantOrderPage() {
             {analysisResult.detectedCategories && analysisResult.detectedCategories.length > 1 && (
               <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 rounded-2xl p-4 border border-blue-200 dark:border-blue-800">
                 <p className="text-sm font-semibold text-blue-900 dark:text-blue-200 mb-2">
-                  В смете учтены работы по всем направлениям:
+                  {_t('instant.allDirections')}
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {analysisResult.detectedCategories.map((c) => (
@@ -1487,7 +1486,7 @@ export function InstantOrderPage() {
             )}
 
             {/* 3 variant cards */}
-            <h2 className="text-xl font-bold dark:text-white">Выберите вариант:</h2>
+            <h2 className="text-xl font-bold dark:text-white">{_t('instant.chooseVariantTitle')}</h2>
 
             <div className="grid gap-4">
               {analysisResult.variants.map((variant) => {
@@ -1510,7 +1509,7 @@ export function InstantOrderPage() {
                   >
                     {variant.tier === 'BETTER' && (
                       <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-blue-500 text-white text-xs font-bold px-4 py-1.5 rounded-full shadow-md">
-                        РЕКОМЕНДУЕМ
+                        {_t('instant.recommended')}
                       </div>
                     )}
 
@@ -1523,9 +1522,9 @@ export function InstantOrderPage() {
                         <TierIcon size={24} className="text-white" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <h3 className="font-bold text-lg dark:text-white leading-tight">{config.label}</h3>
+                        <h3 className="font-bold text-lg dark:text-white leading-tight">{_t(config.labelKey)}</h3>
                         <span className={`inline-block mt-0.5 text-xs px-2 py-0.5 rounded-full ${config.badge}`}>
-                          {Math.round(variant.confidence * 100)}% уверенность
+                          {_t('instant.confidence', { pct: Math.round(variant.confidence * 100) })}
                         </span>
                       </div>
                     </div>
@@ -1536,14 +1535,14 @@ export function InstantOrderPage() {
                         {formatPrice(variant.estimatedPrice)}
                       </p>
                       <p className="text-xs text-gray-400 shrink-0">
-                        {variant.priceIsFixed === false ? 'ориентировочная цена' : 'фиксированная цена'}
+                        {variant.priceIsFixed === false ? _t('instant.priceEstimated') : _t('instant.priceFixed')}
                       </p>
                     </div>
                     {/* Широкий разброс реальных сделок: одна сумма была бы обещанием,
                         которое мастер может не сдержать, — показываем честный диапазон. */}
                     {variant.priceIsFixed === false && variant.priceRange && (
                       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        По сделкам на платформе: {formatPrice(variant.priceRange.min)} — {formatPrice(variant.priceRange.max)}
+                        {_t('instant.platformDeals')}: {formatPrice(variant.priceRange.min)} — {formatPrice(variant.priceRange.max)}
                       </p>
                     )}
 
@@ -1554,17 +1553,17 @@ export function InstantOrderPage() {
                     <div className="mt-3 flex flex-wrap gap-4 text-sm">
                       <div className="flex items-center gap-1.5">
                         <Package size={16} className="text-gray-400" />
-                        <span className="dark:text-gray-300"><strong>{variant.taskIds.length}</strong> работ</span>
+                        <span className="dark:text-gray-300"><strong>{variant.taskIds.length}</strong> {_t('instant.worksShort')}</span>
                       </div>
                       <div className="flex items-center gap-1.5">
                         <Clock size={16} className="text-gray-400" />
-                        <span className="dark:text-gray-300"><strong>{variant.estimatedDays}</strong> дн.</span>
+                        <span className="dark:text-gray-300"><strong>{variant.estimatedDays}</strong> {_t('instant.daysShort')}</span>
                       </div>
                     </div>
 
                     {variant.materials && variant.materials.length > 0 && (
                       <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
-                        <p className="text-xs text-gray-400 mb-1.5">Материалы:</p>
+                        <p className="text-xs text-gray-400 mb-1.5">{_t('instant.materials')}:</p>
                         <div className="flex flex-wrap gap-1.5">
                           {(variant.materials as any[]).map((m, i) => (
                             <span key={i} className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-2.5 py-1 rounded-full">
@@ -1586,7 +1585,7 @@ export function InstantOrderPage() {
                       // Группируем по категории (для мульти-категорий)
                       const grouped = tasksInVariant.reduce<Record<string, typeof tasksInVariant>>(
                         (acc, t) => {
-                          const key = t.categoryName || 'Услуги';
+                          const key = t.categoryName || _t('instant.services');
                           (acc[key] ||= []).push(t);
                           return acc;
                         },
@@ -1605,7 +1604,7 @@ export function InstantOrderPage() {
                           >
                             <span className="flex items-center gap-2">
                               <ListChecks size={16} className="text-orange-500" />
-                              Подробный список услуг ({tasksInVariant.length})
+                              {_t('instant.servicesList', { n: tasksInVariant.length })}
                             </span>
                             <ChevronDown
                               size={18}
@@ -1646,7 +1645,7 @@ export function InstantOrderPage() {
                                 </div>
                               ))}
                               <p className="text-xs text-gray-500 dark:text-gray-400 italic pt-1">
-                                Все эти работы будут выполнены мастером по фиксированной цене.
+                                {_t('instant.fixedPriceNote')}
                               </p>
                             </div>
                           )}
@@ -1656,7 +1655,7 @@ export function InstantOrderPage() {
 
                     <div className="mt-3 flex justify-end">
                       <span className="text-sm text-orange-500 font-semibold flex items-center gap-1 min-h-[44px] min-w-[44px] justify-center">
-                        Выбрать <ChevronRight size={16} />
+                        {_t('instant.choose')} <ChevronRight size={16} />
                       </span>
                     </div>
                   </div>
@@ -1670,14 +1669,14 @@ export function InstantOrderPage() {
               className="w-full min-h-[60px] md:min-h-[64px] bg-gradient-to-r from-orange-400 to-amber-400 hover:from-orange-500 hover:to-amber-500 text-white rounded-2xl font-bold text-base md:text-lg flex items-center justify-center gap-3 transition-all shadow-lg shadow-orange-400/25 border-2 border-orange-300"
             >
               <AlertTriangle size={22} />
-              Это не подходит — нужна индивидуальная оценка
+              {_t('instant.notSuitable')}
             </Link>
 
             <button
               onClick={() => setStep('upload')}
               className="w-full text-center text-sm text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 py-3 min-h-[44px]"
             >
-              ← Изменить фото или описание
+              ← {_t('instant.changePhoto')}
             </button>
           </div>
         )}
@@ -1689,7 +1688,7 @@ export function InstantOrderPage() {
             {/* Step label */}
             <div className="text-center">
               <span className="inline-flex items-center gap-2 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-sm font-semibold px-4 py-2 rounded-full">
-                Шаг 4 из 4: Проверьте и подтвердите заказ
+                {_t('instant.step4Hint')}
               </span>
             </div>
 
@@ -1699,38 +1698,38 @@ export function InstantOrderPage() {
             } ${TIER_CONFIG[selectedVariant.tier as keyof typeof TIER_CONFIG].bg}`}>
               <div className="flex items-center justify-between mb-2">
                 <span className="font-bold dark:text-white text-lg">
-                  {TIER_CONFIG[selectedVariant.tier as keyof typeof TIER_CONFIG].label}
+                  {_t(TIER_CONFIG[selectedVariant.tier as keyof typeof TIER_CONFIG].labelKey)}
                 </span>
                 <span className="text-2xl font-extrabold dark:text-white">
                   {formatPrice(selectedVariant.estimatedPrice)}
                 </span>
               </div>
               <p className="text-sm text-gray-600 dark:text-gray-300">
-                {selectedVariant.taskIds.length} работ • {selectedVariant.estimatedDays} дн. • {selectedVariant.priceIsFixed === false ? 'ориентировочная цена' : 'фиксированная цена'}
+                {selectedVariant.taskIds.length} {_t('instant.worksShort')} • {selectedVariant.estimatedDays} {_t('instant.daysShort')} • {selectedVariant.priceIsFixed === false ? _t('instant.priceEstimated') : _t('instant.priceFixed')}
               </p>
               <button onClick={() => setStep('variants')} className="text-sm text-orange-500 mt-2 hover:underline min-h-[44px] flex items-center">
-                ← Изменить вариант
+                ← {_t('instant.changeVariant')}
               </button>
             </div>
 
             {/* Order details form */}
             <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 md:p-6 shadow-sm border border-gray-200 dark:border-gray-700 space-y-4">
-              <h2 className="text-lg font-bold dark:text-white">Детали заказа</h2>
+              <h2 className="text-lg font-bold dark:text-white">{_t('instant.orderDetails')}</h2>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Название заказа *</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{_t('instant.orderTitle')} *</label>
                 <input
                   type="text"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   className="w-full rounded-xl border-2 border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white px-4 py-3 min-h-[48px] text-base focus:ring-2 focus:ring-orange-500"
-                  placeholder="Напр.: Ремонт сантехники в ванной"
+                  placeholder={_t('instant.titlePlaceholder')}
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                  <MapPin size={14} className="inline mr-1" /> Адрес заказа *
+                  <MapPin size={14} className="inline mr-1" /> {_t('instant.orderAddress')} *
                 </label>
 
                 {/* Кнопка автоопределения местоположения */}
@@ -1794,7 +1793,7 @@ export function InstantOrderPage() {
                         }
                       }
                       if (!parts) {
-                        toast(`Координаты определены (${lat.toFixed(4)}, ${lng.toFixed(4)}). Заполните адрес вручную.`, { id: TOAST_ID, icon: '📍', duration: 5000 });
+                        toast(_t('instant.coordsOnly', { coords: `${lat.toFixed(4)}, ${lng.toFixed(4)}` }), { id: TOAST_ID, icon: '📍', duration: 5000 });
                       } else {
                         // Полная перезапись — GPS приоритетнее
                         setRegion(parts.region ?? '');
@@ -1802,13 +1801,13 @@ export function InstantOrderPage() {
                         setDistrict(parts.district ?? '');
                         setStreet(parts.street ?? '');
                         setHouse(parts.house ?? '');
-                        toast.success('Адрес определён — впишите номер квартиры', { id: TOAST_ID });
+                        toast.success(_t('instant.addressDetected'), { id: TOAST_ID });
                       }
                     } catch (err: any) {
                       const msg =
                         err instanceof GeoError
                           ? err.message
-                          : err?.response?.data?.error?.message ?? 'Не удалось определить адрес';
+                          : err?.response?.data?.error?.message ?? _t('instant.addressFailed');
                       toast.error(msg, { id: TOAST_ID, duration: 6000 });
                     } finally {
                       setDetectingLocation(false);
@@ -1818,7 +1817,7 @@ export function InstantOrderPage() {
                   className="w-full mb-3 min-h-[48px] flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-semibold hover:from-blue-600 hover:to-indigo-700 disabled:opacity-60 transition-all shadow-sm"
                 >
                   {detectingLocation ? <Loader2 size={18} className="animate-spin" /> : <Navigation size={18} />}
-                  {detectingLocation ? 'Определяем…' : 'Определить моё местоположение'}
+                  {detectingLocation ? _t('instant.detecting') : _t('instant.detectLocation')}
                 </button>
 
                 <div className="grid grid-cols-2 gap-2">
@@ -1827,47 +1826,47 @@ export function InstantOrderPage() {
                     value={region}
                     onChange={(e) => setRegion(e.target.value)}
                     className="rounded-xl border-2 border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white px-3 py-2.5 min-h-[44px] text-sm focus:ring-2 focus:ring-orange-500"
-                    placeholder="Область"
+                    placeholder={_t('instant.phRegion')}
                   />
                   <input
                     type="text"
                     value={city}
                     onChange={(e) => setCity(e.target.value)}
                     className="rounded-xl border-2 border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white px-3 py-2.5 min-h-[44px] text-sm focus:ring-2 focus:ring-orange-500"
-                    placeholder="Город *"
+                    placeholder={`${_t('instant.phCity')} *`}
                   />
                   <input
                     type="text"
                     value={district}
                     onChange={(e) => setDistrict(e.target.value)}
                     className="rounded-xl border-2 border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white px-3 py-2.5 min-h-[44px] text-sm focus:ring-2 focus:ring-orange-500"
-                    placeholder="Район / квартал"
+                    placeholder={_t('instant.phDistrict')}
                   />
                   <input
                     type="text"
                     value={street}
                     onChange={(e) => setStreet(e.target.value)}
                     className="rounded-xl border-2 border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white px-3 py-2.5 min-h-[44px] text-sm focus:ring-2 focus:ring-orange-500"
-                    placeholder="Улица (если есть)"
+                    placeholder={_t('instant.phStreet')}
                   />
                   <input
                     type="text"
                     value={house}
                     onChange={(e) => setHouse(e.target.value)}
                     className="rounded-xl border-2 border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white px-3 py-2.5 min-h-[44px] text-sm focus:ring-2 focus:ring-orange-500"
-                    placeholder="Дом *"
+                    placeholder={`${_t('instant.phHouse')} *`}
                   />
                   <input
                     type="text"
                     value={apartment}
                     onChange={(e) => setApartment(e.target.value)}
                     className="rounded-xl border-2 border-orange-300 dark:border-orange-600 dark:bg-gray-700 dark:text-white px-3 py-2.5 min-h-[44px] text-sm focus:ring-2 focus:ring-orange-500"
-                    placeholder="Квартира / офис"
+                    placeholder={_t('instant.phApartment')}
                   />
                 </div>
                 {latitude && longitude && (
                   <p className="text-xs text-green-600 dark:text-green-400 mt-1.5 flex items-center gap-1">
-                    <CheckCircle size={12} /> Координаты определены — мастер построит точный маршрут
+                    <CheckCircle size={12} /> {_t('instant.coordsRoute')}
                   </p>
                 )}
               </div>
@@ -1881,13 +1880,13 @@ export function InstantOrderPage() {
                   className="w-6 h-6 rounded text-orange-500 focus:ring-orange-500"
                 />
                 <span className="dark:text-white text-base">
-                  Срочный заказ <span className="text-sm text-orange-500">(+40% к цене)</span>
+                  {_t('instant.urgentOrder')} <span className="text-sm text-orange-500">({_t('instant.urgentPlus')})</span>
                 </span>
               </label>
 
               {isUrgent && (
                 <div className="bg-orange-50 dark:bg-orange-900/20 rounded-xl p-3 text-sm text-orange-700 dark:text-orange-300 font-medium">
-                  Итого с срочностью: <strong>{formatPrice(selectedVariant.estimatedPrice * 1.4)}</strong>
+                  {_t('instant.totalUrgent')}: <strong>{formatPrice(selectedVariant.estimatedPrice * 1.4)}</strong>
                 </div>
               )}
             </div>
@@ -1895,20 +1894,20 @@ export function InstantOrderPage() {
             {/* Additional wishes */}
             <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 md:p-6 shadow-sm border border-gray-200 dark:border-gray-700">
               <h2 className="text-lg font-bold dark:text-white mb-2 flex items-center gap-2">
-                Дополнительные пожелания
-                <span className="text-xs text-gray-400 font-normal">(необязательно)</span>
+                {_t('instant.wishes')}
+                <span className="text-xs text-gray-400 font-normal">({_t('instant.optional')})</span>
               </h2>
               <textarea
                 value={additionalWishes}
                 onChange={(e) => setAdditionalWishes(e.target.value)}
-                placeholder="Любые уточнения — будут отправлены на проверку менеджеру..."
+                placeholder={_t('instant.wishesPlaceholder')}
                 className="w-full min-h-[100px] rounded-xl border-2 border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white px-4 py-3 resize-none focus:ring-2 focus:ring-orange-500 text-base"
                 maxLength={2000}
               />
               {additionalWishes.trim() && (
                 <div className="flex items-center gap-2 mt-2 text-sm text-amber-600 dark:text-amber-400">
                   <AlertTriangle size={16} />
-                  Заказ будет отправлен на модерацию менеджеру
+                  {_t('instant.willModerate')}
                 </div>
               )}
             </div>
@@ -1923,9 +1922,9 @@ export function InstantOrderPage() {
                   className="w-6 h-6 rounded text-orange-500 focus:ring-orange-500 mt-0.5 flex-shrink-0"
                 />
                 <span className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">
-                  Я принимаю условия оферты и соглашаюсь с фиксированной ценой{' '}
+                  {_t('instant.offerAccept1')}{' '}
                   <strong>{formatPrice(isUrgent ? selectedVariant.estimatedPrice * 1.4 : selectedVariant.estimatedPrice)}</strong>{' '}
-                  + стоимость выезда мастера. Средства будут заблокированы на балансе.
+                  {_t('instant.offerAccept2')}
                 </span>
               </label>
             </div>
@@ -1937,16 +1936,16 @@ export function InstantOrderPage() {
               className="w-full min-h-[60px] md:min-h-[64px] bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-2xl font-bold text-lg md:text-xl flex items-center justify-center gap-3 hover:from-green-600 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-xl shadow-green-500/25"
             >
               {creating ? (
-                <><Loader2 size={24} className="animate-spin" /> Создаём заказ...</>
+                <><Loader2 size={24} className="animate-spin" /> {_t('instant.creating')}</>
               ) : (
-                <><CheckCircle size={24} /> Создать заказ</>
+                <><CheckCircle size={24} /> {_t('instant.createOrder')}</>
               )}
             </button>
 
             {/* Individual evaluation — big orange */}
             <div className="flex items-center gap-4 mt-2">
               <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
-              <span className="text-sm text-gray-400">или</span>
+              <span className="text-sm text-gray-400">{_t('instant.or')}</span>
               <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
             </div>
 
@@ -1955,7 +1954,7 @@ export function InstantOrderPage() {
               className="w-full min-h-[60px] bg-gradient-to-r from-orange-400 to-amber-400 hover:from-orange-500 hover:to-amber-500 text-white rounded-2xl font-bold text-base md:text-lg flex items-center justify-center gap-3 transition-all shadow-lg shadow-orange-400/25 border-2 border-orange-300"
             >
               <AlertTriangle size={22} />
-              Нужна индивидуальная оценка мастера
+              {_t('instant.needIndividual')}
             </Link>
           </div>
         )}
@@ -1974,19 +1973,19 @@ export function InstantOrderPage() {
             <div className="w-20 h-20 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center mx-auto mb-5">
               <Wallet size={36} className="text-red-500" />
             </div>
-            <h3 className="text-2xl font-extrabold dark:text-white mb-3">Недостаточно средств</h3>
+            <h3 className="text-2xl font-extrabold dark:text-white mb-3">{_t('instant.insufficient')}</h3>
             <p className="text-gray-600 dark:text-gray-300 mb-6 text-sm leading-relaxed">{balanceError}</p>
             <button
               onClick={() => { setShowBalanceModal(false); navigate('/balance'); }}
               className="w-full min-h-[56px] bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-2xl font-bold text-lg flex items-center justify-center gap-3 transition-all shadow-lg"
             >
-              <Wallet size={22} /> Пополнить баланс
+              <Wallet size={22} /> {_t('createOrder.topUp')}
             </button>
             <button
               onClick={() => setShowBalanceModal(false)}
               className="w-full mt-3 py-3 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 font-medium text-sm min-h-[44px]"
             >
-              Закрыть
+              {_t('common.close')}
             </button>
           </div>
         </div>

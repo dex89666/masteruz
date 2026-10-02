@@ -9,6 +9,7 @@ import { X, Copy, Check, ExternalLink, CheckCircle2, Clock, RefreshCw, AlertTria
 import { uzqrApi, type UzQrOrder, type UzQrPurpose } from '../api/client';
 import { useFormatPrice } from '../hooks';
 import { LoadingSpinner } from './LoadingSpinner';
+import { useTranslation } from '../i18n';
 
 /** Оплата по QR включается флагом сборки, пока банк не подключён — её не видно. */
 export const UZQR_ENABLED = import.meta.env.VITE_UZQR_ENABLED === 'true';
@@ -54,6 +55,7 @@ function formatLeft(ms: number): string {
 }
 
 export function UzQrPaymentModal({ isOpen, purpose, title, onClose, onPaid }: UzQrPaymentModalProps) {
+  const { t } = useTranslation();
   const formatPrice = useFormatPrice();
   const [phase, setPhase] = useState<Phase>('loading');
   const [order, setOrder] = useState<UzQrOrder | null>(null);
@@ -73,7 +75,7 @@ export function UzQrPaymentModal({ isOpen, purpose, title, onClose, onPaid }: Uz
       setOrder(res.data.data ?? null);
       setPhase('ready');
     } catch (err: any) {
-      setError(err?.response?.data?.error?.message || 'Не удалось создать QR-код. Попробуйте ещё раз.');
+      setError(err?.response?.data?.error?.message || t('uzqr.createFailed'));
       setPhase('error');
     }
   }, [purposeKey]);
@@ -145,10 +147,10 @@ export function UzQrPaymentModal({ isOpen, purpose, title, onClose, onPaid }: Uz
       <div className="relative bg-white dark:bg-gray-800 rounded-2xl w-full max-w-sm shadow-2xl max-h-[92vh] overflow-y-auto">
         <div className="flex items-center justify-between p-5 border-b border-gray-100 dark:border-gray-700">
           <div>
-            <h2 id="uzqr-title" className="font-bold text-gray-900 dark:text-white">Оплата по QR-коду</h2>
+            <h2 id="uzqr-title" className="font-bold text-gray-900 dark:text-white">{t('uzqr.title')}</h2>
             <p className="text-xs text-gray-500 dark:text-gray-400">{title}</p>
           </div>
-          <button onClick={onClose} aria-label="Закрыть" className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700">
+          <button onClick={onClose} aria-label={t('common.close')} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700">
             <X size={20} className="text-gray-400" />
           </button>
         </div>
@@ -157,7 +159,7 @@ export function UzQrPaymentModal({ isOpen, purpose, title, onClose, onPaid }: Uz
           {phase === 'loading' && (
             <div className="py-16 flex flex-col items-center gap-3">
               <LoadingSpinner size="lg" />
-              <p className="text-sm text-gray-500 dark:text-gray-400">Создаём QR-код…</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{t('uzqr.creating')}</p>
             </div>
           )}
 
@@ -171,15 +173,15 @@ export function UzQrPaymentModal({ isOpen, purpose, title, onClose, onPaid }: Uz
               </div>
 
               <p className="mt-3 text-sm text-gray-600 dark:text-gray-300">
-                Отсканируйте QR в приложении любого банка Узбекистана с оплатой UzQR
+                {t('uzqr.scan')}
               </p>
               <p className="mt-1 text-xs text-gray-400 flex items-center justify-center gap-1">
-                <Clock size={12} /> Действует ещё {formatLeft(expiresAtMs - now)}
+                <Clock size={12} /> {t('uzqr.validFor')} {formatLeft(expiresAtMs - now)}
               </p>
 
               {order.mock && (
                 <p className="mt-3 text-xs rounded-lg bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 p-2">
-                  Тестовый режим: банк ещё не подключён, по этому QR оплатить нельзя
+                  {t('uzqr.testMode')}
                 </p>
               )}
 
@@ -188,7 +190,7 @@ export function UzQrPaymentModal({ isOpen, purpose, title, onClose, onPaid }: Uz
                 className="mt-4 w-full py-3 rounded-xl font-semibold border-2 border-primary-500 text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 flex items-center justify-center gap-2"
               >
                 {copied ? <Check size={18} /> : <Copy size={18} />}
-                {copied ? 'Ссылка скопирована' : 'Скопировать ссылку для оплаты'}
+                {copied ? t('common.linkCopied') : t('uzqr.copyLink')}
               </button>
               <a
                 href={order.qrUrl}
@@ -196,11 +198,11 @@ export function UzQrPaymentModal({ isOpen, purpose, title, onClose, onPaid }: Uz
                 rel="noopener noreferrer"
                 className="mt-2 w-full py-3 rounded-xl font-semibold text-white bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 flex items-center justify-center gap-2 sm:hidden"
               >
-                <ExternalLink size={18} /> Открыть в приложении банка
+                <ExternalLink size={18} /> {t('uzqr.openBank')}
               </a>
 
               <p className="mt-4 text-xs text-gray-400 flex items-center justify-center gap-2">
-                <span className="inline-block w-2 h-2 rounded-full bg-primary-500 animate-pulse" /> Ждём подтверждения оплаты от банка
+                <span className="inline-block w-2 h-2 rounded-full bg-primary-500 animate-pulse" /> {t('uzqr.waiting')}
               </p>
             </>
           )}
@@ -208,10 +210,10 @@ export function UzQrPaymentModal({ isOpen, purpose, title, onClose, onPaid }: Uz
           {phase === 'paid' && (
             <div className="py-10 flex flex-col items-center gap-3">
               <CheckCircle2 size={56} className="text-green-500" />
-              <p className="text-lg font-bold text-gray-900 dark:text-white">Оплата прошла</p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Подтверждение придёт и в Telegram</p>
+              <p className="text-lg font-bold text-gray-900 dark:text-white">{t('uzqr.paid')}</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{t('uzqr.telegramToo')}</p>
               <button onClick={onClose} className="mt-2 px-6 py-2.5 rounded-xl bg-primary-600 text-white font-semibold">
-                Готово
+                {t('uzqr.done')}
               </button>
             </div>
           )}
@@ -220,11 +222,11 @@ export function UzQrPaymentModal({ isOpen, purpose, title, onClose, onPaid }: Uz
             <div className="py-10 flex flex-col items-center gap-3">
               <AlertTriangle size={48} className="text-amber-500" />
               <p className="text-base font-semibold text-gray-900 dark:text-white">
-                {phase === 'expired' ? 'Срок действия QR-кода истёк' : phase === 'failed' ? 'Оплата не прошла' : 'Не удалось создать QR-код'}
+                {phase === 'expired' ? t('uzqr.expired') : phase === 'failed' ? t('uzqr.failed') : t('uzqr.createFailedShort')}
               </p>
               {error && <p className="text-sm text-gray-500 dark:text-gray-400">{error}</p>}
               <button onClick={createQr} className="mt-2 px-6 py-2.5 rounded-xl bg-primary-600 text-white font-semibold flex items-center gap-2">
-                <RefreshCw size={16} /> Создать новый QR
+                <RefreshCw size={16} /> {t('uzqr.newQr')}
               </button>
             </div>
           )}

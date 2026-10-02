@@ -329,7 +329,7 @@ export function ProfileSettingsPage() {
               {t('settings.specializations')}
             </label>
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-              Выберите категории, в которых вы работаете
+              {t('settings.chooseCategories')}
             </p>
 
             {loadingCategories ? (
@@ -477,14 +477,14 @@ export function ProfileSettingsPage() {
       <div className="card dark:bg-gray-800 dark:ring-gray-700 mb-4">
         <h2 className="font-semibold mb-4 flex items-center gap-2 dark:text-white">
           <Type size={18} className="text-primary-600 dark:text-primary-400" />
-          Доступность
+          {t('settings.accessibility')}
         </h2>
 
         <label className="flex items-center justify-between gap-4 cursor-pointer p-3 rounded-xl bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
           <div className="flex-1">
-            <span className="text-base font-medium dark:text-white">Крупный текст</span>
+            <span className="text-base font-medium dark:text-white">{t('settings.largeText')}</span>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-              Увеличить шрифт на 20–30% для удобного чтения
+              {t('settings.largeTextHint')}
             </p>
           </div>
           <div

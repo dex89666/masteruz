@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ChevronLeft, ChevronRight, X, ZoomIn, ZoomOut } from 'lucide-react';
 import { useTelegramBackButton } from '../hooks/useTelegramBackButton';
+import { useTranslation } from '../i18n';
 
 interface Props {
   images: string[];
@@ -21,6 +22,7 @@ const MAX_SCALE = 5;
 const SCALE_STEP = 0.5;
 
 export function ImageLightbox({ images, initialIndex, onClose }: Props) {
+  const { t } = useTranslation();
   const [index, setIndex] = useState(initialIndex);
   const [scale, setScale] = useState(1);
 
@@ -97,7 +99,7 @@ export function ImageLightbox({ images, initialIndex, onClose }: Props) {
             onClick={(e) => { e.stopPropagation(); zoomOut(); }}
             disabled={scale <= MIN_SCALE}
             className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-            aria-label="Уменьшить"
+            aria-label={t('lightbox.zoomOut')}
           >
             <ZoomOut size={20} />
           </button>
@@ -109,7 +111,7 @@ export function ImageLightbox({ images, initialIndex, onClose }: Props) {
             onClick={(e) => { e.stopPropagation(); zoomIn(); }}
             disabled={scale >= MAX_SCALE}
             className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-            aria-label="Увеличить"
+            aria-label={t('lightbox.zoomIn')}
           >
             <ZoomIn size={20} />
           </button>
@@ -117,7 +119,7 @@ export function ImageLightbox({ images, initialIndex, onClose }: Props) {
             type="button"
             onClick={(e) => { e.stopPropagation(); onClose(); }}
             className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors ml-2"
-            aria-label="Закрыть"
+            aria-label={t('common.close')}
           >
             <X size={22} />
           </button>
@@ -131,7 +133,7 @@ export function ImageLightbox({ images, initialIndex, onClose }: Props) {
             type="button"
             onClick={(e) => { e.stopPropagation(); goPrev(); }}
             className="absolute left-2 sm:left-4 z-10 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
-            aria-label="Предыдущее"
+            aria-label={t('lightbox.prev')}
           >
             <ChevronLeft size={28} />
           </button>
@@ -139,7 +141,7 @@ export function ImageLightbox({ images, initialIndex, onClose }: Props) {
             type="button"
             onClick={(e) => { e.stopPropagation(); goNext(); }}
             className="absolute right-2 sm:right-4 z-10 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
-            aria-label="Следующее"
+            aria-label={t('lightbox.next')}
           >
             <ChevronRight size={28} />
           </button>
@@ -154,7 +156,7 @@ export function ImageLightbox({ images, initialIndex, onClose }: Props) {
       >
         <img
           src={current}
-          alt={`Фото ${index + 1}`}
+          alt={t('instant.photoAlt', { n: index + 1 })}
           onClick={toggleZoom}
           className="select-none transition-transform duration-150 ease-out"
           style={{

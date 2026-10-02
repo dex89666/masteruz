@@ -12,6 +12,7 @@ import { ordersApi, riskApi } from '../api/client';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { useTelegram } from '../hooks';
 import type { Order } from '../types';
+import { useTranslation } from '../i18n';
 
 interface NegativeFlag {
   key: 'wasRude' | 'wasNoShow' | 'haggledHard' | 'changedScope' | 'delayedPayment';
@@ -28,6 +29,7 @@ const NEGATIVE_FLAGS: NegativeFlag[] = [
 ];
 
 export function ClientReviewPage() {
+  const { t } = useTranslation();
   const { orderId } = useParams();
   const navigate = useNavigate();
   const { hapticImpact, hapticNotification } = useTelegram();
@@ -46,7 +48,7 @@ export function ClientReviewPage() {
       const res = await ordersApi.getById(orderId!);
       setOrder(res.data.data);
     } catch {
-      toast.error('Не удалось загрузить заказ');
+      toast.error(t('clientReview.loadFailed'));
       navigate(-1);
     } finally {
       setLoading(false);
@@ -67,7 +69,7 @@ export function ClientReviewPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (rating === 0) {
-      toast.error('Поставьте оценку');
+      toast.error(t('clientReview.rate'));
       return;
     }
     setSubmitting(true);
@@ -84,9 +86,9 @@ export function ClientReviewPage() {
       });
       hapticNotification?.('success');
       setSubmitted(true);
-      toast.success('Отзыв о клиенте сохранён');
+      toast.success(t('clientReview.saved'));
     } catch (e: any) {
-      toast.error(e?.response?.data?.error?.message || 'Не удалось отправить отзыв');
+      toast.error(e?.response?.data?.error?.message || t('clientReview.sendFailed'));
     } finally {
       setSubmitting(false);
     }
@@ -102,15 +104,15 @@ export function ClientReviewPage() {
           <div className="w-20 h-20 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center mb-4 animate-scale-in">
             <ThumbsUp size={40} className="text-emerald-600 dark:text-emerald-400" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Спасибо</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{t('clientReview.thanks')}</h1>
           <p className="text-gray-600 dark:text-gray-400">
-            Ваш отзыв учтён в риск-скоринге клиента и поможет коллегам.
+            {t('clientReview.thanksText')}
           </p>
           <button
             onClick={() => navigate('/dashboard')}
             className="mt-6 px-6 py-2.5 rounded-xl bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 font-semibold"
           >
-            В кабинет мастера
+            {t('clientReview.toDashboard')}
           </button>
         </div>
       </div>
@@ -123,18 +125,18 @@ export function ClientReviewPage() {
         onClick={() => navigate(-1)}
         className="inline-flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 mb-4 hover:text-gray-900 dark:hover:text-white"
       >
-        <ArrowLeft size={16} /> Назад
+        <ArrowLeft size={16} /> {t('common.back')}
       </button>
 
-      <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Оценка клиента</h1>
+      <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('orderView.rateClient')}</h1>
       <p className="text-gray-500 dark:text-gray-400 mt-1 mb-6">
-        Заказ #{order.id.slice(0, 8)} · «{order.title}»
+        {t('orders.order')} #{order.id.slice(0, 8)} · «{order.title}»
       </p>
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Звёзды */}
         <section className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-5">
-          <h2 className="font-semibold mb-3 dark:text-white">Общая адекватность</h2>
+          <h2 className="font-semibold mb-3 dark:text-white">{t('clientReview.overall')}</h2>
           <div className="flex items-center justify-center gap-2">
             {[1, 2, 3, 4, 5].map((i) => (
               <button
@@ -142,7 +144,7 @@ export function ClientReviewPage() {
                 type="button"
                 onClick={() => { hapticImpact?.('light'); setRating(i); }}
                 className="p-1 transition-transform hover:scale-110 active:scale-95"
-                aria-label={`${i} из 5`}
+                aria-label={t('clientReview.ofFive', { n: i })}
               >
                 <Star
                   size={40}
@@ -153,7 +155,7 @@ export function ClientReviewPage() {
           </div>
           {rating > 0 && (
             <p className="text-center text-sm text-gray-500 mt-2">
-              {rating <= 2 ? 'Сложный клиент' : rating === 3 ? 'Нормальный' : rating === 4 ? 'Хороший' : 'Отличный'}
+              {rating <= 2 ? t('clientReview.r2') : rating === 3 ? t('clientReview.r3') : rating === 4 ? t('clientReview.r4') : t('clientReview.r5')}
             </p>
           )}
         </section>
@@ -162,7 +164,7 @@ export function ClientReviewPage() {
         <section className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-5">
           <div className="flex items-center gap-2 mb-3">
             <AlertTriangle size={18} className="text-amber-500" />
-            <h2 className="font-semibold dark:text-white">Что не так? (необязательно)</h2>
+            <h2 className="font-semibold dark:text-white">{t('clientReview.whatsWrong')}</h2>
           </div>
           <div className="grid grid-cols-1 gap-2">
             {NEGATIVE_FLAGS.map((f) => {
@@ -179,9 +181,9 @@ export function ClientReviewPage() {
                   }`}
                 >
                   <div className={`font-medium ${active ? 'text-rose-700 dark:text-rose-300' : 'text-gray-800 dark:text-gray-200'}`}>
-                    {f.label}
+                    {t(`clientReview.flag_${f.key}`)}
                   </div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{f.description}</div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{t(`clientReview.flag_${f.key}_desc`)}</div>
                 </button>
               );
             })}
@@ -190,13 +192,13 @@ export function ClientReviewPage() {
 
         {/* Комментарий */}
         <section className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-5">
-          <label className="block font-semibold dark:text-white mb-2">Комментарий (необязательно)</label>
+          <label className="block font-semibold dark:text-white mb-2">{t('clientReview.comment')}</label>
           <textarea
             value={comment}
             onChange={(e) => setComment(e.target.value)}
             maxLength={1000}
             rows={4}
-            placeholder="Поделитесь деталями — отзыв виден только модераторам и в риск-скоринге"
+            placeholder={t('clientReview.commentPlaceholder')}
             className="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-400"
           />
           <div className="text-xs text-gray-400 mt-1 text-right">{comment.length}/1000</div>
@@ -208,7 +210,7 @@ export function ClientReviewPage() {
           className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 font-semibold disabled:opacity-50 transition"
         >
           <Send size={18} />
-          {submitting ? 'Отправка…' : 'Отправить'}
+          {submitting ? t('complaint.sending') : t('clientReview.send')}
         </button>
       </form>
     </div>

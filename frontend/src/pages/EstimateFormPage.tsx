@@ -20,10 +20,12 @@ import toast from 'react-hot-toast';
 // Бэкенд отдаёт загруженные файлы относительным путём /uploads/…, а фронтенд
 // на Railway его не проксирует — без адреса бэкенда картинка была бы битой.
 import { resolveImageUrl } from '../lib/imageUrl';
-const UNITS = ['шт', 'м', 'м²', 'м³', 'п.м.', 'кг', 'л', 'комплект', 'услуга'];
+import { ESTIMATE_UNITS as UNITS, unitLabel } from '../lib/units';
+import { useTranslation } from '../i18n';
 const PLATFORM_COMMISSION_RATE = 20; // % с работ (по умолчанию; реальный берём из order.commissionRate)
 
 export function EstimateFormPage() {
+  const { t, tn } = useTranslation();
   const { orderId } = useParams<{ orderId: string }>();
   const navigate = useNavigate();
 
@@ -133,7 +135,7 @@ export function EstimateFormPage() {
     form.append('file', file);
     const res = await photosApi.uploadMedia(form);
     const url = res.data.data?.url;
-    if (!url) throw new Error('Сервер не вернул URL');
+    if (!url) throw new Error(t('estimateForm.noUrl'));
     if (kind === 'photo') setPhotos(prev => [...prev, url]);
     else setVideos(prev => [...prev, url]);
   }
@@ -145,7 +147,7 @@ export function EstimateFormPage() {
       try {
         await uploadFile(file, 'photo');
       } catch (err: any) {
-        toast.error(err?.response?.data?.error?.message || `Не удалось загрузить ${file.name}`);
+        toast.error(err?.response?.data?.error?.message || t('estimateForm.uploadFailed', { name: file.name }));
       }
     }
     e.target.value = '';
@@ -156,13 +158,13 @@ export function EstimateFormPage() {
     if (!files) return;
     for (const file of Array.from(files)) {
       if (file.size > 60 * 1024 * 1024) {
-        toast.error(`${file.name}: видео больше 60 МБ`);
+        toast.error(t('estimateForm.videoTooLarge', { name: file.name }));
         continue;
       }
       try {
         await uploadFile(file, 'video');
       } catch (err: any) {
-        toast.error(err?.response?.data?.error?.message || `Не удалось загрузить ${file.name}`);
+        toast.error(err?.response?.data?.error?.message || t('estimateForm.uploadFailed', { name: file.name }));
       }
     }
     e.target.value = '';
@@ -190,21 +192,21 @@ export function EstimateFormPage() {
   function validate(): boolean {
     const activeWork = workItems.filter(w => !w.cancelled && w.name.trim());
     if (activeWork.length === 0) {
-      toast.error('Добавьте хотя бы одну активную позицию работ');
+      toast.error(t('estimateForm.addWorkItem'));
       return false;
     }
     for (const it of activeWork) {
       if (it.unitPrice <= 0 || it.quantity <= 0) {
-        toast.error(`Заполните цену и кол-во для "${it.name}"`);
+        toast.error(t('estimateForm.fillPriceQty', { name: it.name }));
         return false;
       }
     }
     if (estimatedDays < 1) {
-      toast.error('Минимальный срок — 1 день');
+      toast.error(t('estimateForm.minDays'));
       return false;
     }
     if (photos.length === 0) {
-      toast.error('Прикрепите фото замеров');
+      toast.error(t('estimateForm.attachPhotos'));
       return false;
     }
     return true;
@@ -244,11 +246,11 @@ export function EstimateFormPage() {
         videos,
       });
 
-      toast.success('Смета сохранена');
+      toast.success(t('estimateForm.saved'));
       await load();
     } catch (err: any) {
       console.error('[saveEstimate]', err?.response?.data || err);
-      toast.error(err?.response?.data?.error?.message || 'Ошибка сохранения');
+      toast.error(err?.response?.data?.error?.message || t('orderView.saveError'));
     } finally {
       setSubmitting(false);
     }
@@ -256,16 +258,16 @@ export function EstimateFormPage() {
 
   async function handleSendToClient() {
     if (!estimate) {
-      toast.error('Сначала сохраните смету');
+      toast.error(t('estimateForm.saveFirst'));
       return;
     }
     setSubmitting(true);
     try {
       await estimationApi.sendEstimate(estimate.id);
-      toast.success('Смета отправлена клиенту!');
+      toast.success(t('estimateForm.sent'));
       navigate(`/orders/${orderId}`);
     } catch (err: any) {
-      toast.error(err?.response?.data?.error?.message || 'Ошибка отправки');
+      toast.error(err?.response?.data?.error?.message || t('estimateForm.sendError'));
     } finally {
       setSubmitting(false);
     }
@@ -287,14 +289,14 @@ export function EstimateFormPage() {
           <ArrowLeft size={20} />
         </button>
         <div>
-          <h1 className="text-xl font-bold">Составление сметы</h1>
-          <p className="text-sm text-gray-500">Заказ #{orderId?.slice(0, 8)}</p>
+          <h1 className="text-xl font-bold">{t('estimateForm.title')}</h1>
+          <p className="text-sm text-gray-500">{t('orders.order')} #{orderId?.slice(0, 8)}</p>
         </div>
       </div>
 
       {isSent && (
         <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-3 rounded-xl text-sm text-amber-800 dark:text-amber-300 mb-4">
-          Смета отправлена. Старые позиции можно только пометить как «не требуется». Новые работы и материалы добавляйте кнопкой «Добавить».
+          {t('estimateForm.sentNote')}
         </div>
       )}
 
@@ -303,10 +305,10 @@ export function EstimateFormPage() {
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-bold flex items-center gap-2">
             <Hammer size={18} className="text-primary-600" />
-            Работы
+            {t('estimateView.works')}
           </h2>
           <button onClick={addWorkItem} className="text-primary-600 text-sm font-semibold flex items-center gap-1">
-            <Plus size={16} /> {isSent ? 'Доп. работа' : 'Добавить'}
+            <Plus size={16} /> {isSent ? t('estimateForm.extraWork') : t('photos.add')}
           </button>
         </div>
 
@@ -328,7 +330,7 @@ export function EstimateFormPage() {
                     value={item.name}
                     onChange={e => updateWork(idx, 'name', e.target.value)}
                     disabled={locked}
-                    placeholder="Название работы"
+                    placeholder={t('estimateForm.workName')}
                     className={`flex-1 p-2 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 ${
                       cancelled ? 'line-through text-gray-500' : ''
                     } ${locked ? 'bg-gray-50 dark:bg-gray-900/50 cursor-not-allowed' : ''}`}
@@ -341,7 +343,7 @@ export function EstimateFormPage() {
                           ? 'text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20'
                           : 'text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20'
                       }`}
-                      title={cancelled ? 'Восстановить' : 'Пометить «не требуется»'}
+                      title={cancelled ? t('estimateForm.restore') : t('estimateForm.markNotNeeded')}
                     >
                       {cancelled ? <RotateCcw size={16} /> : <Ban size={16} />}
                     </button>
@@ -353,7 +355,7 @@ export function EstimateFormPage() {
                 </div>
                 <div className="grid grid-cols-3 gap-2">
                   <div>
-                    <label className="text-xs text-gray-400 block mb-1">Кол-во</label>
+                    <label className="text-xs text-gray-400 block mb-1">{t('estimateForm.qty')}</label>
                     <input
                       type="number" value={item.quantity} disabled={locked} min={0} step={0.1}
                       onChange={e => updateWork(idx, 'quantity', Math.max(0, Number(e.target.value)))}
@@ -361,17 +363,17 @@ export function EstimateFormPage() {
                     />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-400 block mb-1">Ед.</label>
+                    <label className="text-xs text-gray-400 block mb-1">{t('estimateForm.unit')}</label>
                     <select
                       value={item.unit} disabled={locked}
                       onChange={e => updateWork(idx, 'unit', e.target.value)}
                       className={`w-full p-2 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 ${locked ? 'bg-gray-50 dark:bg-gray-900/50' : ''}`}
                     >
-                      {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+                      {UNITS.map(u => <option key={u} value={u}>{unitLabel(u, t)}</option>)}
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs text-gray-400 block mb-1">Цена за ед.</label>
+                    <label className="text-xs text-gray-400 block mb-1">{t('estimateForm.unitPrice')}</label>
                     <input
                       type="number" value={item.unitPrice} disabled={locked} min={0} step={1000}
                       onChange={e => updateWork(idx, 'unitPrice', Math.max(0, Number(e.target.value)))}
@@ -380,7 +382,7 @@ export function EstimateFormPage() {
                   </div>
                 </div>
                 <div className={`text-right text-sm font-semibold mt-2 ${cancelled ? 'line-through text-gray-400' : 'text-primary-600'}`}>
-                  = {(item.quantity * item.unitPrice).toLocaleString('ru')} сум
+                  = {(item.quantity * item.unitPrice).toLocaleString('ru')} {t('common.currency')}
                 </div>
               </div>
             );
@@ -388,7 +390,7 @@ export function EstimateFormPage() {
         </div>
 
         <div className="text-right mt-2 font-bold text-sm">
-          Итого работы: {workTotal.toLocaleString('ru')} сум
+          {t('estimateView.worksTotal')}: {workTotal.toLocaleString('ru')} {t('common.currency')}
         </div>
       </section>
 
@@ -397,15 +399,15 @@ export function EstimateFormPage() {
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-bold flex items-center gap-2">
             <Package size={18} className="text-orange-500" />
-            Материалы
+            {t('estimateView.materials')}
           </h2>
           <button onClick={addMaterialItem} className="text-orange-500 text-sm font-semibold flex items-center gap-1">
-            <Plus size={16} /> {isSent ? 'Доп. материал' : 'Добавить'}
+            <Plus size={16} /> {isSent ? t('estimateForm.extraMaterial') : t('photos.add')}
           </button>
         </div>
 
         {materialItems.length === 0 && (
-          <div className="text-sm text-gray-400 italic">Материалы не добавлены (необязательно)</div>
+          <div className="text-sm text-gray-400 italic">{t('estimateForm.noMaterials')}</div>
         )}
 
         <div className="space-y-3">
@@ -424,7 +426,7 @@ export function EstimateFormPage() {
                   <input
                     type="text" value={item.name} disabled={locked}
                     onChange={e => updateMaterial(idx, 'name', e.target.value)}
-                    placeholder="Название материала"
+                    placeholder={t('estimateForm.materialName')}
                     className={`flex-1 p-2 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 ${
                       cancelled ? 'line-through text-gray-500' : ''
                     } ${locked ? 'bg-gray-50 dark:bg-gray-900/50 cursor-not-allowed' : ''}`}
@@ -437,7 +439,7 @@ export function EstimateFormPage() {
                           ? 'text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20'
                           : 'text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20'
                       }`}
-                      title={cancelled ? 'Восстановить' : 'Пометить «не требуется»'}
+                      title={cancelled ? t('estimateForm.restore') : t('estimateForm.markNotNeeded')}
                     >
                       {cancelled ? <RotateCcw size={16} /> : <Ban size={16} />}
                     </button>
@@ -449,7 +451,7 @@ export function EstimateFormPage() {
                 </div>
                 <div className="grid grid-cols-3 gap-2">
                   <div>
-                    <label className="text-xs text-gray-400 block mb-1">Кол-во</label>
+                    <label className="text-xs text-gray-400 block mb-1">{t('estimateForm.qty')}</label>
                     <input
                       type="number" value={item.quantity} disabled={locked} min={0} step={0.1}
                       onChange={e => updateMaterial(idx, 'quantity', Math.max(0, Number(e.target.value)))}
@@ -457,17 +459,17 @@ export function EstimateFormPage() {
                     />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-400 block mb-1">Ед.</label>
+                    <label className="text-xs text-gray-400 block mb-1">{t('estimateForm.unit')}</label>
                     <select
                       value={item.unit} disabled={locked}
                       onChange={e => updateMaterial(idx, 'unit', e.target.value)}
                       className={`w-full p-2 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 ${locked ? 'bg-gray-50 dark:bg-gray-900/50' : ''}`}
                     >
-                      {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+                      {UNITS.map(u => <option key={u} value={u}>{unitLabel(u, t)}</option>)}
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs text-gray-400 block mb-1">Цена за ед.</label>
+                    <label className="text-xs text-gray-400 block mb-1">{t('estimateForm.unitPrice')}</label>
                     <input
                       type="number" value={item.unitPrice} disabled={locked} min={0} step={1000}
                       onChange={e => updateMaterial(idx, 'unitPrice', Math.max(0, Number(e.target.value)))}
@@ -476,7 +478,7 @@ export function EstimateFormPage() {
                   </div>
                 </div>
                 <div className={`text-right text-sm font-semibold mt-2 ${cancelled ? 'line-through text-gray-400' : 'text-orange-500'}`}>
-                  = {(item.quantity * item.unitPrice).toLocaleString('ru')} сум
+                  = {(item.quantity * item.unitPrice).toLocaleString('ru')} {t('common.currency')}
                 </div>
               </div>
             );
@@ -485,7 +487,7 @@ export function EstimateFormPage() {
 
         {materialItems.length > 0 && (
           <div className="text-right mt-2 font-bold text-sm">
-            Итого материалы: {materialTotal.toLocaleString('ru')} сум
+            {t('estimateView.materialsTotal')}: {materialTotal.toLocaleString('ru')} {t('common.currency')}
           </div>
         )}
       </section>
@@ -494,7 +496,7 @@ export function EstimateFormPage() {
       <section className="mb-6">
         <h2 className="font-bold flex items-center gap-2 mb-3">
           <Clock size={18} className="text-blue-500" />
-          Сроки выполнения
+          {t('estimateForm.terms')}
         </h2>
         <div className="flex items-center gap-3">
           <input
@@ -503,7 +505,7 @@ export function EstimateFormPage() {
             className="w-20 p-3 border rounded-xl text-center font-bold dark:bg-gray-800 dark:border-gray-700"
           />
           <span className="text-sm text-gray-600">
-            {estimatedDays === 1 ? 'день' : estimatedDays < 5 ? 'дня' : 'дней'}
+            {tn('estimateForm.dayWord', estimatedDays)}
           </span>
         </div>
       </section>
@@ -512,11 +514,11 @@ export function EstimateFormPage() {
       <section className="mb-6">
         <h2 className="font-bold flex items-center gap-2 mb-3">
           <Camera size={18} className="text-green-500" />
-          Фото и видео замеров *
+          {t('estimateForm.photosVideos')} *
         </h2>
 
         <div className="mb-3">
-          <p className="text-xs text-gray-500 mb-2">Фото замеров, объекта, проблемных мест</p>
+          <p className="text-xs text-gray-500 mb-2">{t('estimateForm.photosHint')}</p>
           <div className="flex flex-wrap gap-2">
             {photos.map((p, idx) => (
               <div key={idx} className="relative w-20 h-20 rounded-lg overflow-hidden">
@@ -532,14 +534,14 @@ export function EstimateFormPage() {
             ))}
             <label className="w-20 h-20 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-green-500 transition-colors">
               <ImageIcon size={20} className="text-gray-400" />
-              <span className="text-xs text-gray-400 mt-1">Фото</span>
+              <span className="text-xs text-gray-400 mt-1">{t('estimationForm.photo')}</span>
               <input type="file" accept="image/*" multiple capture="environment" onChange={handlePhotoUpload} className="hidden" />
             </label>
           </div>
         </div>
 
         <div>
-          <p className="text-xs text-gray-500 mb-2">Видео объекта (необязательно, до 60 МБ)</p>
+          <p className="text-xs text-gray-500 mb-2">{t('estimateForm.videoHint')}</p>
           <div className="flex flex-wrap gap-2">
             {videos.map((v, idx) => (
               <div key={idx} className="relative w-20 h-20 rounded-lg overflow-hidden bg-black">
@@ -555,7 +557,7 @@ export function EstimateFormPage() {
             ))}
             <label className="w-20 h-20 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-green-500 transition-colors">
               <Camera size={20} className="text-gray-400" />
-              <span className="text-xs text-gray-400 mt-1">Видео</span>
+              <span className="text-xs text-gray-400 mt-1">{t('estimateForm.video')}</span>
               <input type="file" accept="video/*" capture="environment" onChange={handleVideoUpload} className="hidden" />
             </label>
           </div>
@@ -566,11 +568,11 @@ export function EstimateFormPage() {
       <section className="mb-6">
         <h2 className="font-bold flex items-center gap-2 mb-3">
           <FileText size={18} className="text-purple-500" />
-          Примечания
+          {t('estimateForm.notes')}
         </h2>
         <textarea
           value={notes} onChange={e => setNotes(e.target.value)} maxLength={2000}
-          placeholder="Дополнительные комментарии для клиента..."
+          placeholder={t('estimateForm.notesPlaceholder')}
           className="w-full p-3 border rounded-xl bg-white dark:bg-gray-800 dark:border-gray-700 h-24 resize-none"
         />
       </section>
@@ -579,46 +581,46 @@ export function EstimateFormPage() {
       <div className="bg-gradient-to-r from-primary-50 to-green-50 dark:from-primary-900/20 dark:to-green-900/20 rounded-2xl p-4 mb-6 border border-primary-200 dark:border-primary-800">
         <div className="flex items-center gap-2 mb-3">
           <Calculator size={20} className="text-primary-600" />
-          <h2 className="font-bold text-lg">Итого по смете</h2>
+          <h2 className="font-bold text-lg">{t('estimateForm.summary')}</h2>
         </div>
         <div className="space-y-1 text-sm">
           <div className="flex justify-between">
-            <span className="text-gray-600 dark:text-gray-400">Работы:</span>
-            <span className="font-semibold">{workTotal.toLocaleString('ru')} сум</span>
+            <span className="text-gray-600 dark:text-gray-400">{t('estimateView.works')}:</span>
+            <span className="font-semibold">{workTotal.toLocaleString('ru')} {t('common.currency')}</span>
           </div>
           {materialTotal > 0 && (
             <div className="flex justify-between">
-              <span className="text-gray-600 dark:text-gray-400">Материалы:</span>
-              <span className="font-semibold">{materialTotal.toLocaleString('ru')} сум</span>
+              <span className="text-gray-600 dark:text-gray-400">{t('estimateView.materials')}:</span>
+              <span className="font-semibold">{materialTotal.toLocaleString('ru')} {t('common.currency')}</span>
             </div>
           )}
 
           <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 pt-1">
             <span className="flex items-center gap-1">
-              <Truck size={12} /> Выезд мастера на оценку:
+              <Truck size={12} /> {t('estimateForm.visitFee')}:
             </span>
-            <span>{estimationFee.toLocaleString('ru')} сум</span>
+            <span>{estimationFee.toLocaleString('ru')} {t('common.currency')}</span>
           </div>
           <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
             <span className="flex items-center gap-1">
-              <Percent size={12} /> Комиссия платформы ({commissionRate}%):
+              <Percent size={12} /> {t('orderView.platformCommission')} ({commissionRate}%):
             </span>
-            <span>-{platformCommission.toLocaleString('ru')} сум</span>
+            <span>-{platformCommission.toLocaleString('ru')} {t('common.currency')}</span>
           </div>
 
           <div className="border-t dark:border-gray-700 pt-2 mt-2">
             <div className="flex justify-between">
-              <span className="font-bold text-base">К оплате клиентом:</span>
-              <span className="font-bold text-lg text-primary-600">{totalAmount.toLocaleString('ru')} сум</span>
+              <span className="font-bold text-base">{t('estimateForm.clientPays')}:</span>
+              <span className="font-bold text-lg text-primary-600">{totalAmount.toLocaleString('ru')} {t('common.currency')}</span>
             </div>
             <div className="flex justify-between text-xs text-green-700 dark:text-green-400 mt-1">
-              <span>Мастер получает (после комиссии):</span>
-              <span className="font-semibold">{masterNet.toLocaleString('ru')} сум</span>
+              <span>{t('estimateForm.masterNet')}:</span>
+              <span className="font-semibold">{masterNet.toLocaleString('ru')} {t('common.currency')}</span>
             </div>
           </div>
           <div className="flex justify-between text-xs text-gray-400 pt-1">
-            <span>Срок выполнения:</span>
-            <span>{estimatedDays} {estimatedDays === 1 ? 'день' : estimatedDays < 5 ? 'дня' : 'дней'}</span>
+            <span>{t('orderView.duration')}:</span>
+            <span>{tn('orderView.days', estimatedDays)}</span>
           </div>
         </div>
       </div>
@@ -631,7 +633,7 @@ export function EstimateFormPage() {
             className="flex-1 py-3 border-2 border-primary-600 text-primary-600 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-primary-50 dark:hover:bg-primary-900/20 disabled:opacity-50"
           >
             <Save size={18} />
-            {isSent ? 'Сохранить изменения' : 'Сохранить'}
+            {isSent ? t('estimateForm.saveChanges') : t('common.save')}
           </button>
           {!isSent && (
             <button
@@ -639,7 +641,7 @@ export function EstimateFormPage() {
               className="flex-1 py-3 bg-primary-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-primary-700 disabled:opacity-50"
             >
               <Send size={18} />
-              Отправить клиенту
+              {t('estimateForm.sendToClient')}
             </button>
           )}
         </div>

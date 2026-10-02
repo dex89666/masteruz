@@ -10,7 +10,7 @@ import { LoadingSpinner } from '../components/LoadingSpinner';
 import { EmptyState } from '../components/EmptyState';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { useAuthStore, useAppStore } from '../store';
-import { useTranslation } from '../i18n';
+import { useTranslation, useLocalizedName } from '../i18n';
 import {
   Plus, Trash2, Edit3, Image, Camera, Upload,
   X, Check, Heart, FolderOpen, ArrowLeft,
@@ -22,6 +22,7 @@ export function MasterPortfolioPage() {
   const { user } = useAuthStore();
   const { categories } = useAppStore();
   const { t } = useTranslation();
+  const ln = useLocalizedName();
 
   const [items, setItems] = useState<PortfolioItem[]>([]);
   const [stats, setStats] = useState<PortfolioStats | null>(null);
@@ -120,7 +121,7 @@ export function MasterPortfolioPage() {
       if (url) {
         setFormImageUrl(url);
         setFormImagePreview(url.startsWith('data:') ? url : url);
-        toast.success('Фото загружено');
+        toast.success(t('portfolio.uploaded'));
       } else {
         // Fallback to base64
         const reader = new FileReader();
@@ -130,7 +131,7 @@ export function MasterPortfolioPage() {
           setFormImagePreview(dataUrl);
         };
         reader.readAsDataURL(uploadFile);
-        toast.success('Фото загружено (локально)');
+        toast.success(t('portfolio.uploadedLocal'));
       }
     } catch (err) {
       console.error('Photo upload error:', err);
@@ -142,7 +143,7 @@ export function MasterPortfolioPage() {
         setFormImagePreview(dataUrl);
       };
       reader.readAsDataURL(file);
-      toast.success('Фото загружено (локально)');
+      toast.success(t('portfolio.uploadedLocal'));
     } finally {
       setFormUploading(false);
     }
@@ -283,7 +284,7 @@ export function MasterPortfolioPage() {
                   : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
               }`}
             >
-              {cat.icon} {cat.name}
+              {cat.icon} {ln(cat)}
             </button>
           ))}
         </div>
@@ -353,7 +354,7 @@ export function MasterPortfolioPage() {
                 )}
                 {item.category && (
                   <span className="inline-block mt-1.5 text-[10px] bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400 px-2 py-0.5 rounded-full">
-                    {item.category.name}
+                    {ln(item.category)}
                   </span>
                 )}
               </div>
@@ -379,7 +380,7 @@ export function MasterPortfolioPage() {
               {/* Photo upload */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Фото работы *
+                  {t('portfolio.workPhoto')} *
                 </label>
                 {formImagePreview ? (
                   <div className="relative rounded-xl overflow-hidden aspect-video bg-gray-100 dark:bg-gray-700">
@@ -408,7 +409,7 @@ export function MasterPortfolioPage() {
                     {/* Gallery button */}
                     <label className="flex-1 flex flex-col items-center justify-center gap-2 py-6 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50 hover:border-primary-400 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors cursor-pointer">
                       <Upload size={28} className="text-gray-400" />
-                      <span className="text-sm text-gray-500 dark:text-gray-400">Из галереи</span>
+                      <span className="text-sm text-gray-500 dark:text-gray-400">{t('portfolio.fromGallery')}</span>
                       <input
                         type="file"
                         accept="image/*"
@@ -423,7 +424,7 @@ export function MasterPortfolioPage() {
                     {/* Camera button */}
                     <label className="flex-1 flex flex-col items-center justify-center gap-2 py-6 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50 hover:border-primary-400 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors cursor-pointer">
                       <Camera size={28} className="text-gray-400" />
-                      <span className="text-sm text-gray-500 dark:text-gray-400">Камера</span>
+                      <span className="text-sm text-gray-500 dark:text-gray-400">{t('createOrder.camera')}</span>
                       <input
                         type="file"
                         accept="image/*"
@@ -484,7 +485,7 @@ export function MasterPortfolioPage() {
                 >
                   <option value="">{t('portfolio.noCategory')}</option>
                   {categories.map((cat) => (
-                    <option key={cat.id} value={cat.id}>{cat.icon} {cat.name}</option>
+                    <option key={cat.id} value={cat.id}>{cat.icon} {ln(cat)}</option>
                   ))}
                 </select>
               </div>

@@ -211,7 +211,7 @@ export function BalancePage() {
                 disabled={!Number.isInteger(Number(topUpAmount)) || Number(topUpAmount) < 10000 || Number(topUpAmount) > 100_000_000}
                 className="w-full py-3.5 rounded-xl font-semibold text-white bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
               >
-                <QrCode size={18} /> Оплатить по QR-коду
+                <QrCode size={18} /> {t('payQr.payByQr')}
               </button>
             </>
           ) : (
@@ -294,7 +294,7 @@ export function BalancePage() {
         <UzQrPaymentModal
           isOpen
           purpose={{ type: 'BALANCE_TOPUP', amount: qrAmount }}
-          title="Пополнение баланса"
+          title={t('payQr.topUpTitle')}
           onClose={() => setQrAmount(null)}
           onPaid={() => {
             setShowTopUp(false);

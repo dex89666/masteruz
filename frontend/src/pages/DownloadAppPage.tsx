@@ -1,27 +1,29 @@
 // MasterUz — Страница скачивания мобильного приложения
 import { Smartphone, Download, Shield, Star, ChevronRight, CheckCircle2 } from 'lucide-react';
+import { useTranslation } from '../i18n';
 
 const GITHUB_REPO = 'dex89666/masteruz';
 const APK_RELEASE_URL = `https://github.com/${GITHUB_REPO}/releases/latest/download/MasterUz-android.apk`;
 const RELEASES_URL = `https://github.com/${GITHUB_REPO}/releases/latest`;
 
 const FEATURES = [
-  'Заказ мастера за 2 минуты',
-  'Фото-заказ с определением проблемы ИИ',
-  'Онлайн-чат с мастером',
-  'История всех заказов',
-  'Уведомления о статусе',
-  'Оплата по QR-коду (UzQR) или наличными мастеру',
+  'downloadApp.f1',
+  'downloadApp.f2',
+  'downloadApp.f3',
+  'downloadApp.f4',
+  'downloadApp.f5',
+  'downloadApp.f6',
 ];
 
 const INSTALL_STEPS = [
-  { step: 1, text: 'Нажмите кнопку «Скачать APK»' },
-  { step: 2, text: 'Откройте скачанный файл' },
-  { step: 3, text: 'Разрешите установку из неизвестных источников' },
-  { step: 4, text: 'Нажмите «Установить»' },
+  { step: 1, text: 'downloadApp.s1' },
+  { step: 2, text: 'downloadApp.s2' },
+  { step: 3, text: 'downloadApp.s3' },
+  { step: 4, text: 'downloadApp.s4' },
 ];
 
 export function DownloadAppPage() {
+  const { t } = useTranslation();
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-900 to-slate-800 text-white">
       {/* Hero */}
@@ -32,7 +34,7 @@ export function DownloadAppPage() {
 
         <h1 className="text-4xl font-bold mb-3">MasterUz</h1>
         <p className="text-slate-400 text-lg max-w-sm">
-          Мастер на все руки — в вашем кармане
+          {t('downloadApp.tagline')}
         </p>
 
         <div className="flex items-center gap-2 mt-4 mb-8">
@@ -50,7 +52,7 @@ export function DownloadAppPage() {
                      shadow-xl shadow-blue-500/40 w-full max-w-xs justify-center"
         >
           <Download className="w-6 h-6" />
-          Скачать для Android
+          {t('downloadApp.downloadAndroid')}
         </a>
 
         <a
@@ -59,18 +61,18 @@ export function DownloadAppPage() {
           rel="noopener noreferrer"
           className="mt-3 text-slate-500 text-sm hover:text-slate-300 transition-colors flex items-center gap-1"
         >
-          Все версии на GitHub <ChevronRight className="w-3 h-3" />
+          {t('downloadApp.allVersions')} <ChevronRight className="w-3 h-3" />
         </a>
       </section>
 
       {/* Возможности */}
       <section className="px-6 py-10 bg-white/5 rounded-3xl mx-4 mb-6">
-        <h2 className="text-xl font-bold mb-5">Что умеет приложение</h2>
+        <h2 className="text-xl font-bold mb-5">{t('downloadApp.whatItDoes')}</h2>
         <ul className="space-y-3">
           {FEATURES.map((feature) => (
             <li key={feature} className="flex items-center gap-3">
               <CheckCircle2 className="w-5 h-5 text-blue-400 shrink-0" />
-              <span className="text-slate-300">{feature}</span>
+              <span className="text-slate-300">{t(feature)}</span>
             </li>
           ))}
         </ul>
@@ -78,7 +80,7 @@ export function DownloadAppPage() {
 
       {/* Инструкция установки */}
       <section className="px-6 py-8 mx-4 mb-6">
-        <h2 className="text-xl font-bold mb-5">Как установить</h2>
+        <h2 className="text-xl font-bold mb-5">{t('downloadApp.howToInstall')}</h2>
         <div className="space-y-4">
           {INSTALL_STEPS.map(({ step, text }) => (
             <div key={step} className="flex items-start gap-4">
@@ -96,10 +98,9 @@ export function DownloadAppPage() {
       <section className="px-6 py-8 mx-4 mb-10 bg-white/5 rounded-3xl flex items-start gap-4">
         <Shield className="w-8 h-8 text-green-400 shrink-0 mt-1" />
         <div>
-          <h3 className="font-semibold mb-1">Безопасно</h3>
+          <h3 className="font-semibold mb-1">{t('downloadApp.safe')}</h3>
           <p className="text-slate-400 text-sm leading-relaxed">
-            Приложение собирается автоматически из открытого исходного кода на GitHub Actions.
-            Никаких сторонних серверов — только официальный backend MasterUz.
+            {t('downloadApp.safeText')}
           </p>
         </div>
       </section>
@@ -107,12 +108,12 @@ export function DownloadAppPage() {
       {/* iOS */}
       <section className="px-6 pb-12 text-center">
         <p className="text-slate-500 text-sm">
-          iOS (iPhone) — скоро.{' '}
+          {t('downloadApp.iosSoon')}{' '}
           <a
             href="https://masteruz-ecru.vercel.app"
             className="text-blue-400 hover:text-blue-300 transition-colors"
           >
-            Пока используйте веб-версию →
+            {t('downloadApp.useWeb')} →
           </a>
         </p>
       </section>

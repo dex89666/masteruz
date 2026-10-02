@@ -51,7 +51,7 @@ export function NotificationBell() {
             <p className="font-semibold text-sm text-gray-900 dark:text-white">{n.title}</p>
             <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5 line-clamp-2">{n.message}</p>
             <p className="text-xs text-orange-600 dark:text-orange-400 font-medium mt-1">
-              Нажмите, чтобы откликнуться →
+              {t('notifBell.tapToRespond')} →
             </p>
           </div>
         </div>

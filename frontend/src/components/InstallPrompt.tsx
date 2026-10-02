@@ -82,9 +82,9 @@ export function InstallPrompt() {
           </div>
           <div className="flex-1">
             <h3 className="font-semibold text-sm text-gray-900 mb-1">{t('common.appName')}</h3>
-            <p className="text-xs text-gray-500 mb-3">Установите приложение для быстрого доступа</p>
+            <p className="text-xs text-gray-500 mb-3">{t('installPrompt.text')}</p>
             <button onClick={handleInstall} className="btn-primary text-xs px-4 py-1.5 w-full">
-              Установить
+              {t('installPrompt.install')}
             </button>
           </div>
         </div>
@@ -104,9 +104,9 @@ export function InstallPrompt() {
             <Smartphone size={20} className="text-blue-400" />
           </div>
           <div className="flex-1">
-            <h3 className="font-semibold text-sm text-white mb-1">Скачайте APK</h3>
+            <h3 className="font-semibold text-sm text-white mb-1">{t('installPrompt.apkTitle')}</h3>
             <p className="text-xs text-slate-400 mb-3">
-              Установите нативное приложение MasterUz
+              {t('installPrompt.apkText')}
             </p>
             <Link
               to="/download"
@@ -115,7 +115,7 @@ export function InstallPrompt() {
                          text-white text-xs font-semibold px-4 py-2 rounded-xl transition-colors"
             >
               <Download size={14} />
-              Скачать приложение
+              {t('installPrompt.download')}
             </Link>
           </div>
         </div>

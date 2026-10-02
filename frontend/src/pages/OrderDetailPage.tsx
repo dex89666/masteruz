@@ -24,7 +24,7 @@ import { useAuthStore } from '../store';
 import { useFormatPrice } from '../hooks';
 import { useOrderEvents } from '../hooks/useOrderEvents';
 import { useMasterLocationBroadcast } from '../hooks/useMasterLocationBroadcast';
-import { useTranslation } from '../i18n';
+import { useTranslation, useLocalizedName } from '../i18n';
 import { resolveImageUrl } from '../lib/imageUrl';
 import {
   MapPin, Clock, DollarSign, User, Phone,
@@ -39,7 +39,8 @@ export function OrderDetailPage() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const formatPrice = useFormatPrice();
-  const { t, locale } = useTranslation();
+  const { t, tn, locale } = useTranslation();
+  const ln = useLocalizedName();
 
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
@@ -147,7 +148,7 @@ export function OrderDetailPage() {
       toast.success(t('antiFraud.orderCompleted'), { duration: 6000 });
     }
     if (event === 'awaiting_remainder' && isOwner) {
-      toast('Мастер завершил работу — выберите способ доплаты', { duration: 6000, icon: '💳' });
+      toast(t('orderView.masterDoneChoosePay'), { duration: 6000, icon: '💳' });
     }
     if (event === 'master_assigned') {
       toast(t('antiFraud.masterAssignedNotify'), { duration: 5000 });
@@ -285,8 +286,8 @@ export function OrderDetailPage() {
       await ordersApi.submitRemainder(id!, method);
       toast.success(
         method === 'CASH'
-          ? 'Заказ закрыт. Передайте остаток мастеру наличными.'
-          : 'Доплата списана с баланса. Заказ закрыт.',
+          ? t('orderView.closedCash')
+          : t('orderView.closedCard'),
       );
       loadOrder();
     } catch (error: any) {
@@ -311,15 +312,16 @@ export function OrderDetailPage() {
           (new Date(warning.blockedUntil).getTime() - Date.now()) / (24 * 3600 * 1000),
         );
         toast.error(
-          `Аккаунт заблокирован за систематические отмены на ${days} дн. ` +
-          `Штраф ${formatPrice(data.penaltyAmount, t('common.currency'))} списан.`,
+          t('orderView.blockedForCancels', { days, penalty: formatPrice(data.penaltyAmount, t('common.currency')) }),
           { duration: 8000 },
         );
       } else if (warning) {
         toast.error(
-          `Предупреждение ${warning.warningNo}/${warning.threshold}. ` +
-          `Штраф ${formatPrice(data.penaltyAmount, t('common.currency'))} списан. ` +
-          `На ${warning.threshold}-м предупреждении — блок 5 дней.`,
+          t('orderView.warningIssued', {
+            no: warning.warningNo,
+            threshold: warning.threshold,
+            penalty: formatPrice(data.penaltyAmount, t('common.currency')),
+          }),
           { duration: 7000 },
         );
       } else if (data.penaltyAmount > 0) {
@@ -499,7 +501,7 @@ export function OrderDetailPage() {
                 : 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
             }`}>
               <div className="text-[10px] uppercase tracking-wide font-semibold text-blue-700 dark:text-blue-300 flex items-center gap-1">
-                <Shield size={11} /> Депозит (оплачен)
+                <Shield size={11} /> {t('orderView.depositPaid')}
               </div>
               <div className="text-sm font-bold text-blue-900 dark:text-blue-100 mt-1">
                 {formatPrice(order.depositAmount ?? 0, t('common.currency'))}
@@ -517,8 +519,8 @@ export function OrderDetailPage() {
               }`}>
                 {order.remainderPaidAt ? <Check size={11} /> : <Clock size={11} />}
                 {order.remainderPaidAt
-                  ? `Доплата (${order.remainderMethod === 'CASH' ? 'наличными' : 'картой'})`
-                  : 'Остаток (при завершении)'}
+                  ? t('orderView.remainderPaid', { method: order.remainderMethod === 'CASH' ? t('orderView.byCash') : t('orderView.byCard') })
+                  : t('orderView.remainderOnCompletion')}
               </div>
               <div className={`text-sm font-bold mt-1 ${
                 order.remainderPaidAt ? 'text-emerald-900 dark:text-emerald-100' : 'text-amber-900 dark:text-amber-100'
@@ -545,7 +547,7 @@ export function OrderDetailPage() {
         <div className="card mb-4">
           <span className="text-sm text-gray-500 dark:text-gray-400">{t('orders.category')}</span>
           <p className="font-medium dark:text-white">
-            {order.category.name}
+            {ln(order.category)}
           </p>
         </div>
       )}
@@ -559,7 +561,7 @@ export function OrderDetailPage() {
               <div key={ot.id} className="flex items-start gap-2 text-sm bg-green-50 dark:bg-green-900/20 px-3 py-2 rounded-lg">
                 <span className="text-green-600 dark:text-green-400 mt-0.5"><Check size={14} /></span>
                 <div>
-                  <p className="font-medium text-gray-800 dark:text-gray-200">{ot.task?.name}</p>
+                  <p className="font-medium text-gray-800 dark:text-gray-200">{ln(ot.task)}</p>
                   {ot.task?.description && (
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{ot.task.description}</p>
                   )}
@@ -577,7 +579,7 @@ export function OrderDetailPage() {
       {order.aiTemplate && (
         <div className="card mb-4">
           <div className="flex items-center justify-between mb-2">
-            <h2 className="text-sm text-gray-500 dark:text-gray-400">AI-смета</h2>
+            <h2 className="text-sm text-gray-500 dark:text-gray-400">{t('orderView.aiEstimate')}</h2>
             <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300">
               {order.aiTemplate.tierLabel}
             </span>
@@ -587,7 +589,7 @@ export function OrderDetailPage() {
           )}
           {Array.isArray(order.aiTemplate.materials) && order.aiTemplate.materials.length > 0 && (
             <div className="space-y-1.5 mb-3">
-              <p className="text-xs font-semibold text-gray-500 dark:text-gray-400">Материалы и работы:</p>
+              <p className="text-xs font-semibold text-gray-500 dark:text-gray-400">{t('orderView.materialsAndWorks')}:</p>
               {order.aiTemplate.materials.map((m, idx) => (
                 <div key={idx} className="flex items-center justify-between text-sm py-1 border-b border-gray-100 dark:border-gray-700 last:border-0">
                   <span className="text-gray-700 dark:text-gray-300">
@@ -601,14 +603,14 @@ export function OrderDetailPage() {
             </div>
           )}
           <div className="flex items-center justify-between pt-2 border-t border-gray-200 dark:border-gray-700">
-            <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">Итого AI-смета:</span>
+            <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">{t('orderView.aiEstimateTotal')}:</span>
             <span className="text-base font-bold text-primary-600 dark:text-primary-400">
               {formatPrice(order.aiTemplate.estimatedPrice, t('common.currency'))}
             </span>
           </div>
           {order.aiTemplate.estimatedDays > 0 && (
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              Срок выполнения: ~{order.aiTemplate.estimatedDays} {order.aiTemplate.estimatedDays === 1 ? 'день' : 'дн.'}
+              {t('orderView.duration')}: ~{tn('orderView.days', order.aiTemplate.estimatedDays)}
             </p>
           )}
         </div>
@@ -620,7 +622,7 @@ export function OrderDetailPage() {
         if (photos.length === 0) return null;
         return (
           <div className="card mb-4">
-            <h2 className="text-sm text-gray-500 dark:text-gray-400 mb-2">Фотографии заказа</h2>
+            <h2 className="text-sm text-gray-500 dark:text-gray-400 mb-2">{t('orderView.orderPhotos')}</h2>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {photos.map((img: string, idx: number) => (
                 <button
@@ -628,11 +630,11 @@ export function OrderDetailPage() {
                   type="button"
                   onClick={() => setLightboxIndex(idx)}
                   className="block w-full focus:outline-none focus:ring-2 focus:ring-primary-500 rounded-lg"
-                  aria-label={`Открыть фото ${idx + 1}`}
+                  aria-label={t('orderView.openPhoto', { n: idx + 1 })}
                 >
                   <img
                     src={img}
-                    alt={`Фото ${idx + 1}`}
+                    alt={t('instant.photoAlt', { n: idx + 1 })}
                     className="w-full h-32 object-cover rounded-lg border border-gray-200 dark:border-gray-700 hover:opacity-90 transition-opacity cursor-zoom-in"
                     onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                   />
@@ -671,7 +673,7 @@ export function OrderDetailPage() {
                     onClick={() => { setAdminCommentDraft(order.adminComment || ''); setEditingAdminComment(true); }}
                     className="text-xs text-purple-500 hover:text-purple-700 dark:hover:text-purple-300"
                   >
-                    {order.adminComment ? 'Изменить' : '+ Добавить'}
+                    {order.adminComment ? t('common.edit') : `+ ${t('photos.add')}`}
                   </button>
                 )}
               </div>
@@ -682,7 +684,7 @@ export function OrderDetailPage() {
                     onChange={(e) => setAdminCommentDraft(e.target.value)}
                     className="input text-sm w-full"
                     rows={3}
-                    placeholder="Комментарий к заказу..."
+                    placeholder={t('orderView.commentPlaceholder')}
                   />
                   <div className="flex gap-2 mt-2">
                     <button
@@ -691,25 +693,25 @@ export function OrderDetailPage() {
                           await adminApi.updateOrderComment(id!, adminCommentDraft);
                           setEditingAdminComment(false);
                           loadOrder();
-                          toast.success('Комментарий сохранён');
+                          toast.success(t('orderView.commentSaved'));
                         } catch (err: any) {
                           const msg =
                             err?.response?.data?.message ||
                             err?.response?.data?.error?.message ||
                             err?.message ||
-                            'Ошибка сохранения';
+                            t('orderView.saveError');
                           toast.error(msg);
                         }
                       }}
                       className="px-3 py-1.5 text-xs rounded-lg bg-purple-500 text-white hover:bg-purple-600"
                     >
-                      Сохранить
+                      {t('common.save')}
                     </button>
                     <button
                       onClick={() => setEditingAdminComment(false)}
                       className="px-3 py-1.5 text-xs rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
                     >
-                      Отмена
+                      {t('common.cancel')}
                     </button>
                   </div>
                 </div>
@@ -729,8 +731,8 @@ export function OrderDetailPage() {
               <span className="text-lg"><Search size={20} /></span>
             </div>
             <div>
-              <h3 className="font-bold text-gray-900 dark:text-white">Заказ на оценку</h3>
-              <p className="text-xs text-gray-500">Выезд мастера: {formatPrice(order.estimationFee || 150000, t('common.currency'))}</p>
+              <h3 className="font-bold text-gray-900 dark:text-white">{t('orderView.estimationOrder')}</h3>
+              <p className="text-xs text-gray-500">{t('orderView.visitFee')}: {formatPrice(order.estimationFee || 150000, t('common.currency'))}</p>
             </div>
           </div>
 
@@ -740,15 +742,15 @@ export function OrderDetailPage() {
               onClick={async () => {
                 try {
                   await estimationApi.acceptEstimation(order.id);
-                  toast.success('Заказ принят! Выезжайте к клиенту.');
+                  toast.success(t('orderView.estimationAccepted'));
                   loadOrder();
                 } catch (err: any) {
-                  toast.error(err.response?.data?.error?.message || 'Ошибка');
+                  toast.error(err.response?.data?.error?.message || t('common.error'));
                 }
               }}
               className="w-full py-3 bg-cyan-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-cyan-700"
             >
-              Принять заказ на оценку (комиссия 30 000 сум)
+              {t('orderView.acceptEstimation')}
             </button>
           )}
 
@@ -758,7 +760,7 @@ export function OrderDetailPage() {
               to={`/estimation/${order.id}/form`}
               className="w-full py-3 bg-primary-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-primary-700"
             >
-              {order.status === 'ESTIMATION_IN_PROGRESS' ? 'Составить смету' : 'Редактировать смету'}
+              {order.status === 'ESTIMATION_IN_PROGRESS' ? t('orderView.makeEstimate') : t('orderView.editEstimate')}
             </Link>
           )}
 
@@ -768,22 +770,22 @@ export function OrderDetailPage() {
               to={`/estimation/${order.id}/estimate`}
               className="w-full py-3 bg-green-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-green-700 mt-2"
             >
-              {isAdmin && !isOwner ? 'Просмотреть смету (модерация)' : 'Посмотреть смету'}
+              {isAdmin && !isOwner ? t('orderView.viewEstimateModeration') : t('orderView.viewEstimate')}
             </Link>
           )}
 
           {/* Статус-сообщения */}
           {order.status === 'ESTIMATION_IN_PROGRESS' && isOwner && (
-            <p className="text-sm text-cyan-700 dark:text-cyan-400 mt-2">Мастер выехал. Ожидайте замеры и смету.</p>
+            <p className="text-sm text-cyan-700 dark:text-cyan-400 mt-2">{t('orderView.masterLeftEstimate')}</p>
           )}
           {order.status === 'ESTIMATE_APPROVED' && (
-            <p className="text-sm text-green-700 dark:text-green-400 mt-2">Смета одобрена. Ожидание модерации.</p>
+            <p className="text-sm text-green-700 dark:text-green-400 mt-2">{t('orderView.estimateApproved')}</p>
           )}
           {order.status === 'MODERATION' && (
-            <p className="text-sm text-violet-700 dark:text-violet-400 mt-2">Смета на модерации. Администратор проверяет.</p>
+            <p className="text-sm text-violet-700 dark:text-violet-400 mt-2">{t('orderView.estimateModeration')}</p>
           )}
           {order.status === 'ESTIMATE_REJECTED' && (
-            <p className="text-sm text-red-600 dark:text-red-400 mt-2">Смета отклонена клиентом. Мастер получил 120 000 сум за выезд.</p>
+            <p className="text-sm text-red-600 dark:text-red-400 mt-2">{t('orderView.estimateRejected')}</p>
           )}
         </div>
       )}
@@ -809,22 +811,22 @@ export function OrderDetailPage() {
               </div>
               <div>
                 <h3 className="font-bold text-gray-900 dark:text-white">
-                  {order.status === 'IN_TRANSIT' ? 'Мастер уже в пути' : 'Мастер скоро выедет'}
+                  {order.status === 'IN_TRANSIT' ? t('orderView.masterOnWay') : t('orderView.masterSoon')}
                 </h3>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
                   {masterLive
-                    ? 'Точка обновляется в реальном времени'
-                    : 'Когда мастер начнёт движение, его позиция появится на карте'}
+                    ? t('orderView.liveUpdates')
+                    : t('orderView.positionWillAppear')}
                 </p>
                 {order.status === 'IN_TRANSIT' && order.transitReason && (
                   <p className="text-xs mt-1 text-indigo-700 dark:text-indigo-300 font-medium">
                     {order.transitReason === 'MATERIAL'
-                      ? '🛒 Поехал за материалом'
-                      : '🚗 Едет к вам'}
+                      ? `🛒 ${t('orderView.wentForMaterial')}`
+                      : `🚗 ${t('orderView.comingToYou')}`}
                     {order.transitEtaAt && (
                       <>
-                        {' · прибытие к '}
-                        {new Date(order.transitEtaAt).toLocaleTimeString('ru-RU', {
+                        {` · ${t('orderView.arrivalBy')} `}
+                        {new Date(order.transitEtaAt).toLocaleTimeString(locale, {
                           hour: '2-digit',
                           minute: '2-digit',
                         })}
@@ -841,7 +843,7 @@ export function OrderDetailPage() {
               masterLng={masterLive?.lng}
               height={240}
               showActions={false}
-              orderLabel="Адрес заказа"
+              orderLabel={t('instant.orderAddress')}
             />
           </div>
         )}
@@ -856,9 +858,9 @@ export function OrderDetailPage() {
               <Truck size={22} className="text-indigo-600 dark:text-indigo-400" />
             </div>
             <div className="flex-1">
-              <h3 className="font-bold text-gray-900 dark:text-white">Подтвердите выезд</h3>
+              <h3 className="font-bold text-gray-900 dark:text-white">{t('orderView.confirmDeparture')}</h3>
               <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">
-                Выберите вариант — клиент получит уведомление и будет видеть статус.
+                {t('orderView.departureHint')}
               </p>
             </div>
           </div>
@@ -867,35 +869,35 @@ export function OrderDetailPage() {
               onClick={() =>
                 ordersApi
                   .updateStatus(id!, 'IN_TRANSIT', { transitReason: 'MATERIAL', etaMinutes: 90 })
-                  .then(() => { toast.success('Вы поехали за материалом'); loadOrder(); })
+                  .then(() => { toast.success(t('orderView.youWentForMaterial')); loadOrder(); })
                   .catch((e: any) =>
                     toast.error(
                       e?.response?.data?.error?.message ||
                         e?.response?.data?.message ||
-                        'Не удалось обновить статус'
+                        t('orderView.statusUpdateFailed')
                     )
                   )
               }
               className="py-3 px-4 rounded-xl font-semibold text-white bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 transition-all flex items-center justify-center gap-2"
             >
-              🛒 Выехал за материалом
+              🛒 {t('orderView.leftForMaterial')}
             </button>
             <button
               onClick={() =>
                 ordersApi
                   .updateStatus(id!, 'IN_TRANSIT', { transitReason: 'TO_CLIENT', etaMinutes: 60 })
-                  .then(() => { toast.success('Клиент уведомлён, что вы в пути'); loadOrder(); })
+                  .then(() => { toast.success(t('orderView.clientNotified')); loadOrder(); })
                   .catch((e: any) =>
                     toast.error(
                       e?.response?.data?.error?.message ||
                         e?.response?.data?.message ||
-                        'Не удалось обновить статус'
+                        t('orderView.statusUpdateFailed')
                     )
                   )
               }
               className="py-3 px-4 rounded-xl font-semibold text-white bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 transition-all flex items-center justify-center gap-2"
             >
-              🚗 Выехал к клиенту · 1 ч
+              🚗 {t('orderView.leftToClient')}
             </button>
           </div>
           {/* Встроенная карта с маршрутом и кнопками навигаторов */}
@@ -907,7 +909,7 @@ export function OrderDetailPage() {
                 myLat={masterLive?.lat}
                 myLng={masterLive?.lng}
                 height={220}
-                orderLabel={[order.city, order.district, order.street].filter(Boolean).join(', ') || order.address || 'Адрес заказа'}
+                orderLabel={[order.city, order.district, order.street].filter(Boolean).join(', ') || order.address || t('instant.orderAddress')}
               />
             </div>
           )}
@@ -921,12 +923,12 @@ export function OrderDetailPage() {
           {order.transitReason && (
             <div className="mb-3 px-3 py-2 rounded-lg bg-white/70 dark:bg-gray-800/40 border border-purple-200 dark:border-purple-700 text-sm">
               <span className="font-semibold text-purple-700 dark:text-purple-300">
-                {order.transitReason === 'MATERIAL' ? '🛒 Едете за материалом' : '🚗 Едете к клиенту'}
+                {order.transitReason === 'MATERIAL' ? `🛒 ${t('orderView.goingForMaterial')}` : `🚗 ${t('orderView.goingToClient')}`}
               </span>
               {order.transitEtaAt && (
                 <span className="text-gray-600 dark:text-gray-400 ml-2">
                   · ETA{' '}
-                  {new Date(order.transitEtaAt).toLocaleTimeString('ru-RU', {
+                  {new Date(order.transitEtaAt).toLocaleTimeString(locale, {
                     hour: '2-digit',
                     minute: '2-digit',
                   })}
@@ -942,7 +944,7 @@ export function OrderDetailPage() {
               <h3 className="font-bold text-gray-900 dark:text-white">{t('antiFraud.arrivedAtClient')}</h3>
               <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">{t('antiFraud.arrivedDesc')}</p>
               <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">
-                ⚠️ Нажать можно только на месте заказа (радиус 500 м)
+                ⚠️ {t('orderView.onSiteOnly')}
               </p>
             </div>
           </div>
@@ -952,7 +954,7 @@ export function OrderDetailPage() {
             className="w-full mt-4 py-3 rounded-xl font-semibold text-white bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 disabled:opacity-60 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
           >
             <CheckCircle size={18} />
-            {arriving ? 'Проверяем вашу позицию…' : t('antiFraud.startWork')}
+            {arriving ? t('orderView.checkingPosition') : t('antiFraud.startWork')}
           </button>
           {/* Встроенная карта */}
           {order.latitude && order.longitude && (
@@ -963,7 +965,7 @@ export function OrderDetailPage() {
                 myLat={masterLive?.lat}
                 myLng={masterLive?.lng}
                 height={220}
-                orderLabel={[order.city, order.district, order.street].filter(Boolean).join(', ') || order.address || 'Адрес заказа'}
+                orderLabel={[order.city, order.district, order.street].filter(Boolean).join(', ') || order.address || t('instant.orderAddress')}
               />
             </div>
           )}
@@ -1060,9 +1062,9 @@ export function OrderDetailPage() {
               <CheckCircle size={22} className="text-blue-600 dark:text-blue-400" />
             </div>
             <div className="flex-1">
-              <h3 className="font-bold text-gray-900 dark:text-white">Работа выполнена — оплатите остаток</h3>
+              <h3 className="font-bold text-gray-900 dark:text-white">{t('orderView.payRemainderTitle')}</h3>
               <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">
-                Мастер завершил работу. Депозит {formatPrice(order.depositAmount ?? 0, t('common.currency'))} уже оплачен. Осталось доплатить:
+                {t('orderView.payRemainderText', { deposit: formatPrice(order.depositAmount ?? 0, t('common.currency')) })}
               </p>
               <p className="text-lg font-bold text-blue-700 dark:text-blue-300 mt-1">
                 {formatPrice(order.remainingAmount ?? 0, t('common.currency'))}
@@ -1077,8 +1079,8 @@ export function OrderDetailPage() {
               className="py-3 px-3 rounded-xl font-semibold text-white bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 transition-all flex flex-col items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {submittingRemainder === 'CASH' ? <Loader size={20} className="animate-spin" /> : <DollarSign size={20} />}
-              <span className="text-sm">Наличными мастеру</span>
-              <span className="text-[10px] opacity-80">Передадите при встрече</span>
+              <span className="text-sm">{t('orderView.cashToMaster')}</span>
+              <span className="text-[10px] opacity-80">{t('orderView.handOver')}</span>
             </button>
             <button
               onClick={() => handleSubmitRemainder('CARD')}
@@ -1086,8 +1088,8 @@ export function OrderDetailPage() {
               className="py-3 px-3 rounded-xl font-semibold text-white bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 transition-all flex flex-col items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {submittingRemainder === 'CARD' ? <Loader size={20} className="animate-spin" /> : <CreditCard size={20} />}
-              <span className="text-sm">Картой через приложение</span>
-              <span className="text-[10px] opacity-80">Списать с баланса</span>
+              <span className="text-sm">{t('orderView.cardInApp')}</span>
+              <span className="text-[10px] opacity-80">{t('orderView.chargeBalance')}</span>
             </button>
           </div>
 
@@ -1096,11 +1098,11 @@ export function OrderDetailPage() {
             className="w-full mt-3 py-2 px-3 rounded-lg text-sm font-medium text-orange-600 dark:text-orange-400 bg-orange-100/60 dark:bg-orange-900/20 hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-all flex items-center justify-center gap-2"
           >
             <AlertTriangle size={14} />
-            Что-то пошло не так — открыть спор
+            {t('orderView.openDisputeLink')}
           </button>
 
           <p className="text-[11px] leading-relaxed text-gray-500 dark:text-gray-400 mt-3">
-            💡 Депозит уже включает комиссию платформы. При оплате наличными мастер получит свою часть из депозита, вы заплатите ему оставшуюся сумму напрямую.
+            💡 {t('orderView.depositIncludesCommission')}
           </p>
         </div>
       )}
@@ -1111,9 +1113,9 @@ export function OrderDetailPage() {
           <div className="flex items-center gap-3">
             <Clock size={20} className="text-blue-600 dark:text-blue-400" />
             <div>
-              <p className="font-semibold text-blue-800 dark:text-blue-300">Ожидание оплаты остатка клиентом</p>
+              <p className="font-semibold text-blue-800 dark:text-blue-300">{t('orderView.waitingRemainder')}</p>
               <p className="text-xs text-blue-600 dark:text-blue-400 mt-0.5">
-                Клиент выбирает способ: наличными вам или картой ({formatPrice(order.remainingAmount ?? 0, t('common.currency'))})
+                {t('orderView.clientChoosing')} ({formatPrice(order.remainingAmount ?? 0, t('common.currency'))})
               </p>
             </div>
           </div>
@@ -1161,7 +1163,7 @@ export function OrderDetailPage() {
           className="mb-4 flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-500 hover:opacity-95 text-white font-semibold transition active:scale-[0.99]"
         >
           <Star size={18} />
-          Оценить клиента
+          {t('orderView.rateClient')}
         </Link>
       )}
 
@@ -1209,12 +1211,12 @@ export function OrderDetailPage() {
               <CreditCard size={20} className="text-blue-600 dark:text-blue-400" />
             </div>
             <div className="flex-1">
-              <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Комиссия платформы: {Number(order.commissionRate)}%</h3>
+              <h3 className="font-semibold text-gray-900 dark:text-white text-sm">{t('orderView.platformCommission')}: {Number(order.commissionRate)}%</h3>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                Удерживается автоматически при завершении заказа ({formatPrice(order.commissionAmount, t('common.currency'))})
+                {t('orderView.commissionHeld')} ({formatPrice(order.commissionAmount, t('common.currency'))})
               </p>
               <p className="text-xs text-green-600 dark:text-green-400 mt-1">
-                Вы получите: {formatPrice(Number(order.escrowAmount) - Number(order.commissionAmount), t('common.currency'))}
+                {t('orderView.youReceive')}: {formatPrice(Number(order.escrowAmount) - Number(order.commissionAmount), t('common.currency'))}
               </p>
             </div>
           </div>
@@ -1256,8 +1258,8 @@ export function OrderDetailPage() {
                 <MessageSquare size={18} className="text-amber-600 dark:text-amber-400" />
               </div>
               <div>
-                <p className="text-xs text-amber-700 dark:text-amber-300">Телефон клиента не указан</p>
-                <p className="font-semibold text-gray-900 dark:text-white">Открыть чат с клиентом</p>
+                <p className="text-xs text-amber-700 dark:text-amber-300">{t('orderView.noClientPhone')}</p>
+                <p className="font-semibold text-gray-900 dark:text-white">{t('orderView.openClientChat')}</p>
               </div>
             </button>
           )}
@@ -1327,8 +1329,8 @@ export function OrderDetailPage() {
                   <Navigation size={18} />
                 </div>
                 <div className="flex-1">
-                  <p className="font-semibold">Яндекс.Навигатор</p>
-                  <p className="text-xs text-white/80">Маршрут от вашего местоположения к клиенту</p>
+                  <p className="font-semibold">{t('orderView.yandexNavigator')}</p>
+                  <p className="text-xs text-white/80">{t('orderView.routeToClient')}</p>
                 </div>
                 <Map size={16} className="opacity-60" />
               </button>
@@ -1345,7 +1347,7 @@ export function OrderDetailPage() {
                 </div>
                 <div className="flex-1">
                   <p className="text-xs text-gray-500 dark:text-gray-400">{t('commissionPayment.clientGeo')}</p>
-                  <p className="font-semibold text-gray-900 dark:text-white">Показать на карте</p>
+                  <p className="font-semibold text-gray-900 dark:text-white">{t('orderView.showOnMap')}</p>
                 </div>
               </a>
             </div>
@@ -1365,8 +1367,8 @@ export function OrderDetailPage() {
                   <Navigation size={18} />
                 </div>
                 <div className="flex-1">
-                  <p className="font-semibold">Проложить маршрут в Яндекс.Картах</p>
-                  <p className="text-xs text-white/80">Точные координаты не указаны — поиск по адресу</p>
+                  <p className="font-semibold">{t('orderView.routeYandexMaps')}</p>
+                  <p className="text-xs text-white/80">{t('orderView.noCoordsSearch')}</p>
                 </div>
                 <Map size={16} className="opacity-60" />
               </a>
@@ -1376,7 +1378,7 @@ export function OrderDetailPage() {
           {/* Описание заказа для мастера — полное */}
           {order.description && (
             <div className="mt-3 p-3 rounded-xl bg-white dark:bg-gray-800">
-              <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">Описание заказа</p>
+              <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">{t('orderView.orderDescription')}</p>
               <p className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-line">{order.description}</p>
             </div>
           )}
@@ -1387,7 +1389,7 @@ export function OrderDetailPage() {
             if (photos.length === 0) return null;
             return (
               <div className="mt-3 p-3 rounded-xl bg-white dark:bg-gray-800">
-                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">Фотографии заказа</p>
+                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">{t('orderView.orderPhotos')}</p>
                 <div className="grid grid-cols-3 gap-2">
                   {photos.map((img: string, idx: number) => (
                     <button
@@ -1395,11 +1397,11 @@ export function OrderDetailPage() {
                       type="button"
                       onClick={() => setLightboxIndex(idx)}
                       className="block w-full focus:outline-none focus:ring-2 focus:ring-primary-500 rounded-lg"
-                      aria-label={`Открыть фото ${idx + 1}`}
+                      aria-label={t('orderView.openPhoto', { n: idx + 1 })}
                     >
                       <img
                         src={img}
-                        alt={`Фото ${idx + 1}`}
+                        alt={t('instant.photoAlt', { n: idx + 1 })}
                         className="w-full h-24 object-cover rounded-lg border border-gray-200 dark:border-gray-700 hover:opacity-90 transition-opacity cursor-zoom-in"
                         onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                       />
@@ -1612,15 +1614,14 @@ export function OrderDetailPage() {
                 <ThumbsUp size={24} className="text-green-600 dark:text-green-400" />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white">Подтвердите выполненную работу</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Вы подтверждаете, что мастер качественно выполнил работу?</p>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white">{t('orderView.confirmWorkTitle')}</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">{t('orderView.confirmWorkQuestion')}</p>
               </div>
             </div>
 
             <div className="mb-4 p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
               <p className="text-xs text-amber-700 dark:text-amber-300">
-                ⚠️ После подтверждения средства будут переведены мастеру и оспорить работу будет нельзя.
-                Если есть претензии — нажмите «Открыть спор» вместо подтверждения.
+                ⚠️ {t('orderView.confirmWorkWarning')}
               </p>
             </div>
 
@@ -1631,14 +1632,14 @@ export function OrderDetailPage() {
                 className="flex-1 py-3 rounded-xl font-semibold text-white bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 disabled:opacity-60 transition-all flex items-center justify-center gap-2"
               >
                 {confirmingClient ? <Loader size={16} className="animate-spin" /> : <ThumbsUp size={16} />}
-                Да, подтверждаю
+                {t('orderView.yesConfirm')}
               </button>
               <button
                 onClick={() => setShowClientConfirm(false)}
                 disabled={confirmingClient}
                 className="flex-1 py-3 rounded-xl font-semibold text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
               >
-                Отмена
+                {t('common.cancel')}
               </button>
             </div>
           </div>
@@ -1676,14 +1677,14 @@ export function OrderDetailPage() {
             {/* Особое предупреждение для мастера на IN_TRANSIT+ — 15% + warning */}
             {penaltyInfo.warning && (
               <div className="mb-4 rounded-xl border border-red-300 dark:border-red-700/60 bg-red-50 dark:bg-red-900/20 p-3 text-sm text-red-800 dark:text-red-300">
-                <div className="font-semibold mb-1">⚠️ Дисциплинарное предупреждение</div>
+                <div className="font-semibold mb-1">⚠️ {t('orderView.disciplinaryWarning')}</div>
                 <p className="leading-relaxed">
-                  Вы уже выехали на заказ и видели контакты клиента. Отмена сейчас:
+                  {t('orderView.cancelAfterTransit')}
                 </p>
                 <ul className="list-disc pl-5 mt-1 space-y-0.5">
-                  <li>штраф <b>{formatPrice(penaltyInfo.amount, t('common.currency'))}</b> (15% от стоимости);</li>
-                  <li>+1 предупреждение к вашему счётчику;</li>
-                  <li>на 4-м предупреждении — блокировка аккаунта на 5 дней.</li>
+                  <li>{t('orderView.penaltyLine1')} <b>{formatPrice(penaltyInfo.amount, t('common.currency'))}</b> {t('orderView.penaltyLine1b')}</li>
+                  <li>{t('orderView.penaltyLine2')}</li>
+                  <li>{t('orderView.penaltyLine3')}</li>
                 </ul>
               </div>
             )}

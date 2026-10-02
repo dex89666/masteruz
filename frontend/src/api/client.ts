@@ -5,6 +5,7 @@
 
 import axios from 'axios';
 import type { ApiResponse, PaginatedResponse } from '../types';
+import { translate } from '../i18n';
 
 // Определяем backend URL автоматически:
 // 1) Если VITE_API_URL задан явно — используем его (для Android APK, Vercel)
@@ -153,7 +154,7 @@ api.interceptors.response.use(
 
     // Сетевая ошибка без ответа от сервера (timeout, ECONNREFUSED, offline)
     if (!error.response) {
-      error.message = 'Ошибка соединения. Проверьте интернет и попробуйте снова';
+      error.message = translate('common.connectionError');
     }
 
     return Promise.reject(error);
@@ -245,7 +246,26 @@ export const onlineStatusApi = {
 };
 
 // ─── Orders API ────────────────────────────
+/** Расчёт стоимости заказа с бэкенда — те же формулы, что при создании */
+export interface OrderQuote {
+  minWorkPrice: number;
+  workPrice: number;
+  urgentMultiplier: number;
+  visitFee: number;
+  totalAmount: number;
+  depositRatePct: number;
+  depositAmount: number;
+  remainingAmount: number;
+  commissionRate: number;
+  commissionAmount: number;
+  balance: number;
+  shortfall: number;
+}
+
 export const ordersApi = {
+  quote: (data: { price: number; taskIds?: string[]; isUrgent?: boolean }) =>
+    api.post<ApiResponse<OrderQuote>>('/orders/quote', data),
+
   list: (params?: any) =>
     api.get<PaginatedResponse<any>>('/orders', { params }),
 

@@ -56,6 +56,11 @@ interface I18nContextValue {
   setLanguage: (lang: Language) => void;
   /** Перевод по ключу. Второй аргумент — значения для плейсхолдеров {name}. */
   t: (key: string, params?: Record<string, string | number>) => string;
+  /**
+   * Перевод с формой множественного числа: ищет `${key}_one|_few|_many|_other`
+   * по правилам языка (Intl.PluralRules) и подставляет {n}.
+   */
+  tn: (key: string, n: number, params?: Record<string, string | number>) => string;
   /** locale для Intl/Date — 'ru-RU' | 'uz-UZ' | 'en-US' */
   locale: string;
 }
@@ -95,9 +100,20 @@ export function I18nProvider({ children }: { children: ReactNode }) {
 
   const locale = LOCALE_MAP[language];
 
+  const tn = useCallback(
+    (key: string, n: number, params?: Record<string, string | number>) => {
+      const rule = new Intl.PluralRules(locale).select(n);
+      const dict = dictionaries[language];
+      const exact = `${key}_${rule}`;
+      const resolved = getNestedValue(dict, exact) !== exact ? exact : `${key}_other`;
+      return interpolate(getNestedValue(dict, resolved), { n, ...params });
+    },
+    [language, locale],
+  );
+
   const value = useMemo<I18nContextValue>(
-    () => ({ language, setLanguage, t, locale }),
-    [language, setLanguage, t, locale],
+    () => ({ language, setLanguage, t, tn, locale }),
+    [language, setLanguage, t, tn, locale],
   );
 
   return React.createElement(I18nContext.Provider, { value }, children);
@@ -112,3 +128,30 @@ export function useTranslation() {
 
 // ─── Ре-экспорт типов ────────────────────
 export type { TranslationKeys };
+
+// ─── Локализованные поля из БД ───────────
+// Категории, подкатегории, задачи и т.п. приходят с бэкенда как
+// { name, nameUz, nameEn } — показываем вариант на языке пользователя,
+// при отсутствии перевода — русский оригинал.
+type LocalizedNamed = { name?: string | null; nameUz?: string | null; nameEn?: string | null };
+
+export function pickLocalizedName(item: LocalizedNamed | null | undefined, language: Language): string {
+  if (!item) return '';
+  if (language === 'uz' && item.nameUz) return item.nameUz;
+  if (language === 'en' && item.nameEn) return item.nameEn;
+  return item.name ?? '';
+}
+
+/** Хук: `const ln = useLocalizedName(); ln(order.category)` */
+export function useLocalizedName() {
+  const { language } = useTranslation();
+  return useCallback((item: LocalizedNamed | null | undefined) => pickLocalizedName(item, language), [language]);
+}
+
+/**
+ * Перевод вне React-компонентов (lib/*, сервисные модули): язык берётся
+ * из сохранённой настройки — той же, что выставляет setLanguage.
+ */
+export function translate(key: string, params?: Record<string, string | number>): string {
+  return interpolate(getNestedValue(dictionaries[getInitialLanguage()], key), params);
+}

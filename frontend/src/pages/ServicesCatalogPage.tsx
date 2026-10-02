@@ -14,7 +14,7 @@ import { useParentCategory } from '../hooks/useCatalogData';
 export function ServicesCatalogPage() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
-  const { t, language } = useTranslation();
+  const { t, tn, language } = useTranslation();
   const { category, isLoading } = useParentCategory(slug);
 
   // Если это дочерняя категория (без children, с subcategories) — редирект на CatalogPage
@@ -55,7 +55,7 @@ export function ServicesCatalogPage() {
         <button
           onClick={() => navigate('/')}
           className="p-3 -ml-3 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
-          aria-label="Назад"
+          aria-label={t('common.back')}
         >
           <ArrowLeft size={22} className="text-gray-600 dark:text-gray-400" />
         </button>
@@ -98,12 +98,12 @@ export function ServicesCatalogPage() {
                   {subcatCount > 0 && (
                     <span className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-1">
                       <Layers size={14} />
-                      {subcatCount} {subcatCount === 1 ? 'раздел' : subcatCount < 5 ? 'раздела' : 'разделов'}
+                      {tn('servicesCatalog.sections', subcatCount)}
                     </span>
                   )}
                   {totalTasks > 0 && (
                     <span className="text-sm text-gray-400 dark:text-gray-500">
-                      {totalTasks} услуг
+                      {tn('servicesCatalog.services', totalTasks)}
                     </span>
                   )}
                 </div>
@@ -120,7 +120,7 @@ export function ServicesCatalogPage() {
       {children.length === 0 && (
         <div className="text-center py-16 text-gray-400 dark:text-gray-500">
           <Layers size={48} className="mx-auto mb-4 opacity-50" />
-          <p className="text-lg">Категории скоро появятся</p>
+          <p className="text-lg">{t('servicesCatalog.soon')}</p>
         </div>
       )}
     </div>

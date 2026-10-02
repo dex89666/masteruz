@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { usersApi, favoritesApi, portfolioApi } from '../api/client';
 import { useAuthStore } from '../store';
-import { useTranslation } from '../i18n';
+import { useTranslation, useLocalizedName } from '../i18n';
 import { Breadcrumbs } from '../components/Breadcrumbs';
 import { ProfileSkeleton } from '../components/PageSkeletons';
 import {
@@ -24,6 +24,7 @@ export function MasterProfilePage() {
   const { user } = useAuthStore();
   // formatPrice removed (hourlyRate hidden from public profile)
   const { t } = useTranslation();
+  const ln = useLocalizedName();
 
   const [master, setMaster] = useState<UserType | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -187,7 +188,7 @@ export function MasterProfilePage() {
               if (!cat) return null;
               return (
                 <span key={cat.id} className="inline-flex items-center gap-1.5 badge bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400 text-sm">
-                  {cat.name}
+                  {ln(cat)}
                 </span>
               );
             })}
@@ -307,7 +308,7 @@ export function MasterProfilePage() {
               )}
               {portfolio[lightboxIdx].category && (
                 <span className="inline-block mt-2 text-xs bg-white/20 text-white px-3 py-1 rounded-full">
-                  {portfolio[lightboxIdx].category?.name}
+                  {ln(portfolio[lightboxIdx].category)}
                 </span>
               )}
               <p className="text-white/50 text-xs mt-2">
@@ -365,7 +366,7 @@ export function MasterProfilePage() {
                 )}
                 {review.order && (
                   <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
-                    {review.order.category?.name && `${review.order.category.name} · `}
+                    {review.order.category?.name && `${ln(review.order.category)} · `}
                     {review.order.title}
                   </p>
                 )}

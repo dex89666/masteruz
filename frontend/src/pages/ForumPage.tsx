@@ -10,6 +10,7 @@ import toast from 'react-hot-toast';
 
 // ─── Компонент выбора фото (галерея + камера) ───
 function PhotoPicker({ images, onChange, max = 5 }: { images: File[]; onChange: (files: File[]) => void; max?: number }) {
+  const { t } = useTranslation();
   const galleryRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
 
@@ -53,7 +54,7 @@ function PhotoPicker({ images, onChange, max = 5 }: { images: File[]; onChange: 
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
           >
             <Image size={14} />
-            Галерея
+            {t('createOrder.gallery')}
           </button>
           <button
             type="button"
@@ -61,7 +62,7 @@ function PhotoPicker({ images, onChange, max = 5 }: { images: File[]; onChange: 
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
           >
             <Camera size={14} />
-            Камера
+            {t('createOrder.camera')}
           </button>
           <input ref={galleryRef} type="file" accept="image/*" multiple hidden onChange={e => addFiles(e.target.files)} />
           <input ref={cameraRef} type="file" accept="image/*" capture="environment" hidden onChange={e => addFiles(e.target.files)} />
@@ -73,6 +74,7 @@ function PhotoPicker({ images, onChange, max = 5 }: { images: File[]; onChange: 
 
 // ─── Компонент отображения изображений ───
 function ForumImages({ images }: { images?: string[] }) {
+  const { t } = useTranslation();
   const [lightbox, setLightbox] = useState<string | null>(null);
   if (!images || images.length === 0) return null;
   return (
@@ -84,7 +86,7 @@ function ForumImages({ images }: { images?: string[] }) {
             // Бэкенд отдаёт относительный путь /uploads/…, а фронтенд на Railway
             // его не проксирует — без адреса бэкенда картинка была бы битой.
             src={resolveImageUrl(url) ?? undefined}
-            alt={`Фото ${idx + 1}`}
+            alt={t('instant.photoAlt', { n: idx + 1 })}
             className="w-full h-24 object-cover rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer hover:opacity-90 transition-opacity"
             onClick={() => setLightbox(url)}
           />

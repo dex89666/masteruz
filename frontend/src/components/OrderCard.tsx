@@ -6,7 +6,7 @@ import { Link } from 'react-router-dom';
 import { MapPin, Clock, MessageSquare, Wallet, Zap } from 'lucide-react';
 import CategoryIcon from './CategoryIcon';
 import AutoCancelCountdown from './AutoCancelCountdown';
-import { useTranslation } from '../i18n';
+import { useTranslation, useLocalizedName } from '../i18n';
 import { resolveImageUrl } from '../lib/imageUrl';
 import type { Order } from '../types';
 
@@ -27,6 +27,7 @@ const statusClasses: Record<string, string> = {
 
 export function OrderCard({ order, formatPrice, showNetEarnings }: OrderCardProps) {
   const { t, locale } = useTranslation();
+  const ln = useLocalizedName();
   const statusClass = statusClasses[order.status] || 'badge-info';
   const statusLabel = t(`orderStatus.${order.status}`) || order.status;
 
@@ -53,7 +54,7 @@ export function OrderCard({ order, formatPrice, showNetEarnings }: OrderCardProp
           <div className="flex items-center gap-2">
             <CategoryIcon name={order.category?.icon || 'Wrench'} size="sm" />
             <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
-              {order.category?.name}
+              {ln(order.category)}
             </span>
             {order.isUrgent && (
               <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400 px-2 py-0.5 rounded-full animate-pulse">
@@ -117,7 +118,7 @@ export function OrderCard({ order, formatPrice, showNetEarnings }: OrderCardProp
                 key={ot.id}
                 className="text-xs bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400 px-2 py-0.5 rounded-full"
               >
-                {ot.task?.name}
+                {ln(ot.task)}
               </span>
             ))}
             {order.orderTasks.length > 3 && (

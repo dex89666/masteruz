@@ -10,6 +10,7 @@ import { Download, X } from 'lucide-react';
 import { api } from '../api/client';
 import { useInstalledAppInfo } from '../hooks/useInstalledAppInfo';
 import { downloadAndInstallApk } from '../lib/apkUpdater';
+import { useTranslation } from '../i18n';
 
 interface RemoteVersion {
   versionCode: number;
@@ -30,6 +31,7 @@ const SNOOZE_STEPS_MS = [30, 15, 10, 5, 3].map((m) => m * 60 * 1000);
 const RECHECK_INTERVAL_MS = 15 * 60 * 1000; // фоновая перепроверка версии
 
 export function UpdateChecker() {
+  const { t } = useTranslation();
   const installed = useInstalledAppInfo();
   const [latest, setLatest] = useState<RemoteVersion | null>(null);
   const [visible, setVisible] = useState(false);
@@ -118,10 +120,10 @@ export function UpdateChecker() {
             </div>
             <div>
               <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
-                Доступно обновление
+                {t('update.available')}
               </h2>
               <p className="text-sm text-slate-500 dark:text-slate-400">
-                Версия {latest.versionName}
+                {t('update.version')} {latest.versionName}
               </p>
             </div>
           </div>
@@ -129,7 +131,7 @@ export function UpdateChecker() {
             <button
               type="button"
               onClick={handleDismiss}
-              aria-label="Закрыть"
+              aria-label={t('common.close')}
               className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800"
             >
               <X className="h-5 w-5" />
@@ -145,12 +147,12 @@ export function UpdateChecker() {
 
         {latest.mandatory && (
           <p className="mt-3 text-sm font-medium text-rose-600">
-            Это обязательное обновление. Без него приложение работать не будет.
+            {t('update.mandatory')}
           </p>
         )}
 
         <p className="mt-3 text-xs text-slate-400 dark:text-slate-500">
-          Удалять старое приложение не нужно — вход и данные сохранятся.
+          {t('update.noUninstall')}
         </p>
 
         {progress !== null && (
@@ -162,7 +164,7 @@ export function UpdateChecker() {
               />
             </div>
             <p className="mt-2 text-center text-sm text-slate-500 dark:text-slate-400">
-              Загрузка… {Math.round(progress * 100)}%
+              {t('update.downloading')} {Math.round(progress * 100)}%
             </p>
           </div>
         )}
@@ -174,7 +176,7 @@ export function UpdateChecker() {
             disabled={progress !== null}
             className="flex-1 rounded-2xl bg-emerald-500 px-5 py-3 text-base font-semibold text-white shadow-lg shadow-emerald-500/30 transition active:scale-[0.98] hover:bg-emerald-600 disabled:opacity-60"
           >
-            {progress !== null ? 'Загрузка…' : 'Обновить сейчас'}
+            {progress !== null ? t('update.downloading') : t('update.now')}
           </button>
           {!latest.mandatory && progress === null && (
             <button
@@ -182,7 +184,7 @@ export function UpdateChecker() {
               onClick={handleDismiss}
               className="flex-1 rounded-2xl bg-slate-100 px-5 py-3 text-base font-medium text-slate-700 transition hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200"
             >
-              Позже
+              {t('update.later')}
             </button>
           )}
         </div>

@@ -10,6 +10,7 @@
 // которой в нативном приложении нет.
 
 import { Capacitor } from '@capacitor/core';
+import { translate } from '../i18n';
 
 export interface GeoCoords {
   latitude: number;
@@ -41,7 +42,7 @@ export async function getCurrentPosition(opts: GeoOptions = {}): Promise<GeoCoor
     if (perm.location !== 'granted' && perm.coarseLocation !== 'granted') {
       const req = await Geolocation.requestPermissions({ permissions: ['location'] });
       if (req.location !== 'granted' && req.coarseLocation !== 'granted') {
-        throw new GeoError('PERMISSION_DENIED', 'Разрешите доступ к геолокации в настройках телефона');
+        throw new GeoError('PERMISSION_DENIED', translate('geo.allowInPhone'));
       }
     }
     try {
@@ -56,14 +57,14 @@ export async function getCurrentPosition(opts: GeoOptions = {}): Promise<GeoCoor
         accuracy: pos.coords.accuracy,
       };
     } catch (err: any) {
-      throw new GeoError('POSITION_UNAVAILABLE', err?.message || 'Не удалось получить координаты');
+      throw new GeoError('POSITION_UNAVAILABLE', err?.message || translate('geo.noCoords'));
     }
   }
 
   // Веб-fallback
   return new Promise<GeoCoords>((resolve, reject) => {
     if (!('geolocation' in navigator)) {
-      reject(new GeoError('UNSUPPORTED', 'Браузер не поддерживает геолокацию'));
+      reject(new GeoError('UNSUPPORTED', translate('geo.browserUnsupported')));
       return;
     }
     navigator.geolocation.getCurrentPosition(
@@ -106,14 +107,14 @@ export function geoErrorMessage(code: GeoErrorCode): string {
   switch (code) {
     case 'PERMISSION_DENIED':
       return isNative
-        ? 'Разрешите доступ к геолокации в настройках телефона'
-        : 'Доступ к геолокации заблокирован. Разрешите его в настройках браузера';
+        ? translate('geo.allowInPhone')
+        : translate('geo.blockedInBrowser');
     case 'POSITION_UNAVAILABLE':
-      return 'Не удалось определить местоположение';
+      return translate('geo.unavailable');
     case 'TIMEOUT':
-      return 'Превышено время ожидания геолокации';
+      return translate('geo.timeout');
     case 'UNSUPPORTED':
-      return 'Геолокация не поддерживается';
+      return translate('geo.unsupported');
   }
 }
 

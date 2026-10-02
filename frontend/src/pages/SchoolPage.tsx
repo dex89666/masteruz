@@ -12,11 +12,13 @@ import {
   ChevronRight, ArrowLeft, AlertTriangle, Eye, HelpCircle, RotateCcw
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useTranslation } from '../i18n';
 import type { SchoolCourse, CourseProgress, SchoolProgressData, QuizResult } from '../types';
 
 type ViewMode = 'list' | 'course' | 'quiz' | 'result';
 
 export function SchoolPage() {
+  const { t } = useTranslation();
   const { hapticNotification } = useTelegram();
   const [courses, setCourses] = useState<SchoolCourse[]>([]);
   const [progressData, setProgressData] = useState<SchoolProgressData | null>(null);
@@ -118,12 +120,12 @@ export function SchoolPage() {
       const data = res.data.data;
       if (data.videoCompleted) {
         hapticNotification?.('success');
-        toast.success('Видео просмотрено!');
+        toast.success(t('schoolPage.videoWatched'));
         await loadData();
       }
       return data;
     } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Ошибка сохранения прогресса');
+      toast.error(error.response?.data?.message || t('schoolPage.progressError'));
     } finally {
       setVideoSaving(false);
     }
@@ -173,7 +175,7 @@ export function SchoolPage() {
     // Validate all questions answered
     const unanswered = answersArr.filter((a) => a === -1).length;
     if (unanswered > 0) {
-      toast.error(`Ответьте на все вопросы (не отвечено: ${unanswered})`);
+      toast.error(t('schoolPage.answerAll', { n: unanswered }));
       return;
     }
 
@@ -186,15 +188,15 @@ export function SchoolPage() {
 
       if (result.passed) {
         hapticNotification?.('success');
-        toast.success(`Тест пройден! Результат: ${result.score}%`);
+        toast.success(t('schoolPage.quizPassedToast', { score: result.score }));
       } else {
         hapticNotification?.('error');
-        toast.error(`Не пройден. Результат: ${result.score}%. Нужно ${result.passingScore}%`);
+        toast.error(t('schoolPage.quizFailedToast', { score: result.score, need: result.passingScore }));
       }
 
       await loadData();
     } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Ошибка отправки теста');
+      toast.error(error.response?.data?.message || t('schoolPage.quizSendError'));
     } finally {
       setQuizSubmitting(false);
     }
@@ -205,10 +207,10 @@ export function SchoolPage() {
     try {
       await schoolApi.completeCourse(courseId);
       hapticNotification?.('success');
-      toast.success('Курс завершён!');
+      toast.success(t('schoolPage.courseDone'));
       await loadData();
     } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Ошибка');
+      toast.error(error.response?.data?.message || t('common.error'));
     } finally {
       setCompleting(false);
     }
@@ -239,7 +241,7 @@ export function SchoolPage() {
       <div className="page-container pb-20">
         <button onClick={goBack} className="flex items-center text-gray-600 dark:text-gray-400 hover:text-primary-600 mb-4">
           <ArrowLeft size={18} className="mr-1" />
-          Назад к курсам
+          {t('schoolPage.backToCourses')}
         </button>
 
         <div className="card dark:bg-gray-800 dark:ring-gray-700 text-center py-8">
@@ -248,23 +250,23 @@ export function SchoolPage() {
               <div className="w-20 h-20 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center mx-auto mb-4">
                 <Award size={40} className="text-green-600 dark:text-green-400" />
               </div>
-              <h2 className="text-2xl font-bold text-green-600 dark:text-green-400 mb-2">Тест пройден!</h2>
+              <h2 className="text-2xl font-bold text-green-600 dark:text-green-400 mb-2">{t('schoolPage.quizPassed')}</h2>
             </>
           ) : (
             <>
               <div className="w-20 h-20 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center mx-auto mb-4">
                 <AlertTriangle size={40} className="text-red-600 dark:text-red-400" />
               </div>
-              <h2 className="text-2xl font-bold text-red-600 dark:text-red-400 mb-2">Тест не пройден</h2>
+              <h2 className="text-2xl font-bold text-red-600 dark:text-red-400 mb-2">{t('schoolPage.quizFailed')}</h2>
             </>
           )}
 
           <div className="text-4xl font-bold dark:text-white mb-2">{quizResult.score}%</div>
           <p className="text-gray-500 dark:text-gray-400 mb-1">
-            Правильных ответов: {quizResult.correctCount} из {quizResult.totalQuestions}
+            {t('schoolPage.correctAnswers', { n: quizResult.correctCount, total: quizResult.totalQuestions })}
           </p>
           <p className="text-gray-500 dark:text-gray-400 mb-4">
-            Проходной балл: {quizResult.passingScore}% · Попытка №{quizResult.attempts}
+            {t('schoolPage.passingScore')}: {quizResult.passingScore}% · {t('schoolPage.attemptNo', { n: quizResult.attempts })}
           </p>
 
           {!quizResult.passed && (
@@ -277,7 +279,7 @@ export function SchoolPage() {
               className="btn-primary mx-auto"
             >
               <RotateCcw size={18} className="mr-2" />
-              Попробовать ещё раз
+              {t('schoolPage.tryAgain')}
             </button>
           )}
         </div>
@@ -294,13 +296,13 @@ export function SchoolPage() {
       <div className="page-container pb-20">
         <button onClick={goBack} className="flex items-center text-gray-600 dark:text-gray-400 hover:text-primary-600 mb-4">
           <ArrowLeft size={18} className="mr-1" />
-          Назад к уроку
+          {t('schoolPage.backToLesson')}
         </button>
 
         <div className="card dark:bg-gray-800 dark:ring-gray-700 mb-4">
-          <h1 className="text-lg font-bold dark:text-white mb-1">Проверочный тест</h1>
+          <h1 className="text-lg font-bold dark:text-white mb-1">{t('schoolPage.quizTitle')}</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            {activeCourse.title} · Проходной балл: {activeCourse.passingScore || 70}%
+            {activeCourse.title} · {t('schoolPage.passingScore')}: {activeCourse.passingScore || 70}%
           </p>
         </div>
 
@@ -342,14 +344,14 @@ export function SchoolPage() {
 
         <div className="mt-6 flex items-center justify-between">
           <span className="text-sm text-gray-500">
-            Отвечено: {Object.keys(quizAnswers).length}/{questions.length}
+            {t('schoolPage.answered')}: {Object.keys(quizAnswers).length}/{questions.length}
           </span>
           <button
             onClick={handleSubmitQuiz}
             disabled={quizSubmitting}
             className="btn-primary px-6 py-3"
           >
-            {quizSubmitting ? 'Проверка...' : 'Отправить ответы'}
+            {quizSubmitting ? t('schoolPage.checking') : t('schoolPage.submitAnswers')}
           </button>
         </div>
       </div>
@@ -373,7 +375,7 @@ export function SchoolPage() {
       <div className="page-container pb-20">
         <button onClick={goBack} className="flex items-center text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 mb-4">
           <ArrowLeft size={18} className="mr-1" />
-          Назад к курсам
+          {t('schoolPage.backToCourses')}
         </button>
 
         {/* Header */}
@@ -383,24 +385,24 @@ export function SchoolPage() {
             {completed && (
               <span className="badge bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
                 <CheckCircle size={14} className="mr-1" />
-                Пройден
+                {t('schoolPage.passed')}
               </span>
             )}
           </div>
 
           {activeCourse.isRequired && (
-            <span className="badge bg-red-100 text-red-700 mb-3">Обязательный</span>
+            <span className="badge bg-red-100 text-red-700 mb-3">{t('schoolPage.required')}</span>
           )}
 
           <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400 mb-4">
             <span className="flex items-center">
               <Clock size={14} className="mr-1" />
-              {activeCourse.durationMinutes || 30} мин
+              {activeCourse.durationMinutes || 30} {t('common.min')}
             </span>
             {hasQuiz && (
               <span className="flex items-center">
                 <HelpCircle size={14} className="mr-1" />
-                {activeCourse.questions!.length} вопросов
+                {t('schoolPage.questionsCount', { n: activeCourse.questions!.length })}
               </span>
             )}
           </div>
@@ -414,7 +416,7 @@ export function SchoolPage() {
                   : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
               }`}>
                 {vidCompleted ? <CheckCircle size={12} /> : <Play size={12} />}
-                Видео
+                {t('schoolPage.video')}
               </span>
             )}
             {hasQuiz && (
@@ -424,7 +426,7 @@ export function SchoolPage() {
                   : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
               }`}>
                 {quizPassed ? <CheckCircle size={12} /> : <HelpCircle size={12} />}
-                Тест
+                {t('schoolPage.quiz')}
               </span>
             )}
           </div>
@@ -432,9 +434,9 @@ export function SchoolPage() {
 
         {/* Content */}
         <div className="card dark:bg-gray-800 dark:ring-gray-700 mb-4">
-          <h2 className="font-semibold mb-3 dark:text-white">Содержание курса</h2>
+          <h2 className="font-semibold mb-3 dark:text-white">{t('schoolPage.content')}</h2>
           <div className="prose prose-sm max-w-none text-gray-700 dark:text-gray-300 whitespace-pre-line">
-            {activeCourse.content || 'Содержание курса будет доступно после добавления администратором.'}
+            {activeCourse.content || t('schoolPage.contentPending')}
           </div>
         </div>
 
@@ -443,19 +445,19 @@ export function SchoolPage() {
           <div className="card dark:bg-gray-800 dark:ring-gray-700 mb-4">
             <h2 className="font-semibold mb-3 dark:text-white flex items-center">
               <Play size={18} className="mr-2 text-primary-600" />
-              Видеоурок
+              {t('schoolPage.videoLesson')}
             </h2>
 
             {vidCompleted ? (
               <div className="flex items-center text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 p-3 rounded-lg mb-3">
                 <CheckCircle size={18} className="mr-2" />
-                Видео просмотрено
+                {t('schoolPage.videoWatchedShort')}
               </div>
             ) : (
               <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 p-3 rounded-lg mb-3">
                 <div className="flex items-center text-yellow-700 dark:text-yellow-400 text-sm mb-2">
                   <AlertTriangle size={16} className="mr-2 flex-shrink-0" />
-                  Необходимо просмотреть не менее 80% видео ({formatTime(requiredSec)})
+                  {t('schoolPage.watch80', { time: formatTime(requiredSec) })}
                 </div>
                 <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-2">
                   <div
@@ -464,8 +466,8 @@ export function SchoolPage() {
                   />
                 </div>
                 <div className="flex items-center justify-between text-xs text-gray-500">
-                  <span>Просмотрено: {formatTime(videoTimer)}</span>
-                  <span>Нужно: {formatTime(requiredSec)}</span>
+                  <span>{t('schoolPage.watched')}: {formatTime(videoTimer)}</span>
+                  <span>{t('schoolPage.needed')}: {formatTime(requiredSec)}</span>
                 </div>
               </div>
             )}
@@ -482,7 +484,7 @@ export function SchoolPage() {
                 className="flex items-center justify-center gap-2 w-full py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
               >
                 <Play size={20} />
-                {vidCompleted ? 'Пересмотреть видео' : 'Смотреть видео'}
+                {vidCompleted ? t('schoolPage.rewatch') : t('schoolPage.watch')}
               </a>
 
               {/* Timer controls (only if video not completed) */}
@@ -498,7 +500,7 @@ export function SchoolPage() {
                       className="flex-1 py-2 bg-orange-500 text-white rounded-lg text-sm hover:bg-orange-600"
                     >
                       <Eye size={16} className="inline mr-1" />
-                      {videoSaving ? 'Сохранение...' : `Остановить и сохранить (${formatTime(videoTimer)})`}
+                      {videoSaving ? t('common.saving') : t('schoolPage.stopSave', { time: formatTime(videoTimer) })}
                     </button>
                   ) : videoTimer > 0 ? (
                     <>
@@ -506,14 +508,14 @@ export function SchoolPage() {
                         onClick={startVideoTimer}
                         className="flex-1 py-2 bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400 rounded-lg text-sm"
                       >
-                        Продолжить просмотр
+                        {t('schoolPage.continueWatching')}
                       </button>
                       <button
                         onClick={saveVideoProgress}
                         disabled={videoSaving}
                         className="px-4 py-2 bg-green-500 text-white rounded-lg text-sm hover:bg-green-600"
                       >
-                        {videoSaving ? '...' : 'Сохранить'}
+                        {videoSaving ? '...' : t('common.save')}
                       </button>
                     </>
                   ) : null}
@@ -542,8 +544,8 @@ export function SchoolPage() {
               >
                 <HelpCircle size={18} />
                 {hasVideo && !vidCompleted
-                  ? 'Сначала посмотрите видео'
-                  : 'Пройти тест'}
+                  ? t('schoolPage.watchFirst')
+                  : t('schoolPage.takeQuiz')}
               </button>
             ) : (
               <button
@@ -555,12 +557,12 @@ export function SchoolPage() {
                     : 'btn-primary'
                 }`}
               >
-                {completing ? 'Завершение...' : (
+                {completing ? t('schoolPage.completing') : (
                   <>
                     <CheckCircle size={18} />
                     {hasVideo && !vidCompleted
-                      ? 'Сначала посмотрите видео'
-                      : 'Завершить курс'}
+                      ? t('schoolPage.watchFirst')
+                      : t('schoolPage.completeCourse')}
                   </>
                 )}
               </button>
@@ -568,7 +570,7 @@ export function SchoolPage() {
 
             {progress && progress.quizAttempts > 0 && !progress.quizPassedAt && (
               <p className="text-center text-sm text-gray-500">
-                Последний результат: {progress.quizScore}% · Попыток: {progress.quizAttempts}
+                {t('schoolPage.lastResult')}: {progress.quizScore}% · {t('schoolPage.attempts')}: {progress.quizAttempts}
               </p>
             )}
           </div>
@@ -582,14 +584,14 @@ export function SchoolPage() {
   // ═══════════════════════════════════════
   return (
     <div className="page-container pb-20">
-      <h1 className="page-title">Школа мастеров</h1>
+      <h1 className="page-title">{t('schoolPage.title')}</h1>
 
       {/* Progress bar */}
       <div className="card dark:bg-gray-800 dark:ring-gray-700 mb-6">
         <div className="flex items-center justify-between mb-2">
-          <h3 className="font-semibold dark:text-white">Ваш прогресс</h3>
+          <h3 className="font-semibold dark:text-white">{t('schoolPage.yourProgress')}</h3>
           <span className="text-sm text-gray-500 dark:text-gray-400">
-            {completedRequired}/{requiredCourses.length} обязательных
+            {completedRequired}/{requiredCourses.length} {t('schoolPage.requiredShort')}
           </span>
         </div>
         <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 mb-3">
@@ -605,11 +607,11 @@ export function SchoolPage() {
         {allRequiredCompleted ? (
           <div className="flex items-center text-green-600 text-sm">
             <Award size={16} className="mr-2" />
-            Все обязательные курсы пройдены! Вы можете получить верификацию.
+            {t('schoolPage.allDone')}
           </div>
         ) : (
           <p className="text-sm text-gray-500">
-            Пройдите все обязательные курсы для верификации аккаунта мастера
+            {t('schoolPage.doRequired')}
           </p>
         )}
       </div>
@@ -618,8 +620,8 @@ export function SchoolPage() {
       {courses.length === 0 && (
         <div className="card dark:bg-gray-800 dark:ring-gray-700 text-center py-12">
           <BookOpen size={48} className="mx-auto text-gray-300 dark:text-gray-600 mb-4" />
-          <h3 className="text-lg font-medium dark:text-white mb-2">Курсы скоро появятся</h3>
-          <p className="text-gray-500 dark:text-gray-400">Администратор ещё не добавил учебные материалы</p>
+          <h3 className="text-lg font-medium dark:text-white mb-2">{t('schoolPage.soon')}</h3>
+          <p className="text-gray-500 dark:text-gray-400">{t('schoolPage.soonText')}</p>
         </div>
       )}
 
@@ -628,7 +630,7 @@ export function SchoolPage() {
         <div className="mb-6">
           <h2 className="text-lg font-semibold mb-3 flex items-center dark:text-white">
             <Lock size={18} className="mr-2 text-red-500" />
-            Обязательные курсы
+            {t('schoolPage.requiredCourses')}
           </h2>
           <div className="space-y-3">
             {requiredCourses.map((course) => {
@@ -656,11 +658,11 @@ export function SchoolPage() {
                       <div>
                         <h3 className="font-medium dark:text-white">{course.title}</h3>
                         <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-                          <span>{course.durationMinutes || 30} мин</span>
+                          <span>{course.durationMinutes || 30} {t('common.min')}</span>
                           {hasQuiz && (
                             <span className="flex items-center gap-0.5">
                               <HelpCircle size={12} />
-                              Тест
+                              {t('schoolPage.quiz')}
                             </span>
                           )}
                         </div>
@@ -680,7 +682,7 @@ export function SchoolPage() {
         <div>
           <h2 className="text-lg font-semibold mb-3 flex items-center dark:text-white">
             <BookOpen size={18} className="mr-2 text-primary-500" />
-            Дополнительные курсы
+            {t('schoolPage.extraCourses')}
           </h2>
           <div className="space-y-3">
             {optionalCourses.map((course) => {
@@ -708,11 +710,11 @@ export function SchoolPage() {
                       <div>
                         <h3 className="font-medium dark:text-white">{course.title}</h3>
                         <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-                          <span>{course.durationMinutes || 30} мин</span>
+                          <span>{course.durationMinutes || 30} {t('common.min')}</span>
                           {hasQuiz && (
                             <span className="flex items-center gap-0.5">
                               <HelpCircle size={12} />
-                              Тест
+                              {t('schoolPage.quiz')}
                             </span>
                           )}
                         </div>

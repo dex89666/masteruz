@@ -94,7 +94,7 @@ export function TurnkeyProjectDetailPage() {
             {project.area && (
               <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                 <Ruler size={16} className="text-gray-400" />
-                <span>{project.area} м²</span>
+                <span>{project.area} {t('units.m2')}</span>
               </div>
             )}
             {project.rooms && (
@@ -246,18 +246,18 @@ export function TurnkeyProjectDetailPage() {
         {/* Floor plan / Design project links */}
         {(project.floorPlanUrl || project.designProjectUrl) && (
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6 mb-6">
-            <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4"><Paperclip size={18} className="inline" /> Документы</h2>
+            <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4"><Paperclip size={18} className="inline" /> {t('turnkeyDetail.documents')}</h2>
             <div className="flex flex-wrap gap-3">
               {project.floorPlanUrl && (
                 <a href={project.floorPlanUrl} target="_blank" rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition">
-                  <RulerIcon size={16} className="inline" /> Планировка
+                  <RulerIcon size={16} className="inline" /> {t('turnkeyDetail.layout')}
                 </a>
               )}
               {project.designProjectUrl && (
                 <a href={project.designProjectUrl} target="_blank" rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition">
-                  <Palette size={16} className="inline" /> Дизайн-проект
+                  <Palette size={16} className="inline" /> {t('turnkeyDetail.design')}
                 </a>
               )}
             </div>
@@ -267,10 +267,10 @@ export function TurnkeyProjectDetailPage() {
         {/* Images */}
         {project.images && project.images.length > 0 && (
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6">
-            <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4"><Camera size={18} className="inline" /> Фотографии</h2>
+            <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4"><Camera size={18} className="inline" /> {t('turnkeyDetail.photos')}</h2>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {project.images.map((url: string, i: number) => (
-                <img key={i} src={resolveImageUrl(url) ?? undefined} alt={`Фото ${i + 1}`}
+                <img key={i} src={resolveImageUrl(url) ?? undefined} alt={t('instant.photoAlt', { n: i + 1 })}
                   className="w-full h-40 object-cover rounded-xl" />
               ))}
             </div>

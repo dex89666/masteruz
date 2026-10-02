@@ -6,6 +6,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Camera, X, RefreshCw, Check, AlertTriangle } from 'lucide-react';
+import { useTranslation } from '../i18n';
 
 interface CameraCaptureProps {
   onCapture: (file: File) => void;
@@ -15,6 +16,7 @@ interface CameraCaptureProps {
 type Facing = 'environment' | 'user';
 
 export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
+  const { t } = useTranslation();
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const fallbackInputRef = useRef<HTMLInputElement>(null);
@@ -108,10 +110,10 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
 
   const errorMessage =
     error === 'denied'
-      ? 'Доступ к камере запрещён. Разрешите доступ в настройках браузера или выберите фото из галереи.'
+      ? t('camera.denied')
       : error === 'nocamera'
-        ? 'Камера не найдена. Подключите камеру или выберите фото из галереи.'
-        : 'Ваш браузер или приложение не поддерживает прямой доступ к камере. Используйте съёмку через системный выбор файла.';
+        ? t('camera.notFound')
+        : t('camera.unsupported');
 
   return (
     <div className="fixed inset-0 z-[100] bg-black flex flex-col">
@@ -120,16 +122,16 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
         <button
           onClick={onClose}
           className="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors"
-          aria-label="Закрыть"
+          aria-label={t('common.close')}
         >
           <X size={22} />
         </button>
-        <span className="text-sm font-medium">Сделать фото</span>
+        <span className="text-sm font-medium">{t('camera.takePhoto')}</span>
         <button
           onClick={() => setFacing((f) => (f === 'environment' ? 'user' : 'environment'))}
           disabled={!!error}
           className="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors disabled:opacity-30"
-          aria-label="Переключить камеру"
+          aria-label={t('camera.switch')}
         >
           <RefreshCw size={20} />
         </button>
@@ -147,7 +149,7 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
               onClick={handleFallback}
               className="px-6 py-3 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-semibold transition-colors"
             >
-              Выбрать фото
+              {t('camera.choosePhoto')}
             </button>
             <input
               ref={fallbackInputRef}
@@ -159,7 +161,7 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
             />
           </div>
         ) : preview ? (
-          <img src={preview.url} alt="Превью" className="max-w-full max-h-full object-contain" />
+          <img src={preview.url} alt={t('camera.preview')} className="max-w-full max-h-full object-contain" />
         ) : (
           <video
             ref={videoRef}
@@ -179,14 +181,14 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
               <button
                 onClick={handleRetake}
                 className="w-14 h-14 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors"
-                aria-label="Переснять"
+                aria-label={t('camera.retake')}
               >
                 <RefreshCw size={24} />
               </button>
               <button
                 onClick={handleConfirm}
                 className="w-20 h-20 rounded-full bg-green-500 hover:bg-green-600 text-white flex items-center justify-center transition-colors shadow-xl"
-                aria-label="Использовать фото"
+                aria-label={t('camera.use')}
               >
                 <Check size={36} />
               </button>
@@ -197,7 +199,7 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
               onClick={handleCapture}
               disabled={!isReady}
               className="w-20 h-20 rounded-full bg-white hover:bg-gray-100 text-gray-900 flex items-center justify-center transition-colors shadow-xl disabled:opacity-50"
-              aria-label="Сделать снимок"
+              aria-label={t('camera.shoot')}
             >
               <Camera size={32} />
             </button>

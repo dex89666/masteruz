@@ -11,6 +11,7 @@ import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '../store';
 import { authApi } from '../api/client';
+import { translate } from '../i18n';
 
 const DEEPLINK_PREFIX = 'uz.masteruz.app://auth';
 
@@ -38,11 +39,11 @@ export function useTelegramDeepLinkAuth(): void {
         const me = await authApi.me();
         if (me.data.success) {
           setAuth(me.data.data, access, refresh);
-          toast.success('Вход выполнен через Telegram');
+          toast.success(translate('auth.tgLoginOk'));
           navigate('/', { replace: true });
         }
       } catch {
-        toast.error('Не удалось завершить вход через Telegram');
+        toast.error(translate('auth.tgLoginFailed'));
       }
     };
 

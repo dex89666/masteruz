@@ -20,21 +20,24 @@ import { LoadingSpinner } from '../components/LoadingSpinner';
 import { Breadcrumbs } from '../components/Breadcrumbs';
 import { useFormatPrice } from '../hooks';
 import { confirm } from '../store/confirmStore';
+import { useTranslation } from '../i18n';
 
 const PLAN_PERKS = [
-  { icon: TrendingUp, key: 'Топ-выдача в рассылке заказов (+15 к рангу)' },
-  { icon: Zap, key: '0% комиссии платформы на все заказы' },
-  { icon: Crown, key: 'PRO-бейдж в профиле и карточке' },
-  { icon: Clock, key: 'Приоритетное уведомление о новых заказах' },
+  { icon: TrendingUp, key: 'masterPro.perkTop' },
+  { icon: Zap, key: 'masterPro.perkZero' },
+  { icon: Crown, key: 'masterPro.perkBadge' },
+  { icon: Clock, key: 'masterPro.perkPriority' },
 ];
 
-const formatDate = (iso: string) =>
-  new Date(iso).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
+const formatDateIn = (iso: string, locale: string) =>
+  new Date(iso).toLocaleDateString(locale, { day: 'numeric', month: 'long', year: 'numeric' });
 
 const daysLeft = (endIso: string) =>
   Math.max(0, Math.ceil((new Date(endIso).getTime() - Date.now()) / 86_400_000));
 
 export function MasterProPage() {
+  const { t, locale } = useTranslation();
+  const formatDate = (iso: string) => formatDateIn(iso, locale);
   const formatPrice = useFormatPrice();
   const [loading, setLoading] = useState(true);
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
@@ -58,7 +61,7 @@ export function MasterProPage() {
       setActive(meRes.data.data.active);
       setBalance(Number(balanceRes.data.data.balance) || 0);
     } catch {
-      toast.error('Не удалось загрузить тарифы');
+      toast.error(t('masterPro.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -70,10 +73,10 @@ export function MasterProPage() {
     setBuying('TRIAL');
     try {
       await subscriptionsApi.startTrial();
-      toast.success('🎁 Trial активирован на 14 дней');
+      toast.success(`🎁 ${t('masterPro.trialActivated')}`);
       await load();
     } catch (e: any) {
-      toast.error(e?.response?.data?.error?.message || 'Не удалось активировать trial');
+      toast.error(e?.response?.data?.error?.message || t('masterPro.trialFailed'));
     } finally {
       setBuying(null);
     }
@@ -81,22 +84,22 @@ export function MasterProPage() {
 
   async function buyPlan(plan: SubscriptionPlan) {
     if (balance < plan.priceSum) {
-      toast.error('Недостаточно средств на балансе. Сначала пополните кошелёк.');
+      toast.error(t('masterPro.insufficient'));
       return;
     }
     if (!(await confirm({
-      title: 'Покупка PRO',
-      message: `Купить «${plan.label}» за ${formatPrice(plan.priceSum)} с баланса?`,
-      confirmText: 'Купить',
+      title: t('masterPro.buyTitle'),
+      message: t('masterPro.buyConfirm', { plan: plan.label, price: formatPrice(plan.priceSum) }),
+      confirmText: t('masterPro.buy'),
       variant: 'info',
     }))) return;
     setBuying(plan.plan);
     try {
       await subscriptionsApi.purchaseFromBalance(plan.plan);
-      toast.success(`💎 PRO «${plan.label}» активирован`);
+      toast.success(`💎 ${t('masterPro.activated', { plan: plan.label })}`);
       await load();
     } catch (e: any) {
-      toast.error(e?.response?.data?.error?.message || 'Покупка не удалась');
+      toast.error(e?.response?.data?.error?.message || t('masterPro.buyFailed'));
     } finally {
       setBuying(null);
     }
@@ -110,7 +113,7 @@ export function MasterProPage() {
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 space-y-8">
-      <Breadcrumbs items={[{ label: 'Кабинет', href: '/dashboard' }, { label: 'PRO-подписка' }]} />
+      <Breadcrumbs items={[{ label: t('masterPro.cabinet'), href: '/dashboard' }, { label: t('masterPro.subscription') }]} />
 
       {/* Hero */}
       <header className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-amber-500 via-orange-500 to-rose-500 text-white p-8 shadow-xl">
@@ -123,19 +126,19 @@ export function MasterProPage() {
             <span className="text-sm font-medium uppercase tracking-wider">MasterUz PRO</span>
           </div>
           <h1 className="mt-2 text-3xl md:text-4xl font-bold">
-            {isPro ? 'Вы — PRO мастер' : 'Подключите PRO и опередите конкурентов'}
+            {isPro ? t('masterPro.youArePro') : t('masterPro.getPro')}
           </h1>
           <p className="mt-3 text-amber-50 max-w-2xl">
-            0% комиссии, топ-выдача в рассылке, приоритетные уведомления — больше заказов, выше доход.
+            {t('masterPro.lead')}
           </p>
 
           {isPro && active && (
             <div className="mt-5 inline-flex items-center gap-3 bg-white/15 backdrop-blur-sm rounded-2xl px-5 py-3 border border-white/20">
               <Crown size={20} />
               <div>
-                <div className="text-sm opacity-80">Активен план</div>
+                <div className="text-sm opacity-80">{t('masterPro.activePlan')}</div>
                 <div className="font-semibold">
-                  {active.plan} · до {formatDate(active.currentPeriodEnd)} ({daysLeft(active.currentPeriodEnd)} дн.)
+                  {active.plan} · {t('masterPro.until')} {formatDate(active.currentPeriodEnd)} ({daysLeft(active.currentPeriodEnd)} {t('instant.daysShort')})
                 </div>
               </div>
             </div>
@@ -150,7 +153,7 @@ export function MasterProPage() {
             <Wallet className="text-emerald-600 dark:text-emerald-400" size={22} />
           </div>
           <div>
-            <div className="text-xs text-gray-500">Доступно на балансе</div>
+            <div className="text-xs text-gray-500">{t('masterPro.availableBalance')}</div>
             <div className="text-xl font-bold">{formatPrice(balance)}</div>
           </div>
         </div>
@@ -158,7 +161,7 @@ export function MasterProPage() {
           to="/balance"
           className="px-5 py-2.5 rounded-xl bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 font-medium hover:opacity-90 transition"
         >
-          Пополнить баланс
+          {t('createOrder.topUp')}
         </Link>
       </section>
 
@@ -172,7 +175,7 @@ export function MasterProPage() {
             <div className="p-2 w-fit rounded-lg bg-amber-50 dark:bg-amber-900/20">
               <Icon className="text-amber-600 dark:text-amber-400" size={18} />
             </div>
-            <div className="text-sm font-medium text-gray-800 dark:text-gray-200 leading-snug">{key}</div>
+            <div className="text-sm font-medium text-gray-800 dark:text-gray-200 leading-snug">{t(key)}</div>
           </div>
         ))}
       </section>
@@ -183,8 +186,8 @@ export function MasterProPage() {
           <div className="flex items-center gap-3">
             <Gift className="text-emerald-600 dark:text-emerald-400" size={28} />
             <div>
-              <div className="font-bold text-gray-900 dark:text-white">14 дней PRO бесплатно</div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">Без карты. Активируется в один клик.</div>
+              <div className="font-bold text-gray-900 dark:text-white">{t('masterPro.trialTitle')}</div>
+              <div className="text-sm text-gray-600 dark:text-gray-400">{t('masterPro.trialText')}</div>
             </div>
           </div>
           <button
@@ -192,14 +195,14 @@ export function MasterProPage() {
             disabled={buying === 'TRIAL'}
             className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-semibold transition"
           >
-            {buying === 'TRIAL' ? '…' : 'Активировать trial'}
+            {buying === 'TRIAL' ? '…' : t('masterPro.activateTrial')}
           </button>
         </section>
       )}
 
       {/* Тарифы */}
       <section>
-        <h2 className="text-2xl font-bold mb-4">Тарифы</h2>
+        <h2 className="text-2xl font-bold mb-4">{t('masterPro.plans')}</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {plans.map((plan) => {
             const isFlagship = plan.isFlagship;
@@ -214,7 +217,7 @@ export function MasterProPage() {
               <div key={plan.plan} className={`${cardBase} ${cardEmphasis}`}>
                 {isFlagship && (
                   <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 text-xs font-bold rounded-full bg-amber-500 text-white shadow">
-                    ХИТ · −{plan.discountPercent}%
+                    {t('masterPro.hit')} · −{plan.discountPercent}%
                   </span>
                 )}
                 {isFounder && (
@@ -228,19 +231,19 @@ export function MasterProPage() {
                   {formatPrice(plan.priceSum)}
                 </div>
                 <div className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                  ≈ {formatPrice(plan.effectivePerMonth)}/мес
+                  ≈ {formatPrice(plan.effectivePerMonth)}/{t('masterPro.perMonth')}
                 </div>
 
                 {plan.discountPercent > 0 && (
                   <div className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-                    <Check size={14} /> экономия {plan.discountPercent}%
+                    <Check size={14} /> {t('masterPro.saving')} {plan.discountPercent}%
                   </div>
                 )}
 
                 <ul className="mt-4 space-y-2 text-sm text-gray-700 dark:text-gray-300 flex-1">
-                  <li className="flex gap-2"><Check size={16} className="text-emerald-500 mt-0.5 shrink-0" /> {plan.days} дней PRO</li>
-                  <li className="flex gap-2"><Check size={16} className="text-emerald-500 mt-0.5 shrink-0" /> 0% комиссии</li>
-                  <li className="flex gap-2"><Check size={16} className="text-emerald-500 mt-0.5 shrink-0" /> Топ-выдача</li>
+                  <li className="flex gap-2"><Check size={16} className="text-emerald-500 mt-0.5 shrink-0" /> {t('masterPro.daysPro', { n: plan.days })}</li>
+                  <li className="flex gap-2"><Check size={16} className="text-emerald-500 mt-0.5 shrink-0" /> {t('masterPro.zeroCommission')}</li>
+                  <li className="flex gap-2"><Check size={16} className="text-emerald-500 mt-0.5 shrink-0" /> {t('masterPro.topListing')}</li>
                 </ul>
 
                 <button
@@ -252,7 +255,7 @@ export function MasterProPage() {
                       : 'bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 hover:opacity-90'
                   }`}
                 >
-                  {buying === plan.plan ? '…' : 'Купить с баланса'}
+                  {buying === plan.plan ? '…' : t('masterPro.buyFromBalance')}
                 </button>
               </div>
             );
@@ -265,7 +268,7 @@ export function MasterProPage() {
         <section className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-2xl p-5 flex items-center gap-3">
           <Gift className="text-purple-600 dark:text-purple-400 shrink-0" size={24} />
           <div className="text-sm text-gray-800 dark:text-gray-200">
-            Пригласите мастера по своей <Link to="/referrals" className="font-semibold underline">реферальной ссылке</Link> — после его первой оплаты вы получите <b>+30 дней PRO</b> бесплатно.
+            {t('masterPro.ref1')} <Link to="/referrals" className="font-semibold underline">{t('masterPro.refLink')}</Link> {t('masterPro.ref2')}
           </div>
         </section>
       )}

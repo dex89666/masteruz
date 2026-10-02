@@ -10,6 +10,7 @@ import { useLocation } from 'react-router-dom';
 import { ShieldCheck, FileText, Lock, ChevronDown } from 'lucide-react';
 import { api } from '../api/client';
 import { useAuthStore } from '../store';
+import { useTranslation, LANGUAGES, type Language } from '../i18n';
 
 const STORAGE_KEY = 'masteruz-consent-v5';
 const DOCUMENTS_VERSION = '2026-10-02-legal'; // должна совпадать с backend DOCUMENTS_VERSION
@@ -82,6 +83,7 @@ function processesPersonalData(pathname: string, isAuthenticated: boolean): bool
 }
 
 export function ConsentGate({ children }: { children: React.ReactNode }) {
+  const { t, language, setLanguage } = useTranslation();
   const location = useLocation();
   const { isAuthenticated } = useAuthStore();
   const gateNotNeeded =
@@ -182,12 +184,30 @@ export function ConsentGate({ children }: { children: React.ReactNode }) {
           <div className="px-6 py-5 border-b border-gray-200 dark:border-gray-700">
             <div className="flex items-center gap-3 mb-1">
               <ShieldCheck className="text-primary-600 dark:text-primary-400" size={28} />
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                Согласие на использование платформы
+              <h2 className="flex-1 text-xl font-bold text-gray-900 dark:text-white">
+                {t('consent.title')}
               </h2>
+              {/* Язык можно выбрать до согласия — остальной интерфейс под модалом недоступен */}
+              <div className="flex gap-1 shrink-0">
+                {(Object.keys(LANGUAGES) as Language[]).map((lang) => (
+                  <button
+                    key={lang}
+                    type="button"
+                    onClick={() => setLanguage(lang)}
+                    className={`px-2 py-1 rounded-md text-xs font-semibold uppercase ${
+                      language === lang
+                        ? 'bg-primary-600 text-white'
+                        : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
+                    }`}
+                    aria-label={LANGUAGES[lang].label}
+                  >
+                    {lang}
+                  </button>
+                ))}
+              </div>
             </div>
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              ООО «Vladlab» · ИНН 313020180 · информационный посредник
+              {t('consent.subtitle')}
             </p>
           </div>
 
@@ -199,70 +219,59 @@ export function ConsentGate({ children }: { children: React.ReactNode }) {
           >
             <section>
               <h3 className="font-semibold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
-                <FileText size={16} /> 1. Кто мы и что предлагаем
+                <FileText size={16} /> 1. {t('consent.s1Title')}
               </h3>
               <p>
-                Платформа «MasterUz» принадлежит <b>ООО «Vladlab»</b> (ИНН 313020180,
-                ОКЭД 63.12.0 — Деятельность веб-порталов). Мы — <b>информационный посредник</b>:
-                связываем клиента и мастера, удерживаем агентскую комиссию и не оказываем
-                ремонтных услуг лично. Договор на работы заключается между клиентом и мастером
-                напрямую.
+                {t('consent.s1Text')}
               </p>
             </section>
 
             <section>
               <h3 className="font-semibold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
-                <FileText size={16} /> 2. Какие данные мы собираем
+                <FileText size={16} /> 2. {t('consent.s2Title')}
               </h3>
               <ul className="list-disc pl-5 space-y-1">
-                <li><b>Клиент:</b> имя, телефон, описание заказа, адрес, сумма оплаты.</li>
-                <li><b>Мастер:</b> ПИНФЛ, ФИО, телефон, адрес, виды работ, история выполненных заказов.</li>
-                <li><b>Технические данные:</b> IP, устройство, действия в приложении, по согласию — геолокация.</li>
-                <li><b>Платежи:</b> сумма, дата, идентификатор транзакции (данные карт мы НЕ храним).</li>
+                <li><b>{t('consent.s2ClientLabel')}:</b> {t('consent.s2Client')}</li>
+                <li><b>{t('consent.s2MasterLabel')}:</b> {t('consent.s2Master')}</li>
+                <li><b>{t('consent.s2TechLabel')}:</b> {t('consent.s2Tech')}</li>
+                <li><b>{t('consent.s2PayLabel')}:</b> {t('consent.s2Pay')}</li>
               </ul>
             </section>
 
             <section>
               <h3 className="font-semibold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
-                <Lock size={16} /> 3. Как мы защищаем данные
+                <Lock size={16} /> 3. {t('consent.s3Title')}
               </h3>
               <p>
-                TLS-шифрование, Redis-backed rate limiting, ролевая модель доступа, журнал
-                операций (audit log), шифрованные резервные копии. Доступ только у уполномоченных
-                сотрудников. Данные хранятся на инфраструктуре Оператора в РУз.
+                {t('consent.s3Text')}
               </p>
             </section>
 
             <section>
               <h3 className="font-semibold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
-                <ShieldCheck size={16} /> 4. Ваши права
+                <ShieldCheck size={16} /> 4. {t('consent.s4Title')}
               </h3>
               <p>
-                Вы можете запросить копию данных, исправление, удаление, отозвать согласие или
-                подать жалобу. Срок ответа — 30 дней. Контакты: <b>vladlabcorp@gmail.com</b>,
+                {t('consent.s4Text')} <b>vladlabcorp@gmail.com</b>,
                 Telegram <b>@masteruz_support</b>.
               </p>
             </section>
 
             <section>
               <h3 className="font-semibold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
-                <FileText size={16} /> 5. Стоимость и комиссия
+                <FileText size={16} /> 5. {t('consent.s5Title')}
               </h3>
               <p>
-                Платформа взимает комиссию за информационно-посреднические услуги в размере,
-                установленном в соответствии с законодательством Республики Узбекистан. Актуальный размер комиссии
-                и иных тарифов отображается в Платформе до подтверждения оплаты. Способы оплаты: по QR-коду через UzQR (Hamkorbank)
-                или наличные напрямую Мастеру. Получив оплату наличными, Мастер обязан в тот же день указать
-                в Платформе фактически полученную сумму — для учёта заказа.
+                {t('consent.s5Text')}
               </p>
             </section>
 
             <section>
               <h3 className="font-semibold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
-                <FileText size={16} /> 6. Полные документы
+                <FileText size={16} /> 6. {t('consent.s6Title')}
               </h3>
               <p className="space-y-1">
-                Прежде чем согласиться, мы рекомендуем ознакомиться с полными версиями:
+                {t('consent.s6Text')}
               </p>
               <ul className="list-disc pl-5 mt-2 space-y-1">
                 <li>
@@ -271,7 +280,7 @@ export function ConsentGate({ children }: { children: React.ReactNode }) {
                     onClick={() => openDocument('/public-offer')}
                     className="text-primary-600 dark:text-primary-400 underline text-left"
                   >
-                    Публичная оферта
+                    {t('home.publicOffer')}
                   </button>
                 </li>
                 <li>
@@ -280,7 +289,7 @@ export function ConsentGate({ children }: { children: React.ReactNode }) {
                     onClick={() => openDocument('/privacy')}
                     className="text-primary-600 dark:text-primary-400 underline text-left"
                   >
-                    Политика конфиденциальности
+                    {t('home.privacyPolicy')}
                   </button>
                 </li>
                 <li>
@@ -289,15 +298,14 @@ export function ConsentGate({ children }: { children: React.ReactNode }) {
                     onClick={() => openDocument('/terms')}
                     className="text-primary-600 dark:text-primary-400 underline text-left"
                   >
-                    Правила пользования
+                    {t('consent.rules')}
                   </button>
                 </li>
               </ul>
             </section>
 
             <section className="pt-2 pb-1 text-xs text-gray-500 dark:text-gray-400">
-              Версия документов: <code>{DOCUMENTS_VERSION}</code>. При обновлении ключевых условий
-              согласие будет запрошено повторно.
+              {t('consent.version')}: <code>{DOCUMENTS_VERSION}</code>. {t('consent.versionNote')}
             </section>
           </div>
 
@@ -309,7 +317,7 @@ export function ConsentGate({ children }: { children: React.ReactNode }) {
               className="flex items-center justify-center gap-2 px-6 py-2 text-sm text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 border-t border-primary-100 dark:border-primary-900/40 hover:bg-primary-100 dark:hover:bg-primary-900/40 transition-colors"
             >
               <ChevronDown size={16} />
-              Прокрутите до конца, чтобы продолжить
+              {t('consent.scrollToEnd')}
             </button>
           )}
 
@@ -321,13 +329,13 @@ export function ConsentGate({ children }: { children: React.ReactNode }) {
               disabled={!scrolledToEnd}
               label={
                 <>
-                  Я ознакомился(-ась) и принимаю{' '}
+                  {t('consent.acceptOffer')}{' '}
                   <button
                     type="button"
                     onClick={(e) => { e.preventDefault(); openDocument('/public-offer'); }}
                     className="text-primary-600 dark:text-primary-400 underline"
                   >
-                    Публичную оферту
+                    {t('consent.offerAcc')}
                   </button>
                 </>
               }
@@ -338,13 +346,13 @@ export function ConsentGate({ children }: { children: React.ReactNode }) {
               disabled={!scrolledToEnd}
               label={
                 <>
-                  Я ознакомился(-ась) с{' '}
+                  {t('consent.readPrivacy')}{' '}
                   <button
                     type="button"
                     onClick={(e) => { e.preventDefault(); openDocument('/privacy'); }}
                     className="text-primary-600 dark:text-primary-400 underline"
                   >
-                    Политикой конфиденциальности
+                    {t('consent.privacyIns')}
                   </button>
                 </>
               }
@@ -353,7 +361,7 @@ export function ConsentGate({ children }: { children: React.ReactNode }) {
               checked={dataOk}
               onChange={setDataOk}
               disabled={!scrolledToEnd}
-              label="Даю согласие на обработку персональных данных в соответствии с Законом РУз № ЗРУ-547"
+              label={t('consent.dataConsent')}
             />
 
             {error && (
@@ -370,7 +378,7 @@ export function ConsentGate({ children }: { children: React.ReactNode }) {
               onClick={handleDecline}
               className="px-5 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
             >
-              Не согласен(-на) — выйти
+              {t('consent.decline')}
             </button>
             <button
               type="button"
@@ -378,7 +386,7 @@ export function ConsentGate({ children }: { children: React.ReactNode }) {
               onClick={handleAccept}
               className="px-6 py-2.5 text-sm font-semibold text-white bg-primary-600 hover:bg-primary-700 disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:cursor-not-allowed rounded-lg transition-colors shadow-sm"
             >
-              {submitting ? 'Сохраняем…' : 'Согласен(-на) и продолжить'}
+              {submitting ? t('consent.saving') : t('consent.accept')}
             </button>
           </div>
         </div>

@@ -93,7 +93,7 @@ export function SearchOverlay({ open, onClose }: SearchOverlayProps) {
           items.push({
             type: 'master',
             id: m.id,
-            title: m.profile?.firstName ? `${m.profile.firstName} ${m.profile.lastName || ''}` : 'Мастер',
+            title: m.profile?.firstName ? `${m.profile.firstName} ${m.profile.lastName || ''}` : t('estimateView.master'),
             subtitle: m.masterProfile?.specialization,
             link: `/masters/${m.id}`,
           });

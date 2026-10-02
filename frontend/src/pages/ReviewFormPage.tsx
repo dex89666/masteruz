@@ -6,7 +6,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ordersApi, reviewsApi } from '../api/client';
-import { useTranslation } from '../i18n';
+import { useTranslation, useLocalizedName } from '../i18n';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { useTelegram } from '../hooks';
 import { Star, Send, ArrowLeft, MessageSquare, ThumbsUp } from 'lucide-react';
@@ -25,7 +25,8 @@ const QUICK_COMMENTS = [
 export function ReviewFormPage() {
   const { orderId } = useParams();
   const navigate = useNavigate();
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
+  const ln = useLocalizedName();
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -149,7 +150,7 @@ export function ReviewFormPage() {
       <div className="card dark:bg-gray-800 dark:ring-gray-700 mb-6">
         <h3 className="font-medium text-gray-900 dark:text-white">{order.title}</h3>
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-          {order.category?.name} • {new Date(order.createdAt).toLocaleDateString()}
+          {ln(order.category)} • {new Date(order.createdAt).toLocaleDateString(locale)}
         </p>
         {order.master?.profile && (
           <div className="flex items-center gap-2 mt-2">

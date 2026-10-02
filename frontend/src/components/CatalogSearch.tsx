@@ -14,7 +14,7 @@ export function CatalogSearch() {
   const [isOpen, setIsOpen] = useState(false);
   const { results } = useCatalogSearch(query);
   const navigate = useNavigate();
-  const { language } = useTranslation();
+  const { t, language } = useTranslation();
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -52,9 +52,9 @@ export function CatalogSearch() {
   };
 
   const typeLabel = {
-    task: 'Услуга',
-    subcategory: 'Раздел',
-    category: 'Категория',
+    task: t('catalogSearch.task'),
+    subcategory: t('catalogSearch.subcategory'),
+    category: t('catalogSearch.category'),
   };
 
   return (
@@ -68,7 +68,7 @@ export function CatalogSearch() {
           value={query}
           onChange={(e) => { setQuery(e.target.value); setIsOpen(true); }}
           onFocus={() => setIsOpen(true)}
-          placeholder="Поиск услуг: сборка кухни, аквариум, электрика..."
+          placeholder={t('catalogSearch.placeholder')}
           className="w-full pl-12 pr-10 py-4 text-base bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 rounded-2xl focus:border-primary-400 dark:focus:border-primary-500 focus:ring-2 focus:ring-primary-100 dark:focus:ring-primary-900/30 outline-none transition-all placeholder:text-gray-400 dark:placeholder:text-gray-500 dark:text-white"
         />
         {query && (
@@ -87,8 +87,8 @@ export function CatalogSearch() {
           {results.length === 0 ? (
             <div className="p-6 text-center text-gray-400 dark:text-gray-500">
               <Search size={32} className="mx-auto mb-2 opacity-50" />
-              <p className="text-sm">Ничего не найдено по «{query}»</p>
-              <p className="text-xs mt-1">Попробуйте другое слово</p>
+              <p className="text-sm">{t('catalogSearch.nothing', { query })}</p>
+              <p className="text-xs mt-1">{t('catalogSearch.tryOther')}</p>
             </div>
           ) : (
             <div className="py-2">
@@ -110,7 +110,7 @@ export function CatalogSearch() {
                     )}
                     {result.minPrice != null && result.minPrice > 0 && (
                       <span className="text-xs text-primary-500 font-medium">
-                        от {new Intl.NumberFormat('ru-RU').format(result.minPrice)} сум
+                        {t('pricing.from')} {new Intl.NumberFormat('ru-RU').format(result.minPrice)} {t('common.currency')}
                       </span>
                     )}
                   </div>

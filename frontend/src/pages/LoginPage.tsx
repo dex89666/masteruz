@@ -142,7 +142,7 @@ export function LoginPage() {
       // 410 — сессия истекла
       if (err?.response?.status === 410) {
         pollAbortRef.current?.stop();
-        toast.error('Сессия авторизации истекла, попробуйте ещё раз');
+        toast.error(t('auth.sessionExpired'));
         setWaitingForBot(false);
       }
     }
@@ -162,7 +162,7 @@ export function LoginPage() {
       const startRes = await authApi.botAuthStart();
       const data = startRes.data?.data;
       if (!startRes.data?.success || !data) {
-        throw new Error('Не удалось начать авторизацию');
+        throw new Error(t('auth.startFailed'));
       }
       lastTokenRef.current = data.token;
       setBotLink(data.webLink);
@@ -204,12 +204,12 @@ export function LoginPage() {
       }
       if (!stopped) {
         setWaitingForBot(false);
-        toast.error('Время ожидания истекло. Попробуйте ещё раз.');
+        toast.error(t('auth.waitTimeout'));
       }
     } catch (err: any) {
       webTab?.close();
       setWaitingForBot(false);
-      toast.error(err?.response?.data?.error?.message || err?.message || 'Ошибка авторизации');
+      toast.error(err?.response?.data?.error?.message || err?.message || t('auth.authError'));
     }
   }
 
@@ -273,7 +273,7 @@ export function LoginPage() {
               <div className="flex items-center gap-3 rounded-2xl bg-blue-50 dark:bg-blue-900/20 px-5 py-4 w-full justify-center">
                 <LoadingSpinner size="sm" />
                 <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
-                  Откройте бота, нажмите Start и подтвердите вход
+                  {t('auth.botWaitHint')}
                 </span>
               </div>
               {botLink && (
@@ -283,7 +283,7 @@ export function LoginPage() {
                   rel="noopener noreferrer"
                   className="text-sm font-medium text-[#229ED9] hover:underline"
                 >
-                  Открыть Telegram
+                  {t('auth.openTelegram')}
                 </a>
               )}
               <button
@@ -291,7 +291,7 @@ export function LoginPage() {
                 onClick={cancelBotAuth}
                 className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
               >
-                Отменить
+                {t('common.cancel')}
               </button>
             </div>
           ) : (
@@ -301,7 +301,7 @@ export function LoginPage() {
               className="inline-flex items-center gap-3 rounded-2xl bg-[#229ED9] px-6 py-3.5 text-base font-semibold text-white shadow-lg shadow-[#229ED9]/30 transition active:scale-[0.98] hover:bg-[#1c8bc0]"
             >
               <Send size={20} />
-              Войти через Telegram
+              {t('auth.loginTelegram')}
             </button>
           )}
         </div>
@@ -315,7 +315,7 @@ export function LoginPage() {
             onClick={() => setShowWidget(true)}
             className="mb-6 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:underline"
           >
-            Telegram не открывается? Войти по номеру телефона
+            {t('auth.widgetFallback')}
           </button>
         )}
         {widgetSupported && (

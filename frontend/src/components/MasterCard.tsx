@@ -121,7 +121,7 @@ export function MasterCard({ master, isFavorite = false, showFavorite = false, o
             )}
             {master.isPro && (
               <span
-                title="PRO-мастер"
+                title={t('masterCard.pro')}
                 className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold text-white bg-gradient-to-r from-amber-500 to-orange-500 shrink-0"
               >
                 <Crown size={10} /> PRO

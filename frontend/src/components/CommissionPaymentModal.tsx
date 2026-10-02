@@ -105,7 +105,7 @@ export function CommissionPaymentModal({
               onClick={() => setShowQr(true)}
               className="w-full mb-5 py-3.5 rounded-xl font-semibold text-white bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 flex items-center justify-center gap-2"
             >
-              <QrCode size={18} /> Оплатить {formatPrice(commissionAmount)} по QR-коду
+              <QrCode size={18} /> {t('payQr.payAmountByQr', { amount: formatPrice(commissionAmount) })}
             </button>
           ) : (
             <OnlinePaymentSoon className="mb-5" />
@@ -129,7 +129,7 @@ export function CommissionPaymentModal({
       <UzQrPaymentModal
         isOpen={showQr}
         purpose={{ type: 'ORDER_COMMISSION', orderId }}
-        title={`Комиссия — ${orderTitle}`}
+        title={t('payQr.commissionTitle', { title: orderTitle })}
         onClose={() => setShowQr(false)}
         onPaid={onSuccess}
       />

@@ -3,6 +3,8 @@
 // Гарантирует, что скрипт API подгружается один раз и кешируется.
 // ============================================
 
+import { translate } from '../i18n';
+
 declare global {
   interface Window {
     ymaps: any;
@@ -27,13 +29,13 @@ export function loadYandexMaps(): Promise<any> {
     }
 
     const script = document.createElement('script');
-    script.src = `https://api-maps.yandex.ru/2.1/?apikey=${apiKey}&lang=ru_RU`;
+    script.src = `https://api-maps.yandex.ru/2.1/?apikey=${apiKey}&lang=${translate('common.yandexLang')}`;
     script.async = true;
     script.dataset.ymapsLoader = '1';
     script.onload = () => window.ymaps.ready(() => resolve(window.ymaps));
     script.onerror = () => {
       loaderPromise = null;
-      reject(new Error('Не удалось загрузить Яндекс.Карты'));
+      reject(new Error(translate('routeMap.loadFailed')));
     };
     document.head.appendChild(script);
   });

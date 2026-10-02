@@ -2,7 +2,7 @@
 // MasterUz — Layout Component (i18n + роли)
 // ============================================
 
-import { Link, Outlet, useLocation } from 'react-router-dom';
+import { Link, Outlet, useLocation, useNavigationType } from 'react-router-dom';
 import { useAuthStore } from '../store';
 import { useTranslation } from '../i18n';
 import LanguageSwitcher from './LanguageSwitcher';
@@ -43,6 +43,7 @@ import { useCartStore } from '../store/cartStore';
 
 export function Layout() {
   const location = useLocation();
+  const navigationType = useNavigationType();
   const { user, isAuthenticated, logout, setUser, setAuth } = useAuthStore();
   const { t } = useTranslation();
   const isMaster = user?.role === 'MASTER';
@@ -68,14 +69,14 @@ export function Layout() {
         } else {
           setUser(resData.data);
         }
-        toast.success('Роль изменена на Админ');
+        toast.success(t('layout.roleSwitchedAdmin'));
       }
     } catch (err: any) {
       const msg =
         err?.response?.data?.message ||
         err?.response?.data?.error?.message ||
         err?.message ||
-        'Ошибка смены роли';
+        t('layout.roleSwitchError');
       toast.error(msg);
     } finally {
       setSwitchingRole(false);
@@ -103,6 +104,12 @@ export function Layout() {
   // Close mobile menu on route change
   useEffect(() => {
     setMobileMenuOpen(false);
+  }, [location.pathname]);
+
+  // Новая страница открывается сверху. На «Назад» (POP) позицию не трогаем —
+  // браузер сам вернёт её в списке, откуда пришли.
+  useEffect(() => {
+    if (navigationType !== 'POP') window.scrollTo(0, 0);
   }, [location.pathname]);
 
   // Блокируем скролл body, пока открыто мобильное меню — иначе на Android
@@ -218,7 +225,7 @@ export function Layout() {
                   className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 whitespace-nowrap transition-colors"
                 >
                   <ShieldCheck size={15} />
-                  Админ
+                  {t('nav.admin')}
                 </button>
               )}
             </nav>
@@ -232,7 +239,7 @@ export function Layout() {
                   className="flex items-center gap-1.5 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-all shadow-sm mr-1"
                 >
                   <Wrench size={14} />
-                  Стать мастером
+                  {t('home.becomeMaster')}
                 </Link>
               )}
 
@@ -419,7 +426,7 @@ export function Layout() {
                   className="flex items-center gap-3 w-full px-4 py-3.5 rounded-xl text-sm font-medium text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20"
                 >
                   <ShieldCheck size={22} />
-                  Вернуться в Админ-панель
+                  {t('layout.backToAdmin')}
                 </button>
               )}
 
@@ -433,7 +440,7 @@ export function Layout() {
                   className="flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl text-sm font-bold bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700 transition-colors shadow-md mb-2"
                 >
                   <Wrench size={20} />
-                  Стать мастером
+                  {t('home.becomeMaster')}
                 </Link>
               )}
 
@@ -509,12 +516,12 @@ export function Layout() {
               <ul className="space-y-2 text-sm">
                 <li><Link to="/about" className="hover:text-white transition-colors">{t('footer.about')}</Link></li>
                 <li><Link to="/support" className="hover:text-white transition-colors">{t('support.title')}</Link></li>
-                <li><Link to="/careers" className="hover:text-white transition-colors">Вакансии</Link></li>
-                <li><Link to="/development" className="hover:text-white transition-colors">Разработка</Link></li>
+                <li><Link to="/careers" className="hover:text-white transition-colors">{t('footer.careers')}</Link></li>
+                <li><Link to="/development" className="hover:text-white transition-colors">{t('footer.development')}</Link></li>
                 <li><Link to="/public-offer" className="hover:text-white transition-colors">{t('home.publicOffer')}</Link></li>
                 <li><Link to="/privacy" className="hover:text-white transition-colors">{t('home.privacyPolicy')}</Link></li>
-                <li><Link to="/terms" className="hover:text-white transition-colors">Условия использования</Link></li>
-                <li><Link to="/complaint" className="hover:text-white transition-colors">Подать жалобу</Link></li>
+                <li><Link to="/terms" className="hover:text-white transition-colors">{t('footer.terms')}</Link></li>
+                <li><Link to="/complaint" className="hover:text-white transition-colors">{t('footer.complaint')}</Link></li>
               </ul>
             </div>
           </div>
@@ -536,10 +543,8 @@ export function Layout() {
 
           {/* Юридические реквизиты */}
           <div className="border-t border-gray-800 mt-4 pt-4 text-[11px] text-gray-500 leading-relaxed text-center md:text-left">
-            ООО «Vladlab» · ИНН <span className="text-gray-400">313 020 180</span> ·
-            ОКЭД 63.12.0 (деятельность веб-порталов) · г. Ташкент, Республика Узбекистан.
-            Платформа является информационным посредником между клиентами и независимыми
-            мастерами и не оказывает строительно-ремонтных услуг от своего имени.
+            {t('footer.requisitesCompany')} · {t('footer.requisitesInn')} <span className="text-gray-400">313 020 180</span> ·
+            {' '}{t('footer.requisitesRest')}
           </div>
         </div>
       </footer>

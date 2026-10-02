@@ -11,6 +11,7 @@ import {
   Clock, Wand2, ImagePlus, MapPin, Mic, Square,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useTranslation, useLocalizedName } from '../i18n';
 import { instantOrderApi } from '../api/client';
 
 // ─── Типы ответа ─────────────────────────────
@@ -34,7 +35,7 @@ interface EstimateResult {
 }
 
 // ─── Форматирование суммы ────────────────────
-const formatSum = (n: number) => `${Math.round(n).toLocaleString('ru-RU')} сум`;
+const formatSumWith = (n: number, currency: string) => `${Math.round(n).toLocaleString('ru-RU')} ${currency}`;
 
 // ─── Сжатие фото → base64 data URL (для AI без загрузки на сервер) ──
 async function fileToCompressedDataUrl(file: File, maxSide = 1280, quality = 0.72): Promise<string> {
@@ -62,6 +63,9 @@ async function fileToCompressedDataUrl(file: File, maxSide = 1280, quality = 0.7
 const MAX_PHOTOS = 5;
 
 export function PublicCalculatorPage() {
+  const { t } = useTranslation();
+  const ln = useLocalizedName();
+  const formatSum = (n: number) => formatSumWith(n, t('common.currency'));
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -76,7 +80,7 @@ export function PublicCalculatorPage() {
   // Заголовок вкладки для расшаренной ссылки (UX, не для ботов соцсетей)
   useEffect(() => {
     const prev = document.title;
-    document.title = 'Сколько стоит починить это? — AI-калькулятор MasterUz';
+    document.title = t('calculator.docTitle');
     return () => { document.title = prev; };
   }, []);
 
@@ -88,7 +92,7 @@ export function PublicCalculatorPage() {
     }
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      toast.error('Голосовой ввод не поддерживается в этом браузере. Напишите текстом.');
+      toast.error(t('calculator.voiceUnsupported'));
       return;
     }
     const recognition = new SpeechRecognition();
@@ -106,28 +110,28 @@ export function PublicCalculatorPage() {
       setDescription((finalText + interim).trim().slice(0, 2000));
     };
     recognition.onerror = (e: any) => {
-      if (e.error === 'no-speech') toast.error('Речь не обнаружена');
-      else if (e.error === 'not-allowed') toast.error('Доступ к микрофону запрещён');
+      if (e.error === 'no-speech') toast.error(t('instant.noSpeech'));
+      else if (e.error === 'not-allowed') toast.error(t('instant.micDenied'));
       setRecording(false);
     };
     recognition.onend = () => { setRecording(false); recognitionRef.current = null; };
     recognitionRef.current = recognition;
     recognition.start();
     setRecording(true);
-    toast('Говорите — текст появится сам', { icon: '🎙️', duration: 1800 });
+    toast(t('calculator.speak'), { icon: '🎙️', duration: 1800 });
   }, [recording, description]);
 
   const addFiles = useCallback(async (files: File[]) => {
     const room = MAX_PHOTOS - previews.length;
-    if (room <= 0) { toast.error(`Максимум ${MAX_PHOTOS} фото`); return; }
+    if (room <= 0) { toast.error(t('instant.maxPhotos', { n: MAX_PHOTOS })); return; }
     const slice = files.slice(0, room).filter((f) => f.type.startsWith('image/'));
     for (const file of slice) {
-      if (file.size > 12 * 1024 * 1024) { toast.error('Файл слишком большой (макс. 12 МБ)'); continue; }
+      if (file.size > 12 * 1024 * 1024) { toast.error(t('calculator.fileTooLarge')); continue; }
       try {
         const dataUrl = await fileToCompressedDataUrl(file);
         setPreviews((p) => [...p, dataUrl]);
         setDataUrls((d) => [...d, dataUrl]);
-      } catch { toast.error('Не удалось обработать фото'); }
+      } catch { toast.error(t('calculator.photoFailed')); }
     }
   }, [previews.length]);
 
@@ -145,7 +149,7 @@ export function PublicCalculatorPage() {
 
   const handleEstimate = async () => {
     if (!canSubmit) {
-      toast.error('Добавьте фото или опишите задачу');
+      toast.error(t('calculator.needInput'));
       return;
     }
     setLoading(true);
@@ -157,7 +161,7 @@ export function PublicCalculatorPage() {
       });
       setResult(res.data.data as EstimateResult);
     } catch (err: any) {
-      const msg = err.response?.data?.error?.message || 'Не удалось рассчитать. Попробуйте ещё раз.';
+      const msg = err.response?.data?.error?.message || t('calculator.calcFailed');
       toast.error(msg);
     } finally {
       setLoading(false);
@@ -185,7 +189,7 @@ export function PublicCalculatorPage() {
             MasterUz
           </Link>
           <Link to="/login" className="text-sm font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700">
-            Войти
+            {t('nav.login')}
           </Link>
         </div>
       </header>
@@ -194,19 +198,18 @@ export function PublicCalculatorPage() {
         {/* Hero */}
         <section className="text-center pt-10 pb-6">
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300 text-xs font-semibold mb-4">
-            <Sparkles size={14} /> AI-оценка за 30 секунд
+            <Sparkles size={14} /> {t('calculator.badge')}
           </span>
           <h1 className="text-3xl sm:text-4xl font-extrabold text-gray-900 dark:text-white leading-tight">
-            Сколько стоит починить <span className="text-primary-600 dark:text-primary-400">это?</span>
+            {t('calculator.h1a')} <span className="text-primary-600 dark:text-primary-400">{t('calculator.h1b')}</span>
           </h1>
           <p className="mt-3 text-gray-500 dark:text-gray-400 max-w-xl mx-auto">
-            Сфотографируйте проблему или опишите словами — искусственный интеллект назовёт
-            примерную цену работы в Ташкенте. Бесплатно.
+            {t('calculator.lead')}
           </p>
           <div className="mt-4 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-gray-500 dark:text-gray-400">
-            <span className="flex items-center gap-1"><ShieldCheck size={14} className="text-green-500" /> Бесплатно</span>
-            <span className="flex items-center gap-1"><Clock size={14} className="text-primary-500" /> Результат за 30 сек</span>
-            <span className="flex items-center gap-1"><MapPin size={14} className="text-amber-500" /> Цены Ташкента 2026</span>
+            <span className="flex items-center gap-1"><ShieldCheck size={14} className="text-green-500" /> {t('calculator.free')}</span>
+            <span className="flex items-center gap-1"><Clock size={14} className="text-primary-500" /> {t('calculator.result30')}</span>
+            <span className="flex items-center gap-1"><MapPin size={14} className="text-amber-500" /> {t('calculator.prices2026')}</span>
           </div>
         </section>
 
@@ -220,7 +223,7 @@ export function PublicCalculatorPage() {
                 <button
                   onClick={() => removePhoto(i)}
                   className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/60 text-white flex items-center justify-center opacity-90 hover:bg-black"
-                  aria-label="Удалить"
+                  aria-label={t('common.delete')}
                 >
                   <X size={14} />
                 </button>
@@ -232,7 +235,7 @@ export function PublicCalculatorPage() {
                 className="aspect-square rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-700 flex flex-col items-center justify-center gap-1 text-gray-400 hover:border-primary-400 hover:text-primary-500 transition-colors"
               >
                 {previews.length === 0 ? <Camera size={22} /> : <ImagePlus size={22} />}
-                <span className="text-[10px] font-medium">Фото</span>
+                <span className="text-[10px] font-medium">{t('estimationForm.photo')}</span>
               </button>
             )}
           </div>
@@ -250,7 +253,7 @@ export function PublicCalculatorPage() {
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="Опишите задачу: «течёт смеситель на кухне», «поклеить обои в комнате 18 м²»…"
+            placeholder={t('calculator.placeholder')}
             rows={3}
             maxLength={2000}
             className="mt-4 w-full resize-none rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-3 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
@@ -266,7 +269,7 @@ export function PublicCalculatorPage() {
                 : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
             }`}
           >
-            {recording ? <><Square size={16} /> Остановить запись</> : <><Mic size={16} /> Сказать голосом</>}
+            {recording ? <><Square size={16} /> {t('calculator.stopRec')}</> : <><Mic size={16} /> {t('calculator.sayVoice')}</>}
           </button>
 
           {/* CTA */}
@@ -276,15 +279,14 @@ export function PublicCalculatorPage() {
             className="btn-primary w-full mt-4 py-3.5 text-base font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {loading ? (
-              <><Loader2 size={20} className="animate-spin" /> Считаем…</>
+              <><Loader2 size={20} className="animate-spin" /> {t('calculator.calculating')}</>
             ) : (
-              <><Wand2 size={20} /> Узнать цену</>
+              <><Wand2 size={20} /> {t('calculator.getPrice')}</>
             )}
           </button>
 
           <p className="mt-3 text-[11px] leading-relaxed text-gray-400 dark:text-gray-500 text-center">
-            Загружая фото, вы соглашаетесь на обработку данных для AI-оценки.
-            Точную стоимость подтвердит мастер.
+            {t('calculator.disclaimer')}
           </p>
         </section>
 
@@ -299,7 +301,7 @@ export function PublicCalculatorPage() {
                     {result.category.name}
                   </div>
                 )}
-                <p className="text-sm text-gray-500 dark:text-gray-400">Примерная стоимость работы</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">{t('calculator.approxCost')}</p>
                 <p className="mt-1 text-3xl sm:text-4xl font-extrabold text-gray-900 dark:text-white">
                   {formatSum(result.priceRange.min)}
                   {result.priceRange.max > result.priceRange.min && (
@@ -317,7 +319,7 @@ export function PublicCalculatorPage() {
                         <div className="min-w-0">
                           <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{v.title}</p>
                           <p className="text-[11px] text-gray-400 dark:text-gray-500">
-                            {v.tierLabel} · ~{v.estimatedDays} дн.
+                            {v.tierLabel} · ~{v.estimatedDays} {t('instant.daysShort')}
                           </p>
                         </div>
                         <span className="text-sm font-bold text-primary-600 dark:text-primary-400 shrink-0 ml-3">
@@ -331,26 +333,25 @@ export function PublicCalculatorPage() {
             ) : (
               <div className="card p-6 text-center">
                 <p className="text-base font-semibold text-gray-900 dark:text-white">
-                  {result.category ? `Похоже на «${result.category.name}»` : 'Нужны замеры на месте'}
+                  {result.category ? t('calculator.looksLike', { name: ln(result.category) }) : t('instant.needMeasureTitle')}
                 </p>
                 <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                  {result.summary || 'Для точного расчёта мастер оценит объём работ на месте — это бесплатно или по тарифу платформы.'}
+                  {result.summary || t('calculator.summaryFallback')}
                 </p>
               </div>
             )}
 
             {/* Conversion CTA */}
             <div className="mt-4 card p-5 bg-primary-600 dark:bg-primary-700 text-white text-center">
-              <p className="font-bold text-lg">Готовы решить проблему?</p>
+              <p className="font-bold text-lg">{t('calculator.ready')}</p>
               <p className="text-sm text-primary-100 mt-1">
-                Зарегистрируйтесь — проверенные мастера откликнутся с точной ценой,
-                а оплата защищена эскроу.
+                {t('calculator.readyText')}
               </p>
               <button
                 onClick={goToOrder}
                 className="mt-4 w-full bg-white text-primary-700 font-semibold py-3 rounded-xl hover:bg-primary-50 transition-colors flex items-center justify-center gap-2"
               >
-                Найти мастера <ArrowRight size={18} />
+                {t('home.findMaster')} <ArrowRight size={18} />
               </button>
             </div>
           </section>
@@ -358,7 +359,7 @@ export function PublicCalculatorPage() {
 
         {/* Trust footer */}
         <p className="mt-8 text-center text-xs text-gray-400 dark:text-gray-600">
-          MasterUz — платформа проверенных мастеров. Оплата через эскроу, гарантия на работы.
+          {t('calculator.footer')}
         </p>
       </main>
     </div>

@@ -11,7 +11,7 @@ import {
   FileText, MessageSquare, CheckCircle, ListChecks,
 } from 'lucide-react';
 import { useAuthStore } from '../store';
-import { useTranslation } from '../i18n';
+import { useTranslation, useLocalizedName } from '../i18n';
 import { usersApi, ordersApi } from '../api/client';
 import { MasterCard } from '../components/MasterCard';
 import { OrderCard } from '../components/OrderCard';
@@ -43,12 +43,12 @@ const CATEGORY_PHOTOS: Record<string, string> = {
 };
 
 const FALLBACK_PARENT_CATEGORIES = [
-  { icon: 'Hammer', slug: 'repair-finishing',      name: 'Ремонт и отделка',         childCount: 6 },
-  { icon: 'HardHat', slug: 'construction-building', name: 'Строительство и монтаж',   childCount: 4 },
-  { icon: 'Home', slug: 'home-help',             name: 'Помощь по дому',           childCount: 2 },
-  { icon: 'Armchair', slug: 'crafts-manufacturing',  name: 'Изготовление и ремесло',   childCount: 2 },
-  { icon: 'Zap', slug: 'tech-equipment',        name: 'Техника и оборудование',   childCount: 1 },
-  { icon: 'Truck', slug: 'transport-logistics',   name: 'Перевозки и грузчики',     childCount: 1 },
+  { icon: 'Hammer', slug: 'repair-finishing',      name: 'Ремонт и отделка',       nameUz: "Ta'mirlash va pardozlash", nameEn: 'Repair & finishing',          childCount: 6 },
+  { icon: 'HardHat', slug: 'construction-building', name: 'Строительство и монтаж', nameUz: "Qurilish va montaj",       nameEn: 'Construction & installation', childCount: 4 },
+  { icon: 'Home', slug: 'home-help',             name: 'Помощь по дому',         nameUz: "Uy ishlarida yordam",      nameEn: 'Home help',                   childCount: 2 },
+  { icon: 'Armchair', slug: 'crafts-manufacturing',  name: 'Изготовление и ремесло', nameUz: "Ishlab chiqarish va hunarmandchilik", nameEn: 'Crafts & manufacturing', childCount: 2 },
+  { icon: 'Zap', slug: 'tech-equipment',        name: 'Техника и оборудование', nameUz: "Texnika va uskunalar",     nameEn: 'Appliances & equipment',      childCount: 1 },
+  { icon: 'Truck', slug: 'transport-logistics',   name: 'Перевозки и грузчики',   nameUz: "Yuk tashish va yuk ortish", nameEn: 'Moving & loaders',           childCount: 1 },
 ];
 
 const FEATURE_ICONS = [Search, Shield, Star, MapPin] as const;
@@ -58,7 +58,8 @@ const STEP_KEYS = ['step1', 'step2', 'step3'] as const;
 
 export function HomePage() {
   const { user } = useAuthStore();
-  const { t } = useTranslation();
+  const { t, tn } = useTranslation();
+  const ln = useLocalizedName();
   const formatPrice = useFormatPrice();
   const [topMasters, setTopMasters] = useState<any[]>([]);
   const [urgentOrders, setUrgentOrders] = useState<Order[]>([]);
@@ -120,7 +121,7 @@ export function HomePage() {
               className="flex items-center gap-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-bold px-5 py-3 rounded-xl text-sm md:text-base transition-all shadow-lg shadow-green-500/30 hover:scale-105 min-h-[44px]"
             >
               <Users size={18} />
-              Стать мастером
+              {t('home.becomeMaster')}
             </Link>
           </div>
 
@@ -157,7 +158,7 @@ export function HomePage() {
               className="w-full flex items-center justify-center gap-3 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-bold px-8 py-5 rounded-2xl text-lg md:text-xl transition-all shadow-lg shadow-red-600/40 hover:shadow-red-600/60 hover:scale-[1.02] ring-2 ring-red-500/50 min-h-[64px] animate-pulse-subtle"
             >
               <AlertTriangle size={26} className="shrink-0" />
-              <span>Авария? Срочный вызов</span>
+              <span>{t('home.emergencyCall')}</span>
               <span className="ml-1 text-sm font-normal bg-white/20 px-2 py-0.5 rounded-full">+40%</span>
             </Link>
 
@@ -168,15 +169,15 @@ export function HomePage() {
                 className="w-full flex items-center justify-center gap-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-bold px-8 py-5 rounded-2xl text-lg md:text-xl transition-all shadow-lg shadow-green-500/30 hover:shadow-green-500/50 hover:scale-[1.02] ring-2 ring-green-400/50 min-h-[64px]"
               >
                 <ClipboardList size={26} className="shrink-0" />
-                <span>Доступные заказы</span>
+                <span>{t('nav.availableOrders')}</span>
               </Link>
             )}
           </div>
 
           <div className="flex justify-center gap-6 mt-8 text-sm text-gray-400">
-            <span className="flex items-center gap-1"><Star size={14} className="text-yellow-400" /> 4.9 рейтинг</span>
-            <span className="flex items-center gap-1"><Users size={14} className="text-green-400" /> {stats.services}+ услуг</span>
-            <span className="flex items-center gap-1"><Shield size={14} className="text-blue-400" /> Гарантия 30 дней</span>
+            <span className="flex items-center gap-1"><Star size={14} className="text-yellow-400" /> {t('home.badgeRating', { rating: '4.9' })}</span>
+            <span className="flex items-center gap-1"><Users size={14} className="text-green-400" /> {t('home.badgeServices', { n: stats.services })}</span>
+            <span className="flex items-center gap-1"><Shield size={14} className="text-blue-400" /> {t('home.badgeGuarantee', { days: stats.guarantee })}</span>
           </div>
         </div>
       </section>
@@ -186,7 +187,7 @@ export function HomePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-8">
             <h2 className="text-2xl md:text-3xl font-extrabold dark:text-white mb-2">{t('categories.title')}</h2>
-            <p className="text-gray-500 dark:text-gray-400 text-base">Выберите направление — найдём лучшего мастера</p>
+            <p className="text-gray-500 dark:text-gray-400 text-base">{t('home.chooseDirection')}</p>
           </div>
           {/* Поиск по каталогу */}
           <div className="mb-8">
@@ -217,11 +218,11 @@ export function HomePage() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <h3 className="text-lg md:text-xl font-bold leading-tight drop-shadow-md">
-                          {cat.name}
+                          {ln(cat)}
                         </h3>
                         {childCount > 0 && (
                           <p className="text-sm text-white/80 mt-0.5">
-                            {childCount} {childCount === 1 ? 'категория' : childCount < 5 ? 'категории' : 'категорий'}
+                            {tn('home.categoryCount', childCount)}
                           </p>
                         )}
                       </div>
@@ -245,8 +246,8 @@ export function HomePage() {
                 <h3 className="text-xl font-bold mb-2">{t('stores.title')}</h3>
                 <p className="text-blue-100 mb-5 text-sm leading-relaxed">{t('stores.subtitle')}</p>
                 <div className="flex flex-wrap gap-2">
-                  <Link to="/stores" className="inline-flex items-center gap-1.5 bg-white text-blue-700 font-semibold px-4 py-2 rounded-lg hover:bg-blue-50 text-sm transition">Каталог <ArrowRight size={14} /></Link>
-                  <Link to="/stores/partner-request" className="inline-flex items-center gap-1.5 border border-white/30 text-white px-4 py-2 rounded-lg hover:bg-white/10 text-sm transition"><Handshake size={14} /> Стать партнёром</Link>
+                  <Link to="/stores" className="inline-flex items-center gap-1.5 bg-white text-blue-700 font-semibold px-4 py-2 rounded-lg hover:bg-blue-50 text-sm transition">{t('home.catalogLink')} <ArrowRight size={14} /></Link>
+                  <Link to="/stores/partner-request" className="inline-flex items-center gap-1.5 border border-white/30 text-white px-4 py-2 rounded-lg hover:bg-white/10 text-sm transition"><Handshake size={14} /> {t('stores.becomePartner')}</Link>
                 </div>
               </div>
               <div className="absolute top-0 right-0 w-28 h-28 bg-white/5 rounded-full -translate-y-6 translate-x-6" />
@@ -257,7 +258,7 @@ export function HomePage() {
                 <h3 className="text-xl font-bold mb-2">{t('turnkey.title')}</h3>
                 <p className="text-amber-100 mb-5 text-sm leading-relaxed">{t('turnkey.subtitle')}</p>
                 <div className="flex flex-wrap gap-2">
-                  <Link to="/turnkey" className="inline-flex items-center gap-1.5 bg-white text-amber-700 font-semibold px-4 py-2 rounded-lg hover:bg-amber-50 text-sm transition">Оставить заявку <ArrowRight size={14} /></Link>
+                  <Link to="/turnkey" className="inline-flex items-center gap-1.5 bg-white text-amber-700 font-semibold px-4 py-2 rounded-lg hover:bg-amber-50 text-sm transition">{t('home.leaveRequest')} <ArrowRight size={14} /></Link>
                 </div>
               </div>
               <div className="absolute top-0 right-0 w-28 h-28 bg-white/5 rounded-full -translate-y-6 translate-x-6" />
@@ -265,10 +266,10 @@ export function HomePage() {
             <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-cyan-600 to-teal-700 text-white p-7 flex flex-col">
               <div className="relative z-10 flex-1">
                 <Search size={36} className="mb-3 opacity-80" />
-                <h3 className="text-xl font-bold mb-2">Выезд на оценку</h3>
-                <p className="text-cyan-100 mb-5 text-sm leading-relaxed">Мастер приедет, сделает замеры и составит точную смету.</p>
+                <h3 className="text-xl font-bold mb-2">{t('estimation.title')}</h3>
+                <p className="text-cyan-100 mb-5 text-sm leading-relaxed">{t('home.estimationDesc')}</p>
                 <div className="flex flex-wrap gap-2">
-                  <Link to="/estimation/create" className="inline-flex items-center gap-1.5 bg-white text-cyan-700 font-semibold px-4 py-2 rounded-lg hover:bg-cyan-50 text-sm transition">Заказать <ArrowRight size={14} /></Link>
+                  <Link to="/estimation/create" className="inline-flex items-center gap-1.5 bg-white text-cyan-700 font-semibold px-4 py-2 rounded-lg hover:bg-cyan-50 text-sm transition">{t('home.orderButton')} <ArrowRight size={14} /></Link>
                 </div>
               </div>
               <div className="absolute top-0 right-0 w-28 h-28 bg-white/5 rounded-full -translate-y-6 translate-x-6" />

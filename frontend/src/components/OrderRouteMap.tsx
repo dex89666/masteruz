@@ -7,6 +7,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Navigation, ExternalLink } from 'lucide-react';
 import { loadYandexMaps } from '../lib/yandexMaps';
+import { useTranslation } from '../i18n';
 
 interface Props {
   orderLat: number;
@@ -34,8 +35,9 @@ export function OrderRouteMap({
   myLng,
   height = 260,
   showActions = true,
-  orderLabel = 'Адрес заказа',
+  orderLabel,
 }: Props) {
+  const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
   const orderMarkRef = useRef<any>(null);
@@ -60,7 +62,7 @@ export function OrderRouteMap({
         // Точка заказа — красная
         orderMarkRef.current = new ymaps.Placemark(
           [orderLat, orderLng],
-          { iconCaption: orderLabel },
+          { iconCaption: orderLabel ?? t('instant.orderAddress') },
           {
             preset: 'islands#redHomeCircleIcon',
             iconColor: '#ef4444',
@@ -127,7 +129,7 @@ export function OrderRouteMap({
     } else {
       liveMarkRef.current = new ymaps.Placemark(
         [masterLat, masterLng],
-        { iconCaption: 'Мастер' },
+        { iconCaption: t('estimateView.master') },
         { preset: 'islands#blueAutoIcon', iconColor: '#3b82f6' }
       );
       mapRef.current.geoObjects.add(liveMarkRef.current);
@@ -144,7 +146,7 @@ export function OrderRouteMap({
     } else {
       myMarkRef.current = new ymaps.Placemark(
         [myLat, myLng],
-        { iconCaption: 'Вы' },
+        { iconCaption: t('supportChat.you') },
         { preset: 'islands#geolocationIcon', iconColor: '#6366f1' }
       );
       mapRef.current.geoObjects.add(myMarkRef.current);
@@ -157,7 +159,7 @@ export function OrderRouteMap({
         className="flex items-center justify-center text-sm text-gray-500 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700"
         style={{ height }}
       >
-        Карта недоступна. {loadError}
+        {t('routeMap.unavailable')} {loadError}
       </div>
     );
   }
@@ -194,7 +196,7 @@ export function OrderRouteMap({
             className="py-2.5 rounded-xl font-medium text-sm bg-indigo-600 text-white hover:bg-indigo-700 transition-all flex items-center justify-center gap-2"
           >
             <Navigation size={16} />
-            Яндекс.Навигатор
+            {t('orderView.yandexNavigator')}
           </a>
           <a
             href={`https://www.google.com/maps/dir/?api=1&destination=${orderLat},${orderLng}&travelmode=driving`}

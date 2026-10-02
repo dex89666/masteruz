@@ -14,6 +14,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { RefreshCw, X } from 'lucide-react';
+import { useTranslation } from '../i18n';
 
 const CHECK_INTERVAL_MS = 5 * 60 * 1000; // фоновая сверка версии — каждые 5 мин
 const SNOOZE_STEPS_MS = [10, 6, 4, 3, 2].map((m) => m * 60 * 1000); // эскалация «Позже»
@@ -42,6 +43,7 @@ async function applyWaitingServiceWorker(): Promise<void> {
 }
 
 export function AppUpdatePrompt() {
+  const { t } = useTranslation();
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [visible, setVisible] = useState(false);
   const snoozeIndexRef = useRef(0);
@@ -99,20 +101,20 @@ export function AppUpdatePrompt() {
           <RefreshCw className="h-5 w-5" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold leading-tight">Доступно обновление</p>
-          <p className="truncate text-xs text-slate-400">Нажмите, чтобы загрузить новую версию</p>
+          <p className="text-sm font-semibold leading-tight">{t('update.available')}</p>
+          <p className="truncate text-xs text-slate-400">{t('update.tapToLoad')}</p>
         </div>
         <button
           type="button"
           onClick={handleUpdate}
           className="shrink-0 rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-white transition active:scale-95 hover:bg-emerald-600"
         >
-          Обновить
+          {t('update.refresh')}
         </button>
         <button
           type="button"
           onClick={handleSnooze}
-          aria-label="Позже"
+          aria-label={t('update.later')}
           className="shrink-0 rounded-lg p-1.5 text-slate-400 transition hover:bg-white/10 hover:text-white"
         >
           <X className="h-4 w-4" />

@@ -4,8 +4,10 @@
 
 import { useState, useEffect } from 'react';
 import { Cookie } from 'lucide-react';
+import { useTranslation } from '../i18n';
 
 export function CookieConsent() {
+  const { t } = useTranslation();
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -34,21 +36,21 @@ export function CookieConsent() {
       <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center gap-3">
         <Cookie size={20} className="text-yellow-400 flex-shrink-0 hidden sm:block" />
         <p className="text-sm text-gray-300 flex-1 text-center sm:text-left">
-          Мы используем файлы cookie для улучшения работы сайта. Продолжая использование, вы соглашаетесь с{' '}
-          <a href="#" className="text-primary-400 hover:underline">политикой конфиденциальности</a>.
+          {t('cookie.text')}{' '}
+          <a href="#" className="text-primary-400 hover:underline">{t('cookie.privacy')}</a>.
         </p>
         <div className="flex gap-2 flex-shrink-0">
           <button
             onClick={handleAccept}
             className="px-4 py-1.5 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 transition-colors font-medium"
           >
-            Принять
+            {t('cookie.accept')}
           </button>
           <button
             onClick={handleDecline}
             className="px-4 py-1.5 bg-gray-700 text-gray-300 text-sm rounded-lg hover:bg-gray-600 transition-colors"
           >
-            Отклонить
+            {t('estimateView.reject')}
           </button>
         </div>
       </div>

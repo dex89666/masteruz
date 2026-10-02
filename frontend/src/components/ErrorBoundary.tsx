@@ -4,6 +4,8 @@
 
 import { Component, ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
+// Класс-компонент и стоит снаружи I18nProvider — переводим без хука.
+import { translate as t } from '../i18n';
 
 interface Props {
   children: ReactNode;
@@ -51,16 +53,16 @@ export class ErrorBoundary extends Component<Props, State> {
               <AlertTriangle size={32} className="text-red-500" />
             </div>
             <h2 className="text-xl font-bold text-gray-900 mb-2">
-              Что-то пошло не так
+              {t('errorBoundary.title')}
             </h2>
             <p className="text-gray-500 mb-6 text-sm">
-              Произошла непредвиденная ошибка. Попробуйте обновить страницу или вернуться на главную.
+              {t('errorBoundary.text')}
             </p>
 
             {this.state.error && (
               <details className="mb-6 text-left">
                 <summary className="text-xs text-gray-400 cursor-pointer hover:text-gray-600">
-                  Подробности ошибки
+                  {t('errorBoundary.details')}
                 </summary>
                 <pre className="mt-2 text-xs text-red-600 bg-red-50 p-3 rounded-lg overflow-auto max-h-32">
                   {this.state.error.message}
@@ -74,14 +76,14 @@ export class ErrorBoundary extends Component<Props, State> {
                 className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm font-medium"
               >
                 <RefreshCw size={16} />
-                Попробовать снова
+                {t('errorBoundary.retry')}
               </button>
               <button
                 onClick={this.handleGoHome}
                 className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium"
               >
                 <Home size={16} />
-                На главную
+                {t('errorBoundary.home')}
               </button>
             </div>
           </div>

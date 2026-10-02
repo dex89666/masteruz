@@ -6,7 +6,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useAuthStore, useAppStore } from '../store';
 import { authApi, catalogApi, onlineStatusApi } from '../api/client';
-import { useTranslation } from '../i18n';
+import { useTranslation, translate } from '../i18n';
 
 /**
  * Хук для определения Telegram Mini App
@@ -68,7 +68,7 @@ export function useGeolocation() {
       });
       setUserLocation({ latitude, longitude });
     } catch (err: any) {
-      setError(err?.message ?? 'Не удалось получить геолокацию');
+      setError(err?.message ?? translate('geo.unavailable'));
     } finally {
       setLoading(false);
     }

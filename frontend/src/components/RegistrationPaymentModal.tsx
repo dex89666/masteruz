@@ -102,7 +102,7 @@ export function RegistrationPaymentModal({
               onClick={() => setShowQr(true)}
               className="w-full py-3.5 rounded-xl font-semibold text-white bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 flex items-center justify-center gap-2"
             >
-              <QrCode size={18} /> Оплатить по QR-коду
+              <QrCode size={18} /> {t('payQr.payByQr')}
             </button>
           ) : (
             <OnlinePaymentSoon />
@@ -112,7 +112,7 @@ export function RegistrationPaymentModal({
       <UzQrPaymentModal
         isOpen={showQr}
         purpose={{ type: 'REGISTRATION_FEE' }}
-        title="Регистрационный взнос мастера"
+        title={t('payQr.regFeeTitle')}
         onClose={() => setShowQr(false)}
         onPaid={onSuccess}
       />

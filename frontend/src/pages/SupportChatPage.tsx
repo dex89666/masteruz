@@ -6,6 +6,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuthStore } from '../store';
 import { supportChatApi } from '../api/client';
+import { useTranslation } from '../i18n';
 import { MessageCircle, Send, ChevronLeft, Headphones, CheckCheck, Clock } from 'lucide-react';
 
 interface SupportChat {
@@ -32,6 +33,7 @@ interface SupportMessage {
 }
 
 export function SupportChatPage() {
+  const { t } = useTranslation();
   const { user } = useAuthStore();
   const [chats, setChats] = useState<SupportChat[]>([]);
   const [selectedChat, setSelectedChat] = useState<SupportChat | null>(null);
@@ -116,8 +118,8 @@ export function SupportChatPage() {
   };
 
   const getDisplayName = (msg: SupportMessage) => {
-    if (msg.senderId === user?.id) return 'Вы';
-    return msg.sender?.profile?.firstName || 'Поддержка';
+    if (msg.senderId === user?.id) return t('supportChat.you');
+    return msg.sender?.profile?.firstName || t('supportChat.support');
   };
 
   // ─── Empty state ─────────────────────────
@@ -144,7 +146,7 @@ export function SupportChatPage() {
           <div className="flex-1">
             <h2 className="font-semibold text-gray-900 line-clamp-1">{selectedChat.subject}</h2>
             <p className="text-xs text-gray-500">
-              {selectedChat.isClosed ? 'Чат закрыт' : 'Активный чат'}
+              {selectedChat.isClosed ? t('supportChat.closed') : t('supportChat.active')}
             </p>
           </div>
         </div>
@@ -154,7 +156,7 @@ export function SupportChatPage() {
           {messages.length === 0 && (
             <div className="text-center text-gray-400 py-12">
               <MessageCircle className="w-12 h-12 mx-auto mb-3 opacity-30" />
-              <p>Сообщений пока нет</p>
+              <p>{t('supportChat.noMessagesYet')}</p>
             </div>
           )}
           {messages.map((msg) => {
@@ -197,7 +199,7 @@ export function SupportChatPage() {
                 value={newMessage}
                 onChange={(e) => setNewMessage(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Введите сообщение..."
+                placeholder={t('supportChat.placeholder')}
                 className="flex-1 px-4 py-3 bg-gray-100 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
                 disabled={sending}
                 autoFocus
@@ -213,7 +215,7 @@ export function SupportChatPage() {
           </div>
         ) : (
           <div className="p-4 border-t bg-gray-100 text-center text-sm text-gray-500">
-            Этот чат закрыт. Если нужна помощь, дождитесь нового сообщения от поддержки.
+            {t('supportChat.closedNote')}
           </div>
         )}
       </div>
@@ -228,17 +230,17 @@ export function SupportChatPage() {
           <Headphones className="w-6 h-6 text-orange-600" />
         </div>
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Чат поддержки</h1>
-          <p className="text-sm text-gray-500">Общение с командой MasterUz</p>
+          <h1 className="text-xl font-bold text-gray-900">{t('supportChat.title')}</h1>
+          <p className="text-sm text-gray-500">{t('supportChat.subtitle')}</p>
         </div>
       </div>
 
       {chats.length === 0 ? (
         <div className="text-center py-16">
           <MessageCircle className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-          <h3 className="text-lg font-medium text-gray-600 mb-2">Нет активных чатов</h3>
+          <h3 className="text-lg font-medium text-gray-600 mb-2">{t('supportChat.noChats')}</h3>
           <p className="text-gray-400 text-sm max-w-xs mx-auto">
-            Когда администратор или менеджер создаст обращение, оно появится здесь. Вы не можете начать чат первым — поддержка свяжется с вами при необходимости.
+            {t('supportChat.noChatsText')}
           </p>
         </div>
       ) : (
@@ -268,7 +270,7 @@ export function SupportChatPage() {
                   <p className="text-sm text-gray-500 truncate">
                     {lastMsg
                       ? lastMsg.text.slice(0, 80) + (lastMsg.text.length > 80 ? '…' : '')
-                      : chat.isClosed ? 'Чат закрыт' : 'Нет сообщений'}
+                      : chat.isClosed ? t('supportChat.closed') : t('supportChat.noMessages')}
                   </p>
                 </div>
                 {unread > 0 && (

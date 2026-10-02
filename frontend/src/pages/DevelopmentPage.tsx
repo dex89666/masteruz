@@ -3,19 +3,20 @@
 // ============================================
 
 import { Code2, Phone, Mail, MessageCircle, ExternalLink, Globe } from 'lucide-react';
+import { useTranslation } from '../i18n';
 
 export function DevelopmentPage() {
+  const { t } = useTranslation();
   return (
     <div className="page-container pb-20">
       <div className="max-w-2xl mx-auto">
         <div className="flex items-center gap-3 mb-6">
           <Code2 size={28} className="text-primary-600" />
-          <h1 className="text-2xl font-bold dark:text-white">Разработка</h1>
+          <h1 className="text-2xl font-bold dark:text-white">{t('footer.development')}</h1>
         </div>
 
         <p className="text-gray-600 dark:text-gray-400 mb-8 leading-relaxed">
-          Платформа MasterUz разработана и поддерживается командой профессионалов.
-          По вопросам разработки, интеграции, кастомных решений или сотрудничества — свяжитесь с нами.
+          {t('devPage.lead')}
         </p>
 
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-8">
@@ -24,8 +25,8 @@ export function DevelopmentPage() {
               <Code2 size={32} className="text-primary-600 dark:text-primary-400" />
             </div>
             <div>
-              <h2 className="text-xl font-bold dark:text-white">Владимир</h2>
-              <p className="text-gray-500 dark:text-gray-400 text-sm">Основатель и разработчик MasterUz</p>
+              <h2 className="text-xl font-bold dark:text-white">{t('devPage.name')}</h2>
+              <p className="text-gray-500 dark:text-gray-400 text-sm">{t('devPage.role')}</p>
             </div>
           </div>
 
@@ -39,7 +40,7 @@ export function DevelopmentPage() {
               </div>
               <div>
                 <p className="font-semibold text-gray-900 dark:text-white">+998 95 700-50-40</p>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Позвонить</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">{t('devPage.call')}</p>
               </div>
               <ExternalLink size={16} className="text-gray-400 ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
             </a>
@@ -53,7 +54,7 @@ export function DevelopmentPage() {
               </div>
               <div>
                 <p className="font-semibold text-gray-900 dark:text-white">vladlabcorp@gmail.com</p>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Написать на email</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">{t('devPage.email')}</p>
               </div>
               <ExternalLink size={16} className="text-gray-400 ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
             </a>
@@ -85,7 +86,7 @@ export function DevelopmentPage() {
               </div>
               <div>
                 <p className="font-semibold text-gray-900 dark:text-white">vladlabcorp.uz</p>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Веб-сайт</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">{t('devPage.website')}</p>
               </div>
               <ExternalLink size={16} className="text-gray-400 ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
             </a>
@@ -93,13 +94,13 @@ export function DevelopmentPage() {
         </div>
 
         <div className="mt-8 bg-gray-50 dark:bg-gray-800/50 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
-          <h3 className="font-semibold dark:text-white mb-3">Что мы делаем:</h3>
+          <h3 className="font-semibold dark:text-white mb-3">{t('devPage.whatWeDo')}</h3>
           <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-            <li className="flex items-start gap-2"><span className="text-primary-500 mt-0.5">•</span> Разработка веб и мобильных приложений</li>
-            <li className="flex items-start gap-2"><span className="text-primary-500 mt-0.5">•</span> Telegram Mini Apps и боты</li>
-            <li className="flex items-start gap-2"><span className="text-primary-500 mt-0.5">•</span> Интеграция платёжных систем (Payme, Click, Uzum)</li>
-            <li className="flex items-start gap-2"><span className="text-primary-500 mt-0.5">•</span> Кастомные решения для бизнеса</li>
-            <li className="flex items-start gap-2"><span className="text-primary-500 mt-0.5">•</span> Техническая поддержка и консалтинг</li>
+            <li className="flex items-start gap-2"><span className="text-primary-500 mt-0.5">•</span> {t('devPage.w1')}</li>
+            <li className="flex items-start gap-2"><span className="text-primary-500 mt-0.5">•</span> {t('devPage.w2')}</li>
+            <li className="flex items-start gap-2"><span className="text-primary-500 mt-0.5">•</span> {t('devPage.w3')}</li>
+            <li className="flex items-start gap-2"><span className="text-primary-500 mt-0.5">•</span> {t('devPage.w4')}</li>
+            <li className="flex items-start gap-2"><span className="text-primary-500 mt-0.5">•</span> {t('devPage.w5')}</li>
           </ul>
         </div>
       </div>

@@ -8,6 +8,7 @@ import { AlertTriangle, Send, CheckCircle2, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { api } from '../api/client';
 import { track } from '../lib/analytics';
+import { useTranslation } from '../i18n';
 
 interface FormState {
   subject: string;
@@ -26,6 +27,7 @@ const INITIAL: FormState = {
 };
 
 export function ComplaintPage() {
+  const { t } = useTranslation();
   const [form, setForm] = useState<FormState>(INITIAL);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState<string | null>(null);
@@ -37,11 +39,11 @@ export function ComplaintPage() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.subject.trim() || !form.description.trim() || !form.contact.trim()) {
-      toast.error('Заполните тему, описание и контакт для связи');
+      toast.error(t('complaint.fillRequired'));
       return;
     }
     if (form.description.trim().length < 20) {
-      toast.error('Опишите ситуацию подробнее (минимум 20 символов)');
+      toast.error(t('complaint.describeMore'));
       return;
     }
 
@@ -58,9 +60,9 @@ export function ComplaintPage() {
       track('complaint_submitted', { id });
       setSubmitted(id);
       setForm(INITIAL);
-      toast.success('Жалоба зарегистрирована');
+      toast.success(t('complaint.registered'));
     } catch (err: any) {
-      toast.error(err?.response?.data?.message || 'Не удалось отправить жалобу');
+      toast.error(err?.response?.data?.message || t('complaint.sendFailed'));
     } finally {
       setSubmitting(false);
     }
@@ -73,18 +75,18 @@ export function ComplaintPage() {
           <div className="w-16 h-16 rounded-2xl bg-green-50 dark:bg-green-900/30 flex items-center justify-center mx-auto mb-4">
             <CheckCircle2 size={32} className="text-green-600 dark:text-green-400" />
           </div>
-          <h1 className="text-2xl font-bold mb-2">Жалоба принята</h1>
+          <h1 className="text-2xl font-bold mb-2">{t('complaint.accepted')}</h1>
           <p className="text-gray-500 dark:text-gray-400 mb-2">
-            Регистрационный номер: <span className="font-mono text-xs">{submitted}</span>
+            {t('complaint.regNumber')}: <span className="font-mono text-xs">{submitted}</span>
           </p>
           <p className="text-gray-500 dark:text-gray-400 mb-6">
-            Мы рассмотрим обращение в установленный законом срок и свяжемся с вами по указанным контактам.
+            {t('complaint.willReview')}
           </p>
           <button
             onClick={() => setSubmitted(null)}
             className="px-6 py-3 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-medium transition"
           >
-            Подать ещё одну жалобу
+            {t('complaint.another')}
           </button>
         </div>
       </div>
@@ -97,49 +99,48 @@ export function ComplaintPage() {
         <div className="w-16 h-16 rounded-2xl bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center mx-auto mb-4">
           <AlertTriangle size={32} className="text-amber-600 dark:text-amber-400" />
         </div>
-        <h1 className="text-3xl font-bold mb-2">Подать жалобу</h1>
+        <h1 className="text-3xl font-bold mb-2">{t('footer.complaint')}</h1>
         <p className="text-gray-500 dark:text-gray-400">
-          Юридический канал обращения к ООО «Vladlab». Все жалобы регистрируются и рассматриваются согласно
-          публичной оферте и законодательству Республики Узбекистан.
+          {t('complaint.lead')}
         </p>
       </div>
 
       <form onSubmit={onSubmit} className="bg-white dark:bg-gray-800 rounded-3xl p-6 sm:p-8 shadow-sm space-y-5">
-        <Field label="Тема жалобы *" required>
+        <Field label={`${t('complaint.subject')} *`} required>
           <input
             type="text"
             value={form.subject}
             onChange={(e) => update('subject', e.target.value)}
             maxLength={200}
-            placeholder="Например: некачественное выполнение работ"
+            placeholder={t('complaint.subjectPlaceholder')}
             className="form-input"
           />
         </Field>
 
-        <Field label="Описание ситуации *" required hint="Минимум 20 символов">
+        <Field label={`${t('complaint.description')} *`} required hint={t('complaint.min20')}>
           <textarea
             value={form.description}
             onChange={(e) => update('description', e.target.value)}
             maxLength={5000}
             rows={6}
-            placeholder="Опишите подробно: что произошло, когда, какие шаги уже предприняли"
+            placeholder={t('complaint.descPlaceholder')}
             className="form-input resize-none"
           />
         </Field>
 
-        <Field label="Контакт для ответа *" required hint="Телефон или email">
+        <Field label={`${t('complaint.contact')} *`} required hint={t('complaint.contactHint')}>
           <input
             type="text"
             value={form.contact}
             onChange={(e) => update('contact', e.target.value)}
             maxLength={200}
-            placeholder="+998 90 123-45-67 или you@example.com"
+            placeholder={t('complaint.contactPlaceholder')}
             className="form-input"
           />
         </Field>
 
         <div className="grid sm:grid-cols-2 gap-5">
-          <Field label="ФИО" hint="Необязательно">
+          <Field label={t('complaint.fullName')} hint={t('complaint.optional')}>
             <input
               type="text"
               value={form.fullName}
@@ -148,7 +149,7 @@ export function ComplaintPage() {
               className="form-input"
             />
           </Field>
-          <Field label="Номер заказа" hint="Если жалоба связана с заказом">
+          <Field label={t('complaint.orderNumber')} hint={t('complaint.orderHint')}>
             <input
               type="text"
               value={form.orderId}
@@ -165,12 +166,11 @@ export function ComplaintPage() {
           className="w-full flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {submitting ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
-          {submitting ? 'Отправка...' : 'Отправить жалобу'}
+          {submitting ? t('complaint.sending') : t('complaint.submit')}
         </button>
 
         <p className="text-xs text-gray-400 dark:text-gray-500 text-center">
-          Отправляя жалобу, вы подтверждаете достоверность указанных сведений. Передача заведомо ложных сведений
-          преследуется по закону.
+          {t('complaint.disclaimer')}
         </p>
       </form>
     </div>

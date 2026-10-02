@@ -230,7 +230,7 @@ export function ProfilePage() {
             <div>
               <div className="text-xl font-bold text-green-600 dark:text-green-400">
                 {masterProfile.totalEarnings
-                  ? `${(masterProfile.totalEarnings / 1000).toFixed(0)}к`
+                  ? `${(masterProfile.totalEarnings / 1000).toFixed(0)}${t('common.thousandShort')}`
                   : '0'}
               </div>
               <p className="text-xs text-gray-500 dark:text-gray-400">{t('profile.earnings')}</p>

@@ -3,6 +3,7 @@
 // ============================================
 
 import { AlertTriangle, X } from 'lucide-react';
+import { translate } from '../i18n';
 
 interface ConfirmDialogProps {
   isOpen: boolean;
@@ -19,8 +20,8 @@ export function ConfirmDialog({
   isOpen,
   title,
   message,
-  confirmText = 'Подтвердить',
-  cancelText = 'Отмена',
+  confirmText = translate('common.confirm'),
+  cancelText = translate('common.cancel'),
   variant = 'warning',
   onConfirm,
   onCancel,

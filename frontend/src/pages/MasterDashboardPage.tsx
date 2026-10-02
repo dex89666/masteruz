@@ -68,14 +68,14 @@ export function MasterDashboardPage() {
         } else {
           setUser(resData.data);
         }
-        toast.success('Роль изменена на Админ');
+        toast.success(t('layout.roleSwitchedAdmin'));
       }
     } catch (err: any) {
       const msg =
         err?.response?.data?.message ||
         err?.response?.data?.error?.message ||
         err?.message ||
-        'Ошибка смены роли';
+        t('layout.roleSwitchError');
       toast.error(msg);
     } finally {
       setSwitchingRole(false);
@@ -171,8 +171,8 @@ export function MasterDashboardPage() {
         >
           <ShieldCheck size={22} />
           <div className="flex-1 text-left">
-            <p className="font-semibold text-sm">Вернуться в Админ-панель</p>
-            <p className="text-[11px] text-purple-200">Переключиться обратно на роль Админа</p>
+            <p className="font-semibold text-sm">{t('layout.backToAdmin')}</p>
+            <p className="text-[11px] text-purple-200">{t('masterDash.switchBackAdmin')}</p>
           </div>
           <ArrowRight size={18} className="text-purple-200" />
         </button>
@@ -196,7 +196,7 @@ export function MasterDashboardPage() {
         </div>
         <div className="flex-1">
           <p className="font-bold">MasterUz PRO</p>
-          <p className="text-[12px] text-amber-50/90">0% комиссии и топ-выдача — подробнее</p>
+          <p className="text-[12px] text-amber-50/90">{t('masterDash.proTeaser')}</p>
         </div>
         <ArrowRight size={20} />
       </Link>

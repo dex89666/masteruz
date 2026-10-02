@@ -13,7 +13,8 @@ import {
   Clock, DollarSign, Shield, FileText, Camera,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { UZBEKISTAN_REGIONS, getDistrictsForCity } from '../data/regions';
+import { UZBEKISTAN_REGIONS, getDistrictsForCity, getLocalizedRegionName } from '../data/regions';
+import { useTranslation, useLocalizedName } from '../i18n';
 
 const ESTIMATION_FEE = 150000; // 150 000 сум
 
@@ -25,6 +26,8 @@ interface PrefillState {
 }
 
 export function CreateEstimationPage() {
+  const { t, language } = useTranslation();
+  const ln = useLocalizedName();
   const navigate = useNavigate();
   const routerLocation = useLocation();
   const prefill = (routerLocation.state as PrefillState | null) || {};
@@ -77,11 +80,11 @@ export function CreateEstimationPage() {
   }
 
   async function handleSubmit() {
-    if (!categoryId) return toast.error('Выберите категорию');
-    if (!title.trim()) return toast.error('Укажите название');
-    if (description.trim().length < 10) return toast.error('Опишите задачу подробнее (мин. 10 символов)');
-    if (!address.trim()) return toast.error('Укажите адрес');
-    if (images.length === 0) return toast.error('Прикрепите минимум 1 фото объекта');
+    if (!categoryId) return toast.error(t('estimationForm.chooseCategory'));
+    if (!title.trim()) return toast.error(t('estimationForm.enterTitle'));
+    if (description.trim().length < 10) return toast.error(t('estimationForm.describeMore'));
+    if (!address.trim()) return toast.error(t('estimationForm.enterAddress'));
+    if (images.length === 0) return toast.error(t('estimationForm.attachPhoto'));
 
     setSubmitting(true);
     try {
@@ -99,10 +102,10 @@ export function CreateEstimationPage() {
         scheduledTime: scheduledTime || undefined,
       });
 
-      toast.success('Заказ на оценку создан! Ожидайте мастера.');
+      toast.success(t('estimationForm.created'));
       navigate('/my-orders');
     } catch (error: any) {
-      toast.error(error.response?.data?.error?.message || 'Ошибка создания заказа');
+      toast.error(error.response?.data?.error?.message || t('createOrder.createError'));
     } finally {
       setSubmitting(false);
     }
@@ -118,8 +121,8 @@ export function CreateEstimationPage() {
           <ArrowLeft size={20} />
         </button>
         <div>
-          <h1 className="text-xl font-bold">Выезд на оценку</h1>
-          <p className="text-sm text-gray-500">Мастер приедет, сделает замеры и составит смету</p>
+          <h1 className="text-xl font-bold">{t('estimation.title')}</h1>
+          <p className="text-sm text-gray-500">{t('estimation.subtitle')}</p>
         </div>
       </div>
 
@@ -130,26 +133,26 @@ export function CreateEstimationPage() {
             <DollarSign size={20} className="text-primary-600" />
           </div>
           <div>
-            <div className="font-bold text-lg">{ESTIMATION_FEE.toLocaleString('ru')} сум</div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">Фиксированная цена выезда</div>
+            <div className="font-bold text-lg">{ESTIMATION_FEE.toLocaleString('ru')} {t('common.currency')}</div>
+            <div className="text-sm text-gray-600 dark:text-gray-400">{t('estimation.fixedPrice')}</div>
           </div>
         </div>
         <div className="grid grid-cols-2 gap-2 text-xs">
           <div className="flex items-center gap-1.5 text-gray-600 dark:text-gray-400">
             <Shield size={14} className="text-green-500" />
-            Средства блокируются на балансе
+            {t('estimationForm.fundsHeld')}
           </div>
           <div className="flex items-center gap-1.5 text-gray-600 dark:text-gray-400">
             <FileText size={14} className="text-blue-500" />
-            Мастер составит смету на месте
+            {t('estimationForm.estimateOnSite')}
           </div>
           <div className="flex items-center gap-1.5 text-gray-600 dark:text-gray-400">
             <Clock size={14} className="text-orange-500" />
-            Мастер приедет в течение 2 часов
+            {t('estimationForm.within2h')}
           </div>
           <div className="flex items-center gap-1.5 text-gray-600 dark:text-gray-400">
             <DollarSign size={14} className="text-green-500" />
-            Мастер получит 120 000 сум за выезд
+            {t('estimationForm.masterGets')}
           </div>
         </div>
       </div>
@@ -158,27 +161,27 @@ export function CreateEstimationPage() {
       <div className="space-y-4">
         {/* Категория */}
         <div>
-          <label className="block text-sm font-semibold mb-1.5">Категория работ *</label>
+          <label className="block text-sm font-semibold mb-1.5">{t('estimationForm.workCategory')} *</label>
           <select
             value={categoryId}
             onChange={e => setCategoryId(e.target.value)}
             className="w-full p-3 border rounded-xl bg-white dark:bg-gray-800 dark:border-gray-700"
           >
-            <option value="">Выберите категорию</option>
+            <option value="">{t('estimationForm.chooseCategory')}</option>
             {categories.map(cat => (
-              <option key={cat.id} value={cat.id}>{cat.name}</option>
+              <option key={cat.id} value={cat.id}>{ln(cat)}</option>
             ))}
           </select>
         </div>
 
         {/* Название */}
         <div>
-          <label className="block text-sm font-semibold mb-1.5">Что нужно оценить? *</label>
+          <label className="block text-sm font-semibold mb-1.5">{t('estimationForm.whatToEstimate')} *</label>
           <input
             type="text"
             value={title}
             onChange={e => setTitle(e.target.value)}
-            placeholder="Напр.: Кухня на заказ, Перепланировка квартиры..."
+            placeholder={t('estimationForm.titlePlaceholder')}
             className="w-full p-3 border rounded-xl bg-white dark:bg-gray-800 dark:border-gray-700"
             maxLength={200}
           />
@@ -186,11 +189,11 @@ export function CreateEstimationPage() {
 
         {/* Описание */}
         <div>
-          <label className="block text-sm font-semibold mb-1.5">Подробное описание *</label>
+          <label className="block text-sm font-semibold mb-1.5">{t('estimationForm.detailedDesc')} *</label>
           <textarea
             value={description}
             onChange={e => setDescription(e.target.value)}
-            placeholder="Опишите объём работ, материалы, пожелания..."
+            placeholder={t('estimationForm.descPlaceholder')}
             className="w-full p-3 border rounded-xl bg-white dark:bg-gray-800 dark:border-gray-700 h-28 resize-none"
             maxLength={2000}
           />
@@ -201,9 +204,9 @@ export function CreateEstimationPage() {
         <div>
           <label className="block text-sm font-semibold mb-1.5">
             <Camera size={16} className="inline mr-1" />
-            Фото объекта * (с устройства)
+            {t('estimationForm.objectPhotos')}
           </label>
-          <p className="text-xs text-gray-500 mb-2">Прикрепите фото через камеру или галерею устройства</p>
+          <p className="text-xs text-gray-500 mb-2">{t('estimationForm.attachHint')}</p>
 
           <div className="flex flex-wrap gap-2 mb-2">
             {images.map((img, idx) => (
@@ -220,7 +223,7 @@ export function CreateEstimationPage() {
 
             <label className="w-20 h-20 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-primary-500 transition-colors">
               <ImageIcon size={20} className="text-gray-400" />
-              <span className="text-xs text-gray-400 mt-1">Фото</span>
+              <span className="text-xs text-gray-400 mt-1">{t('estimationForm.photo')}</span>
               <input
                 type="file"
                 accept="image/*"
@@ -237,13 +240,13 @@ export function CreateEstimationPage() {
         <div>
           <label className="block text-sm font-semibold mb-1.5">
             <MapPin size={16} className="inline mr-1" />
-            Адрес *
+            {t('estimationForm.address')} *
           </label>
           <input
             type="text"
             value={address}
             onChange={e => setAddress(e.target.value)}
-            placeholder="Улица, дом, квартира"
+            placeholder={t('estimationForm.addressPlaceholder')}
             className="w-full p-3 border rounded-xl bg-white dark:bg-gray-800 dark:border-gray-700"
           />
         </div>
@@ -251,27 +254,27 @@ export function CreateEstimationPage() {
         {/* Город + Район */}
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-sm font-semibold mb-1.5">Город</label>
+            <label className="block text-sm font-semibold mb-1.5">{t('createOrder.city')}</label>
             <select
               value={city}
               onChange={e => { setCity(e.target.value); setDistrict(''); }}
               className="w-full p-3 border rounded-xl bg-white dark:bg-gray-800 dark:border-gray-700"
             >
               {UZBEKISTAN_REGIONS.map(r => (
-                <option key={r.key} value={r.nameRu}>{r.nameRu}</option>
+                <option key={r.key} value={r.nameRu}>{getLocalizedRegionName(r, language)}</option>
               ))}
             </select>
           </div>
           <div>
-            <label className="block text-sm font-semibold mb-1.5">Район</label>
+            <label className="block text-sm font-semibold mb-1.5">{t('createOrder.district')}</label>
             <select
               value={district}
               onChange={e => setDistrict(e.target.value)}
               className="w-full p-3 border rounded-xl bg-white dark:bg-gray-800 dark:border-gray-700"
             >
-              <option value="">Не указан</option>
+              <option value="">{t('estimationForm.notSpecified')}</option>
               {districts.map(d => (
-                <option key={d.key} value={d.nameRu}>{d.nameRu}</option>
+                <option key={d.key} value={d.nameRu}>{getLocalizedRegionName(d, language)}</option>
               ))}
             </select>
           </div>
@@ -282,7 +285,7 @@ export function CreateEstimationPage() {
           <div>
             <label className="block text-sm font-semibold mb-1.5">
               <Clock size={16} className="inline mr-1" />
-              Дата (необязательно)
+              {t('estimationForm.dateOptional')}
             </label>
             <input
               type="date"
@@ -293,7 +296,7 @@ export function CreateEstimationPage() {
             />
           </div>
           <div>
-            <label className="block text-sm font-semibold mb-1.5">Время</label>
+            <label className="block text-sm font-semibold mb-1.5">{t('estimationForm.time')}</label>
             <input
               type="time"
               value={scheduledTime}
@@ -310,10 +313,10 @@ export function CreateEstimationPage() {
               ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400'
               : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400'
           }`}>
-            Ваш баланс: {(user.balance || 0).toLocaleString('ru')} сум
+            {t('estimationForm.yourBalance')}: {(user.balance || 0).toLocaleString('ru')} {t('common.currency')}
             {(user.balance || 0) < ESTIMATION_FEE && (
               <span className="block mt-1 font-semibold">
-                Пополните баланс на {(ESTIMATION_FEE - (user.balance || 0)).toLocaleString('ru')} сум
+                {t('estimationForm.topUpBy')} {(ESTIMATION_FEE - (user.balance || 0)).toLocaleString('ru')} {t('common.currency')}
               </span>
             )}
           </div>
@@ -330,34 +333,34 @@ export function CreateEstimationPage() {
           ) : (
             <>
               <Send size={20} />
-              Заказать оценку — {ESTIMATION_FEE.toLocaleString('ru')} сум
+              {t('estimation.createOrder')} — {ESTIMATION_FEE.toLocaleString('ru')} {t('common.currency')}
             </>
           )}
         </button>
 
         {/* Как это работает */}
         <div className="bg-gray-50 dark:bg-gray-800/50 rounded-2xl p-4 mt-4">
-          <h3 className="font-bold text-sm mb-3">Как это работает:</h3>
+          <h3 className="font-bold text-sm mb-3">{t('estimationForm.howItWorks')}</h3>
           <ol className="text-sm text-gray-600 dark:text-gray-400 space-y-2">
             <li className="flex gap-2">
               <span className="w-5 h-5 bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-400 rounded-full flex items-center justify-center text-xs font-bold shrink-0">1</span>
-              <span>Вы создаёте заказ на оценку — 150 000 сум блокируется на балансе</span>
+              <span>{t('estimationForm.how1')}</span>
             </li>
             <li className="flex gap-2">
               <span className="w-5 h-5 bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-400 rounded-full flex items-center justify-center text-xs font-bold shrink-0">2</span>
-              <span>Мастер принимает заказ и приезжает к вам</span>
+              <span>{t('estimationForm.how2')}</span>
             </li>
             <li className="flex gap-2">
               <span className="w-5 h-5 bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-400 rounded-full flex items-center justify-center text-xs font-bold shrink-0">3</span>
-              <span>Мастер делает замеры и составляет смету прямо в приложении</span>
+              <span>{t('estimationForm.how3')}</span>
             </li>
             <li className="flex gap-2">
               <span className="w-5 h-5 bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-400 rounded-full flex items-center justify-center text-xs font-bold shrink-0">4</span>
-              <span>Вы проверяете смету: если подходит — оплачиваете и работа начинается</span>
+              <span>{t('estimationForm.how4')}</span>
             </li>
             <li className="flex gap-2">
               <span className="w-5 h-5 bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-400 rounded-full flex items-center justify-center text-xs font-bold shrink-0">5</span>
-              <span>Если не подходит — мастер получает 120 000 сум за выезд, вам возвращается остаток</span>
+              <span>{t('estimationForm.how5')}</span>
             </li>
           </ol>
         </div>

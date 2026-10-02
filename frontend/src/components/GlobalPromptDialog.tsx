@@ -7,8 +7,10 @@
 import { useEffect, useState } from 'react';
 import { MessageSquare, X } from 'lucide-react';
 import { usePromptStore } from '../store/confirmStore';
+import { useTranslation } from '../i18n';
 
 export function GlobalPromptDialog() {
+  const { t } = useTranslation();
   const options = usePromptStore((s) => s.options);
   const settle = usePromptStore((s) => s.settle);
   const [value, setValue] = useState('');
@@ -56,7 +58,7 @@ export function GlobalPromptDialog() {
               onClick={() => settle(null)}
               className="flex-1 px-4 py-2.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-xl text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
             >
-              {options.cancelText ?? 'Отмена'}
+              {options.cancelText ?? t('common.cancel')}
             </button>
             <button
               onClick={submit}

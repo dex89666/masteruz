@@ -36,7 +36,7 @@ const PROVIDER_LABELS: Record<string, string> = {
   HUMO: 'HUMO',
   VISA: 'Visa',
   MASTERCARD: 'MasterCard',
-  OTHER: 'Карта',
+  OTHER: '',
 };
 
 function formatCardInput(value: string): string {
@@ -153,7 +153,7 @@ export function LinkedCardsPage() {
         <div className="space-y-3 mb-6">
           {cards.map((card) => {
             const gradient = PROVIDER_COLORS[card.provider] || PROVIDER_COLORS.OTHER;
-            const label = PROVIDER_LABELS[card.provider] || card.provider;
+            const label = PROVIDER_LABELS[card.provider] || t('linkedCards.card');
             return (
               <div
                 key={card.id}

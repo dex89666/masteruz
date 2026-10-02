@@ -5,7 +5,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { ordersApi, catalogApi, photosApi } from '../api/client';
+import { ordersApi, catalogApi, photosApi, type OrderQuote } from '../api/client';
 import { useAuthStore } from '../store';
 import { useGeolocation, useTelegram } from '../hooks';
 import { useTranslation } from '../i18n';
@@ -29,9 +29,12 @@ import {
 import CategoryIcon from '../components/CategoryIcon';
 import toast from 'react-hot-toast';
 import { reverseGeocode } from '../lib/reverseGeocode';
+import { getErrorMessage } from '../lib/getErrorMessage';
+import { compressImage, MAX_ORDER_PHOTO_BYTES } from '../lib/compressImage';
 import type { Task } from '../types';
 import { UZBEKISTAN_REGIONS, getDistrictsForCity, getRegionByCity, getLocalizedRegionName } from '../data/regions';
 import { CameraCapture } from '../components/CameraCapture';
+import { OptionSheet } from '../components/OptionSheet';
 
 // Бэкенд отдаёт загруженные файлы относительным путём /uploads/…, а фронтенд
 // на Railway его не проксирует — без адреса бэкенда картинка была бы битой.
@@ -149,7 +152,7 @@ export function CreateOrderPage() {
       .then((result) => {
         if (cancelled) return;
         if (!result) {
-          toast.error(t('createOrder.locationFailed') || 'Не удалось определить адрес — заполните вручную');
+          toast.error(t('createOrder.locationFailed'));
           return;
         }
         setForm((prev) => ({
@@ -160,7 +163,7 @@ export function CreateOrderPage() {
           address: result.houseNumber ?? prev.address,
         }));
         if (result.cityKey || result.street) {
-          toast.success(t('createOrder.locationFilled') || 'Адрес определён по геолокации');
+          toast.success(t('createOrder.locationFilled'));
         } else if (result.displayName) {
           toast(result.displayName, { icon: '📍' });
         }
@@ -176,6 +179,12 @@ export function CreateOrderPage() {
       cancelled = true;
     };
   }, [location, language, geocodedKey, t]);
+
+  // Новый шаг мастера открываем сверху — иначе после длинного списка задач
+  // страница остаётся прокрученной в середину формы.
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  }, [step]);
 
   // Redirect unauthenticated
   useEffect(() => {
@@ -206,8 +215,9 @@ export function CreateOrderPage() {
   }, [availableTasks, selectedTaskIds]);
 
   // ─── Price calculation ────────────────────
-  const VISIT_FEE = 100000; // 100 000 сум — стоимость выезда
-
+  // «Ваша цена» — только за работу. Выезд, срочность и депозит считает бэкенд
+  // (POST /orders/quote) — те же формулы, что при создании заказа, поэтому
+  // цифры в форме совпадают со списанием до сума.
   const totalMinPrice = useMemo(() => {
     return selectedTasksList.reduce(
       (sum: number, t: Task) => sum + Number(t.minPrice ?? 0),
@@ -215,7 +225,34 @@ export function CreateOrderPage() {
     );
   }, [selectedTasksList]);
 
-  const minimumOrderPrice = totalMinPrice + VISIT_FEE;
+  const minimumOrderPrice = totalMinPrice;
+
+  const [quote, setQuote] = useState<OrderQuote | null>(null);
+  const [quoteKey, setQuoteKey] = useState('');
+  const currentQuoteKey = JSON.stringify([
+    Number(form.price) || 0,
+    Array.from(selectedTaskIds).sort(),
+    isUrgent,
+  ]);
+  const quoteFresh = quote !== null && quoteKey === currentQuoteKey;
+  const visitFee = quote?.visitFee ?? null;
+
+  useEffect(() => {
+    if (!user || step < 3 || selectedTaskIds.size === 0) return;
+    const key = currentQuoteKey;
+    const timer = setTimeout(() => {
+      ordersApi
+        .quote({ price: Number(form.price) || 0, taskIds: Array.from(selectedTaskIds), isUrgent })
+        .then((res) => {
+          setQuote(res.data.data);
+          setQuoteKey(key);
+        })
+        .catch(() => {
+          // Без предпросмотра форма всё равно отправится — бэкенд проверит сам.
+        });
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [currentQuoteKey, step, user]);
 
   /** Форматирование цены: гарантированно число → локализованная строка */
   const fmtPrice = (n: number | string | null | undefined) =>
@@ -244,18 +281,51 @@ export function CreateOrderPage() {
     setForm({ ...form, [e.target.name]: e.target.value });
   }
 
-  function handleImages(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(e.target.files || []);
+  // Синхронно, чтобы порядок превью совпадал с порядком файлов (крестик удаляет по индексу).
+  function addPreview(file: File) {
+    const url = URL.createObjectURL(file);
+    setPreviews((prev) => [...prev, url]);
+  }
+
+  /** Сжимает фото до допустимого размера; то, что сжать не удалось, отбрасывает с объяснением. */
+  async function prepareImages(files: File[]): Promise<File[]> {
+    const ready: File[] = [];
+    for (const file of files) {
+      if (!file.type.startsWith('image/')) {
+        toast.error(t('createOrder.notAnImage', { name: file.name }));
+        continue;
+      }
+      const compressed = await compressImage(file);
+      if (compressed.size > MAX_ORDER_PHOTO_BYTES) {
+        toast.error(t('createOrder.photoCompressFailed', { name: file.name }));
+        continue;
+      }
+      ready.push(compressed);
+    }
+    return ready;
+  }
+
+  async function handleImages(e: React.ChangeEvent<HTMLInputElement>) {
+    const input = e.target;
+    const files = Array.from(input.files || []);
+    // Сбрасываем, чтобы повторный выбор того же файла снова вызвал onChange.
+    input.value = '';
     if (images.length + files.length > 5) {
       toast.error(t('createOrder.maxPhotos'));
       return;
     }
-    setImages([...images, ...files]);
-    files.forEach((file) => {
-      const reader = new FileReader();
-      reader.onload = () => setPreviews((prev) => [...prev, reader.result as string]);
-      reader.readAsDataURL(file);
-    });
+    // Фото с телефона весят 4–10 МБ — без сжатия они не проходят лимит загрузки.
+    const compressed = await prepareImages(files);
+    setImages((prev) => [...prev, ...compressed]);
+    compressed.forEach(addPreview);
+  }
+
+  /** Прокручивает к полю с ошибкой и ставит в него фокус. */
+  function focusField(name: string) {
+    const el = document.querySelector<HTMLElement>(`[name="${name}"]`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.focus({ preventScroll: true });
   }
 
   function removeImage(index: number) {
@@ -302,20 +372,36 @@ export function CreateOrderPage() {
 
     if (!form.description.trim()) {
       toast.error(t('createOrder.enterDesc'));
+      focusField('description');
       return;
     }
     if (!form.price) {
       toast.error(t('createOrder.enterBudget'));
+      focusField('price');
       return;
     }
 
     if (selectedTaskIds.size > 0 && Number(form.price) < minimumOrderPrice) {
       toast.error(`${t('pricing.priceTooLow')} ${fmtPrice(minimumOrderPrice)} ${t('pricing.currency')}`);
+      focusField('price');
       return;
     }
 
     if (!offerAccepted) {
       toast.error(t('antiFraud.offerAcceptRequired'));
+      focusField('offerAccepted');
+      return;
+    }
+
+    if (quoteFresh && quote.shortfall > 0) {
+      toast.error(
+        t('createOrder.insufficientToast', {
+          need: fmtPrice(quote.depositAmount),
+          balance: fmtPrice(quote.balance),
+          currency: t('pricing.currency'),
+        })
+      );
+      document.getElementById('balance-shortfall')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
     }
 
@@ -372,7 +458,9 @@ export function CreateOrderPage() {
       toast.success(t('createOrder.orderCreated'));
       navigate(`/orders/${response.data.data.id}`);
     } catch (error: any) {
-      toast.error(error.response?.data?.message || t('createOrder.createError'));
+      // Бэкенд кладёт текст в error.message — раньше он терялся и клиент видел
+      // только общее «Ошибка при создании заказа».
+      toast.error(error?.response ? getErrorMessage(error) : t('createOrder.createError'));
     } finally {
       setSubmitting(false);
     }
@@ -407,7 +495,7 @@ export function CreateOrderPage() {
         to="/instant-order"
         className="inline-flex items-center gap-2 mb-4 px-3 py-2 rounded-lg bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-100 dark:hover:bg-orange-900/30 text-orange-700 dark:text-orange-300 text-sm font-medium transition-colors min-h-[36px]"
       >
-        <Sparkles size={16} /> Не уверены? Сделайте фото — AI подберёт варианты
+        <Sparkles size={16} /> {t('createOrder.aiHint')}
       </Link>
 
       <StepIndicator current={step} total={4} />
@@ -561,11 +649,11 @@ export function CreateOrderPage() {
                 </div>
                 <div className="flex justify-between text-gray-600 dark:text-gray-400 mt-1">
                   <span>{t('pricing.visitFee')}:</span>
-                  <span className="font-medium">{fmtPrice(VISIT_FEE)} {t('pricing.currency')}</span>
+                  <span className="font-medium">{visitFee !== null ? `${fmtPrice(visitFee)} ${t('pricing.currency')}` : '…'}</span>
                 </div>
                 <div className="border-t dark:border-gray-700 mt-2 pt-2 flex justify-between text-primary-700 dark:text-primary-400 font-bold">
                   <span>{t('pricing.minOrderPrice')}:</span>
-                  <span>{fmtPrice(minimumOrderPrice)} {t('pricing.currency')}</span>
+                  <span>{visitFee !== null ? `${fmtPrice(totalMinPrice + visitFee)} ${t('pricing.currency')}` : '…'}</span>
                 </div>
               </div>
             )}
@@ -624,11 +712,11 @@ export function CreateOrderPage() {
                 </div>
                 <div className="flex justify-between text-gray-600 dark:text-gray-400 mt-1">
                   <span>{t('pricing.visitFee')}:</span>
-                  <span className="font-medium">{fmtPrice(VISIT_FEE)} {t('pricing.currency')}</span>
+                  <span className="font-medium">{visitFee !== null ? `${fmtPrice(visitFee)} ${t('pricing.currency')}` : '…'}</span>
                 </div>
                 <div className="border-t border-blue-200 dark:border-blue-800 mt-2 pt-2 flex justify-between text-blue-800 dark:text-blue-300 font-bold">
                   <span>{t('pricing.minOrderPrice')}:</span>
-                  <span>{fmtPrice(minimumOrderPrice)} {t('pricing.currency')}</span>
+                  <span>{visitFee !== null ? `${fmtPrice(totalMinPrice + visitFee)} ${t('pricing.currency')}` : '…'}</span>
                 </div>
               </div>
             </div>
@@ -739,50 +827,67 @@ export function CreateOrderPage() {
               )}
               <p className="text-xs text-gray-500 mt-1">
                 {selectedTaskIds.size > 0
-                  ? `${t('pricing.minimum')}: ${fmtPrice(minimumOrderPrice)} ${t('pricing.currency')}. ${t('createOrder.priceHint')}`
-                  : t('createOrder.priceHint')}
+                  ? `${t('pricing.minimum')}: ${fmtPrice(minimumOrderPrice)} ${t('pricing.currency')}. `
+                  : ''}
+                {visitFee !== null && visitFee > 0
+                  ? `${t('createOrder.visitFeeSeparate', { fee: fmtPrice(visitFee), currency: t('pricing.currency') })} `
+                  : ''}
+                {t('createOrder.priceHint')}
               </p>
 
               {/* ─── Раздельная оплата: 30% сейчас + 70% при завершении ─── */}
-              {form.price && Number(form.price) >= minimumOrderPrice && (() => {
-                const total = Math.round(Number(form.price) * (isUrgent ? 1.4 : 1));
-                const depositRate = 0.3;
-                const deposit = Math.round(total * depositRate);
-                const remainder = total - deposit;
+              {form.price && Number(form.price) >= minimumOrderPrice && !quoteFresh && (
+                <p className="mt-3 text-xs text-gray-500">{t('createOrder.calculating')}</p>
+              )}
+              {form.price && Number(form.price) >= minimumOrderPrice && quoteFresh && (() => {
+                const { workPrice, depositRatePct, depositAmount: deposit, remainingAmount: remainder, totalAmount: total } = quote;
                 return (
                   <div className="mt-3 rounded-xl border-2 border-emerald-200 dark:border-emerald-800 bg-gradient-to-br from-emerald-50 to-white dark:from-emerald-900/20 dark:to-gray-800 p-4 space-y-3">
                     <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700 dark:text-emerald-300">
                       <Check size={16} className="shrink-0" />
-                      Как вы будете платить
+                      {t('createOrder.howYouPay')}
+                    </div>
+
+                    <div className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
+                      <div className="flex justify-between">
+                        <span>{isUrgent ? t('createOrder.worksUrgent') : t('createOrder.works')}:</span>
+                        <span className="font-medium">{fmtPrice(workPrice)} {t('pricing.currency')}</span>
+                      </div>
+                      {quote.visitFee > 0 && (
+                        <div className="flex justify-between">
+                          <span>{t('pricing.visitFee')}:</span>
+                          <span className="font-medium">{fmtPrice(quote.visitFee)} {t('pricing.currency')}</span>
+                        </div>
+                      )}
                     </div>
 
                     <div className="flex items-stretch gap-2">
                       <div className="flex-1 rounded-lg bg-emerald-100 dark:bg-emerald-900/40 p-3 text-center">
-                        <div className="text-xs text-emerald-700 dark:text-emerald-300 font-medium">Сейчас (30%)</div>
+                        <div className="text-xs text-emerald-700 dark:text-emerald-300 font-medium">{t('createOrder.payNow', { pct: depositRatePct })}</div>
                         <div className="text-base font-bold text-emerald-800 dark:text-emerald-200 mt-1">
                           {fmtPrice(deposit)}
                         </div>
-                        <div className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-0.5">с баланса</div>
+                        <div className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-0.5">{t('createOrder.fromBalance')}</div>
                       </div>
                       <div className="flex items-center text-emerald-400 dark:text-emerald-600 font-bold">+</div>
                       <div className="flex-1 rounded-lg bg-blue-100 dark:bg-blue-900/40 p-3 text-center">
-                        <div className="text-xs text-blue-700 dark:text-blue-300 font-medium">При завершении</div>
+                        <div className="text-xs text-blue-700 dark:text-blue-300 font-medium">{t('createOrder.payOnCompletion', { pct: 100 - depositRatePct })}</div>
                         <div className="text-base font-bold text-blue-800 dark:text-blue-200 mt-1">
                           {fmtPrice(remainder)}
                         </div>
-                        <div className="text-[11px] text-blue-600 dark:text-blue-400 mt-0.5">наличными или картой</div>
+                        <div className="text-[11px] text-blue-600 dark:text-blue-400 mt-0.5">{t('createOrder.cashOrCard')}</div>
                       </div>
                     </div>
 
                     <div className="flex justify-between items-center pt-2 border-t border-emerald-200 dark:border-emerald-800">
-                      <span className="text-sm text-gray-600 dark:text-gray-400">Итого:</span>
+                      <span className="text-sm text-gray-600 dark:text-gray-400">{t('createOrder.totalLabel')}:</span>
                       <span className="text-base font-bold text-gray-900 dark:text-gray-100">
                         {fmtPrice(total)} {t('pricing.currency')}
                       </span>
                     </div>
 
                     <p className="text-[11px] leading-relaxed text-gray-500 dark:text-gray-400">
-                      💡 Депозит 30% подтверждает заказ и блокируется в системе. После приёма мастером и подтверждения завершения — выберете, оплатить остаток наличными мастеру или картой через приложение.
+                      💡 {t('createOrder.depositExplain', { pct: depositRatePct })}
                     </p>
                   </div>
                 );
@@ -794,24 +899,21 @@ export function CreateOrderPage() {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 {t('createOrder.city')}
               </label>
-              <select
+              <OptionSheet
                 name="city"
                 value={form.city}
-                onChange={(e) => {
-                  const city = e.target.value;
-                  setForm((f) => ({ ...f, city, district: '' }));
-                }}
-                className="input"
-              >
-                <option value="">{t('createOrder.selectCity')}</option>
-                {UZBEKISTAN_REGIONS.map((region) =>
-                  region.cities.map((city) => (
-                    <option key={city.key} value={city.key}>
-                      {getLocalizedRegionName(city, language)} ({getLocalizedRegionName(region, language)})
-                    </option>
-                  ))
+                onChange={(city) => setForm((f) => ({ ...f, city, district: '' }))}
+                placeholder={t('createOrder.selectCity')}
+                title={t('createOrder.selectCity')}
+                searchPlaceholder={t('common.search')}
+                options={UZBEKISTAN_REGIONS.flatMap((region) =>
+                  region.cities.map((city) => ({
+                    value: city.key,
+                    label: getLocalizedRegionName(city, language),
+                    group: getLocalizedRegionName(region, language),
+                  }))
                 )}
-              </select>
+              />
             </div>
 
             {/* Район (динамический по городу) */}
@@ -820,19 +922,18 @@ export function CreateOrderPage() {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   {t('createOrder.district')}
                 </label>
-                <select
+                <OptionSheet
                   name="district"
                   value={form.district}
-                  onChange={handleChange}
-                  className="input"
-                >
-                  <option value="">{t('createOrder.selectDistrict')}</option>
-                  {getDistrictsForCity(form.city).map((d) => (
-                    <option key={d.key} value={d.nameRu}>
-                      {getLocalizedRegionName(d, language)}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(district) => setForm((f) => ({ ...f, district }))}
+                  placeholder={t('createOrder.selectDistrict')}
+                  title={t('createOrder.selectDistrict')}
+                  searchPlaceholder={t('common.search')}
+                  options={getDistrictsForCity(form.city).map((d) => ({
+                    value: d.nameRu,
+                    label: getLocalizedRegionName(d, language),
+                  }))}
+                />
               </div>
             )}
 
@@ -919,7 +1020,7 @@ export function CreateOrderPage() {
                   <>
                     <label className="w-20 h-20 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 flex flex-col items-center justify-center cursor-pointer hover:border-primary-400 dark:hover:border-primary-500 transition-colors gap-0.5">
                       <ImageIcon size={20} className="text-gray-400" />
-                      <span className="text-[10px] text-gray-400">Галерея</span>
+                      <span className="text-[10px] text-gray-400">{t('createOrder.gallery')}</span>
                       <input
                         type="file"
                         accept="image/*"
@@ -934,7 +1035,7 @@ export function CreateOrderPage() {
                       className="w-20 h-20 rounded-lg border-2 border-dashed border-orange-300 dark:border-orange-700 flex flex-col items-center justify-center cursor-pointer hover:border-orange-500 transition-colors gap-0.5"
                     >
                       <Camera size={20} className="text-orange-500" />
-                      <span className="text-[10px] text-orange-500">Камера</span>
+                      <span className="text-[10px] text-orange-500">{t('createOrder.camera')}</span>
                     </button>
                   </>
                 )}
@@ -954,18 +1055,48 @@ export function CreateOrderPage() {
                   <Shield size={16} className="text-blue-500 dark:text-blue-400" />
                   <span className="font-semibold text-blue-800 dark:text-blue-300">{t('antiFraud.escrowHeld')}</span>
                 </div>
-                <p className="text-blue-600 dark:text-blue-400 text-xs">{t('antiFraud.escrowInfo')}</p>
+                <p className="text-blue-600 dark:text-blue-400 text-xs">
+                  {quoteFresh
+                    ? t('createOrder.escrowDeposit', { pct: quote.depositRatePct, amount: fmtPrice(quote.depositAmount), currency: t('pricing.currency') })
+                    : t('antiFraud.escrowInfo')}
+                </p>
+              </div>
+            )}
+
+            {/* Не хватает баланса на депозит — объясняем до нажатия «Опубликовать» */}
+            {quoteFresh && quote.shortfall > 0 && Number(form.price) >= minimumOrderPrice && (
+              <div
+                id="balance-shortfall"
+                className="rounded-xl border-2 border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20 p-4 text-sm space-y-2"
+              >
+                <p className="font-semibold text-red-700 dark:text-red-300">{t('createOrder.insufficientTitle')}</p>
+                <p className="text-red-700/90 dark:text-red-300/90">
+                  {t('createOrder.insufficientText', {
+                    pct: quote.depositRatePct,
+                    need: fmtPrice(quote.depositAmount),
+                    balance: fmtPrice(quote.balance),
+                    shortfall: fmtPrice(quote.shortfall),
+                    currency: t('pricing.currency'),
+                  })}
+                </p>
+                <Link
+                  to="/balance"
+                  className="inline-flex items-center gap-1 font-medium text-red-700 dark:text-red-300 underline"
+                >
+                  {t('createOrder.topUp')} →
+                </Link>
               </div>
             )}
 
             {/* Принятие оферты */}
-            <label className="flex items-start gap-3 p-3 rounded-xl border-2 transition-all cursor-pointer select-none
-              ${offerAccepted
+            <label className={`flex items-start gap-3 p-3 rounded-xl border-2 transition-all cursor-pointer select-none ${
+              offerAccepted
                 ? 'border-green-400 dark:border-green-600 bg-green-50 dark:bg-green-900/20'
                 : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800'
-              }">
+            }`}>
               <input
                 type="checkbox"
+                name="offerAccepted"
                 checked={offerAccepted}
                 onChange={(e) => setOfferAccepted(e.target.checked)}
                 className="mt-0.5 w-5 h-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
@@ -1007,15 +1138,15 @@ export function CreateOrderPage() {
 
       {showCamera && (
         <CameraCapture
-          onCapture={(file) => {
+          onCapture={async (file) => {
             if (images.length >= 5) {
               toast.error(t('createOrder.maxPhotos'));
               return;
             }
-            setImages((prev) => [...prev, file]);
-            const reader = new FileReader();
-            reader.onload = (e) => setPreviews((prev) => [...prev, e.target?.result as string]);
-            reader.readAsDataURL(file);
+            const [compressed] = await prepareImages([file]);
+            if (!compressed) return;
+            setImages((prev) => [...prev, compressed]);
+            addPreview(compressed);
           }}
           onClose={() => setShowCamera(false)}
         />

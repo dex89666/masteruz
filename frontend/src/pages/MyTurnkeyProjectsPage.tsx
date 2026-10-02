@@ -66,7 +66,7 @@ export function MyTurnkeyProjectsPage() {
                         {project.propertyType === 'apartment' ? <Building2 size={14} className="inline" /> :
                          project.propertyType === 'house' ? <HomeIcon size={14} className="inline" /> :
                          project.propertyType === 'office' ? <Building size={14} className="inline" /> : <Store size={14} className="inline" />}
-                        {' '}{project.area ? `${project.area} м²` : ''} {project.rooms ? `• ${project.rooms} ${t('turnkey.roomsShort')}` : ''}
+                        {' '}{project.area ? `${project.area} ${t('units.m2')}` : ''} {project.rooms ? `• ${project.rooms} ${t('turnkey.roomsShort')}` : ''}
                       </p>
                     </div>
                     <span className={`px-3 py-1 rounded-full text-xs font-medium ${statusColors[project.status] || statusColors.INQUIRY}`}>
