@@ -8,7 +8,7 @@
 // и что повторная финализация НЕ платит мастеру дважды.
 // ============================================
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { OrderStatus } from '@prisma/client';
 
 // ─── In-memory store ────────────────────────────────────────────
@@ -172,6 +172,7 @@ vi.mock('../../src/services/platformConfigService.js', () => ({
   getTieredEffectiveCommissionRate: vi.fn(async () => 15),
   getConfigNumber: vi.fn(async (_key: string, def: number) => def),
   PLATFORM_CONFIG_KEYS: {
+    visitFee: 'visit_fee',
     depositRate: 'deposit_rate',
     visitFeeCommissionRate: 'visit_fee_commission_rate',
     falseDisputePenalty: 'false_dispute_penalty',
@@ -249,6 +250,62 @@ describe('Критический путь: создание заказа → б�
         offerAccepted: false,
       } as any),
     ).rejects.toThrow(/оферт/i);
+  });
+});
+
+describe('Регламент цены: работы + выезд, депозит ровно 30%', () => {
+  beforeEach(async () => {
+    const cfg = await import('../../src/services/platformConfigService.js');
+    vi.mocked(cfg.getConfigNumber).mockImplementation(async (key: string, def?: number) => {
+      if (key === 'visit_fee') return 100_000;
+      if (key === 'visit_fee_commission_rate') return 15;
+      return def ?? 0;
+    });
+  });
+
+  afterEach(async () => {
+    const cfg = await import('../../src/services/platformConfigService.js');
+    vi.mocked(cfg.getConfigNumber).mockImplementation(async (_key: string, def?: number) => def ?? 0);
+  });
+
+  it('срочный заказ: итого = работы×1.4 + выезд, выезд считается один раз', async () => {
+    seedUser('client-1', 1_000_000);
+    const order = await service.createOrder('client-1', {
+      categoryId: 'cat-plumbing',
+      title: 'Замена смесителя',
+      description: 'Течёт смеситель на кухне, нужна замена картриджа',
+      price: 200_000,
+      isUrgent: true,
+      offerAccepted: true,
+    } as any);
+
+    // 200000×1.4 = 280000 + выезд 100000 = 380000; 30% = 114000
+    expect(order.price).toBe(280_000);
+    expect(order.depositAmount).toBe(114_000);
+    expect(order.remainingAmount).toBe(266_000);
+    expect(store.users.get('client-1')!.balance).toBe(886_000);
+  });
+
+  it('quote совпадает с фактическим списанием и показывает нехватку', async () => {
+    seedUser('client-poor', 50_000);
+    const quote = await service.quoteOrder('client-poor', { price: 200_000 });
+
+    // 200000 + 100000 = 300000; 30% = 90000; не хватает 40000
+    expect(quote.totalAmount).toBe(300_000);
+    expect(quote.depositAmount).toBe(90_000);
+    expect(quote.remainingAmount).toBe(210_000);
+    expect(quote.depositRatePct).toBe(30);
+    expect(quote.shortfall).toBe(40_000);
+
+    await expect(
+      service.createOrder('client-poor', {
+        categoryId: 'cat-plumbing',
+        title: 'Замена смесителя',
+        description: 'Течёт смеситель на кухне, нужна замена картриджа',
+        price: 200_000,
+        offerAccepted: true,
+      } as any),
+    ).rejects.toThrow(/не хватает 40.000 сум/);
   });
 });
 

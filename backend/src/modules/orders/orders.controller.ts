@@ -18,6 +18,16 @@ export class OrdersController {
     }
   }
 
+  /** POST /api/orders/quote — расчёт стоимости и депозита до создания */
+  async quote(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const quote = await ordersService.quoteOrder(req.user!.userId, req.body);
+      res.json({ success: true, data: quote });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   /** GET /api/orders */
   async list(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {

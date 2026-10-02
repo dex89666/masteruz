@@ -7,7 +7,7 @@ import { ordersController } from './orders.controller.js';
 import { authenticate, optionalAuth, authorize } from '../../middleware/auth.js';
 import { requireNotBlocked } from '../../middleware/blockGate.js';
 import { validateBody, validateQuery } from '../../middleware/validate.js';
-import { createOrderSchema, orderResponseSchema, listOrdersSchema, assignMasterSchema, updateStatusSchema, masterLocationSchema, cancelOrderSchema, disputeOrderSchema, resolveDisputeSchema, submitRemainderSchema, proposePriceChangeSchema, proposeSettlementSchema, rejectPriceChangeSchema, moderatePriceChangeSchema } from './orders.schema.js';
+import { createOrderSchema, quoteOrderSchema, orderResponseSchema, listOrdersSchema, assignMasterSchema, updateStatusSchema, masterLocationSchema, cancelOrderSchema, disputeOrderSchema, resolveDisputeSchema, submitRemainderSchema, proposePriceChangeSchema, proposeSettlementSchema, rejectPriceChangeSchema, moderatePriceChangeSchema } from './orders.schema.js';
 import { priceChangeService } from './price-change.service.js';
 import { UserRole } from '@prisma/client';
 import { eventBus } from '../../services/eventBus.js';
@@ -28,6 +28,11 @@ router.get('/:id', optionalAuth, (req, res, next) =>
 );
 
 // Защищённые маршруты
+// Предпросмотр: сколько спишется (депозит), сколько при завершении, хватает ли баланса
+router.post('/quote', authenticate, validateBody(quoteOrderSchema), (req, res, next) =>
+  ordersController.quote(req, res, next)
+);
+
 router.post('/', authenticate, validateBody(createOrderSchema), (req, res, next) =>
   ordersController.create(req, res, next)
 );

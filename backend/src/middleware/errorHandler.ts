@@ -29,6 +29,18 @@ export function errorHandler(
     return;
   }
 
+  // Тело запроса больше лимита express.json (обычно — фото в base64)
+  if (err.type === 'entity.too.large') {
+    res.status(413).json({
+      success: false,
+      error: {
+        message: 'Слишком большой запрос. Уменьшите размер или количество фото',
+        statusCode: 413,
+      },
+    });
+    return;
+  }
+
   // API ошибки (ожидаемые)
   if (err instanceof ApiError) {
     res.status(err.statusCode).json({

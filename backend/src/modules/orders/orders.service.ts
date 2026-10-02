@@ -59,7 +59,102 @@ async function enqueueOrderEmbedding(orderId: string): Promise<void> {
   }
 }
 
+/** Входные данные расчёта цены заказа */
+export interface OrderPricingInput {
+  price: number;          // стоимость работ, которую указал клиент (без выезда и срочности)
+  taskIds?: string[];
+  isUrgent?: boolean;
+}
+
+/** Итоговый расчёт — один и тот же для предпросмотра (quote) и создания заказа */
+export interface OrderPricing {
+  minWorkPrice: number;     // минимум за работы по выбранным задачам
+  workPrice: number;        // работы с учётом срочности
+  urgentMultiplier: number;
+  visitFee: number;
+  totalAmount: number;      // работы + выезд
+  depositRatePct: number;
+  depositAmount: number;    // списывается с баланса при создании
+  remainingAmount: number;  // оплачивается при завершении
+  commissionRate: number;
+  commissionAmount: number;
+}
+
+const URGENT_MULTIPLIER = 1.4;
+
 export class OrdersService {
+  /**
+   * Расчёт стоимости заказа по регламенту:
+   *   итого   = работы × (1.4 если срочно) + выезд
+   *   депозит = deposit_rate% (30%) от итого, остаток — при завершении.
+   * Выезд НЕ входит в «цену за работу» клиента и прибавляется ровно один раз.
+   */
+  async calculatePricing(data: OrderPricingInput): Promise<OrderPricing> {
+    const { getTieredCommissionRate, getConfigNumber, PLATFORM_CONFIG_KEYS } = await import('../../services/platformConfigService.js');
+
+    const [visitFee, visitFeeCommissionRate, depositRateRaw] = await Promise.all([
+      getConfigNumber(PLATFORM_CONFIG_KEYS.visitFee, 0),
+      getConfigNumber(PLATFORM_CONFIG_KEYS.visitFeeCommissionRate, 0),
+      getConfigNumber(PLATFORM_CONFIG_KEYS.depositRate, 30),
+    ]);
+
+    let minWorkPrice = 0;
+    if (data.taskIds && data.taskIds.length > 0) {
+      const selectedTasks = await prisma.task.findMany({
+        where: { id: { in: data.taskIds } },
+        select: { minPrice: true },
+      });
+      minWorkPrice = selectedTasks.reduce((sum, t) => moneyAdd(sum, toNum(t.minPrice ?? 0)), 0);
+    }
+
+    const urgentMultiplier = data.isUrgent === true ? URGENT_MULTIPLIER : 1.0;
+    const workPrice = moneyMul(data.price, urgentMultiplier);
+
+    // Ступенчатая комиссия от стоимости работ (без учёта первой/повторной пары — её применим
+    // при назначении мастера в assignMaster, когда станет известно masterId).
+    const commissionRate = await getTieredCommissionRate(workPrice);
+    const workCommission = calculateCommission(workPrice, commissionRate);
+    const visitFeeCommission = visitFee > 0 ? calculateCommission(visitFee, visitFeeCommissionRate) : 0;
+    const commissionAmount = moneyAdd(workCommission, visitFeeCommission);
+
+    const totalAmount = moneyAdd(workPrice, visitFee);
+
+    // Депозит — строго deposit_rate% от итого. Комиссия всегда меньше
+    // (макс. 15%), поэтому депозит её покрывает и при оплате остатка наличными.
+    const depositRatePct = Math.min(100, Math.max(0, depositRateRaw));
+    const depositAmount = Math.round(moneyMul(totalAmount, depositRatePct / 100));
+    const remainingAmount = moneySub(totalAmount, depositAmount);
+
+    return {
+      minWorkPrice,
+      workPrice,
+      urgentMultiplier,
+      visitFee,
+      totalAmount,
+      depositRatePct,
+      depositAmount,
+      remainingAmount,
+      commissionRate,
+      commissionAmount,
+    };
+  }
+
+  /**
+   * Предпросмотр стоимости + проверка баланса — форма показывает ровно эти цифры.
+   */
+  async quoteOrder(clientId: string, data: OrderPricingInput) {
+    const [pricing, client] = await Promise.all([
+      this.calculatePricing(data),
+      prisma.user.findUnique({ where: { id: clientId }, select: { balance: true } }),
+    ]);
+    const balance = toNum(client?.balance ?? 0);
+    return {
+      ...pricing,
+      balance,
+      shortfall: Math.max(0, moneySub(pricing.depositAmount, balance)),
+    };
+  }
+
   /**
    * Создание нового заказа с блокировкой средств (эскроу)
    */
@@ -78,64 +173,19 @@ export class OrdersService {
       throw ApiError.badRequest('Необходимо принять условия оферты');
     }
 
-    // Получаем текущую комиссию из конфигурации
-    const [visitFeeConfig, visitFeeCommConfig] = await Promise.all([
-      prisma.platformConfig.findUnique({ where: { key: 'visit_fee' } }),
-      prisma.platformConfig.findUnique({ where: { key: 'visit_fee_commission_rate' } }),
-    ]);
-    const visitFee = visitFeeConfig ? parseFloat(visitFeeConfig.value) : 0;
-    const visitFeeCommissionRate = visitFeeCommConfig ? parseFloat(visitFeeCommConfig.value) : 0;
-
-    // ─── Проверка минимальной цены ────────────────
-    if (data.taskIds && data.taskIds.length > 0) {
-      const selectedTasks = await prisma.task.findMany({
-        where: { id: { in: data.taskIds } },
-        select: { id: true, minPrice: true, name: true },
-      });
-
-      const totalMinPrice = selectedTasks.reduce((sum, t) => sum + toNum(t.minPrice ?? 0), 0);
-      const minimumRequired = totalMinPrice + visitFee;
-
-      if (data.price < minimumRequired) {
-        const detail = visitFee > 0
-          ? `(работы: ${totalMinPrice.toLocaleString('ru')} + выезд: ${visitFee.toLocaleString('ru')})`
-          : `(минимум по выбранным работам)`;
-        throw ApiError.badRequest(
-          `Минимальная стоимость заказа: ${minimumRequired.toLocaleString('ru')} сум ${detail}`
-        );
-      }
-    }
-
-    // ─── Обработка срочности (+40%) ────────────
-    const URGENT_MULTIPLIER = 1.4;
+    // ─── Расчёт по регламенту (тот же, что видит клиент в форме) ────────────
     const isUrgent = data.isUrgent === true;
-    const urgentMultiplier = isUrgent ? URGENT_MULTIPLIER : 1.0;
-    const effectivePrice = data.price * urgentMultiplier;
+    const {
+      minWorkPrice, workPrice: effectivePrice, urgentMultiplier, visitFee,
+      commissionRate, commissionAmount, depositRatePct, depositAmount, remainingAmount,
+    } = await this.calculatePricing(data);
 
-    // Ступенчатая комиссия от стоимости работ (без учёта первой/повторной пары — её применим
-    // при назначении мастера в assignMaster, когда станет известно masterId).
-    const { getTieredCommissionRate, getConfigNumber, PLATFORM_CONFIG_KEYS } = await import('../../services/platformConfigService.js');
-    const commissionRate = await getTieredCommissionRate(effectivePrice);
-
-    // Комиссия с работ + (опционально) комиссия с выезда
-    const workCommission = calculateCommission(effectivePrice, commissionRate);
-    const visitFeeCommission = visitFee > 0
-      ? calculateCommission(visitFee, visitFeeCommissionRate)
-      : 0;
-    const commissionAmount = workCommission + visitFeeCommission;
-
-    // Полная сумма заказа: цена работ + (опц.) стоимость выезда
-    const totalAmount = effectivePrice + visitFee;
-
-    // ─── Модель оплаты «30% депозит + 70% при завершении» ─────────────────────
-    // Клиент при создании платит депозит = max(depositRate% * total, commission).
-    // Гарантия: депозит всегда ≥ комиссии платформы — мастер ничего не должен,
-    // даже если клиент потом выберет CASH-оплату остатка наличными.
-    const depositRatePct = await getConfigNumber(PLATFORM_CONFIG_KEYS.depositRate, 30);
-    const depositRate = Math.min(100, Math.max(0, depositRatePct)) / 100;
-    const depositByRate = moneyMul(totalAmount, depositRate);
-    const depositAmount = Math.min(totalAmount, Math.max(depositByRate, commissionAmount));
-    const remainingAmount = moneySub(totalAmount, depositAmount);
+    if (data.price < minWorkPrice) {
+      throw ApiError.badRequest(
+        `Минимальная стоимость работ: ${minWorkPrice.toLocaleString('ru')} сум. ` +
+        `Выезд ${visitFee.toLocaleString('ru')} сум добавляется отдельно`
+      );
+    }
 
     // escrowAmount = что заблокировано в эскроу = именно депозит (а не полная сумма).
     const escrowAmount = depositAmount;
@@ -152,8 +202,9 @@ export class OrdersService {
       const balance = toNum(client.balance);
       if (balance < escrowAmount) {
         throw ApiError.badRequest(
-          `Недостаточно средств. Баланс: ${balance.toLocaleString('ru')} сум, ` +
-          `необходимо: ${escrowAmount.toLocaleString('ru')} сум`
+          `Недостаточно средств на балансе. Для публикации списывается депозит ${depositRatePct}%: ` +
+          `${escrowAmount.toLocaleString('ru')} сум. На балансе: ${balance.toLocaleString('ru')} сум, ` +
+          `не хватает ${moneySub(escrowAmount, balance).toLocaleString('ru')} сум — пополните баланс`
         );
       }
 

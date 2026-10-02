@@ -25,6 +25,13 @@ export const createOrderSchema = z.object({
   deadline: z.string().datetime().optional(),
 });
 
+// Предпросмотр стоимости — те же поля, что влияют на цену при создании
+export const quoteOrderSchema = z.object({
+  price: z.number().nonnegative(),
+  taskIds: z.array(z.string().uuid()).optional(),
+  isUrgent: z.boolean().optional().default(false),
+});
+
 export const updateOrderSchema = z.object({
   title: z.string().min(3).max(200).optional(),
   description: z.string().min(10).max(2000).optional(),
