@@ -286,6 +286,39 @@ export function LoginPage() {
                   {t('auth.openTelegram')}
                 </a>
               )}
+              {/* Запасной путь: на Linux/Windows ссылка tg:// может не открыть Telegram
+                  (несколько установленных копий, нет обработчика). Тогда команду
+                  можно отправить боту вручную — webhook примет её так же, как Start. */}
+              {botLink && lastTokenRef.current && (
+                <div className="w-full rounded-xl border border-gray-200 dark:border-gray-700 p-3 text-xs text-gray-600 dark:text-gray-400 space-y-2">
+                  <p>{t('auth.manualHint')}</p>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 truncate rounded-lg bg-gray-100 dark:bg-gray-800 px-2 py-1.5 font-mono text-[11px] text-gray-800 dark:text-gray-200">
+                      /start auth_{lastTokenRef.current}
+                    </code>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard
+                          ?.writeText(`/start auth_${lastTokenRef.current}`)
+                          .then(() => toast.success(t('common.linkCopied')))
+                          .catch(() => {});
+                      }}
+                      className="shrink-0 rounded-lg bg-[#229ED9] px-2.5 py-1.5 font-medium text-white"
+                    >
+                      {t('auth.copy')}
+                    </button>
+                  </div>
+                  <a
+                    href={`https://web.telegram.org/k/#@${new URL(botLink).pathname.slice(1)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-block font-medium text-[#229ED9] hover:underline"
+                  >
+                    {t('auth.openTelegramWeb')}
+                  </a>
+                </div>
+              )}
               <button
                 type="button"
                 onClick={cancelBotAuth}

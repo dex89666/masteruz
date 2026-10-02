@@ -12,6 +12,9 @@ import { sendTelegramMessage, answerTelegramCallback, editTelegramMessage } from
 import { logger } from '../../utils/logger.js';
 import { setAuthCookies, clearAuthCookies } from '../../utils/authCookies.js';
 
+/** Публичный адрес сайта — куда вести пользователя после входа через бота на компьютере. */
+const SITE_PUBLIC_URL = (process.env.SITE_PUBLIC_URL || 'https://www.mestro.uz').replace(/\/$/, '');
+
 function applyTokens(res: Response, result: any) {
   const access = result?.accessToken || result?.tokens?.accessToken;
   const refresh = result?.refreshToken || result?.tokens?.refreshToken;
@@ -172,10 +175,42 @@ export class AuthController {
    * Делает редирект на deep-link приложения, чтобы пользователь автоматически
    * вернулся в MasterUz уже залогиненным (фронт поллит токены и подхватит их).
    */
-  async openApp(_req: Request, res: Response): Promise<void> {
+  async openApp(req: Request, res: Response): Promise<void> {
     const scheme = process.env.MOBILE_DEEPLINK_SCHEME ?? 'uz.masteruz.app';
     const deepLink = `${scheme}://auth?ok=1`;
     res.set('Content-Type', 'text/html; charset=utf-8');
+
+    // На компьютере мобильного приложения нет: deep-link никуда не ведёт и
+    // пользователь видит «Возвращаемся…» навсегда. Вход на сайте уже выполнен
+    // исходной вкладкой (она поллит токены) — говорим об этом прямо.
+    const ua = String(req.headers['user-agent'] ?? '');
+    if (!/Android|iPhone|iPad|iPod/i.test(ua)) {
+      res.send(`<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>MasterUz</title>
+<style>
+  html,body{margin:0;height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#0b0f17;color:#f5f7fb;display:flex;align-items:center;justify-content:center}
+  .card{max-width:420px;padding:32px 24px;text-align:center}
+  h1{font-size:20px;margin:0 0 8px;font-weight:600}
+  p{font-size:14px;color:#a3aec1;margin:0 0 12px;line-height:1.5}
+  a.btn{display:inline-block;margin-top:12px;padding:14px 28px;background:#2563eb;color:#fff;border-radius:14px;text-decoration:none;font-weight:600;font-size:15px}
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>✅ Вход выполнен</h1>
+    <p>Вернитесь на вкладку MasterUz, где вы нажали «Войти через Telegram», — она войдёт автоматически. Эту вкладку можно закрыть.</p>
+    <p>Kirish bajarildi. MasterUz sahifasiga qayting — u avtomatik kiradi.</p>
+    <a class="btn" href="${SITE_PUBLIC_URL}/">Открыть MasterUz</a>
+  </div>
+</body>
+</html>`);
+      return;
+    }
+
     res.send(`<!doctype html>
 <html lang="ru">
 <head>
@@ -399,9 +434,15 @@ export class AuthController {
     await editTelegramMessage({
       chatId,
       messageId,
-      text: '✅ <b>Вы вошли в MasterUz!</b>\n\nВернитесь на сайт или в приложение — вход уже выполнен.',
+      text:
+        '✅ <b>Вы вошли в MasterUz!</b>\n\n' +
+        'На компьютере — просто вернитесь на вкладку сайта, она уже вошла.\n' +
+        'На телефоне — нажмите «Открыть приложение».',
       replyMarkup: {
-        inline_keyboard: [[{ text: '📱 Открыть приложение', url: `${publicUrl}/api/auth/open-app` }]],
+        inline_keyboard: [
+          [{ text: '📱 Открыть приложение', url: `${publicUrl}/api/auth/open-app` }],
+          [{ text: '🌐 Открыть сайт', url: `${SITE_PUBLIC_URL}/` }],
+        ],
       },
     });
   }
