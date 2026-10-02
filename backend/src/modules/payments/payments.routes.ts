@@ -11,14 +11,12 @@ import { balanceTopupSchema, registrationFeeSchema, telegramStarsSchema, commiss
 import { config } from '../../config/index.js';
 import { logger } from '../../utils/logger.js';
 import { clampPagination } from '../../utils/helpers.js';
-import subscribeRoutes from '../subscribe/subscribe.routes.js';
 
 const router = Router();
 
 // ─── Click, Payme, Telegram Stars отключены — онлайн-оплата только через Hamkorbank (UzQR) ───
-// Новые платежи и привязку карт Payme не создаём. Вебхуки Click/Payme оставлены, чтобы
-// провайдеры могли подтвердить или отменить уже начатые транзакции — новых через них не будет.
-// TODO: убрать вебхуки после отключения магазинов в кабинетах Click и Payme.
+// Магазины в кабинетах Click и Payme закрыты, их вебхуки и привязка карт Payme удалены.
+// Создание платежей отвечает 410, пока не подключена оплата через Hamkorbank.
 router.use(['/create', '/balance-topup', '/registration-fee', '/telegram-stars', '/subscribe'], (_req: Request, res: Response) => {
   res.status(410).json({
     success: false,
@@ -73,68 +71,6 @@ router.post('/registration-fee', authenticate, validateBody(registrationFeeSchem
   }
 });
 
-// Click webhook
-router.post('/webhook/click', async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const result = await paymentsService.handleClickWebhook(req.body);
-    res.json(result);
-  } catch (error) {
-    next(error);
-  }
-});
-
-// Payme webhook (Merchant API) — Basic Auth + IP whitelist
-import { ipWhitelist } from '../../middleware/ipWhitelist.js';
-
-// Ошибка авторизации Payme: JSON-RPC -32504 (HTTP 200 по протоколу).
-function paymeAuthError(reqBody: any) {
-  return {
-    jsonrpc: '2.0',
-    id: reqBody?.id ?? null,
-    error: {
-      code: -32504,
-      message: {
-        ru: 'Недостаточно привилегий для выполнения операции',
-        uz: 'Операцияни бажариш учун ҳуқуқлар етарли эмас',
-        en: 'Insufficient privileges to perform this operation',
-      },
-    },
-  };
-}
-
-router.post('/webhook/payme', ipWhitelist, async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    // Payme шлёт Basic Auth: base64("Paycom:<merchantKey>").
-    // Секрет — merchantKey (пароль); логин ("Paycom" или merchantId) не проверяем.
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Basic ')) {
-      logger.warn({ ip: req.ip }, '🚨 SECURITY: Payme webhook без заголовка авторизации');
-      return res.status(200).json(paymeAuthError(req.body));
-    }
-
-    const decoded = Buffer.from(authHeader.slice(6), 'base64').toString('utf-8');
-    const sep = decoded.indexOf(':');
-    const password = sep >= 0 ? decoded.slice(sep + 1) : '';
-
-    const expectedKey = config.payme.useSandbox
-      ? (config.payme.sandboxMerchantKey || config.payme.merchantKey)
-      : config.payme.merchantKey;
-
-    if (!expectedKey || password !== expectedKey) {
-      logger.warn(
-        { ip: req.ip },
-        '🚨 SECURITY: Payme webhook неверные учётные данные — возможна попытка подделки'
-      );
-      return res.status(200).json(paymeAuthError(req.body));
-    }
-
-    const result = await paymentsService.handlePaymeWebhook(req.body);
-    res.json(result);
-  } catch (error) {
-    next(error);
-  }
-});
-
 // Telegram Stars — с проверкой владельца платежа
 router.post('/telegram-stars', authenticate, validateBody(telegramStarsSchema), async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -159,8 +95,5 @@ router.get('/history', authenticate, async (req: Request, res: Response, next: N
     next(error);
   }
 });
-
-// Подмаршруты Subscribe API: /api/payments/subscribe/*
-router.use('/subscribe', subscribeRoutes);
 
 export default router;
