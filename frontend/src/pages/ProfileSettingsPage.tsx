@@ -4,14 +4,16 @@
 
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { usersApi, catalogApi } from '../api/client';
+import { usersApi, catalogApi, photosApi } from '../api/client';
+import { compressImage } from '../lib/compressImage';
+import { resolveImageUrl } from '../lib/imageUrl';
 import { useAuthStore } from '../store';
 import { useTranslation } from '../i18n';
 import { useLargeText } from '../hooks';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import {
   ArrowLeft, Save, User, FileText, Type, Layers, ChevronDown, Check,
-  Trash2, AlertTriangle,
+  Trash2, AlertTriangle, Camera,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -24,6 +26,7 @@ export function ProfileSettingsPage() {
   const { largeText, toggleLargeText } = useLargeText();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [avatarUploading, setAvatarUploading] = useState(false);
   const [deletingMaster, setDeletingMaster] = useState(false);
   const [confirmDeleteMaster, setConfirmDeleteMaster] = useState(false);
 
@@ -222,7 +225,7 @@ export function ProfileSettingsPage() {
       <div className="card dark:bg-gray-800 dark:ring-gray-700 mb-4">
         <div className="flex items-center gap-4">
           {form.avatarUrl ? (
-            <img src={form.avatarUrl} alt="" className="w-20 h-20 rounded-full object-cover" />
+            <img src={resolveImageUrl(form.avatarUrl) ?? undefined} alt="" className="w-20 h-20 rounded-full object-cover" />
           ) : (
             <div className="w-20 h-20 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center">
               <User size={32} className="text-primary-600 dark:text-primary-400" />
@@ -230,13 +233,36 @@ export function ProfileSettingsPage() {
           )}
           <div className="flex-1">
             <label className="label">{t('settings.avatarUrl')}</label>
-            <input
-              type="url"
-              className="input text-sm"
-              placeholder="https://..."
-              value={form.avatarUrl}
-              onChange={(e) => setForm({ ...form, avatarUrl: e.target.value })}
-            />
+            {/* Своё фото: сжимаем, загружаем, сохраняется вместе с формой */}
+            <label className={`btn-secondary inline-flex items-center gap-2 cursor-pointer text-sm ${avatarUploading ? 'opacity-60 pointer-events-none' : ''}`}>
+              <Camera size={16} />
+              {avatarUploading ? t('common.loading') : t('settings.avatarUpload')}
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = '';
+                  if (!file) return;
+                  setAvatarUploading(true);
+                  try {
+                    const fd = new FormData();
+                    fd.append('photo', await compressImage(file, 800));
+                    const res = await photosApi.upload(fd);
+                    const url = res.data.data?.url;
+                    if (!url) throw new Error('no url');
+                    setForm((f) => ({ ...f, avatarUrl: url }));
+                    toast.success(t('settings.avatarUploaded'));
+                  } catch {
+                    toast.error(t('settings.avatarUploadFailed'));
+                  } finally {
+                    setAvatarUploading(false);
+                  }
+                }}
+              />
+            </label>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('settings.avatarHint')}</p>
           </div>
         </div>
       </div>

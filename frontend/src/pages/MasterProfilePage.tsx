@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { User as UserType, Review, PortfolioItem } from '../types';
+import { resolveImageUrl } from '../lib/imageUrl';
 
 export function MasterProfilePage() {
   const { id } = useParams<{ id: string }>();
@@ -99,7 +100,7 @@ export function MasterProfilePage() {
       <div className="card mb-4">
         <div className="flex items-start gap-4">
           {profile?.avatarUrl ? (
-            <img src={profile.avatarUrl} alt="" className="w-20 h-20 rounded-2xl object-cover" />
+            <img src={resolveImageUrl(profile.avatarUrl) ?? undefined} alt="" className="w-20 h-20 rounded-2xl object-cover" />
           ) : (
             <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center">
               <User size={32} className="text-white" />
@@ -336,7 +337,7 @@ export function MasterProfilePage() {
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex items-center gap-2">
                     {review.reviewer?.profile?.avatarUrl ? (
-                      <img src={review.reviewer.profile.avatarUrl} alt="" className="w-8 h-8 rounded-full object-cover" />
+                      <img src={resolveImageUrl(review.reviewer.profile.avatarUrl) ?? undefined} alt="" className="w-8 h-8 rounded-full object-cover" />
                     ) : (
                       <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
                         <User size={16} className="text-gray-400 dark:text-gray-500" />

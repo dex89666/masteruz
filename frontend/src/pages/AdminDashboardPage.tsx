@@ -1478,7 +1478,7 @@ export function AdminDashboardPage() {
                     {/* Avatar */}
                     <div className="flex-shrink-0">
                       {u.profile?.avatarUrl ? (
-                        <img src={u.profile.avatarUrl} alt="" className="w-10 h-10 rounded-full object-cover" />
+                        <img src={resolveImageUrl(u.profile.avatarUrl) ?? undefined} alt="" className="w-10 h-10 rounded-full object-cover" />
                       ) : (
                         <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
                           <Users size={18} className="text-gray-400" />

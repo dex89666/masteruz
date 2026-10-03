@@ -15,6 +15,7 @@ import { JwtPayload } from '../../middleware/auth.js';
 import { UserRole } from '@prisma/client';
 import { logger } from '../../utils/logger.js';
 import { isSuperAdmin } from '../../utils/helpers.js';
+import { refreshTelegramAvatar, isTelegramPlaceholder, isTelegramUserpicUrl } from '../../services/telegramAvatar.js';
 
 interface AuthResult {
   accessToken: string;
@@ -264,7 +265,7 @@ export class AuthService {
             create: {
               firstName: data.firstName,
               lastName: data.lastName || null,
-              avatarUrl: data.photoUrl || null,
+              avatarUrl: isTelegramPlaceholder(data.photoUrl) ? null : data.photoUrl || null,
             },
           },
         },
@@ -280,7 +281,12 @@ export class AuthService {
           data: {
             firstName: data.firstName,
             lastName: data.lastName || user.profile.lastName,
-            avatarUrl: data.photoUrl || user.profile.avatarUrl,
+            // Своё загруженное фото не затираем; ссылку t.me обновляем,
+            // заглушку-букву (.svg) не сохраняем.
+            avatarUrl:
+              user.profile.avatarUrl && !isTelegramUserpicUrl(user.profile.avatarUrl)
+                ? user.profile.avatarUrl
+                : (!isTelegramPlaceholder(data.photoUrl) && data.photoUrl) || user.profile.avatarUrl,
           },
         });
       }
@@ -288,6 +294,14 @@ export class AuthService {
 
     if (!user.isActive) {
       throw ApiError.forbidden('Аккаунт заблокирован');
+    }
+
+    // Настоящее фото профиля — через Bot API, в фоне: вход не ждёт загрузку.
+    if (config.telegram?.botToken) {
+      const userId = user.id;
+      refreshTelegramAvatar(userId).catch((err) =>
+        logger.warn({ err: (err as Error).message, userId }, 'telegramAvatar: обновление при входе не удалось'),
+      );
     }
 
     // === Автоматическая настройка суперадмина ===

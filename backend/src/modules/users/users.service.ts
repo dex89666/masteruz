@@ -81,6 +81,7 @@ export class UsersService {
         address: data.address,
         city: data.city,
         district: data.district,
+        avatarUrl: data.avatarUrl,
       },
       create: {
         userId,
@@ -92,6 +93,7 @@ export class UsersService {
         address: data.address,
         city: data.city,
         district: data.district,
+        avatarUrl: data.avatarUrl,
       },
     });
 

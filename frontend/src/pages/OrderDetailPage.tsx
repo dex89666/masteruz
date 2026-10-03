@@ -1470,7 +1470,7 @@ export function OrderDetailPage() {
                   <div className="flex items-center gap-3">
                     <div className="relative">
                       {resp.master?.profile?.avatarUrl ? (
-                        <img src={resp.master.profile.avatarUrl} className="w-10 h-10 rounded-full object-cover" alt="" />
+                        <img src={resolveImageUrl(resp.master.profile.avatarUrl) ?? undefined} className="w-10 h-10 rounded-full object-cover" alt="" />
                       ) : (
                         <div className="w-10 h-10 rounded-full bg-primary-100 dark:bg-primary-900/40 flex items-center justify-center">
                           <User size={20} className="text-primary-600 dark:text-primary-400" />

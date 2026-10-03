@@ -16,6 +16,12 @@ export const updateProfileSchema = z.object({
   address: z.string().max(200).optional(),
   city: z.string().max(100).optional(),
   district: z.string().max(100).optional(),
+  // Фото профиля: файл, загруженный через /photos/upload (наш /uploads/… или URL хранилища)
+  avatarUrl: z
+    .string()
+    .max(500)
+    .regex(/^(\/uploads\/[\w./-]+|https:\/\/[^\s"'<>]+)$/, 'Некорректная ссылка на фото')
+    .optional(),
 });
 
 export const createMasterProfileSchema = z.object({

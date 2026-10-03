@@ -15,6 +15,7 @@ import {
   ShieldCheck, Users, Wrench,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { resolveImageUrl } from '../lib/imageUrl';
 
 export function ProfilePage() {
   const navigate = useNavigate();
@@ -99,7 +100,7 @@ export function ProfilePage() {
         <div className="flex items-center gap-4">
           {user.profile?.avatarUrl ? (
             <img
-              src={user.profile.avatarUrl}
+              src={resolveImageUrl(user.profile.avatarUrl) ?? undefined}
               alt=""
               className="w-16 h-16 rounded-full object-cover"
             />

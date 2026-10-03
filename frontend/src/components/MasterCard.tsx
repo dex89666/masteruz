@@ -10,6 +10,7 @@ import { favoritesApi } from '../api/client';
 import { useTranslation } from '../i18n';
 import { useTelegram } from '../hooks';
 import toast from 'react-hot-toast';
+import { resolveImageUrl } from '../lib/imageUrl';
 
 interface MasterCardProps {
   master: {
@@ -43,6 +44,8 @@ export function MasterCard({ master, isFavorite = false, showFavorite = false, o
   const { hapticImpact } = useTelegram();
   const [fav, setFav] = useState(isFavorite);
   const [toggling, setToggling] = useState(false);
+  // Старые ссылки t.me на аватар со временем умирают — тогда показываем первую букву
+  const [avatarFailed, setAvatarFailed] = useState(false);
   const mp = master.masterProfile;
   const profile = master.profile;
 
@@ -86,9 +89,11 @@ export function MasterCard({ master, isFavorite = false, showFavorite = false, o
       <div className="flex items-start gap-3">
         {/* Avatar */}
         <div className="relative">
-          {profile?.avatarUrl ? (
+          {profile?.avatarUrl && !avatarFailed ? (
             <img
-              src={profile.avatarUrl}
+              src={resolveImageUrl(profile.avatarUrl) ?? undefined}
+              onError={() => setAvatarFailed(true)}
+              loading="lazy"
               alt=""
               className={`rounded-full object-cover ${compact ? 'w-10 h-10' : 'w-14 h-14'}`}
             />

@@ -573,6 +573,12 @@ if (process.env.NODE_ENV !== 'test') {
       startCleanupJob();
       startBackupJob();
       startPricebookMaintenanceJob();
+      // Разово подтянуть настоящие аватары из Telegram вместо заглушек t.me (идемпотентно)
+      setTimeout(() => {
+        import('./services/telegramAvatar.js')
+          .then((m) => m.backfillTelegramAvatars())
+          .catch((err) => logger.warn({ err: (err as Error).message }, 'telegramAvatar: backfill не удался'));
+      }, 30_000);
 
       // Регистрация Telegram webhook для one-tap авторизации.
       // Делаем после старта сервера, без await — сервер не должен падать,
