@@ -98,7 +98,7 @@ describe('telegram-oidc: вход в мобильном приложении (PK
   it('start выдаёт ссылку с redirect в приложение, finish обменивает код один раз', async () => {
     (globalThis as any).fetch = vi.fn(async (url: string, init?: any) => {
       if (url.includes('jwks')) return { ok: true, json: async () => ({ keys: [jwk] }) };
-      if (url.includes('/crossapp')) return { ok: true, json: async () => ({ tg_url: 'tg://oauth?token=abc' }) };
+      if (url.includes('/crossapp')) return { ok: true, json: async () => ({ url: 'tg://oauth?token=abc' }) };
       // /token: секрет не передаётся — только PKCE
       expect(String(init?.body)).not.toContain('client_secret');
       expect(init?.headers?.Authorization).toBeUndefined();

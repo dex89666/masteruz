@@ -127,8 +127,11 @@ class TelegramOidcService {
     try {
       const res = await fetch(`${ISSUER}/crossapp?${params.toString()}&android_sdk=1`, { headers: { Accept: 'application/json' } });
       if (res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { tg_url?: string };
-        if (body.tg_url && /^tg:\/\//.test(body.tg_url)) tgUrl = body.tg_url;
+        // Telegram отвечает { url: "tg://resolve?domain=oauth&startapp=…" }
+        const body = (await res.json().catch(() => ({}))) as { url?: string; tg_url?: string; error?: string };
+        const link = body.url ?? body.tg_url;
+        if (link && /^tg:\/\//.test(link)) tgUrl = link;
+        else logger.warn({ error: body.error }, 'telegram-native: crossapp не вернул ссылку tg://');
       } else {
         logger.warn({ status: res.status }, 'telegram-native: crossapp не вернул ссылку');
       }
