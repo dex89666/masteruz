@@ -15,7 +15,7 @@ import { JwtPayload } from '../../middleware/auth.js';
 import { UserRole } from '@prisma/client';
 import { logger } from '../../utils/logger.js';
 import { isSuperAdmin } from '../../utils/helpers.js';
-import { refreshTelegramAvatar, isTelegramPlaceholder, isTelegramUserpicUrl } from '../../services/telegramAvatar.js';
+import { refreshTelegramAvatar, storeAvatarFromLogin, isTelegramPlaceholder, isTelegramUserpicUrl } from '../../services/telegramAvatar.js';
 
 interface AuthResult {
   accessToken: string;
@@ -97,6 +97,11 @@ export class AuthService {
       username: claims.preferred_username,
       photoUrl: claims.picture,
     });
+
+    // Фото, которое Telegram передал при входе, — сохраняем свою копию (в фоне)
+    storeAvatarFromLogin(result.user.id, claims.id, claims.picture).catch((err) =>
+      logger.warn({ err: (err as Error).message }, 'telegramAvatar: не удалось сохранить фото из входа'),
+    );
 
     const digits = (claims.phone_number ?? '').replace(/\D/g, '');
     if (digits && claims.phone_number_verified !== false) {

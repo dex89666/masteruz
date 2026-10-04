@@ -13,7 +13,13 @@ vi.mock('../../src/config/database.js', () => ({
         return p ? { telegramId: p.telegramId, profile: { avatarUrl: p.avatarUrl } } : null;
       }),
     },
-    userProfile: { update: (args: any) => update(args) },
+    userProfile: {
+      update: (args: any) => update(args),
+      findUnique: vi.fn(async ({ where }: any) => {
+        const p = profiles.get(where.userId);
+        return p ? { avatarUrl: p.avatarUrl } : null;
+      }),
+    },
   },
 }));
 vi.mock('../../src/config/index.js', () => ({ config: { telegram: { botToken: 'TEST' } } }));
@@ -23,6 +29,7 @@ vi.mock('../../src/services/storage.js', () => ({ getStorage: async () => ({ put
 
 import {
   refreshTelegramAvatar,
+  storeAvatarFromLogin,
   isTelegramPlaceholder,
   isTelegramUserpicUrl,
 } from '../../src/services/telegramAvatar.js';
@@ -73,5 +80,33 @@ describe('telegramAvatar', () => {
     mockTelegram(false);
     await refreshTelegramAvatar('u3');
     expect(profiles.get('u3')!.avatarUrl).toBeNull();
+  });
+});
+
+describe('telegramAvatar: фото из официального входа Telegram', () => {
+  function mockPicture(type = 'image/jpeg') {
+    (globalThis as any).fetch = vi.fn(async () => ({
+      ok: true,
+      headers: { get: () => type },
+      arrayBuffer: async () => new Uint8Array([9, 9, 9]).buffer,
+    }));
+  }
+
+  it('заменяет ссылку t.me своей копией', async () => {
+    profiles.set('v', { telegramId: 7n, avatarUrl: 'https://t.me/i/userpic/320/x.jpg' });
+    mockPicture();
+    await storeAvatarFromLogin('v', 7n, 'https://t.me/i/userpic/320/x.jpg');
+    expect(profiles.get('v')!.avatarUrl).toMatch(/^\/uploads\/avatars\/tg_7_[0-9a-f]{16}\.jpg$/);
+  });
+
+  it('не трогает своё фото и игнорирует заглушку .svg', async () => {
+    profiles.set('own', { telegramId: 8n, avatarUrl: '/uploads/me.jpg' });
+    mockPicture();
+    await storeAvatarFromLogin('own', 8n, 'https://t.me/i/userpic/320/x.jpg');
+    expect(profiles.get('own')!.avatarUrl).toBe('/uploads/me.jpg');
+
+    profiles.set('svg', { telegramId: 9n, avatarUrl: null });
+    await storeAvatarFromLogin('svg', 9n, 'https://t.me/i/userpic/320/x.svg');
+    expect(profiles.get('svg')!.avatarUrl).toBeNull();
   });
 });

@@ -10,6 +10,7 @@
 // сохраняем копию в наше хранилище и пишем в profile.avatarUrl свой URL.
 // ============================================
 
+import crypto from 'crypto';
 import { config } from '../config/index.js';
 import { prisma } from '../config/database.js';
 import { logger } from '../utils/logger.js';
@@ -70,6 +71,31 @@ export async function fetchTelegramAvatar(telegramId: bigint | number): Promise<
     logger.warn({ err: (err as Error).message, telegramId: String(telegramId) }, 'telegramAvatar: не удалось получить фото');
     return null;
   }
+}
+
+/**
+ * Сохраняет копию фото по ссылке, которую прислал сам Telegram при входе
+ * (claim picture в id_token): пользователь разрешил передать фото, поэтому
+ * оно доступно, даже если скрыто от ботов. Ссылки t.me со временем умирают —
+ * храним свою копию. Заменяем только пустой аватар или ссылку t.me.
+ */
+export async function storeAvatarFromLogin(userId: string, telegramId: bigint | number, pictureUrl: string | undefined): Promise<void> {
+  if (!pictureUrl || isTelegramPlaceholder(pictureUrl) || !/^https:\/\//i.test(pictureUrl)) return;
+  const profile = await prisma.userProfile.findUnique({ where: { userId }, select: { avatarUrl: true } });
+  if (!profile) return;
+  if (profile.avatarUrl && !isTelegramUserpicUrl(profile.avatarUrl)) return; // своё фото не трогаем
+
+  const res = await _fetch(pictureUrl);
+  const type = res.headers.get('content-type') ?? '';
+  if (!res.ok || !/^image\/(jpeg|png|webp)/i.test(type)) return;
+  const body = Buffer.from(await res.arrayBuffer());
+  if (body.length === 0 || body.length > 5 * 1024 * 1024) return;
+
+  const ext = /png/i.test(type) ? 'png' : /webp/i.test(type) ? 'webp' : 'jpg';
+  const hash = crypto.createHash('sha256').update(body).digest('hex').slice(0, 16);
+  const storage = await getStorage();
+  const url = await storage.put({ key: `avatars/tg_${telegramId}_${hash}.${ext}`, body, contentType: type.split(';')[0] });
+  await prisma.userProfile.update({ where: { userId }, data: { avatarUrl: url } });
 }
 
 /**
