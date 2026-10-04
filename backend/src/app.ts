@@ -218,6 +218,7 @@ if (process.env.NODE_ENV !== 'test') {
         // Официальный вход Telegram: проверка настроек (каждая загрузка /login)
         // и возврат от Telegram — не попытки входа. Считается только /start.
         p === '/telegram-oidc/config' ||
+        p === '/telegram-oidc/nonce' ||
         p === '/telegram-oidc/callback' ||
         p === '/open-app'
       );

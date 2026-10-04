@@ -25,7 +25,7 @@ export function LoginPage() {
   const redirectTo = ((location.state as any)?.from as string) || '/';
   const { setAuth, isAuthenticated } = useAuthStore();
   const { isMiniApp, initData } = useTelegram();
-  const { t } = useTranslation();
+  const { t, language } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [waitingForBot, setWaitingForBot] = useState(false);
   const [showWidget, setShowWidget] = useState(false);
@@ -105,8 +105,60 @@ export function LoginPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // JS-библиотека Telegram: окно входа поверх сайта, id_token приходит сразу в
+  // браузер — без обмена кода с Client Secret. Nonce и скрипт готовим заранее:
+  // окно нужно открыть синхронно по клику, иначе браузер заблокирует popup.
+  const oidcSessionRef = useRef<{ clientId: number; nonce: string } | null>(null);
+  const refreshOidcNonce = () =>
+    authApi.telegramOidcNonce()
+      .then((res) => { oidcSessionRef.current = res.data.data ?? null; })
+      .catch(() => { oidcSessionRef.current = null; });
+
+  useEffect(() => {
+    if (!oidcEnabled) return;
+    refreshOidcNonce();
+    if (!document.getElementById('telegram-login-lib')) {
+      const script = document.createElement('script');
+      script.id = 'telegram-login-lib';
+      script.src = 'https://oauth.telegram.org/js/telegram-login.js?6';
+      script.async = true;
+      document.head.appendChild(script);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [oidcEnabled]);
+
   function handleOidcLogin() {
-    window.location.href = authApi.telegramOidcStartUrl(redirectTo);
+    const tgLogin = (window as any).Telegram?.Login;
+    const session = oidcSessionRef.current;
+    if (!tgLogin?.auth || !session) {
+      // Библиотека не загрузилась — классический переход на страницу Telegram
+      window.location.href = authApi.telegramOidcStartUrl(redirectTo);
+      return;
+    }
+    oidcSessionRef.current = null; // nonce одноразовый
+    tgLogin.auth(
+      { client_id: session.clientId, scope: ['profile', 'phone'], lang: language, nonce: session.nonce },
+      async (data: { id_token?: string; error?: string }) => {
+        if (!data?.id_token) {
+          if (data?.error) toast.error(t('auth.oidcCancelled'));
+          refreshOidcNonce();
+          return;
+        }
+        setLoading(true);
+        try {
+          const res = await authApi.telegramOidcToken(data.id_token);
+          const { user, accessToken, refreshToken } = res.data.data;
+          setAuth(user, accessToken, refreshToken);
+          toast.success(t('auth.welcome'));
+          navigate(redirectTo);
+        } catch (err: any) {
+          toast.error(err?.response?.data?.error?.message || t('auth.authError'));
+          refreshOidcNonce();
+        } finally {
+          setLoading(false);
+        }
+      },
+    );
   }
   // Старый виджет Telegram не нужен, когда включён вход OpenID Connect: в BotFather
   // он заменяет виджет, и тот начинает выдавать ошибку.

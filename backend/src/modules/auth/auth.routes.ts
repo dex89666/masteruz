@@ -26,6 +26,9 @@ router.get('/telegram-callback', (req, res, next) =>
 // уведомление от официального аккаунта Telegram
 router.get('/telegram-oidc/config', (req, res) => authController.oidcConfig(req, res));
 router.get('/telegram-oidc/start', (req, res, next) => authController.oidcStart(req, res, next));
+// Вход через JS-библиотеку Telegram (popup): nonce → id_token → сессия
+router.get('/telegram-oidc/nonce', (req, res, next) => authController.oidcNonce(req, res, next));
+router.post('/telegram-oidc/token', (req, res, next) => authController.oidcToken(req, res, next));
 router.get('/telegram-oidc/callback', (req, res) => authController.oidcCallback(req, res));
 
 // One-tap авторизация через Telegram-бота (без ввода телефона)

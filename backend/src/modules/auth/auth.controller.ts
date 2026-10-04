@@ -246,6 +246,41 @@ export class AuthController {
   }
 
   /**
+   * GET /api/auth/telegram-oidc/nonce — данные для JS-библиотеки Telegram:
+   * Client ID и одноразовый nonce (страница входа берёт их заранее, чтобы
+   * открыть окно Telegram сразу по клику — иначе браузер заблокирует popup).
+   */
+  async oidcNonce(_req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const nonce = await telegramOidcService.createNonce();
+      res.json({ success: true, data: { clientId: Number(telegramOidcService.clientId()), nonce } });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * POST /api/auth/telegram-oidc/token { id_token }
+   * Вход через JS-библиотеку Telegram: проверяем подписанный id_token и
+   * выдаём сессию. Обмен кода с Client Secret здесь не нужен.
+   */
+  async oidcToken(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const idToken = String(req.body?.id_token ?? '');
+      if (!idToken) {
+        res.status(400).json({ success: false, error: { message: 'id_token обязателен', statusCode: 400 } });
+        return;
+      }
+      const claims = await telegramOidcService.verifyClientToken(idToken);
+      const result = await authService.loginWithTelegramOidc(claims);
+      applyTokens(res, result);
+      res.json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
    * GET /api/auth/telegram-oidc/start?returnTo=/orders
    * Редирект на oauth.telegram.org: пользователь подтверждает вход в Telegram.
    */

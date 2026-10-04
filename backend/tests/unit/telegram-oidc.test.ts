@@ -76,3 +76,20 @@ describe('telegram-oidc', () => {
     await expect(telegramOidcService.handleCallback('code', s.state)).rejects.toThrow(/подпись/);
   });
 });
+
+describe('telegram-oidc: вход через JS-библиотеку (id_token из браузера)', () => {
+  it('принимает токен с выданным nonce и не даёт использовать его повторно', async () => {
+    const nonce = await telegramOidcService.createNonce();
+    const token = sign({ id: 555, name: 'Vladimir', nonce });
+    const claims = await telegramOidcService.verifyClientToken(token);
+    expect(claims.id).toBe(555);
+    await expect(telegramOidcService.verifyClientToken(token)).rejects.toThrow(/истекла/);
+  });
+
+  it('отклоняет токен с чужим nonce, без nonce и с поддельной подписью', async () => {
+    await expect(telegramOidcService.verifyClientToken(sign({ id: 1, nonce: 'not-issued' }))).rejects.toThrow(/истекла/);
+    await expect(telegramOidcService.verifyClientToken(sign({ id: 1 }))).rejects.toThrow(/истекла/);
+    const nonce = await telegramOidcService.createNonce();
+    await expect(telegramOidcService.verifyClientToken(sign({ id: 1, nonce }, otherKey))).rejects.toThrow(/подпись/);
+  });
+});

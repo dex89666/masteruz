@@ -28,6 +28,7 @@ const TOKEN_URL = `${ISSUER}/token`;
 const JWKS_URL = `${ISSUER}/.well-known/jwks.json`;
 const STATE_TTL_SECONDS = 10 * 60;
 const STATE_KEY = (state: string) => `tg-oidc:${state}`;
+const NONCE_KEY = (nonce: string) => `tg-oidc-nonce:${nonce}`;
 
 export interface TelegramOidcClaims {
   id: number;
@@ -89,6 +90,43 @@ async function verifyIdToken(idToken: string, nonce: string): Promise<TelegramOi
 }
 
 class TelegramOidcService {
+  /** Client ID для JS-библиотеки Telegram (публичное значение). */
+  clientId(): string {
+    return clientId();
+  }
+
+  /**
+   * Одноразовый nonce для входа через JS-библиотеку Telegram: попадает в
+   * id_token и не даёт повторно использовать перехваченный токен.
+   */
+  async createNonce(): Promise<string> {
+    if (!isTelegramOidcEnabled()) throw ApiError.badRequest('Вход через Telegram ещё не настроен');
+    const nonce = base64url(crypto.randomBytes(24));
+    await getRedis().set(NONCE_KEY(nonce), '1', 'EX', STATE_TTL_SECONDS);
+    return nonce;
+  }
+
+  /**
+   * Вход через JS-библиотеку: id_token приходит из браузера без обмена кода.
+   * Проверяем подпись по JWKS, iss, aud, срок и одноразовый nonce.
+   */
+  async verifyClientToken(idToken: string): Promise<TelegramOidcClaims> {
+    const decoded = jwt.decode(idToken) as (jwt.JwtPayload & { nonce?: string }) | null;
+    const nonce = decoded?.nonce;
+    if (!nonce) throw ApiError.badRequest('Сессия входа истекла, попробуйте ещё раз');
+    const redis = getRedis();
+    // Удаляем сразу: nonce одноразовый, повторная отправка того же токена не пройдёт
+    const existed = await redis.get(NONCE_KEY(nonce));
+    await redis.del(NONCE_KEY(nonce));
+    if (!existed) throw ApiError.badRequest('Сессия входа истекла, попробуйте ещё раз');
+    try {
+      return await verifyIdToken(idToken, nonce);
+    } catch (err) {
+      logger.warn({ err: (err as Error).message }, 'telegram-oidc: id_token из браузера не прошёл проверку');
+      throw ApiError.badRequest('Не удалось проверить подпись Telegram');
+    }
+  }
+
   /** Адрес, на который отправляем пользователя для входа. */
   async buildAuthUrl(returnTo: string): Promise<string> {
     if (!isTelegramOidcEnabled()) throw ApiError.badRequest('Вход через Telegram ещё не настроен');
