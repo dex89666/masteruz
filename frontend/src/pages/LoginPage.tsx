@@ -108,7 +108,9 @@ export function LoginPage() {
   function handleOidcLogin() {
     window.location.href = authApi.telegramOidcStartUrl(redirectTo);
   }
-  const widgetSupported = !isNative && window.location.hostname === LOGIN_WIDGET_HOST;
+  // Старый виджет Telegram не нужен, когда включён вход OpenID Connect: в BotFather
+  // он заменяет виджет, и тот начинает выдавать ошибку.
+  const widgetSupported = !isNative && !oidcEnabled && window.location.hostname === LOGIN_WIDGET_HOST;
 
   useEffect(() => {
     if (!widgetSupported) return;
