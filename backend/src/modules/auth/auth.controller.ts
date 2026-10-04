@@ -7,6 +7,7 @@ import { Request, Response, NextFunction } from 'express';
 import crypto from 'crypto';
 import { authService } from './auth.service.js';
 import { botAuthService } from './bot-auth.service.js';
+import { telegramOidcService, isTelegramOidcEnabled } from './telegram-oidc.service.js';
 import { config } from '../../config/index.js';
 import { sendTelegramMessage, answerTelegramCallback, editTelegramMessage } from '../../utils/telegramBot.js';
 import { logger } from '../../utils/logger.js';
@@ -237,6 +238,52 @@ export class AuthController {
   </script>
 </body>
 </html>`);
+  }
+
+  /** GET /api/auth/telegram-oidc/config — включён ли официальный вход Telegram */
+  async oidcConfig(_req: Request, res: Response): Promise<void> {
+    res.json({ success: true, data: { enabled: isTelegramOidcEnabled() } });
+  }
+
+  /**
+   * GET /api/auth/telegram-oidc/start?returnTo=/orders
+   * Редирект на oauth.telegram.org: пользователь подтверждает вход в Telegram.
+   */
+  async oidcStart(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      // Возвращаем только на свой сайт: относительный путь без «//» (защита от open redirect)
+      const raw = String(req.query.returnTo ?? '/');
+      const returnTo = raw.startsWith('/') && !raw.startsWith('//') ? raw : '/';
+      res.redirect(await telegramOidcService.buildAuthUrl(returnTo));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * GET /api/auth/telegram-oidc/callback?code&state
+   * Telegram вернул пользователя: проверяем вход и отдаём сайту одноразовый
+   * токен сессии (сайт забирает её через /telegram-bot/poll).
+   */
+  async oidcCallback(req: Request, res: Response): Promise<void> {
+    const loginUrl = `${SITE_PUBLIC_URL}/login`;
+    try {
+      const code = String(req.query.code ?? '');
+      const state = String(req.query.state ?? '');
+      if (!code || !state) {
+        // Пользователь отменил вход в окне Telegram
+        res.redirect(`${loginUrl}?tg_error=cancelled`);
+        return;
+      }
+      const { claims, returnTo } = await telegramOidcService.handleCallback(code, state);
+      const result = await authService.loginWithTelegramOidc(claims);
+      const session = await botAuthService.createReady(result);
+      res.redirect(`${loginUrl}?tg_session=${encodeURIComponent(session)}&redirect=${encodeURIComponent(returnTo)}`);
+    } catch (error) {
+      logger.warn({ err: (error as Error).message }, 'telegram-oidc: вход не выполнен');
+      const reason = error instanceof Error && /заблокирован/i.test(error.message) ? 'blocked' : 'failed';
+      res.redirect(`${loginUrl}?tg_error=${reason}`);
+    }
   }
 
   /**

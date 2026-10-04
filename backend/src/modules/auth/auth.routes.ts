@@ -22,6 +22,12 @@ router.get('/telegram-callback', (req, res, next) =>
   authController.telegramCallback(req, res, next)
 );
 
+// Официальный вход Telegram (OpenID Connect): подтверждение в Telegram,
+// уведомление от официального аккаунта Telegram
+router.get('/telegram-oidc/config', (req, res) => authController.oidcConfig(req, res));
+router.get('/telegram-oidc/start', (req, res, next) => authController.oidcStart(req, res, next));
+router.get('/telegram-oidc/callback', (req, res) => authController.oidcCallback(req, res));
+
 // One-tap авторизация через Telegram-бота (без ввода телефона)
 router.post('/telegram-bot/start', (req, res, next) =>
   authController.botAuthStart(req, res, next)

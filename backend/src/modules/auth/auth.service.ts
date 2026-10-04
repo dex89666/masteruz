@@ -77,6 +77,38 @@ export class AuthService {
   }
 
   /**
+   * Вход через официальное подтверждение Telegram (OpenID Connect).
+   * Данные уже проверены по подписи id_token. Подтверждённый Telegram номер
+   * телефона сохраняем, если у пользователя он ещё не указан.
+   */
+  async loginWithTelegramOidc(claims: {
+    id: number;
+    name?: string;
+    preferred_username?: string;
+    picture?: string;
+    phone_number?: string;
+    phone_number_verified?: boolean;
+  }): Promise<AuthResult> {
+    const [firstName, ...rest] = (claims.name ?? '').trim().split(/\s+/);
+    const result = await this.findOrCreateUser({
+      telegramId: claims.id,
+      firstName: firstName || claims.preferred_username || 'Пользователь',
+      lastName: rest.join(' ') || undefined,
+      username: claims.preferred_username,
+      photoUrl: claims.picture,
+    });
+
+    const digits = (claims.phone_number ?? '').replace(/\D/g, '');
+    if (digits && claims.phone_number_verified !== false) {
+      await prisma.user.updateMany({
+        where: { id: result.user.id, phone: null },
+        data: { phone: `+${digits}` },
+      });
+    }
+    return result;
+  }
+
+  /**
    * Авторизация через Telegram Mini App
    */
   async loginWithMiniApp(initData: string): Promise<AuthResult> {

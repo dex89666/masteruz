@@ -169,6 +169,11 @@ export const authApi = {
   loginMiniApp: (initData: string) =>
     api.post<ApiResponse<any>>('/auth/mini-app', { initData }),
 
+  // Официальный вход Telegram (OpenID Connect): настроен ли и адрес старта.
+  telegramOidcConfig: () => api.get<ApiResponse<{ enabled: boolean }>>('/auth/telegram-oidc/config'),
+  telegramOidcStartUrl: (returnTo: string) =>
+    `${API_URL}/auth/telegram-oidc/start?returnTo=${encodeURIComponent(returnTo)}`,
+
   // One-tap логин через бота: создать сессию + поллить готовность.
   botAuthStart: () =>
     api.post<ApiResponse<{ token: string; deepLink: string; webLink: string; ttl: number }>>(

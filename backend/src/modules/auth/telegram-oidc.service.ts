@@ -1,0 +1,160 @@
+// ============================================
+// MasterUz — «Войти через Telegram» по OpenID Connect
+// https://core.telegram.org/bots/telegram-login
+//
+// Пользователь подтверждает вход в окне Telegram, а официальный аккаунт
+// Telegram (с галочкой) присылает ему уведомление о входе. Сайт получает
+// подписанный id_token: id, имя, username, фото и — с согласия — телефон.
+//
+// Поток (authorization code + PKCE, всё на бэкенде):
+//   1. GET /api/auth/telegram-oidc/start  → редирект на oauth.telegram.org/auth
+//   2. Telegram → GET /api/auth/telegram-oidc/callback?code&state
+//   3. Обмен code на id_token, проверка подписи по JWKS Telegram
+//   4. Вход/регистрация → редирект на сайт с одноразовым токеном сессии
+//
+// Настройка: @BotFather → бот → Login Widget → разрешённые адреса и
+// redirect URI; оттуда же Client ID и Client Secret (ENV ниже).
+// ============================================
+
+import crypto from 'crypto';
+import jwt from 'jsonwebtoken';
+import { getRedis } from '../../config/redis.js';
+import { ApiError } from '../../utils/ApiError.js';
+import { logger } from '../../utils/logger.js';
+
+const ISSUER = 'https://oauth.telegram.org';
+const AUTH_URL = `${ISSUER}/auth`;
+const TOKEN_URL = `${ISSUER}/token`;
+const JWKS_URL = `${ISSUER}/.well-known/jwks.json`;
+const STATE_TTL_SECONDS = 10 * 60;
+const STATE_KEY = (state: string) => `tg-oidc:${state}`;
+
+export interface TelegramOidcClaims {
+  id: number;
+  name?: string;
+  preferred_username?: string;
+  picture?: string;
+  phone_number?: string;
+  phone_number_verified?: boolean;
+}
+
+const clientId = () => process.env.TELEGRAM_OIDC_CLIENT_ID ?? '';
+const clientSecret = () => process.env.TELEGRAM_OIDC_CLIENT_SECRET ?? '';
+const backendPublicUrl = () =>
+  (process.env.BACKEND_PUBLIC_URL || 'https://api.mestro.uz').replace(/\/$/, '');
+
+/** redirect_uri — должен быть зарегистрирован в @BotFather */
+export const oidcRedirectUri = () => `${backendPublicUrl()}/api/auth/telegram-oidc/callback`;
+
+export function isTelegramOidcEnabled(): boolean {
+  return !!clientId() && !!clientSecret();
+}
+
+const base64url = (buf: Buffer) => buf.toString('base64url');
+
+// ─── JWKS с кэшем ──────────────────────────────
+let jwksCache: { keys: (crypto.JsonWebKey & { kid?: string })[]; at: number } | null = null;
+
+async function getJwks(force = false) {
+  if (!force && jwksCache && Date.now() - jwksCache.at < 60 * 60 * 1000) return jwksCache.keys;
+  const res = await fetch(JWKS_URL);
+  if (!res.ok) throw new Error(`JWKS HTTP ${res.status}`);
+  const body = (await res.json()) as { keys: (crypto.JsonWebKey & { kid?: string })[] };
+  jwksCache = { keys: body.keys ?? [], at: Date.now() };
+  return jwksCache.keys;
+}
+
+async function verifyIdToken(idToken: string, nonce: string): Promise<TelegramOidcClaims> {
+  const decoded = jwt.decode(idToken, { complete: true });
+  const kid = decoded && typeof decoded === 'object' ? decoded.header.kid : undefined;
+  let keys = await getJwks();
+  let jwk = keys.find((k) => k.kid === kid) ?? (keys.length === 1 ? keys[0] : undefined);
+  if (!jwk) {
+    // Ключи могли смениться — перечитываем один раз
+    keys = await getJwks(true);
+    jwk = keys.find((k) => k.kid === kid);
+  }
+  if (!jwk) throw new Error('Неизвестный ключ подписи id_token');
+
+  const publicKey = crypto.createPublicKey({ key: jwk, format: 'jwk' });
+  const claims = jwt.verify(idToken, publicKey, {
+    algorithms: ['RS256', 'ES256'],
+    issuer: ISSUER,
+    audience: clientId(),
+  }) as jwt.JwtPayload & TelegramOidcClaims & { nonce?: string };
+
+  if (claims.nonce !== undefined && claims.nonce !== nonce) throw new Error('nonce не совпадает');
+  if (!claims.id) throw new Error('В id_token нет id пользователя Telegram');
+  return claims;
+}
+
+class TelegramOidcService {
+  /** Адрес, на который отправляем пользователя для входа. */
+  async buildAuthUrl(returnTo: string): Promise<string> {
+    if (!isTelegramOidcEnabled()) throw ApiError.badRequest('Вход через Telegram ещё не настроен');
+    const state = base64url(crypto.randomBytes(24));
+    const verifier = base64url(crypto.randomBytes(48));
+    const nonce = base64url(crypto.randomBytes(16));
+    const challenge = base64url(crypto.createHash('sha256').update(verifier).digest());
+
+    await getRedis().set(
+      STATE_KEY(state),
+      JSON.stringify({ verifier, nonce, returnTo }),
+      'EX',
+      STATE_TTL_SECONDS,
+    );
+
+    const params = new URLSearchParams({
+      client_id: clientId(),
+      redirect_uri: oidcRedirectUri(),
+      response_type: 'code',
+      scope: 'openid profile phone',
+      state,
+      nonce,
+      code_challenge: challenge,
+      code_challenge_method: 'S256',
+    });
+    return `${AUTH_URL}?${params.toString()}`;
+  }
+
+  /** Обработка возврата из Telegram: проверка state, обмен кода, проверка подписи. */
+  async handleCallback(code: string, state: string): Promise<{ claims: TelegramOidcClaims; returnTo: string }> {
+    const redis = getRedis();
+    const raw = await redis.get(STATE_KEY(state));
+    if (!raw) throw ApiError.badRequest('Сессия входа истекла, попробуйте ещё раз');
+    // state одноразовый — повторное использование ссылки невозможно
+    await redis.del(STATE_KEY(state));
+    const { verifier, nonce, returnTo } = JSON.parse(raw) as { verifier: string; nonce: string; returnTo: string };
+
+    const basic = Buffer.from(`${clientId()}:${clientSecret()}`).toString('base64');
+    const res = await fetch(TOKEN_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Basic ${basic}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: oidcRedirectUri(),
+        client_id: clientId(),
+        code_verifier: verifier,
+      }).toString(),
+    });
+    const body = (await res.json().catch(() => ({}))) as { id_token?: string; error?: string; error_description?: string };
+    if (!res.ok || !body.id_token) {
+      logger.warn({ status: res.status, error: body.error, desc: body.error_description }, 'telegram-oidc: обмен кода не удался');
+      throw ApiError.badRequest('Telegram не подтвердил вход, попробуйте ещё раз');
+    }
+
+    try {
+      const claims = await verifyIdToken(body.id_token, nonce);
+      return { claims, returnTo };
+    } catch (err) {
+      logger.warn({ err: (err as Error).message }, 'telegram-oidc: id_token не прошёл проверку');
+      throw ApiError.badRequest('Не удалось проверить подпись Telegram');
+    }
+  }
+}
+
+export const telegramOidcService = new TelegramOidcService();

@@ -63,6 +63,51 @@ export function LoginPage() {
 
   // Telegram Login Widget — дополнительно к входу через бота, только на домене из BotFather.
   const isNative = Capacitor.isNativePlatform();
+
+  // ─── Официальный вход Telegram (OpenID Connect) ─────────
+  // Подтверждение в окне Telegram; уведомление о входе присылает официальный
+  // аккаунт Telegram. Бэкенд возвращает сюда ?tg_session=… (или ?tg_error=…).
+  const [oidcEnabled, setOidcEnabled] = useState(false);
+  useEffect(() => {
+    if (isNative) return; // в приложении — вход через бота
+    authApi.telegramOidcConfig()
+      .then((res) => setOidcEnabled(!!res.data.data?.enabled))
+      .catch(() => {});
+  }, [isNative]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const session = params.get('tg_session');
+    const error = params.get('tg_error');
+    if (!session && !error) return;
+    // Убираем одноразовые параметры из адреса, чтобы не повторять при обновлении
+    window.history.replaceState(null, '', location.pathname);
+    if (error) {
+      toast.error(error === 'cancelled' ? t('auth.oidcCancelled') : error === 'blocked' ? t('auth.oidcBlocked') : t('auth.authError'));
+      return;
+    }
+    const target = params.get('redirect');
+    const next = target && target.startsWith('/') && !target.startsWith('//') ? target : redirectTo;
+    setLoading(true);
+    authApi.botAuthPoll(session!)
+      .then((res) => {
+        const data = res.data?.data;
+        if (res.data?.success && data?.ready && data.accessToken && data.refreshToken) {
+          setAuth(data.user, data.accessToken, data.refreshToken);
+          toast.success(t('auth.welcome'));
+          navigate(next);
+        } else {
+          toast.error(t('auth.sessionExpired'));
+        }
+      })
+      .catch(() => toast.error(t('auth.sessionExpired')))
+      .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function handleOidcLogin() {
+    window.location.href = authApi.telegramOidcStartUrl(redirectTo);
+  }
   const widgetSupported = !isNative && window.location.hostname === LOGIN_WIDGET_HOST;
 
   useEffect(() => {
@@ -325,6 +370,25 @@ export function LoginPage() {
                 className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
               >
                 {t('common.cancel')}
+              </button>
+            </div>
+          ) : oidcEnabled ? (
+            <div className="flex flex-col items-center gap-2">
+              <button
+                type="button"
+                onClick={handleOidcLogin}
+                className="inline-flex items-center gap-3 rounded-2xl bg-[#229ED9] px-6 py-3.5 text-base font-semibold text-white shadow-lg shadow-[#229ED9]/30 transition active:scale-[0.98] hover:bg-[#1c8bc0]"
+              >
+                <Send size={20} />
+                {t('auth.loginTelegram')}
+              </button>
+              <p className="text-xs text-gray-500 dark:text-gray-400 max-w-xs text-center">{t('auth.oidcHint')}</p>
+              <button
+                type="button"
+                onClick={handleBotLogin}
+                className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:underline"
+              >
+                {t('auth.viaBot')}
               </button>
             </div>
           ) : (

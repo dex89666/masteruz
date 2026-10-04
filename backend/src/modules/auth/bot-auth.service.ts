@@ -55,6 +55,23 @@ class BotAuthService {
     return record;
   }
 
+  /**
+   * Одноразовый токен с уже готовой сессией — для входов, завершающихся
+   * редиректом (официальный вход Telegram): сайт забирает сессию через poll.
+   */
+  async createReady(result: { accessToken: string; refreshToken: string; user: unknown; isNewUser: boolean }): Promise<string> {
+    const token = crypto.randomBytes(24).toString('base64url');
+    const record: BotAuthRecord = {
+      status: 'ready',
+      tokens: { accessToken: result.accessToken, refreshToken: result.refreshToken },
+      user: result.user,
+      isNewUser: result.isNewUser,
+    };
+    // Короткий срок: страница забирает сессию сразу после редиректа
+    await getRedis().set(KEY(token), JSON.stringify(record), 'EX', 120);
+    return token;
+  }
+
   /** Токен существует и ещё ждёт подтверждения. */
   async isPending(token: string): Promise<boolean> {
     const raw = await getRedis().get(KEY(token));
