@@ -8,6 +8,7 @@ import { Capacitor } from '@capacitor/core';
 import { App as CapacitorApp } from '@capacitor/app';
 import { useAuthStore } from '../store';
 import { authApi } from '../api/client';
+import { TG_NATIVE_SESSION_KEY } from '../hooks/useTelegramDeepLinkAuth';
 import { useTelegram } from '../hooks';
 import { useTranslation } from '../i18n';
 import { LoadingSpinner } from '../components/LoadingSpinner';
@@ -69,7 +70,6 @@ export function LoginPage() {
   // аккаунт Telegram. Бэкенд возвращает сюда ?tg_session=… (или ?tg_error=…).
   const [oidcEnabled, setOidcEnabled] = useState(false);
   useEffect(() => {
-    if (isNative) return; // в приложении — вход через бота
     authApi.telegramOidcConfig()
       .then((res) => setOidcEnabled(!!res.data.data?.enabled))
       .catch(() => {});
@@ -115,7 +115,8 @@ export function LoginPage() {
       .catch(() => { oidcSessionRef.current = null; });
 
   useEffect(() => {
-    if (!oidcEnabled) return;
+    // В приложении окно-библиотека не работает — там свой поток (handleNativeTelegramLogin)
+    if (!oidcEnabled || isNative) return;
     refreshOidcNonce();
     if (!document.getElementById('telegram-login-lib')) {
       const script = document.createElement('script');
@@ -127,7 +128,27 @@ export function LoginPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [oidcEnabled]);
 
+  // Мобильное приложение: подтверждение в приложении Telegram, возврат по ссылке
+  // uz.masteruz.app://telegram-login — её обрабатывает useTelegramDeepLinkAuth.
+  async function handleNativeTelegramLogin() {
+    setLoading(true);
+    try {
+      const res = await authApi.telegramNativeStart();
+      const { session, tgUrl, webUrl } = res.data.data;
+      localStorage.setItem(TG_NATIVE_SESSION_KEY, session);
+      window.open(tgUrl || webUrl, '_system');
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error?.message || t('auth.authError'));
+    } finally {
+      setLoading(false);
+    }
+  }
+
   function handleOidcLogin() {
+    if (isNative) {
+      void handleNativeTelegramLogin();
+      return;
+    }
     const tgLogin = (window as any).Telegram?.Login;
     const session = oidcSessionRef.current;
     if (!tgLogin?.auth || !session) {

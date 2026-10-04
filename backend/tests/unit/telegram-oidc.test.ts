@@ -93,3 +93,23 @@ describe('telegram-oidc: вход через JS-библиотеку (id_token �
     await expect(telegramOidcService.verifyClientToken(sign({ id: 1, nonce }, otherKey))).rejects.toThrow(/подпись/);
   });
 });
+
+describe('telegram-oidc: вход в мобильном приложении (PKCE без секрета)', () => {
+  it('start выдаёт ссылку с redirect в приложение, finish обменивает код один раз', async () => {
+    (globalThis as any).fetch = vi.fn(async (url: string, init?: any) => {
+      if (url.includes('jwks')) return { ok: true, json: async () => ({ keys: [jwk] }) };
+      if (url.includes('/crossapp')) return { ok: true, json: async () => ({ tg_url: 'tg://oauth?token=abc' }) };
+      // /token: секрет не передаётся — только PKCE
+      expect(String(init?.body)).not.toContain('client_secret');
+      expect(init?.headers?.Authorization).toBeUndefined();
+      return { ok: true, json: async () => ({ id_token: sign({ id: 321, name: 'App User' }) }) };
+    });
+    const { session, tgUrl, webUrl } = await telegramOidcService.startNative();
+    expect(tgUrl).toBe('tg://oauth?token=abc');
+    expect(new URL(webUrl).searchParams.get('redirect_uri')).toBe('uz.masteruz.app://telegram-login');
+
+    const claims = await telegramOidcService.finishNative(session, 'code');
+    expect(claims.id).toBe(321);
+    await expect(telegramOidcService.finishNative(session, 'code')).rejects.toThrow(/истекла/);
+  });
+});

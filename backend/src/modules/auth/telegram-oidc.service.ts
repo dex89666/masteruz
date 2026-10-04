@@ -29,6 +29,14 @@ const JWKS_URL = `${ISSUER}/.well-known/jwks.json`;
 const STATE_TTL_SECONDS = 10 * 60;
 const STATE_KEY = (state: string) => `tg-oidc:${state}`;
 const NONCE_KEY = (nonce: string) => `tg-oidc-nonce:${nonce}`;
+const NATIVE_KEY = (session: string) => `tg-native:${session}`;
+
+/**
+ * Адрес возврата в мобильное приложение (схема зарегистрирована в AndroidManifest).
+ * Регистрируется в @BotFather → Login Widget → Native Login вместе с package name
+ * и SHA-256 сертификата подписи APK.
+ */
+export const NATIVE_REDIRECT_URI = process.env.TELEGRAM_NATIVE_REDIRECT_URI || 'uz.masteruz.app://telegram-login';
 
 export interface TelegramOidcClaims {
   id: number;
@@ -90,6 +98,78 @@ async function verifyIdToken(idToken: string, nonce: string): Promise<TelegramOi
 }
 
 class TelegramOidcService {
+  /**
+   * Вход в мобильном приложении (как официальный Telegram Login SDK для Android):
+   * PKCE без Client Secret, подтверждение в приложении Telegram, возврат кода
+   * по ссылке uz.masteruz.app://telegram-login. Верификатор PKCE хранится на
+   * сервере, обмен кода тоже делает сервер — приложение получает только сессию.
+   */
+  async startNative(): Promise<{ session: string; tgUrl: string | null; webUrl: string }> {
+    if (!isTelegramOidcEnabled()) throw ApiError.badRequest('Вход через Telegram ещё не настроен');
+    const session = base64url(crypto.randomBytes(24));
+    const verifier = base64url(crypto.randomBytes(48));
+    const challenge = base64url(crypto.createHash('sha256').update(verifier).digest());
+    await getRedis().set(NATIVE_KEY(session), verifier, 'EX', STATE_TTL_SECONDS);
+
+    const params = new URLSearchParams({
+      client_id: clientId(),
+      response_type: 'code',
+      scope: 'openid profile phone',
+      redirect_uri: NATIVE_REDIRECT_URI,
+      code_challenge: challenge,
+      code_challenge_method: 'S256',
+    });
+    const webUrl = `${AUTH_URL}?${params.toString()}`;
+
+    // Ссылка tg:// на подтверждение прямо в приложении Telegram (как в SDK);
+    // если не получилось — приложение откроет webUrl в браузере.
+    let tgUrl: string | null = null;
+    try {
+      const res = await fetch(`${ISSUER}/crossapp?${params.toString()}&android_sdk=1`, { headers: { Accept: 'application/json' } });
+      if (res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { tg_url?: string };
+        if (body.tg_url && /^tg:\/\//.test(body.tg_url)) tgUrl = body.tg_url;
+      } else {
+        logger.warn({ status: res.status }, 'telegram-native: crossapp не вернул ссылку');
+      }
+    } catch (err) {
+      logger.warn({ err: (err as Error).message }, 'telegram-native: crossapp недоступен');
+    }
+    return { session, tgUrl, webUrl };
+  }
+
+  /** Завершение входа в приложении: обмен кода (без секрета) и проверка id_token. */
+  async finishNative(session: string, code: string): Promise<TelegramOidcClaims> {
+    const redis = getRedis();
+    const verifier = await redis.get(NATIVE_KEY(session));
+    await redis.del(NATIVE_KEY(session)); // сессия одноразовая
+    if (!verifier) throw ApiError.badRequest('Сессия входа истекла, попробуйте ещё раз');
+
+    const res = await fetch(TOKEN_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        client_id: clientId(),
+        code,
+        redirect_uri: NATIVE_REDIRECT_URI,
+        code_verifier: verifier,
+      }).toString(),
+    });
+    const body = (await res.json().catch(() => ({}))) as { id_token?: string; error?: string };
+    if (!res.ok || !body.id_token) {
+      logger.warn({ status: res.status, error: body.error }, 'telegram-native: обмен кода не удался');
+      throw ApiError.badRequest('Telegram не подтвердил вход, попробуйте ещё раз');
+    }
+    try {
+      // nonce в этом потоке не передаётся — защита от повтора: одноразовый PKCE-верификатор
+      return await verifyIdToken(body.id_token, '');
+    } catch (err) {
+      logger.warn({ err: (err as Error).message }, 'telegram-native: id_token не прошёл проверку');
+      throw ApiError.badRequest('Не удалось проверить подпись Telegram');
+    }
+  }
+
   /** Client ID для JS-библиотеки Telegram (публичное значение). */
   clientId(): string {
     return clientId();

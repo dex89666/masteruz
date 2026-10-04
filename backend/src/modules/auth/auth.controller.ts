@@ -245,6 +245,33 @@ export class AuthController {
     res.json({ success: true, data: { enabled: isTelegramOidcEnabled() } });
   }
 
+  /** POST /api/auth/telegram-native/start — вход в мобильном приложении через Telegram */
+  async nativeStart(_req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      res.json({ success: true, data: await telegramOidcService.startNative() });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /** POST /api/auth/telegram-native/finish { session, code } — код из ссылки-возврата → сессия */
+  async nativeFinish(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const session = String(req.body?.session ?? '');
+      const code = String(req.body?.code ?? '');
+      if (!session || !code) {
+        res.status(400).json({ success: false, error: { message: 'session и code обязательны', statusCode: 400 } });
+        return;
+      }
+      const claims = await telegramOidcService.finishNative(session, code);
+      const result = await authService.loginWithTelegramOidc(claims);
+      applyTokens(res, result);
+      res.json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   /**
    * GET /api/auth/telegram-oidc/nonce — данные для JS-библиотеки Telegram:
    * Client ID и одноразовый nonce (страница входа берёт их заранее, чтобы

@@ -14,6 +14,10 @@ import { authApi } from '../api/client';
 import { translate } from '../i18n';
 
 const DEEPLINK_PREFIX = 'uz.masteruz.app://auth';
+// Возврат из официального входа Telegram (как в Telegram Login SDK для Android)
+const TG_LOGIN_PREFIX = 'uz.masteruz.app://telegram-login';
+/** Сессия входа: сохраняем до перехода в Telegram — приложение могли выгрузить из памяти */
+export const TG_NATIVE_SESSION_KEY = 'tg_native_session';
 
 export function useTelegramDeepLinkAuth(): void {
   const navigate = useNavigate();
@@ -22,7 +26,31 @@ export function useTelegramDeepLinkAuth(): void {
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
 
+    const handleTelegramLogin = async (rawUrl: string) => {
+      const url = new URL(rawUrl);
+      const code = url.searchParams.get('code');
+      const session = localStorage.getItem(TG_NATIVE_SESSION_KEY);
+      localStorage.removeItem(TG_NATIVE_SESSION_KEY);
+      if (!code || !session) {
+        if (url.searchParams.get('error')) toast.error(translate('auth.oidcCancelled'));
+        return;
+      }
+      try {
+        const res = await authApi.telegramNativeFinish(session, code);
+        const { user, accessToken, refreshToken } = res.data.data;
+        setAuth(user, accessToken, refreshToken);
+        toast.success(translate('auth.welcome'));
+        navigate('/', { replace: true });
+      } catch (err: any) {
+        toast.error(err?.response?.data?.error?.message || translate('auth.tgLoginFailed'));
+      }
+    };
+
     const handle = async (event: URLOpenListenerEvent) => {
+      if (event.url.startsWith(TG_LOGIN_PREFIX)) {
+        await handleTelegramLogin(event.url);
+        return;
+      }
       if (!event.url.startsWith(DEEPLINK_PREFIX)) return;
 
       try {

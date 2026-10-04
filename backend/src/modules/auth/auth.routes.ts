@@ -26,6 +26,9 @@ router.get('/telegram-callback', (req, res, next) =>
 // уведомление от официального аккаунта Telegram
 router.get('/telegram-oidc/config', (req, res) => authController.oidcConfig(req, res));
 router.get('/telegram-oidc/start', (req, res, next) => authController.oidcStart(req, res, next));
+// Вход в мобильном приложении: подтверждение в Telegram → uz.masteruz.app://telegram-login
+router.post('/telegram-native/start', (req, res, next) => authController.nativeStart(req, res, next));
+router.post('/telegram-native/finish', (req, res, next) => authController.nativeFinish(req, res, next));
 // Вход через JS-библиотеку Telegram (popup): nonce → id_token → сессия
 router.get('/telegram-oidc/nonce', (req, res, next) => authController.oidcNonce(req, res, next));
 router.post('/telegram-oidc/token', (req, res, next) => authController.oidcToken(req, res, next));

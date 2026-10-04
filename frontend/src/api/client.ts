@@ -171,6 +171,11 @@ export const authApi = {
 
   // Официальный вход Telegram (OpenID Connect): настроен ли и адрес старта.
   telegramOidcConfig: () => api.get<ApiResponse<{ enabled: boolean }>>('/auth/telegram-oidc/config'),
+  // Вход в мобильном приложении: подтверждение в Telegram → uz.masteruz.app://telegram-login
+  telegramNativeStart: () =>
+    api.post<ApiResponse<{ session: string; tgUrl: string | null; webUrl: string }>>('/auth/telegram-native/start'),
+  telegramNativeFinish: (session: string, code: string) =>
+    api.post<ApiResponse<any>>('/auth/telegram-native/finish', { session, code }),
   // Вход через JS-библиотеку Telegram (окно поверх сайта): nonce → id_token → сессия
   telegramOidcNonce: () =>
     api.get<ApiResponse<{ clientId: number; nonce: string }>>('/auth/telegram-oidc/nonce'),
