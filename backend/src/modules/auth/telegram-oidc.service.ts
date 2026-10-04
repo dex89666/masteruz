@@ -126,24 +126,40 @@ class TelegramOidcService {
     await redis.del(STATE_KEY(state));
     const { verifier, nonce, returnTo } = JSON.parse(raw) as { verifier: string; nonce: string; returnTo: string };
 
-    const basic = Buffer.from(`${clientId()}:${clientSecret()}`).toString('base64');
-    const res = await fetch(TOKEN_URL, {
-      method: 'POST',
-      headers: {
-        Authorization: `Basic ${basic}`,
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams({
-        grant_type: 'authorization_code',
-        code,
-        redirect_uri: oidcRedirectUri(),
-        client_id: clientId(),
-        code_verifier: verifier,
-      }).toString(),
-    });
-    const body = (await res.json().catch(() => ({}))) as { id_token?: string; error?: string; error_description?: string };
-    if (!res.ok || !body.id_token) {
-      logger.warn({ status: res.status, error: body.error, desc: body.error_description }, 'telegram-oidc: обмен кода не удался');
+    const params = {
+      grant_type: 'authorization_code',
+      code,
+      redirect_uri: oidcRedirectUri(),
+      client_id: clientId(),
+      code_verifier: verifier,
+    };
+    type TokenResponse = { id_token?: string; error?: string; error_description?: string };
+    const exchange = async (method: 'basic' | 'post') => {
+      const res = await fetch(TOKEN_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          ...(method === 'basic'
+            ? { Authorization: `Basic ${Buffer.from(`${clientId()}:${clientSecret()}`).toString('base64')}` }
+            : {}),
+        },
+        body: new URLSearchParams(method === 'post' ? { ...params, client_secret: clientSecret() } : params).toString(),
+      });
+      const body = (await res.json().catch(() => ({}))) as TokenResponse;
+      return { ok: res.ok && !!body.id_token, status: res.status, body };
+    };
+
+    // Telegram поддерживает client_secret_basic и client_secret_post. Если Basic
+    // отклонён как invalid_client, повторяем вторым способом. Код одноразовый,
+    // но invalid_client отклоняется до его использования.
+    let result = await exchange('basic');
+    if (!result.ok && result.body.error === 'invalid_client') {
+      result = await exchange('post');
+      if (result.ok) logger.info('telegram-oidc: токен получен способом client_secret_post');
+    }
+    const body = result.body;
+    if (!result.ok || !body.id_token) {
+      logger.warn({ status: result.status, error: body.error, desc: body.error_description }, 'telegram-oidc: обмен кода не удался');
       throw ApiError.badRequest('Telegram не подтвердил вход, попробуйте ещё раз');
     }
 
