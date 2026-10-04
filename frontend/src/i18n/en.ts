@@ -2403,6 +2403,8 @@ const en = {
     next: 'Next',
   },
   masterDash: {
+    addPhotoTitle: 'Add a profile photo',
+    addPhotoText: 'Clients choose pros with a photo more often — it builds trust',
     switchBackAdmin: 'Switch back to the Admin role',
     proTeaser: '0% commission and top placement — learn more',
   },

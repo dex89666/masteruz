@@ -2403,6 +2403,8 @@ const uz = {
     next: 'Keyingi',
   },
   masterDash: {
+    addPhotoTitle: 'Profil rasmini qo‘shing',
+    addPhotoText: 'Mijozlar rasmli ustalarni ko‘proq tanlaydi — bu ishonch uyg‘otadi',
     switchBackAdmin: 'Admin roliga qaytish',
     proTeaser: '0% komissiya va yuqori o\'rin — batafsil',
   },

@@ -31,7 +31,7 @@ import {
   Image,
   ShieldCheck,
   MapPin,
-  Crown, AlertTriangle } from 'lucide-react';
+  Crown, AlertTriangle, Camera } from 'lucide-react';
 import type { Order } from '../types';
 
 export function MasterDashboardPage() {
@@ -185,6 +185,23 @@ export function MasterDashboardPage() {
         </h1>
         <p className="text-gray-500 dark:text-gray-400 mt-1">{t('masterDashboard.subtitle')}</p>
       </div>
+
+      {/* Нет фото профиля — клиенты чаще выбирают мастеров с фото */}
+      {!user?.profile?.avatarUrl && (
+        <Link
+          to="/settings"
+          className="mb-4 flex items-center gap-3 p-4 rounded-2xl border-2 border-dashed border-primary-300 dark:border-primary-700 bg-primary-50 dark:bg-primary-900/20 hover:bg-primary-100 dark:hover:bg-primary-900/30 transition active:scale-[0.99]"
+        >
+          <div className="w-11 h-11 rounded-full bg-primary-100 dark:bg-primary-900/40 flex items-center justify-center text-primary-600 dark:text-primary-400 shrink-0">
+            <Camera size={22} />
+          </div>
+          <div className="flex-1">
+            <p className="font-semibold text-gray-900 dark:text-white">{t('masterDash.addPhotoTitle')}</p>
+            <p className="text-[12px] text-gray-600 dark:text-gray-400">{t('masterDash.addPhotoText')}</p>
+          </div>
+          <span className="shrink-0 text-sm font-semibold text-primary-600 dark:text-primary-400">{t('settings.avatarUpload')}</span>
+        </Link>
+      )}
 
       {/* PRO CTA */}
       <Link
