@@ -214,7 +214,12 @@ if (process.env.NODE_ENV !== 'test') {
         p === '/switch-role' ||
         p === '/refresh' ||
         p === '/telegram-bot/poll' ||
-        p === '/telegram-bot/webhook'
+        p === '/telegram-bot/webhook' ||
+        // Официальный вход Telegram: проверка настроек (каждая загрузка /login)
+        // и возврат от Telegram — не попытки входа. Считается только /start.
+        p === '/telegram-oidc/config' ||
+        p === '/telegram-oidc/callback' ||
+        p === '/open-app'
       );
     },
   });
