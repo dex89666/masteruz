@@ -1966,7 +1966,7 @@ const en = {
     s2PayLabel: 'Payments',
     s2Pay: 'amount, date, transaction ID (we do NOT store card data).',
     s3Title: 'How we protect data',
-    s3Text: 'TLS encryption, Redis-backed rate limiting, role-based access, an operations log (audit log) and encrypted backups. Only authorised staff have access. Data is stored on the Operator’s infrastructure in Uzbekistan.',
+    s3Text: 'TLS encryption, Redis-backed rate limiting, role-based access, an operations log (audit log) and encrypted backups. Only authorised staff have access. Data is stored on secure servers in accordance with Uzbekistan’s personal data laws.',
     s4Title: 'Your rights',
     s4Text: 'You may request a copy of your data, correction or deletion, withdraw consent or file a complaint. Response time is 30 days. Contacts:',
     s5Title: 'Cost and commission',

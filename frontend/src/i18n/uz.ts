@@ -1966,7 +1966,7 @@ const uz = {
     s2PayLabel: 'To\'lovlar',
     s2Pay: 'summa, sana, tranzaksiya identifikatori (karta ma\'lumotlarini biz SAQLAMAYMIZ).',
     s3Title: 'Ma\'lumotlarni qanday himoya qilamiz',
-    s3Text: 'TLS-shifrlash, Redis asosidagi so\'rovlar cheklovi, rollarga asoslangan kirish modeli, operatsiyalar jurnali (audit log), shifrlangan zaxira nusxalar. Kirish faqat vakolatli xodimlarda. Ma\'lumotlar Operatorning O\'zbekistondagi infratuzilmasida saqlanadi.',
+    s3Text: 'TLS-shifrlash, Redis asosidagi so\'rovlar cheklovi, rollarga asoslangan kirish modeli, operatsiyalar jurnali (audit log), shifrlangan zaxira nusxalar. Kirish faqat vakolatli xodimlarda. Ma\'lumotlar shaxsiy ma\'lumotlar to\'g\'risidagi qonunchilikka muvofiq himoyalangan serverlarda saqlanadi.',
     s4Title: 'Huquqlaringiz',
     s4Text: 'Siz ma\'lumotlar nusxasini, tuzatish, o\'chirishni so\'rashingiz, rozilikni qaytarib olishingiz yoki shikoyat qilishingiz mumkin. Javob muddati — 30 kun. Kontaktlar:',
     s5Title: 'Narx va komissiya',
