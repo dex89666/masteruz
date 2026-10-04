@@ -328,6 +328,14 @@ export async function runMasterReminderTick(): Promise<{ pinged: number }> {
   return { pinged };
 }
 
+/** Автоподтверждение заказов через 72 часа без ответа клиента. */
+async function runAutoConfirmTick(): Promise<void> {
+  // Динамический импорт: orders.service тянет много зависимостей, цикл не нужен
+  const { ordersService } = await import('../modules/orders/orders.service.js');
+  const n = await ordersService.autoConfirmOverdue();
+  if (n > 0) logger.info({ confirmed: n }, 'auto-confirm: заказы подтверждены автоматически');
+}
+
 /**
  * Запуск фоновой задачи. Один экземпляр на процесс.
  * Авто-отмена заказов отключена — заказ живёт, пока клиент не отменит его сам.
@@ -358,6 +366,8 @@ export function startAutoCancellationJob(): void {
       .catch((err) => logger.error({ err }, 'master-reminder-tick: провалился'));
     withLock('cron:client-stale', TICK_INTERVAL_MS, runClientStaleNotifyTick)
       .catch((err) => logger.error({ err }, 'client-stale-notify: провалился'));
+    withLock('cron:auto-confirm', TICK_INTERVAL_MS, runAutoConfirmTick)
+      .catch((err) => logger.error({ err }, 'auto-confirm: провалился'));
   }, TICK_INTERVAL_MS);
 
   // Не держим event loop, если процесс хочет завершиться

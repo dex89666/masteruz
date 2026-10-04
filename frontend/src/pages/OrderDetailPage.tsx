@@ -387,7 +387,7 @@ export function OrderDetailPage() {
         // не открыты. Отмена клиентом бесплатна, как и у мастера на этой стадии.
         case 'ACCEPTED': return { amount: 0, level: 'free' };
         case 'IN_TRANSIT':
-        case 'IN_PROGRESS': return { amount: 30000, level: 'danger' };
+        case 'IN_PROGRESS': return { amount: 100000, level: 'danger' };
         default: return { amount: 0, level: 'free' };
       }
     }

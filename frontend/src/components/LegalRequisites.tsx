@@ -23,6 +23,15 @@ export function LegalRequisites() {
         <dt className="font-medium">{t('requisites.address')}:</dt>
         <dd>{t('requisites.addressValue')}</dd>
 
+        <dt className="font-medium">{t('requisites.account')}:</dt>
+        <dd className="font-mono">20208000007481543001 (UZS)</dd>
+
+        <dt className="font-medium">{t('requisites.bank')}:</dt>
+        <dd>{t('requisites.bankValue')}</dd>
+
+        <dt className="font-medium">{t('requisites.mfo')}:</dt>
+        <dd className="font-mono">00083</dd>
+
         <dt className="font-medium">Email:</dt>
         <dd>
           <a href="mailto:vladlabcorp@gmail.com" className="text-primary-600 dark:text-primary-400 hover:underline">

@@ -30,8 +30,11 @@ function withAutoCancelAt<T extends { status: OrderStatus; masterId: string | nu
 }
 
 // ─── Конфиг штрафов ─────────────────────────
-const PENALTY_AFTER_TRANSIT = 30000;  // Штраф клиенту за отмену после «мастер в пути» (30 000 сум)
-const AUTO_CONFIRM_TIMEOUT_MS = 60 * 60 * 1000; // 1 час — авто-подтверждение клиентом
+const PENALTY_AFTER_TRANSIT = 100000;  // Штраф клиенту за отмену после «мастер в пути» (100 000 сум)
+// Авто-подтверждение клиентом через 72 часа после того, как мастер отметил завершение.
+// Проверяется периодической джобой по БД (autoConfirmOverdue), а не таймером в памяти:
+// таймер терялся при каждом перезапуске/деплое.
+export const AUTO_CONFIRM_TIMEOUT_MS = 72 * 60 * 60 * 1000;
 
 /**
  * Запуск перерасчёта embedding для закрытого заказа в фоне.
@@ -1001,8 +1004,7 @@ export class OrdersService {
       return this.finalizeOrder(orderId);
     }
 
-    // Запускаем таймер автоподтверждения клиентом (1 час)
-    this.scheduleAutoConfirm(orderId);
+    // Автоподтверждение клиентом через 72 часа — см. autoConfirmOverdue()
     return result;
   }
 
@@ -1396,25 +1398,37 @@ export class OrdersService {
   }
 
   /**
-   * Авто-подтверждение через 1 час
+   * Авто-подтверждение: мастер отметил завершение более 72 часов назад,
+   * клиент не подтвердил и не открыл спор → заказ считается принятым.
+   * Вызывается периодической джобой; переживает перезапуски сервера.
    */
-  private scheduleAutoConfirm(orderId: string) {
-    setTimeout(async () => {
+  async autoConfirmOverdue(now = new Date()): Promise<number> {
+    const overdue = await prisma.order.findMany({
+      where: {
+        status: OrderStatus.IN_PROGRESS,
+        clientConfirmedAt: null,
+        masterConfirmedAt: { lte: new Date(now.getTime() - AUTO_CONFIRM_TIMEOUT_MS) },
+      },
+      select: { id: true },
+      take: 100,
+    });
+    let confirmed = 0;
+    for (const { id: orderId } of overdue) {
       try {
-        const order = await prisma.order.findUnique({ where: { id: orderId } });
-        if (!order) return;
-        if (order.status === OrderStatus.IN_PROGRESS && order.masterConfirmedAt && !order.clientConfirmedAt) {
-          logger.info({ orderId }, 'Авто-подтверждение клиентом (таймаут 1 час)');
-          await prisma.order.update({
-            where: { id: orderId },
-            data: { clientConfirmedAt: new Date() },
-          });
-          await this.finalizeOrder(orderId);
-        }
+        // Условие повторяем в update — заказ мог измениться между выборкой и записью
+        const res = await prisma.order.updateMany({
+          where: { id: orderId, status: OrderStatus.IN_PROGRESS, clientConfirmedAt: null },
+          data: { clientConfirmedAt: now },
+        });
+        if (res.count === 0) continue;
+        logger.info({ orderId }, 'Авто-подтверждение клиентом (72 часа без ответа)');
+        await this.finalizeOrder(orderId);
+        confirmed++;
       } catch (error) {
         logger.error({ error, orderId }, 'Ошибка авто-подтверждения');
       }
-    }, AUTO_CONFIRM_TIMEOUT_MS);
+    }
+    return confirmed;
   }
 
   /**

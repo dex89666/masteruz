@@ -98,13 +98,22 @@ vi.mock('../../src/config/database.js', () => {
         Object.assign(o, data);
         return o;
       }),
+      findMany: vi.fn(async ({ where }: any) =>
+        [...store.orders.values()].filter((o: any) =>
+          (!where?.status || o.status === where.status) &&
+          (where?.clientConfirmedAt !== null || !o.clientConfirmedAt) &&
+          (!where?.masterConfirmedAt?.lte || (o.masterConfirmedAt && o.masterConfirmedAt <= where.masterConfirmedAt.lte)),
+        ),
+      ),
       updateMany: vi.fn(async ({ where, data }: any) => {
-        const o = store.orders.get(where.id);
+        const o: any = store.orders.get(where.id);
         if (!o) return { count: 0 };
         // where.status: { not: X } — захват только если статус ещё не X
         if (where.status?.not !== undefined && o.status === where.status.not) {
           return { count: 0 };
         }
+        if (typeof where.status === 'string' && o.status !== where.status) return { count: 0 };
+        if (where.clientConfirmedAt === null && o.clientConfirmedAt) return { count: 0 };
         Object.assign(o, data);
         return { count: 1 };
       }),
@@ -467,5 +476,27 @@ describe('Критический путь: отмена → возврат эс�
     await expect(service.cancelOrder('order-done', 'client-1')).rejects.toThrow(
       /уже завершён или отменён/,
     );
+  });
+});
+
+
+describe('Автоподтверждение заказа через 72 часа', () => {
+  it('подтверждает только заказы, где мастер завершил работу более 72 часов назад', async () => {
+    const now = new Date('2026-10-04T12:00:00Z');
+    const hoursAgo = (h: number) => new Date(now.getTime() - h * 3600_000);
+    const base = { clientId: 'c', masterId: 'm', price: 1, escrowAmount: 1, commissionAmount: 0, visitFee: 0, paymentModel: 'DEPOSIT_30', depositAmount: 1, remainingAmount: 0 };
+    store.orders.set('old', { ...base, id: 'old', status: OrderStatus.IN_PROGRESS, masterConfirmedAt: hoursAgo(73), clientConfirmedAt: null } as any);
+    store.orders.set('fresh', { ...base, id: 'fresh', status: OrderStatus.IN_PROGRESS, masterConfirmedAt: hoursAgo(5), clientConfirmedAt: null } as any);
+    store.orders.set('disputed', { ...base, id: 'disputed', status: OrderStatus.DISPUTED, masterConfirmedAt: hoursAgo(100), clientConfirmedAt: null } as any);
+
+    const finalize = vi.spyOn(service as any, 'finalizeOrder').mockResolvedValue(undefined);
+    expect(await service.autoConfirmOverdue(now)).toBe(1);
+    expect(finalize).toHaveBeenCalledWith('old');
+    expect((store.orders.get('old') as any).clientConfirmedAt).toEqual(now);
+    expect((store.orders.get('fresh') as any).clientConfirmedAt).toBeNull();
+
+    // Повторный прогон не подтверждает дважды
+    expect(await service.autoConfirmOverdue(now)).toBe(0);
+    finalize.mockRestore();
   });
 });

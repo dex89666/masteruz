@@ -13,7 +13,7 @@ import { useAuthStore } from '../store';
 import { useTranslation, LANGUAGES, type Language } from '../i18n';
 
 const STORAGE_KEY = 'masteruz-consent-v5';
-const DOCUMENTS_VERSION = '2026-10-02-legal'; // должна совпадать с backend DOCUMENTS_VERSION
+const DOCUMENTS_VERSION = '2026-10-04-legal'; // должна совпадать с backend DOCUMENTS_VERSION
 
 /**
  * Открыть юридический документ в отдельном окне браузера.
