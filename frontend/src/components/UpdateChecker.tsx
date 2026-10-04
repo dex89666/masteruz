@@ -18,6 +18,8 @@ interface RemoteVersion {
   downloadUrl: string;
   changelog: string;
   mandatory: boolean;
+  /** Минимальная рабочая сборка (сервер ≥ 1.1.0.55) */
+  minSupportedCode?: number;
   publishedAt: string;
 }
 
@@ -75,6 +77,9 @@ export function UpdateChecker() {
   if (!installed || !latest || !visible) return null;
   if (latest.versionCode <= installed.versionCode) return null;
 
+  // Обязательно, если сервер так решил или установленная сборка ниже минимальной
+  const mandatory = latest.mandatory || installed.versionCode < (latest.minSupportedCode ?? 0);
+
   const openInBrowser = () => {
     // Fallback: внешний браузер скачает APK, пользователь установит вручную.
     window.open(latest.downloadUrl, '_system', 'noopener,noreferrer');
@@ -100,7 +105,7 @@ export function UpdateChecker() {
   };
 
   const handleDismiss = () => {
-    if (latest.mandatory) return;
+    if (mandatory) return;
     setVisible(false);
     // Каждый отказ сокращает паузу до следующего напоминания.
     const idx = Math.min(snoozeIndexRef.current, SNOOZE_STEPS_MS.length - 1);
@@ -127,7 +132,7 @@ export function UpdateChecker() {
               </p>
             </div>
           </div>
-          {!latest.mandatory && (
+          {!mandatory && (
             <button
               type="button"
               onClick={handleDismiss}
@@ -145,7 +150,7 @@ export function UpdateChecker() {
           </div>
         )}
 
-        {latest.mandatory && (
+        {mandatory && (
           <p className="mt-3 text-sm font-medium text-rose-600">
             {t('update.mandatory')}
           </p>
@@ -178,7 +183,7 @@ export function UpdateChecker() {
           >
             {progress !== null ? t('update.downloading') : t('update.now')}
           </button>
-          {!latest.mandatory && progress === null && (
+          {!mandatory && progress === null && (
             <button
               type="button"
               onClick={handleDismiss}

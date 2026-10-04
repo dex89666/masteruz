@@ -9,9 +9,10 @@ import { logger } from '../../utils/logger.js';
 const GITHUB_REPO = process.env.GITHUB_REPO ?? 'dex89666/masteruz';
 const GITHUB_API = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
 const CACHE_TTL_MS = 5 * 60 * 1000;
-// Минимальная поддерживаемая сборка — клиенты ниже этого кода
-// получат флаг mandatory=true (обновление обязательно).
-const ANDROID_MIN_SUPPORTED = Number(process.env.ANDROID_MIN_SUPPORTED_CODE ?? 1);
+// Минимальная поддерживаемая сборка: приложения ниже этого кода обязаны обновиться
+// (окно обновления без «Позже» и крестика). Читаем при каждом запросе — меняется
+// переменной окружения без пересборки.
+const androidMinSupported = () => Number(process.env.ANDROID_MIN_SUPPORTED_CODE ?? 1);
 
 interface AndroidVersion {
   versionCode: number;
@@ -20,6 +21,8 @@ interface AndroidVersion {
   changelog: string;
   publishedAt: string;
   mandatory: boolean;
+  /** Минимальная рабочая сборка — новые клиенты сравнивают с ней свой versionCode */
+  minSupportedCode: number;
 }
 
 interface VersionPayload {
@@ -72,7 +75,11 @@ async function fetchLatestRelease(): Promise<VersionPayload> {
       downloadUrl: apkAsset.browser_download_url,
       changelog: release.body?.trim() ?? '',
       publishedAt: release.published_at,
-      mandatory: versionCode < ANDROID_MIN_SUPPORTED,
+      // Старые клиенты не сообщают свою версию и смотрят только на mandatory.
+      // Окно они показывают лишь когда установлено < последней версии, поэтому
+      // «обязательно» = последняя версия уже не новее минимально допустимой.
+      mandatory: versionCode <= androidMinSupported(),
+      minSupportedCode: androidMinSupported(),
     },
     ios: null,
   };
