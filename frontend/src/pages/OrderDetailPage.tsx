@@ -46,6 +46,7 @@ export function OrderDetailPage() {
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [responsePrice, setResponsePrice] = useState('');
+  const [responseWarranty, setResponseWarranty] = useState('');
   const [submitting, setSubmitting] = useState(false);
   // Лайтбокс для просмотра фотографий заказа
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
@@ -194,6 +195,8 @@ export function OrderDetailPage() {
       await ordersApi.respond(id!, {
         message: '',
         priceOffer: responsePrice ? Number(responsePrice) : undefined,
+        // Пусто — сервер возьмёт срок гарантии из профиля мастера
+        warrantyDays: responseWarranty ? Math.min(365, Math.max(5, Math.round(Number(responseWarranty)))) : undefined,
       });
       toast.success(t('orderDetail.responseSent'));
       setResponsePrice('');
@@ -1506,11 +1509,19 @@ export function OrderDetailPage() {
                       )}
                     </div>
                   </div>
-                  {resp.priceOffer && (
-                    <span className="font-semibold text-primary-600 dark:text-primary-400">
-                      {formatPrice(resp.priceOffer, t('common.currency'))}
-                    </span>
-                  )}
+                  <div className="text-right">
+                    {resp.priceOffer && (
+                      <span className="font-semibold text-primary-600 dark:text-primary-400">
+                        {formatPrice(resp.priceOffer, t('common.currency'))}
+                      </span>
+                    )}
+                    {(resp.warrantyDays ?? resp.master?.masterProfile?.warrantyDays) && (
+                      <span className="mt-1 flex items-center justify-end gap-1 text-xs font-medium text-green-600 dark:text-green-400">
+                        <Shield size={12} />
+                        {t('guarantee.masterBadge', { days: resp.warrantyDays ?? resp.master?.masterProfile?.warrantyDays ?? 5 })}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 {resp.message && <p className="text-gray-700 dark:text-gray-300 mt-2">{resp.message}</p>}
                 {isOwner && order.status === 'PUBLISHED' && resp.status === 'PENDING' && (
@@ -1567,8 +1578,8 @@ export function OrderDetailPage() {
           ) : (
             <>
               <h3 className="font-semibold mb-3 dark:text-white">{t('orderDetail.respondTitle')}</h3>
-              <div className="flex gap-3 items-end">
-                <div className="flex-1">
+              <div className="flex flex-wrap gap-3 items-end">
+                <div className="flex-1 min-w-[140px]">
                   <label className="text-sm text-gray-600 dark:text-gray-400 mb-1 block">{t('orderDetail.yourPrice')}</label>
                   <input
                     type="number"
@@ -1576,6 +1587,18 @@ export function OrderDetailPage() {
                     placeholder={t('orderDetail.priceInSum')}
                     value={responsePrice}
                     onChange={(e) => setResponsePrice(e.target.value)}
+                  />
+                </div>
+                <div className="w-28">
+                  <label className="text-sm text-gray-600 dark:text-gray-400 mb-1 block">{t('guarantee.yourWarranty')}</label>
+                  <input
+                    type="number"
+                    className="input"
+                    min="5"
+                    max="365"
+                    placeholder={String(user?.masterProfile?.warrantyDays ?? 5)}
+                    value={responseWarranty}
+                    onChange={(e) => setResponseWarranty(e.target.value)}
                   />
                 </div>
                 <button onClick={handleRespond} disabled={submitting} className="btn-primary">

@@ -26,7 +26,7 @@ router.get('/my', authenticate, async (req: Request, res: Response, next: NextFu
  */
 router.get('/:orderId', authenticate, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const guarantee = await guaranteesService.getGuaranteeByOrder(req.params.orderId);
+    const guarantee = await guaranteesService.getGuaranteeByOrder(req.params.orderId, req.user!.userId);
     res.json({ success: true, data: guarantee });
   } catch (error) {
     next(error);
@@ -34,12 +34,12 @@ router.get('/:orderId', authenticate, async (req: Request, res: Response, next: 
 });
 
 /**
- * POST /guarantees — создать гарантию
+ * POST /guarantees — оформить гарантию мастера (для заказов, завершённых до автоматики)
  */
 router.post('/', authenticate, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { orderId, durationDays, description } = req.body;
-    const guarantee = await guaranteesService.createGuarantee(orderId, durationDays, description);
+    // Срок гарантии задаёт мастер (отклик/профиль) — из запроса берём только orderId
+    const guarantee = await guaranteesService.createGuarantee(req.body?.orderId, req.user!.userId);
     res.status(201).json({ success: true, data: guarantee });
   } catch (error) {
     next(error);

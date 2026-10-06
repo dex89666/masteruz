@@ -13,6 +13,7 @@ import { logger } from '../../utils/logger.js';
 import { notificationService } from '../../services/notificationService.js';
 import { balanceService } from '../balance/balance.service.js';
 import { auditService } from '../../services/auditService.js';
+import { safeIssueMasterWarranty } from '../guarantees/guarantees.service.js';
 import { eventBus } from '../../services/eventBus.js';
 import { safeRecalculate as recalcCustomerRisk } from '../../services/customerRiskService.js';
 import { safeScanUser as safeScanFraud } from '../../services/fraudDetectionService.js';
@@ -608,6 +609,7 @@ export class OrdersService {
             masterId,
             priceOffer: data.priceOffer,
             message: data.message,
+            warrantyDays: data.warrantyDays ?? masterProfile.warrantyDays,
           },
           include: {
             master: {
@@ -1183,6 +1185,9 @@ export class OrdersService {
     }
 
     logger.info({ orderId, masterPayout, commission }, 'Заказ финализирован, средства переведены');
+
+    // Гарантия мастера включается сама — клиенту ничего «активировать» не нужно
+    await safeIssueMasterWarranty(orderId);
 
     await auditService.log({
       actorId: order.masterId!,

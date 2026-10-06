@@ -46,6 +46,7 @@ export function ProfileSettingsPage() {
     specializations: [] as string[],
     experienceYears: 0,
     maxDistanceKm: 30,
+    warrantyDays: 5,
     isAvailable: true,
     bio: '',
   });
@@ -131,6 +132,7 @@ export function ProfileSettingsPage() {
           specializations: data.masterProfile.specializations || [],
           experienceYears: data.masterProfile.experienceYears || 0,
           maxDistanceKm: data.masterProfile.maxDistanceKm || 30,
+          warrantyDays: data.masterProfile.warrantyDays || 5,
           isAvailable: data.masterProfile.isAvailable ?? true,
           bio: data.masterProfile.bio || '',
         });
@@ -164,6 +166,7 @@ export function ProfileSettingsPage() {
           specializations: masterForm.specializations,
           experienceYears: masterForm.experienceYears,
           maxDistanceKm: masterForm.maxDistanceKm,
+          warrantyDays: Math.min(365, Math.max(5, Math.round(masterForm.warrantyDays || 5))),
           isAvailable: masterForm.isAvailable,
           bio: masterForm.bio || undefined,
         });
@@ -443,6 +446,18 @@ export function ProfileSettingsPage() {
                 value={masterForm.maxDistanceKm}
                 onChange={(e) => setMasterForm({ ...masterForm, maxDistanceKm: Number(e.target.value) })}
               />
+            </div>
+            <div>
+              <label className="label">{t('guarantee.settingsLabel')}</label>
+              <input
+                type="number"
+                className="input"
+                min="5"
+                max="365"
+                value={masterForm.warrantyDays}
+                onChange={(e) => setMasterForm({ ...masterForm, warrantyDays: Number(e.target.value) })}
+              />
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t('guarantee.settingsHint')}</p>
             </div>
             <div>
               <label className="label">{t('settings.availability')}</label>

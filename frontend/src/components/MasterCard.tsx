@@ -5,7 +5,7 @@
 
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Star, Heart, MapPin, CheckCircle, Briefcase, Clock, Crown } from 'lucide-react';
+import { Star, Heart, MapPin, CheckCircle, Briefcase, Clock, Crown, ShieldCheck } from 'lucide-react';
 import { favoritesApi } from '../api/client';
 import { useTranslation } from '../i18n';
 import { useTelegram } from '../hooks';
@@ -29,6 +29,7 @@ interface MasterCardProps {
       isAvailable: boolean;
       isOnline: boolean;
       lastSeenAt: string | null;
+      warrantyDays?: number;
     } | null;
     isVerified?: boolean;
     isPro?: boolean;
@@ -135,7 +136,7 @@ export function MasterCard({ master, isFavorite = false, showFavorite = false, o
           </div>
 
           {/* Rating + Orders */}
-          <div className="flex items-center gap-3 mt-1 text-xs text-gray-500 dark:text-gray-400">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-gray-500 dark:text-gray-400">
             {mp && (
               <>
                 <span className="flex items-center gap-1">
@@ -150,6 +151,12 @@ export function MasterCard({ master, isFavorite = false, showFavorite = false, o
                   <Clock size={11} />
                   {mp.experienceYears} {t('common.years')}
                 </span>
+                {mp.warrantyDays ? (
+                  <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
+                    <ShieldCheck size={11} />
+                    {t('guarantee.masterBadge', { days: mp.warrantyDays })}
+                  </span>
+                ) : null}
               </>
             )}
           </div>

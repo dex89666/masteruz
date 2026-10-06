@@ -11,7 +11,7 @@ import { useTranslation, useLocalizedName } from '../i18n';
 import { Breadcrumbs } from '../components/Breadcrumbs';
 import { ProfileSkeleton } from '../components/PageSkeletons';
 import {
-  Star, MapPin, Award, Shield,
+  Star, MapPin, Award, Shield, ShieldCheck,
   Heart, MessageSquare, User,
   Image, X, ChevronLeft, ChevronRight,
 } from 'lucide-react';
@@ -169,6 +169,17 @@ export function MasterProfilePage() {
             <p className="text-xs text-gray-500 dark:text-gray-400">
               {mp.isAvailable ? t('masterCard.available') : t('masterCard.busy')}
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* Гарантия мастера на свои работы */}
+      {mp?.warrantyDays && (
+        <div className="card mb-4 flex items-center gap-3 bg-green-50 dark:bg-green-900/20 ring-green-200 dark:ring-green-800">
+          <ShieldCheck size={22} className="text-green-600 dark:text-green-400 flex-shrink-0" />
+          <div>
+            <p className="font-semibold text-green-800 dark:text-green-300">{t('guarantee.masterBadge', { days: mp.warrantyDays })}</p>
+            <p className="text-xs text-green-700/80 dark:text-green-400/80">{t('guarantee.profileNote')}</p>
           </div>
         </div>
       )}

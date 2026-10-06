@@ -42,6 +42,8 @@ export const updateOrderSchema = z.object({
 export const orderResponseSchema = z.object({
   priceOffer: z.number().positive().optional(),
   message: z.string().max(500).optional(),
+  // Срок гарантии мастера в этом отклике; не указан — берём из профиля мастера
+  warrantyDays: z.number().int().min(5).max(365).optional(),
 });
 
 export const listOrdersSchema = z.object({

@@ -50,6 +50,8 @@ export interface MasterProfile {
   lastSeenAt: string | null;
   maxDistanceKm: number;
   hourlyRate: number | null;
+  /** Гарантия мастера на работы по умолчанию, дней */
+  warrantyDays?: number;
   schoolCompleted: boolean;
   registrationPaid: boolean;
   registrationPaidAt: string | null;
@@ -213,6 +215,8 @@ export interface OrderResponse {
   masterId: string;
   priceOffer: number | null;
   message: string | null;
+  /** Гарантия, которую мастер обещает в этом отклике, дней */
+  warrantyDays?: number | null;
   status: 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'WITHDRAWN';
   createdAt: string;
   master?: User;

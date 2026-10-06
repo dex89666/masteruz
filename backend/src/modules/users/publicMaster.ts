@@ -20,6 +20,7 @@ const PROFILE_FIELDS = ['firstName', 'lastName', 'avatarUrl', 'bio', 'city', 'di
 const MASTER_PROFILE_FIELDS = [
   'id', 'specializations', 'experienceYears', 'rating', 'completedOrders',
   'isAvailable', 'isOnline', 'lastSeenAt', 'hourlyRate', 'schoolCompleted', 'masterCategories',
+  'warrantyDays',
 ] as const;
 const CERTIFICATE_FIELDS = ['id', 'title', 'fileUrl', 'verified', 'verifiedAt', 'createdAt'] as const;
 const REVIEW_FIELDS = ['id', 'rating', 'comment', 'createdAt'] as const;

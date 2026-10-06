@@ -120,6 +120,7 @@ export class UsersService {
           experienceYears: data.experienceYears || 0,
           maxDistanceKm: data.maxDistanceKm,
           hourlyRate: data.hourlyRate,
+          warrantyDays: data.warrantyDays,
         },
       });
 
@@ -168,6 +169,7 @@ export class UsersService {
         isAvailable: data.isAvailable,
         maxDistanceKm: data.maxDistanceKm,
         hourlyRate: data.hourlyRate,
+        warrantyDays: data.warrantyDays,
       },
     });
   }
