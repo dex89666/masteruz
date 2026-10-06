@@ -61,10 +61,10 @@ export function AboutPage() {
   ];
 
   const stats = [
-    { icon: Users, value: '10 000+', label: t('about.statUsers') },
+    { icon: Users, value: '1 000+', label: t('about.statUsers') },
     { icon: Wrench, value: '370+', label: t('about.statServices') },
-    { icon: Star, value: '4.8', label: t('about.statRating') },
-    { icon: MapPin, value: '8', label: t('about.statCities') },
+    { icon: Star, value: '4.6', label: t('about.statRating') },
+    { icon: MapPin, value: '14', label: t('about.statCities') },
   ];
 
   const advantages = [

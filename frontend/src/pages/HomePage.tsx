@@ -51,6 +51,8 @@ const FALLBACK_PARENT_CATEGORIES = [
   { icon: 'Truck', slug: 'transport-logistics',   name: 'Перевозки и грузчики',   nameUz: "Yuk tashish va yuk ortish", nameEn: 'Moving & loaders',           childCount: 1 },
 ];
 
+// Регионы Узбекистана: 12 областей, Ташкент и Каракалпакстан — работаем во всех
+const UZ_REGIONS = 14;
 const FEATURE_ICONS = [Search, Shield, Star, MapPin] as const;
 const FEATURE_KEYS = ['search', 'safety', 'quality', 'nearby'] as const;
 const STEP_LUCIDE = [FileText, MessageSquare, CheckCircle] as const;
@@ -71,7 +73,7 @@ export function HomePage() {
   const stats = useMemo(() => {
     const roundDown = (n: number, step: number) => Math.max(step, Math.floor(n / step) * step);
     if (!catalogParents || catalogParents.length === 0) {
-      return { services: 350, categories: 30, cities: 8, guarantee: 30 };
+      return { services: 350, categories: 30, regions: UZ_REGIONS };
     }
     let childCategories = 0;
     let services = 0;
@@ -87,8 +89,7 @@ export function HomePage() {
     return {
       services: roundDown(services, 10),        // 374 → 370+
       categories: roundDown(childCategories, 5), // 30 → 30
-      cities: 8,
-      guarantee: 30,
+      regions: UZ_REGIONS,
     };
   }, [catalogParents]);
 
@@ -175,9 +176,9 @@ export function HomePage() {
           </div>
 
           <div className="flex justify-center gap-6 mt-8 text-sm text-gray-400">
-            <span className="flex items-center gap-1"><Star size={14} className="text-yellow-400" /> {t('home.badgeRating', { rating: '4.9' })}</span>
+            <span className="flex items-center gap-1"><Star size={14} className="text-yellow-400" /> {t('home.badgeRating', { rating: '4.6' })}</span>
             <span className="flex items-center gap-1"><Users size={14} className="text-green-400" /> {t('home.badgeServices', { n: stats.services })}</span>
-            <span className="flex items-center gap-1"><Shield size={14} className="text-blue-400" /> {t('home.badgeGuarantee', { days: stats.guarantee })}</span>
+            <span className="flex items-center gap-1"><MapPin size={14} className="text-blue-400" /> {t('home.badgeRegions', { n: stats.regions })}</span>
           </div>
         </div>
       </section>
@@ -297,11 +298,10 @@ export function HomePage() {
       {/* ═══ БЛОК 5: Статистика ═══ */}
       <section className="py-10 bg-gradient-to-r from-gray-900 to-gray-800 text-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
+          <div className="grid grid-cols-3 gap-6 text-center">
             <div><div className="text-3xl md:text-4xl font-extrabold"><AnimatedCounter end={stats.services} suffix="+" /></div><p className="text-primary-400 text-sm mt-1">{t('home.stat_services')}</p></div>
             <div><div className="text-3xl md:text-4xl font-extrabold"><AnimatedCounter end={stats.categories} suffix="+" /></div><p className="text-primary-400 text-sm mt-1">{t('home.stat_categories')}</p></div>
-            <div><div className="text-3xl md:text-4xl font-extrabold"><AnimatedCounter end={stats.cities} /></div><p className="text-primary-400 text-sm mt-1">{t('home.stat_cities')}</p></div>
-            <div><div className="text-3xl md:text-4xl font-extrabold"><AnimatedCounter end={stats.guarantee} /></div><p className="text-primary-400 text-sm mt-1">{t('home.stat_guarantee')}</p></div>
+            <div><div className="text-3xl md:text-4xl font-extrabold"><AnimatedCounter end={stats.regions} /></div><p className="text-primary-400 text-sm mt-1">{t('home.stat_cities')}</p></div>
           </div>
         </div>
       </section>

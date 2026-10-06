@@ -13,6 +13,8 @@ import { CookieConsent } from './CookieConsent';
 import { OfflineIndicator } from './OfflineIndicator';
 import { ThemeToggle } from './ThemeToggle';
 import { SearchOverlay } from './SearchOverlay';
+import { AppVersionInfo } from './AppVersionInfo';
+import { WelcomeAuthPrompt } from './WelcomeAuthPrompt';
 import { useState, useEffect } from 'react';
 import { useOnlineStatus } from '../hooks';
 import {
@@ -460,6 +462,8 @@ export function Layout() {
                   {t('nav.login')}
                 </Link>
               )}
+
+              <AppVersionInfo className="mt-4 text-center text-xs text-gray-400 dark:text-gray-500" />
             </div>
           </div>
         </>
@@ -545,6 +549,7 @@ export function Layout() {
           <div className="border-t border-gray-800 mt-4 pt-4 text-[11px] text-gray-500 leading-relaxed text-center md:text-left">
             {t('footer.requisitesCompany')} · {t('footer.requisitesInn')} <span className="text-gray-400">313 020 180</span> ·
             {' '}{t('footer.requisitesRest')}
+            <AppVersionInfo className="mt-1" />
           </div>
         </div>
       </footer>
@@ -560,6 +565,7 @@ export function Layout() {
 
       {/* Cookie consent */}
       <CookieConsent />
+      <WelcomeAuthPrompt />
 
       {/* Global search overlay */}
       <SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} />
