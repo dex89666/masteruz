@@ -510,7 +510,6 @@ GET https://masteruz.uz/api/health
 | `PAYME_MERCHANT_KEY` | Payme Key | `def456...` | ⬜ |
 | `CORS_ORIGIN` | Разрешённый origin | `https://masteruz.uz` | ✅ |
 | `SUPER_ADMIN_USERNAMES` | Telegram-username суперадминов | `admin1,admin2` | ✅ |
-| `MASTER_REGISTRATION_FEE` | Взнос мастера (тийины) | `400000` | ⬜ |
 | `ADMIN_TELEGRAM_CHAT_ID` | Chat ID для уведомлений админу | `123456789` | ⬜ |
 
 > ✅ = обязательна для запуска, ⬜ = опциональна (платежи, карты)

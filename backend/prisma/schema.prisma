@@ -407,8 +407,6 @@ model MasterProfile {
   // Гарантия мастера на свои работы по умолчанию (дни). Даёт мастер, не платформа:
   // минимум 5 дней — срок по Правилам оказания услуг, если мастер не указал иной.
   warrantyDays       Int       @default(5) @map("warranty_days")
-  registrationPaid   Boolean   @default(false) @map("registration_paid")
-  registrationPaidAt DateTime? @map("registration_paid_at")
   createdAt          DateTime  @default(now()) @map("created_at")
   updatedAt          DateTime  @updatedAt @map("updated_at")
 

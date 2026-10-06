@@ -455,8 +455,7 @@ export const paymentsApi = {
 // ─── Оплата по QR (UzQR, Hamkorbank) ───────
 export type UzQrPurpose =
   | { type: 'BALANCE_TOPUP'; amount: number }
-  | { type: 'ORDER_COMMISSION'; orderId: string }
-  | { type: 'REGISTRATION_FEE' };
+  | { type: 'ORDER_COMMISSION'; orderId: string };
 
 export interface UzQrOrder {
   paymentId: string;

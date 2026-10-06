@@ -5,10 +5,6 @@ export const balanceTopupSchema = z.object({
   provider: z.enum(['CLICK', 'PAYME', 'TELEGRAM_STARS']),
 });
 
-export const registrationFeeSchema = z.object({
-  provider: z.enum(['CLICK', 'PAYME', 'TELEGRAM_STARS']),
-});
-
 export const telegramStarsSchema = z.object({
   paymentId: z.string().min(1),
   telegramPaymentId: z.string().min(1),

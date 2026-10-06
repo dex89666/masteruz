@@ -51,35 +51,6 @@ export class PaymentsService {
   }
 
   /**
-   * Обработка успешной оплаты регистрационного взноса мастера
-   * Атомарная транзакция: статус платежа + активация профиля
-   */
-  private async onRegistrationFeePaid(paymentId: string) {
-    try {
-      await prisma.$transaction(async (tx) => {
-        const payment = await tx.payment.findUnique({
-          where: { id: paymentId },
-          select: { userId: true, type: true },
-        });
-
-        if (!payment || payment.type !== PaymentType.REGISTRATION_FEE) return;
-
-        await tx.masterProfile.update({
-          where: { userId: payment.userId },
-          data: {
-            registrationPaid: true,
-            registrationPaidAt: new Date(),
-          },
-        });
-      });
-
-      logger.info({ paymentId }, 'Регистрационный взнос оплачен → мастер активирован');
-    } catch (error) {
-      logger.error({ error, paymentId }, 'Ошибка обработки регистрационного взноса');
-    }
-  }
-
-  /**
    * Обработка успешного пополнения баланса
    */
   private async onBalanceTopUpPaid(paymentId: string) {
@@ -117,9 +88,6 @@ export class PaymentsService {
     switch (payment.type) {
       case PaymentType.ORDER_COMMISSION:
         await this.onCommissionPaid(paymentId);
-        break;
-      case PaymentType.REGISTRATION_FEE:
-        await this.onRegistrationFeePaid(paymentId);
         break;
       case PaymentType.BALANCE_TOPUP:
         await this.onBalanceTopUpPaid(paymentId);
@@ -173,73 +141,6 @@ export class PaymentsService {
     }
 
     logger.info({ paymentId: payment.id, provider, amount, userId }, 'Платёж на пополнение баланса создан');
-
-    return { payment, paymentData };
-  }
-
-  /**
-   * Создание платежа за регистрационный взнос мастера (400 000 сум)
-   */
-  async createRegistrationPayment(userId: string, provider: PaymentProvider) {
-    // Проверяем, что мастер ещё не оплатил
-    const masterProfile = await prisma.masterProfile.findUnique({
-      where: { userId },
-    });
-
-    if (!masterProfile) {
-      throw ApiError.notFound('Профиль мастера не найден');
-    }
-
-    if (masterProfile.registrationPaid) {
-      throw ApiError.conflict('Регистрационный взнос уже оплачен');
-    }
-
-    // Проверяем, нет ли уже pending платежа
-    const existingPending = await prisma.payment.findFirst({
-      where: {
-        userId,
-        type: PaymentType.REGISTRATION_FEE,
-        status: PaymentStatus.PENDING,
-      },
-    });
-
-    if (existingPending) {
-      // Отменяем старый pending
-      await prisma.payment.update({
-        where: { id: existingPending.id },
-        data: { status: PaymentStatus.FAILED },
-      });
-    }
-
-    const amount = config.platform.masterRegistrationFee;
-
-    const payment = await prisma.payment.create({
-      data: {
-        userId,
-        amount,
-        type: PaymentType.REGISTRATION_FEE,
-        provider,
-        status: PaymentStatus.PENDING,
-      },
-    });
-
-    let paymentData: any;
-
-    switch (provider) {
-      case PaymentProvider.CLICK:
-        paymentData = this.generateClickPayment(payment.id, amount);
-        break;
-      case PaymentProvider.PAYME:
-        paymentData = this.generatePaymePayment(payment.id, amount);
-        break;
-      case PaymentProvider.TELEGRAM_STARS:
-        paymentData = { paymentId: payment.id, amount };
-        break;
-      default:
-        throw ApiError.badRequest('Неподдерживаемый провайдер платежей');
-    }
-
-    logger.info({ paymentId: payment.id, provider, amount }, 'Платёж за регистрацию создан');
 
     return { payment, paymentData };
   }

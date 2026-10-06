@@ -53,8 +53,6 @@ export interface MasterProfile {
   /** Гарантия мастера на работы по умолчанию, дней */
   warrantyDays?: number;
   schoolCompleted: boolean;
-  registrationPaid: boolean;
-  registrationPaidAt: string | null;
   totalEarnings: number;
   bio: string | null;
   experience: number;
@@ -558,8 +556,6 @@ export interface DashboardStats {
   totalRevenue: number;
   todayOrders: number;
   todayRevenue: number;
-  registrationFeesPaid: number;
-  unpaidMasters: number;
   urgentOrders: number;
   proActive?: number;
   proTrial?: number;

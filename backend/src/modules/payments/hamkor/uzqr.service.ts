@@ -20,8 +20,7 @@ import { createDynamicQr } from './hamkor.client.js';
 
 export type UzQrPurpose =
   | { type: 'BALANCE_TOPUP'; amount: number }
-  | { type: 'ORDER_COMMISSION'; orderId: string }
-  | { type: 'REGISTRATION_FEE' };
+  | { type: 'ORDER_COMMISSION'; orderId: string };
 
 export interface UzQrOrder {
   paymentId: string;
@@ -45,7 +44,6 @@ const MAX_TOPUP = 100_000_000;
 const PURPOSE_TITLE: Partial<Record<PaymentType, string>> = {
   BALANCE_TOPUP: 'Пополнение баланса',
   ORDER_COMMISSION: 'Оплата комиссии по заказу',
-  REGISTRATION_FEE: 'Регистрационный взнос мастера',
 };
 
 /** Сумма и привязки платежа — с проверкой, что платить можно и платит тот, кто должен. */
@@ -69,17 +67,6 @@ async function resolvePurpose(userId: string, purpose: UzQrPurpose) {
       const amount = toNum(order.commissionAmount);
       if (!(amount > 0)) throw ApiError.badRequest('По заказу нет комиссии к оплате');
       return { type: PaymentType.ORDER_COMMISSION, amount, orderId: order.id };
-    }
-    case 'REGISTRATION_FEE': {
-      const profile = await prisma.masterProfile.findUnique({
-        where: { userId },
-        select: { registrationPaid: true },
-      });
-      if (!profile) throw ApiError.notFound('Профиль мастера не найден');
-      if (profile.registrationPaid) throw ApiError.conflict('Регистрационный взнос уже оплачен');
-      const amount = Number(config.platform.masterRegistrationFee);
-      if (!(amount > 0)) throw ApiError.badRequest('Регистрационный взнос не требуется');
-      return { type: PaymentType.REGISTRATION_FEE, amount, orderId: null as string | null };
     }
   }
 }

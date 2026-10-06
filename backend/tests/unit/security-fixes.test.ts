@@ -15,7 +15,6 @@ vi.mock('../../src/config/index.js', () => ({
     superAdminTelegramIds: [] as string[],
     platform: {
       defaultCommissionRate: 15,
-      masterRegistrationFee: 400000,
       defaultReferralMasterBonusRate: 5,
       defaultReferralClientDiscountRate: 3,
     },
@@ -100,7 +99,6 @@ describe('Quality: clampPagination — ограничение пагинации
 
 import {
   balanceTopupSchema,
-  registrationFeeSchema,
   telegramStarsSchema,
   commissionPaymentSchema,
 } from '../../src/modules/payments/payments.schema.js';
@@ -152,16 +150,6 @@ describe('P2: Zod-валидация payments', () => {
     it('отклоняет невалидный UUID для orderId', () => {
       const r = commissionPaymentSchema.safeParse({ orderId: 'not-uuid', provider: 'CLICK' });
       expect(r.success).toBe(false);
-    });
-  });
-
-  describe('registrationFeeSchema', () => {
-    it('принимает валидный provider', () => {
-      expect(registrationFeeSchema.safeParse({ provider: 'PAYME' }).success).toBe(true);
-    });
-
-    it('отклоняет невалидный provider', () => {
-      expect(registrationFeeSchema.safeParse({ provider: 'paypal' }).success).toBe(false);
     });
   });
 });

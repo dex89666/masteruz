@@ -14,7 +14,6 @@ const router = Router();
 const createUzQrSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('BALANCE_TOPUP'), amount: z.number().int().positive() }),
   z.object({ type: z.literal('ORDER_COMMISSION'), orderId: z.string().uuid() }),
-  z.object({ type: z.literal('REGISTRATION_FEE') }),
 ]);
 
 // Создать QR на оплату: { type, amount? | orderId? } → { paymentId, qrUrl, expiresAt, amount, mock }

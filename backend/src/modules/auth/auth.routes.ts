@@ -108,7 +108,7 @@ router.post('/switch-role', authenticate, validateBody(switchRoleSchema), async 
     }
 
     // Меняем роль
-    // Если переключаемся на MASTER — создаём masterProfile если его нет (для админов — с registrationPaid=true)
+    // Если переключаемся на MASTER — создаём masterProfile, если его нет
     if (role === 'MASTER') {
       const existingMp = await prisma.masterProfile.findUnique({ where: { userId } });
       if (!existingMp) {
@@ -117,14 +117,7 @@ router.post('/switch-role', authenticate, validateBody(switchRoleSchema), async 
             userId,
             specializations: ['general'],
             experienceYears: 0,
-            registrationPaid: true, // Админы не платят регистрационный взнос
           },
-        });
-      } else if (!existingMp.registrationPaid) {
-        // Если профиль есть но не оплачен — отмечаем оплаченным (для админов)
-        await prisma.masterProfile.update({
-          where: { userId },
-          data: { registrationPaid: true },
         });
       }
     }

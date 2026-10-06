@@ -7,7 +7,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { paymentsService } from './payments.service.js';
 import { authenticate } from '../../middleware/auth.js';
 import { validateBody } from '../../middleware/validate.js';
-import { balanceTopupSchema, registrationFeeSchema, telegramStarsSchema, commissionPaymentSchema } from './payments.schema.js';
+import { balanceTopupSchema, telegramStarsSchema, commissionPaymentSchema } from './payments.schema.js';
 import { config } from '../../config/index.js';
 import { logger } from '../../utils/logger.js';
 import { clampPagination } from '../../utils/helpers.js';
@@ -49,20 +49,6 @@ router.post('/balance-topup', authenticate, validateBody(balanceTopupSchema), as
     const result = await paymentsService.createBalanceTopupPayment(
       req.user!.userId,
       amount,
-      provider
-    );
-    res.json({ success: true, data: result });
-  } catch (error) {
-    next(error);
-  }
-});
-
-// Создание платежа за регистрационный взнос мастера (400 000 сум)
-router.post('/registration-fee', authenticate, validateBody(registrationFeeSchema), async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const { provider } = req.body;
-    const result = await paymentsService.createRegistrationPayment(
-      req.user!.userId,
       provider
     );
     res.json({ success: true, data: result });

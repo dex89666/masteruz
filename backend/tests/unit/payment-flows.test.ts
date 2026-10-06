@@ -48,7 +48,6 @@ vi.mock('../../src/config/index.js', () => ({
     superAdminUsernames: [],
     platform: {
       defaultCommissionRate: 15,
-      masterRegistrationFee: 400000,
       defaultReferralMasterBonusRate: 5,
       defaultReferralClientDiscountRate: 3,
     },
@@ -200,22 +199,6 @@ describe('Создание платежа — валидация', () => {
     await expect(
       service.createBalanceTopupPayment('user-1', 50000, 'BITCOIN' as any),
     ).rejects.toThrow('Неподдерживаемый');
-  });
-
-  it('createRegistrationPayment — повторная оплата → conflict', async () => {
-    db.masterProfile.findUnique.mockResolvedValueOnce({ registrationPaid: true });
-
-    await expect(
-      service.createRegistrationPayment('user-1', 'CLICK' as any),
-    ).rejects.toThrow('уже оплачен');
-  });
-
-  it('createRegistrationPayment — профиль не найден → notFound', async () => {
-    db.masterProfile.findUnique.mockResolvedValueOnce(null);
-
-    await expect(
-      service.createRegistrationPayment('user-1', 'CLICK' as any),
-    ).rejects.toThrow('не найден');
   });
 
   it('createCommissionPayment — заказ не найден → notFound', async () => {

@@ -179,7 +179,6 @@ export const config = {
   // Платформа (значения по умолчанию)
   platform: {
     defaultCommissionRate: parseFloat(env('DEFAULT_COMMISSION_RATE', '15')),
-    masterRegistrationFee: parseInt(env('MASTER_REGISTRATION_FEE', '400000'), 10),
     defaultReferralMasterBonusRate: parseFloat(env('DEFAULT_REFERRAL_MASTER_BONUS_RATE', '5')),
     defaultReferralClientDiscountRate: parseFloat(env('DEFAULT_REFERRAL_CLIENT_DISCOUNT_RATE', '3')),
   },

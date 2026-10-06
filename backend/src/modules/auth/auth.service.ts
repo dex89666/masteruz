@@ -233,7 +233,7 @@ export class AuthService {
         const existingMp = await prisma.masterProfile.findUnique({ where: { userId } });
         if (!existingMp) {
           await prisma.masterProfile.create({
-            data: { userId, specializations: ['general'], experienceYears: 5, registrationPaid: true },
+            data: { userId, specializations: ['general'], experienceYears: 5 },
           });
         }
       } catch {}
@@ -375,13 +375,7 @@ export class AuthService {
               userId: user.id,
               specializations: ['general'],
               experienceYears: 5,
-              registrationPaid: true,
             },
-          });
-        } else if (!existingMp.registrationPaid) {
-          await prisma.masterProfile.update({
-            where: { userId: user.id },
-            data: { registrationPaid: true },
           });
         }
       } catch {}

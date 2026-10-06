@@ -1217,18 +1217,8 @@ export function AdminDashboardPage() {
                 />
               </div>
 
-              {/* Secondary Stats: Registration Fees & Urgent */}
+              {/* Secondary Stats: Urgent */}
               <div className="grid grid-cols-3 gap-2">
-                <div className="card !p-3 text-center">
-                  <Shield size={16} className="mx-auto text-emerald-600 dark:text-emerald-400 mb-1" />
-                  <p className="text-lg font-bold dark:text-white">{stats.registrationFeesPaid || 0}</p>
-                  <p className="text-[10px] text-gray-500 dark:text-gray-400">{t('admin.regFeesPaid')}</p>
-                </div>
-                <div className="card !p-3 text-center">
-                  <AlertTriangle size={16} className="mx-auto text-red-500 dark:text-red-400 mb-1" />
-                  <p className="text-lg font-bold dark:text-white">{stats.unpaidMasters || 0}</p>
-                  <p className="text-[10px] text-gray-500 dark:text-gray-400">{t('admin.unpaidMasters')}</p>
-                </div>
                 <div className="card !p-3 text-center">
                   <Zap size={16} className="mx-auto text-orange-500 dark:text-orange-400 mb-1" />
                   <p className="text-lg font-bold dark:text-white">{stats.urgentOrders || 0}</p>

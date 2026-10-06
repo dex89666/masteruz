@@ -15,7 +15,7 @@ vi.mock('../../src/config/database.js', () => {
 });
 vi.mock('../../src/config/index.js', () => ({
   config: {
-    platform: { masterRegistrationFee: 400000 },
+    platform: {},
     hamkor: { enabled: true, mock: true, merchantId: 'M1', terminalId: 'T1', qrTtlSeconds: 900 },
   },
 }));
@@ -77,12 +77,6 @@ describe('createUzQrOrder', () => {
   it('уже оплаченная комиссия → conflict', async () => {
     db.order.findUnique.mockResolvedValue({ id: 'o1', masterId: 'u1', commissionAmount: 15000, commissionPaid: true });
     await expect(uzQrService.createUzQrOrder('u1', { type: 'ORDER_COMMISSION', orderId: 'o1' })).rejects.toThrow(/уже оплачена/);
-  });
-
-  it('регистрационный взнос — сумма из настроек', async () => {
-    db.masterProfile.findUnique.mockResolvedValue({ registrationPaid: false });
-    const qr = await uzQrService.createUzQrOrder('u1', { type: 'REGISTRATION_FEE' });
-    expect(qr.amount).toBe(400000);
   });
 
   it('при выключенном HAMKOR_ENABLED — 410, платёж не создаётся', async () => {

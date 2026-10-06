@@ -29,7 +29,7 @@ describe('toPublicMaster', () => {
   const master = toPublicMaster({
     ...account(),
     isPro: true,
-    masterProfile: { rating: 4.9, registrationPaid: true, masterCategories: [] },
+    masterProfile: { rating: 4.9, maxDistanceKm: 10, masterCategories: [] },
     reviewsReceived: [{ id: 'r1', rating: 5, comment: 'ok', reviewerId: 'c1', reviewer: account() }],
   });
 
@@ -39,7 +39,7 @@ describe('toPublicMaster', () => {
     }
     expect(master.profile).not.toHaveProperty('address');
     expect(master.profile).not.toHaveProperty('latitude');
-    expect(master.masterProfile).not.toHaveProperty('registrationPaid');
+    expect(master.masterProfile).not.toHaveProperty('maxDistanceKm');
   });
 
   it('оставляет то, что видно на карточке', () => {

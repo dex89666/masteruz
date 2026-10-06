@@ -518,7 +518,6 @@ PUBLISHED → ACCEPTED → IN_TRANSIT → IN_PROGRESS → (двойное под
 | Эндпоинт | Описание |
 |----------|----------|
 | `POST /api/payments/commission` | Оплата комиссии |
-| `POST /api/payments/registration-fee` | Регистрационный взнос (400 000 сum) |
 | `POST /api/payments/click-webhook` | Webhook Click (MD5) |
 | `POST /api/payments/payme-webhook` | Webhook Payme (JSON-RPC) |
 | `POST /api/payments/subscribe/rpc` | Payme Subscribe API (привязка карт, one-click платежи) |
@@ -1623,7 +1622,6 @@ MasterUz/
 | `UPLOAD_DIR` | `/app/uploads` | Директория загрузок |
 | `MAX_FILE_SIZE` | `5242880` | Макс. размер файла (5MB) |
 | `LOG_LEVEL` | `info` | Уровень логов |
-| `MASTER_REGISTRATION_FEE` | `400000` | Регистрационный взнос мастера (тийины) |
 | `ADMIN_TELEGRAM_CHAT_ID` | — | Chat ID для уведомлений администратору |
 | `VITE_API_URL` | `/api` | API URL для фронтенда |
 
