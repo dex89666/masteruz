@@ -6,7 +6,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usersApi, catalogApi, photosApi } from '../api/client';
 import { compressImage } from '../lib/compressImage';
-import { resolveImageUrl } from '../lib/imageUrl';
+import { AvatarImage } from '../components/AvatarImage';
 import { useAuthStore } from '../store';
 import { useTranslation } from '../i18n';
 import { useLargeText } from '../hooks';
@@ -224,13 +224,15 @@ export function ProfileSettingsPage() {
       {/* Аватар */}
       <div className="card dark:bg-gray-800 dark:ring-gray-700 mb-4">
         <div className="flex items-center gap-4">
-          {form.avatarUrl ? (
-            <img src={resolveImageUrl(form.avatarUrl) ?? undefined} alt="" className="w-20 h-20 rounded-full object-cover" />
-          ) : (
-            <div className="w-20 h-20 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center">
-              <User size={32} className="text-primary-600 dark:text-primary-400" />
-            </div>
-          )}
+          <AvatarImage
+            url={form.avatarUrl}
+            className="w-20 h-20 rounded-full object-cover"
+            fallback={
+              <div className="w-20 h-20 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center">
+                <User size={32} className="text-primary-600 dark:text-primary-400" />
+              </div>
+            }
+          />
           <div className="flex-1">
             <label className="label">{t('settings.avatarUrl')}</label>
             {/* Своё фото: сжимаем, загружаем, сохраняется вместе с формой */}

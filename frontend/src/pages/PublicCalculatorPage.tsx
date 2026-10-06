@@ -13,6 +13,8 @@ import {
 import toast from 'react-hot-toast';
 import { useTranslation, useLocalizedName } from '../i18n';
 import { instantOrderApi } from '../api/client';
+import { useAuthStore } from '../store';
+import { useVoiceInput } from '../hooks/useVoiceInput';
 
 // ─── Типы ответа ─────────────────────────────
 interface EstimateVariant {
@@ -64,6 +66,7 @@ const MAX_PHOTOS = 5;
 
 export function PublicCalculatorPage() {
   const { t } = useTranslation();
+  const isAuthenticated = useAuthStore((st) => st.isAuthenticated);
   const ln = useLocalizedName();
   const formatSum = (n: number) => formatSumWith(n, t('common.currency'));
   const navigate = useNavigate();
@@ -74,8 +77,6 @@ export function PublicCalculatorPage() {
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<EstimateResult | null>(null);
-  const [recording, setRecording] = useState(false);
-  const recognitionRef = useRef<any>(null);
 
   // Заголовок вкладки для расшаренной ссылки (UX, не для ботов соцсетей)
   useEffect(() => {
@@ -84,42 +85,27 @@ export function PublicCalculatorPage() {
     return () => { document.title = prev; };
   }, []);
 
-  // ─── Голосовой ввод (Web Speech API, без сервера) ──────────────
-  const toggleVoice = useCallback(() => {
+  // ─── Голосовой ввод ──────────────
+  // Live через Web Speech API; где он не работает (Android WebView) — запись
+  // и распознавание на сервере, но этот эндпоинт только для вошедших.
+  const voiceBaseRef = useRef('');
+  const appendVoice = (text: string) =>
+    setDescription((voiceBaseRef.current + text).trim().slice(0, 2000));
+  const voice = useVoiceInput({
+    serverAllowed: isAuthenticated,
+    onServerUnavailable: () => toast.error(t('calculator.voiceLoginRequired')),
+    onLiveText: appendVoice,
+    onFinalText: appendVoice,
+  });
+  const recording = voice.isRecording;
+  const toggleVoice = () => {
     if (recording) {
-      recognitionRef.current?.stop();
+      voice.stop();
       return;
     }
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      toast.error(t('calculator.voiceUnsupported'));
-      return;
-    }
-    const recognition = new SpeechRecognition();
-    recognition.lang = 'ru-RU';
-    recognition.interimResults = true;
-    recognition.continuous = true;
-    let finalText = description ? description + ' ' : '';
-    recognition.onresult = (event: any) => {
-      let interim = '';
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const transcript = event.results[i][0].transcript;
-        if (event.results[i].isFinal) finalText += transcript + ' ';
-        else interim = transcript;
-      }
-      setDescription((finalText + interim).trim().slice(0, 2000));
-    };
-    recognition.onerror = (e: any) => {
-      if (e.error === 'no-speech') toast.error(t('instant.noSpeech'));
-      else if (e.error === 'not-allowed') toast.error(t('instant.micDenied'));
-      setRecording(false);
-    };
-    recognition.onend = () => { setRecording(false); recognitionRef.current = null; };
-    recognitionRef.current = recognition;
-    recognition.start();
-    setRecording(true);
-    toast(t('calculator.speak'), { icon: '🎙️', duration: 1800 });
-  }, [recording, description]);
+    voiceBaseRef.current = description ? description + ' ' : '';
+    voice.start();
+  };
 
   const addFiles = useCallback(async (files: File[]) => {
     const room = MAX_PHOTOS - previews.length;

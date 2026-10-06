@@ -14,11 +14,11 @@ import {
   Plus, Trash2, Check, ListChecks, Navigation,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { Capacitor } from '@capacitor/core';
 import { reverseGeocode as reverseGeocodeClient } from '../lib/reverseGeocode';
 import { getCurrentPosition, GeoError } from '../lib/geolocation';
 import { useTranslation, useLocalizedName } from '../i18n';
 import { useFormatPrice } from '../hooks';
+import { useVoiceInput } from '../hooks/useVoiceInput';
 import { instantOrderApi, catalogApi, photosApi, geoApi } from '../api/client';
 import type { AiAnalysisResult, AiOrderTemplate, Category } from '../types';
 import CategoryIcon from '../components/CategoryIcon';
@@ -79,7 +79,6 @@ export function InstantOrderPage() {
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [description, setDescription] = useState('');
   const [voiceText, setVoiceText] = useState('');
-  const [isRecording, setIsRecording] = useState(false);
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -129,12 +128,6 @@ export function InstantOrderPage() {
   // Подсветка обязательного выбора категории, когда AI не справился
   const [categoryRequired, setCategoryRequired] = useState(false);
   const categorySectionRef = useRef<HTMLDivElement>(null);
-
-  // Refs for speech
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
-  const recognitionRef = useRef<any>(null);
-  const interimRef = useRef<string>(''); // последний промежуточный текст для финализации
 
   // ─── Load categories ────────────────
   useEffect(() => {
@@ -300,185 +293,19 @@ export function InstantOrderPage() {
   }, [addFiles]);
 
   // ─── Voice input ────────────────────
-  // Стратегия: на устройствах с Web Speech API (Chrome Desktop, Android Chrome обычный)
-  // делаем live-распознавание. На Android Telegram WebView и iOS Safari — пишем аудио
-  // через MediaRecorder и отправляем на сервер (Whisper).
-  const transcribeWithWhisper = useCallback(async (blob: Blob) => {
-    try {
-      toast(_t('instant.recognizing'), { icon: '🎙️', duration: 2000 });
-      const res = await instantOrderApi.transcribe(blob);
-      const text = res.data.data?.text?.trim() || '';
-      if (!text) {
-        toast.error(_t('instant.speechNotRecognized'));
-        return;
-      }
+  // Live-распознавание или запись + Whisper — выбирает useVoiceInput.
+  const { isRecording, start: startRecording, stop: stopRecording } = useVoiceInput({
+    serverAllowed: true, // страница доступна только авторизованным
+    onLiveText: (text) => {
       setVoiceText(text);
-      setDescription((prev) => (prev?.trim() ? `${prev}. ${text}` : text));
-      toast.success(_t('instant.voiceRecognized'));
-    } catch (err: any) {
-      const msg = err.response?.data?.error?.message || err.message || _t('instant.recognitionError');
-      toast.error(msg);
-    }
-  }, []);
-
-  const startRecordingViaMediaRecorder = useCallback(async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      // Выбираем поддерживаемый mime-type (Android Telegram любит audio/webm;opus, iOS — audio/mp4)
-      const candidates = [
-        'audio/webm;codecs=opus',
-        'audio/webm',
-        'audio/mp4',
-        'audio/ogg;codecs=opus',
-      ];
-      const supported = candidates.find((m) => (window as any).MediaRecorder?.isTypeSupported?.(m));
-      const recorder = supported
-        ? new MediaRecorder(stream, { mimeType: supported })
-        : new MediaRecorder(stream);
-
-      chunksRef.current = [];
-      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
-      recorder.onstop = async () => {
-        const blob = new Blob(chunksRef.current, { type: recorder.mimeType || 'audio/webm' });
-        stream.getTracks().forEach((t) => t.stop());
-        setIsRecording(false);
-        chunksRef.current = [];
-        if (blob.size < 1024) {
-          toast.error(_t('instant.recordingTooShort'));
-          return;
-        }
-        await transcribeWithWhisper(blob);
-      };
-
-      mediaRecorderRef.current = recorder;
-      recorder.start();
-      setIsRecording(true);
-      toast(_t('instant.speakNow'), { icon: '🎙️', duration: 2500 });
-    } catch (err: any) {
-      const name = err?.name || '';
-      if (name === 'NotAllowedError') {
-        toast.error(_t('instant.micDeniedSettings'));
-      } else if (name === 'NotFoundError') {
-        toast.error(_t('instant.micNotFound'));
-      } else {
-        toast.error(_t('instant.micAccessFailed'));
-      }
-      setIsRecording(false);
-    }
-  }, [transcribeWithWhisper]);
-
-  const startRecording = useCallback(async () => {
-    // В нативном приложении (Android/iOS APK) Web Speech API присутствует в
-    // WebView, но не работает — нет привязки к облачному speech-сервису.
-    // Поэтому на native ВСЕГДА пишем аудио и распознаём через Whisper.
-    if (Capacitor.isNativePlatform()) {
-      await startRecordingViaMediaRecorder();
-      return;
-    }
-
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    // Live-распознавание доступно везде, где есть Web Speech API (iOS Safari,
-    // Android Chrome). Текст появляется в реальном времени. В webview без API
-    // (Telegram на iOS, часть Android) — сразу пишем аудио и шлём на Whisper.
-    if (!SpeechRecognition) {
-      await startRecordingViaMediaRecorder();
-      return;
-    }
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
-      chunksRef.current = [];
-      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
-      mediaRecorderRef.current = recorder;
-      recorder.start();
-
-      const recognition = new SpeechRecognition();
-      recognition.lang = 'ru-RU';
-      recognition.interimResults = true;
-      recognition.continuous = true;
-      recognition.maxAlternatives = 1;
-
-      let finalTranscript = '';
-      let interimTranscript = '';
-      let fallbackTriggered = false;
-      interimRef.current = '';
-
-      recognition.onresult = (event: any) => {
-        interimTranscript = '';
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          const transcript = event.results[i][0].transcript;
-          if (event.results[i].isFinal) {
-            finalTranscript += transcript + ' ';
-          } else {
-            interimTranscript = transcript;
-          }
-        }
-        interimRef.current = interimTranscript;
-        const currentText = (finalTranscript + interimTranscript).trim();
-        if (currentText) {
-          setVoiceText(currentText);
-          setDescription(currentText);
-        }
-      };
-
-      recognition.onerror = async (event: any) => {
-        // network / service-not-allowed / aborted → пробуем Whisper-фоллбэк
-        if (['network', 'service-not-allowed', 'audio-capture'].includes(event.error) && !fallbackTriggered) {
-          fallbackTriggered = true;
-          recognition.abort();
-          // Останавливаем mediaRecorder и переключаемся на Whisper
-          if (recorder.state === 'recording') {
-            recorder.onstop = async () => {
-              const blob = new Blob(chunksRef.current, { type: recorder.mimeType || 'audio/webm' });
-              stream.getTracks().forEach((t) => t.stop());
-              setIsRecording(false);
-              if (blob.size >= 1024) await transcribeWithWhisper(blob);
-            };
-            recorder.stop();
-          } else {
-            stream.getTracks().forEach((t) => t.stop());
-            setIsRecording(false);
-          }
-          return;
-        }
-        if (event.error === 'no-speech') toast.error(_t('instant.noSpeech'));
-        else if (event.error === 'not-allowed') toast.error(_t('instant.micDenied'));
-      };
-
-      recognition.onend = () => {
-        if (fallbackTriggered) return;
-        // Финализируем: финальный текст + последний промежуточный (если речь
-        // оборвалась до isFinal — иначе последние слова терялись).
-        const result = (finalTranscript + ' ' + interimRef.current).trim();
-        if (result) {
-          setVoiceText(result);
-          setDescription(result);
-          toast.success(_t('instant.voiceRecognized'));
-        } else {
-          toast.error(_t('instant.speechFailed'));
-        }
-        interimRef.current = '';
-        stream.getTracks().forEach((t) => t.stop());
-        if (recorder.state === 'recording') recorder.stop();
-        setIsRecording(false);
-      };
-
-      recognitionRef.current = recognition;
-      recognition.start();
-      setIsRecording(true);
-      toast(_t('instant.speakLive'), { duration: 2000 });
-    } catch {
-      // Если getUserMedia упал — пробуем альтернативный путь
-      await startRecordingViaMediaRecorder();
-    }
-  }, [startRecordingViaMediaRecorder, transcribeWithWhisper]);
-
-  const stopRecording = useCallback(() => {
-    if (recognitionRef.current) { recognitionRef.current.stop(); recognitionRef.current = null; }
-    if (mediaRecorderRef.current && isRecording) mediaRecorderRef.current.stop();
-    setIsRecording(false);
-  }, [isRecording]);
+      setDescription(text);
+    },
+    onFinalText: (text, source) => {
+      setVoiceText(text);
+      // Live-текст уже стоит в описании; ответ сервера дописываем к введённому
+      setDescription((prev) => (source === 'live' || !prev?.trim() ? text : `${prev}. ${text}`));
+    },
+  });
 
   // ─── AI analysis ────────────────────
   /**

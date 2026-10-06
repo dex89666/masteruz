@@ -11,6 +11,7 @@ import { AdminWithdrawals } from '../components/AdminWithdrawals';
 import { useAuthStore } from '../store';
 import { useTranslation } from '../i18n';
 import { resolveImageUrl } from '../lib/imageUrl';
+import { AvatarImage } from '../components/AvatarImage';
 import { useFormatPrice } from '../hooks';
 import { confirm, prompt } from '../store/confirmStore';
 import { LoadingSpinner } from '../components/LoadingSpinner';
@@ -1477,13 +1478,15 @@ export function AdminDashboardPage() {
                   <div className="flex items-center gap-3">
                     {/* Avatar */}
                     <div className="flex-shrink-0">
-                      {u.profile?.avatarUrl ? (
-                        <img src={resolveImageUrl(u.profile.avatarUrl) ?? undefined} alt="" className="w-10 h-10 rounded-full object-cover" />
-                      ) : (
-                        <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
-                          <Users size={18} className="text-gray-400" />
-                        </div>
-                      )}
+                      <AvatarImage
+                        url={u.profile.avatarUrl}
+                        className="w-10 h-10 rounded-full object-cover"
+                        fallback={
+                          <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+                            <Users size={18} className="text-gray-400" />
+                          </div>
+                        }
+                      />
                     </div>
 
                     {/* Info */}

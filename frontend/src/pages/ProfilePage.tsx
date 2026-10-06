@@ -15,7 +15,7 @@ import {
   ShieldCheck, Users, Wrench,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { resolveImageUrl } from '../lib/imageUrl';
+import { AvatarImage } from '../components/AvatarImage';
 
 export function ProfilePage() {
   const navigate = useNavigate();
@@ -98,17 +98,15 @@ export function ProfilePage() {
       {/* Основная информация */}
       <div className="card mb-4">
         <div className="flex items-center gap-4">
-          {user.profile?.avatarUrl ? (
-            <img
-              src={resolveImageUrl(user.profile.avatarUrl) ?? undefined}
-              alt=""
-              className="w-16 h-16 rounded-full object-cover"
-            />
-          ) : (
-            <div className="w-16 h-16 rounded-full bg-primary-100 dark:bg-primary-900/40 flex items-center justify-center">
-              <User size={28} className="text-primary-600 dark:text-primary-400" />
-            </div>
-          )}
+          <AvatarImage
+            url={user.profile?.avatarUrl}
+            className="w-16 h-16 rounded-full object-cover"
+            fallback={
+              <div className="w-16 h-16 rounded-full bg-primary-100 dark:bg-primary-900/40 flex items-center justify-center">
+                <User size={28} className="text-primary-600 dark:text-primary-400" />
+              </div>
+            }
+          />
           <div className="flex-1">
             <h2 className="text-lg font-bold dark:text-white">
               {user.profile?.firstName || t('profile.user')}{' '}

@@ -15,3 +15,6 @@ interface ImportMeta {
 // Идентификатор сборки, инжектируется Vite (define). Сравнивается с
 // /version.json, чтобы понять, что на сервере вышла новая версия.
 declare const __BUILD_ID__: string;
+
+// Версия веб-бандла из package.json (define в vite.config.ts).
+declare const __APP_VERSION__: string;

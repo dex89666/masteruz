@@ -3,12 +3,12 @@
 // Страница помощи и поддержки
 // ============================================
 
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from '../i18n';
 import {
   MessageCircle, Phone, Mail, HelpCircle, ChevronDown, ChevronUp,
-  FileText, Shield, BookOpen, ExternalLink, Send, CheckCircle
+  FileText, Shield, BookOpen, ChevronRight, Send, CheckCircle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -19,6 +19,12 @@ export function HelpSupportPage() {
   const [expandedFaq, setExpandedFaq] = useState<string | null>(null);
   const [formData, setFormData] = useState({ name: '', email: '', subject: '', message: '' });
   const [submitted, setSubmitted] = useState(false);
+  const { hash } = useLocation();
+
+  // React Router не прокручивает к якорю сам — делаем это для /support#faq
+  useEffect(() => {
+    if (hash) document.getElementById(hash.slice(1))?.scrollIntoView({ behavior: 'smooth' });
+  }, [hash]);
 
   function toggleFaq(key: string) {
     setExpandedFaq(expandedFaq === key ? null : key);
@@ -86,7 +92,7 @@ export function HelpSupportPage() {
 
       <div className="grid lg:grid-cols-2 gap-8">
         {/* FAQ Section */}
-        <div>
+        <div id="faq" className="scroll-mt-20">
           <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
             <BookOpen size={20} className="text-primary-600" />
             {t('about.faqTitle')}
@@ -197,19 +203,24 @@ export function HelpSupportPage() {
         <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">{t('support.usefulLinks')}</h2>
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {[
-            { icon: FileText, label: t('home.publicOffer'), link: '/legal/offer' },
-            { icon: Shield, label: t('home.privacyPolicy'), link: '/legal/privacy' },
+            { icon: FileText, label: t('home.publicOffer'), link: '/public-offer' },
+            { icon: Shield, label: t('home.privacyPolicy'), link: '/privacy' },
             { icon: BookOpen, label: t('footer.about'), link: '/about' },
-            { icon: HelpCircle, label: t('footer.faq'), link: '/about' },
+            { icon: HelpCircle, label: t('footer.faq'), link: '/support#faq' },
           ].map((item) => (
             <Link
               key={item.link + item.label}
               to={item.link}
+              onClick={() => {
+                // Повторный клик по тому же якорю не меняет hash — прокручиваем вручную
+                const id = item.link.split('#')[1];
+                if (id) document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+              }}
               className="flex items-center gap-3 p-3 rounded-xl bg-white dark:bg-gray-800 ring-1 ring-gray-100 dark:ring-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
             >
               <item.icon size={18} className="text-primary-600 dark:text-primary-400 flex-shrink-0" />
               <span className="text-sm text-gray-700 dark:text-gray-300">{item.label}</span>
-              <ExternalLink size={14} className="text-gray-400 ml-auto" />
+              <ChevronRight size={16} className="text-gray-400 ml-auto" />
             </Link>
           ))}
         </div>

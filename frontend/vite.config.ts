@@ -1,6 +1,7 @@
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
+import { readFileSync } from 'fs';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
@@ -10,6 +11,7 @@ export default defineConfig(({ mode }) => {
   // одновременно пишется в dist/version.json. Фронт периодически сравнивает
   // их и предлагает обновиться, когда на сервере появилась новая версия.
   const buildId = env.BUILD_ID || String(Date.now());
+  const appVersion: string = JSON.parse(readFileSync(path.resolve(__dirname, 'package.json'), 'utf-8')).version;
 
   return {
     plugins: [
@@ -29,6 +31,7 @@ export default defineConfig(({ mode }) => {
     ],
     define: {
       __BUILD_ID__: JSON.stringify(buildId),
+      __APP_VERSION__: JSON.stringify(appVersion),
     },
     resolve: {
       alias: {

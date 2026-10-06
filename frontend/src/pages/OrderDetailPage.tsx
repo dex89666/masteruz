@@ -26,6 +26,7 @@ import { useOrderEvents } from '../hooks/useOrderEvents';
 import { useMasterLocationBroadcast } from '../hooks/useMasterLocationBroadcast';
 import { useTranslation, useLocalizedName } from '../i18n';
 import { resolveImageUrl } from '../lib/imageUrl';
+import { AvatarImage } from '../components/AvatarImage';
 import {
   MapPin, Clock, DollarSign, User, Phone,
   CheckCircle, XCircle, MessageSquare, Star, Send, AlertTriangle,
@@ -1469,13 +1470,15 @@ export function OrderDetailPage() {
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
                     <div className="relative">
-                      {resp.master?.profile?.avatarUrl ? (
-                        <img src={resolveImageUrl(resp.master.profile.avatarUrl) ?? undefined} className="w-10 h-10 rounded-full object-cover" alt="" />
-                      ) : (
-                        <div className="w-10 h-10 rounded-full bg-primary-100 dark:bg-primary-900/40 flex items-center justify-center">
-                          <User size={20} className="text-primary-600 dark:text-primary-400" />
-                        </div>
-                      )}
+                      <AvatarImage
+                        url={resp.master?.profile?.avatarUrl}
+                        className="w-10 h-10 rounded-full object-cover"
+                        fallback={
+                          <div className="w-10 h-10 rounded-full bg-primary-100 dark:bg-primary-900/40 flex items-center justify-center">
+                            <User size={20} className="text-primary-600 dark:text-primary-400" />
+                          </div>
+                        }
+                      />
                       {resp.master?.masterProfile && (
                         <span className={`absolute -bottom-0.5 -right-0.5 block w-3 h-3 rounded-full border-2 border-white dark:border-gray-800 ${
                           resp.master.masterProfile.isOnline

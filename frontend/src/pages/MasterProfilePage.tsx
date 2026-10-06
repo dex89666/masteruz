@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { User as UserType, Review, PortfolioItem } from '../types';
-import { resolveImageUrl } from '../lib/imageUrl';
+import { AvatarImage } from '../components/AvatarImage';
 
 export function MasterProfilePage() {
   const { id } = useParams<{ id: string }>();
@@ -99,13 +99,15 @@ export function MasterProfilePage() {
       {/* Header card */}
       <div className="card mb-4">
         <div className="flex items-start gap-4">
-          {profile?.avatarUrl ? (
-            <img src={resolveImageUrl(profile.avatarUrl) ?? undefined} alt="" className="w-20 h-20 rounded-2xl object-cover" />
-          ) : (
-            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center">
-              <User size={32} className="text-white" />
-            </div>
-          )}
+          <AvatarImage
+            url={profile?.avatarUrl}
+            className="w-20 h-20 rounded-2xl object-cover"
+            fallback={
+              <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center">
+                <User size={32} className="text-white" />
+              </div>
+            }
+          />
           <div className="flex-1">
             <div className="flex items-start justify-between">
               <div>
@@ -336,13 +338,15 @@ export function MasterProfilePage() {
               <div key={review.id} className="card">
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex items-center gap-2">
-                    {review.reviewer?.profile?.avatarUrl ? (
-                      <img src={resolveImageUrl(review.reviewer.profile.avatarUrl) ?? undefined} alt="" className="w-8 h-8 rounded-full object-cover" />
-                    ) : (
-                      <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
-                        <User size={16} className="text-gray-400 dark:text-gray-500" />
-                      </div>
-                    )}
+                    <AvatarImage
+                      url={review.reviewer?.profile?.avatarUrl}
+                      className="w-8 h-8 rounded-full object-cover"
+                      fallback={
+                        <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+                          <User size={16} className="text-gray-400 dark:text-gray-500" />
+                        </div>
+                      }
+                    />
                     <div>
                       <p className="text-sm font-medium dark:text-white">
                         {review.reviewer?.profile?.firstName || t('masters.client')}
